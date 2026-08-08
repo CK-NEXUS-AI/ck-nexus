@@ -3,11 +3,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
+from typing import Any, Mapping
 
 from creator_app.agnes_discovery import SkillDiscoveryPolicy
 from creator_app.agnes_ledger import AppendOnlyLedger
 from creator_app.agnes_skills import AgnesSkillRegistry, SkillDefinition, SkillRisk
 from creator_app.agnes_workbench import WorkspaceBroker, WorkspaceKind
+from creator_app.credential_broker import CredentialBroker
+from creator_app.agnes.execution.approval import StickyApprovalResolver
+from creator_app.agnes.execution.dispatcher import SkillExecutionDispatcher, build_phase1_dispatcher
+from creator_app.agnes.execution.guards import ExecutionPolicyEngine
+from creator_app.agnes.execution.request import ExecutorType, SkillExecutionRequest
+from creator_app.agnes.execution.result import SkillExecutionResult
 from creator_app.provider_router import ProviderKind, ProviderRouter
 
 
@@ -45,6 +52,8 @@ class AgnesNervousSystem:
         ledger_path: Path,
         provider_router: ProviderRouter | None = None,
         policy: AgnesPolicy | None = None,
+        credential_broker: CredentialBroker | None = None,
+        dispatcher: SkillExecutionDispatcher | None = None,
     ) -> None:
         self.skill_file = skill_file
         self.registry = AgnesSkillRegistry.load(skill_file)
@@ -53,6 +62,14 @@ class AgnesNervousSystem:
         self.policy = policy or AgnesPolicy()
         self.workspace_broker = WorkspaceBroker()
         self.discovery = SkillDiscoveryPolicy()
+        self.approvals = StickyApprovalResolver()
+        self.dispatcher = dispatcher or build_phase1_dispatcher(
+            skill_registry=self.registry,
+            policy_engine=ExecutionPolicyEngine(self.policy),
+            approval_service=self.approvals,
+            ledger=self.ledger,
+            credential_broker=credential_broker,
+        )
 
     def _inference_status(self) -> dict[str, object]:
         if self.provider_router is None:
@@ -86,6 +103,7 @@ class AgnesNervousSystem:
             "ledger": ledger.as_dict(),
             "workspace_providers": [item.as_dict() for item in self.workspace_broker.providers()],
             "discovery_sources": self.discovery.source_catalog(),
+            "execution_kernel": self.dispatcher.status(),
             "production_gate": "NO-GO until R12 staging evidence passes",
         }
 
@@ -143,6 +161,48 @@ class AgnesNervousSystem:
             },
         )
 
+
+
+    async def execute_skill(
+        self,
+        plan_step: Mapping[str, Any],
+        *,
+        goal: str,
+        correlation_id: str,
+        tenant_id: str = "default",
+        actor_id: str = "system",
+        environment: str = "development",
+        workspace_id: str | None = None,
+        baseline_commit: str | None = None,
+        approval_id: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> SkillExecutionResult:
+        skill_id = str(plan_step.get("id") or plan_step.get("skill_id") or "").strip()
+        skill = self.registry.get(skill_id)
+        executor = ExecutorType(str(plan_step.get("executor") or skill.executor))
+        request = SkillExecutionRequest(
+            execution_id=str(plan_step.get("execution_id") or f"agnes_exec_{uuid4().hex}"),
+            correlation_id=correlation_id,
+            skill_id=skill.id,
+            skill_version=str(plan_step.get("version") or skill.version),
+            executor=executor,
+            goal=goal,
+            plan_step=plan_step,
+            inputs=plan_step.get("inputs", {}),
+            tenant_id=tenant_id,
+            actor_id=actor_id,
+            environment=environment,
+            policy_version=str(plan_step.get("policy_version") or "r14-phase1"),
+            workspace_id=workspace_id,
+            baseline_commit=baseline_commit,
+            requires_approval=bool(plan_step.get("requires_approval", False)),
+            approval_id=approval_id,
+            timeout_seconds=int(plan_step.get("timeout_seconds", 300)),
+            idempotency_key=idempotency_key,
+            allowlist_paths=tuple(plan_step.get("allowlist_paths", ())),
+            granted_capabilities=tuple(plan_step.get("granted_capabilities", ())),
+        )
+        return await self.dispatcher.execute(request)
 
     def discovery_sources(self) -> list[dict[str, object]]:
         return self.discovery.source_catalog()

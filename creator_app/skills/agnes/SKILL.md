@@ -65,3 +65,18 @@ AGNES is the governed capability layer for CK-NEXUS. Skills describe *how* to pe
 Discover → Verify source → Extract capability → Compare with current baseline → Create proposal → Risk review → Create isolated branch/workspace → Implement bounded change → Compile → Test → Security scan → Benchmark/eval → Build evidence → Council review → Human approval for merge/canary → Canary → Observe → Rollback on failure → Append learning.
 
 The lifecycle may continue automatically through safe local development steps. It must stop before external/destructive/high-impact actions unless the relevant approval policy has already been satisfied.
+
+## AGNES Execution Kernel Phase 1 — Security Baseline invariants
+
+The R13 skill nervous system is extended, not replaced, by the execution security baseline:
+
+- Agent != Executor.
+- Workspace != Sandbox.
+- Execution identity is frozen into one immutable manifest before execution.
+- Approval is sticky to the exact execution fingerprint; changing inputs, permissions, workspace, baseline, credential requirements, executor, or policy invalidates the old approval.
+- Executor risk can only raise effective risk, never lower it.
+- Credentials remain behind Credential Broker leases; skills do not receive a bulk secret export.
+- Kill switches exist at global, tenant, executor, and skill scopes.
+- Results follow candidate -> verify -> scan -> approve -> promote; no direct production promotion.
+- Phase 1 has no auto-merge and no auto-production deployment.
+- The default Phase-1 executor registry is intentionally empty; missing executors fail closed.

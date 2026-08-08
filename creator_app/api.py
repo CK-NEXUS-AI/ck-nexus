@@ -93,6 +93,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ledger_path=resolved_settings.agnes_ledger_path,
         provider_router=provider_router,
         policy=AgnesPolicy(max_parallel_skills=resolved_settings.agnes_max_parallel_skills),
+        credential_broker=credential_broker,
     )
     gmail_oauth = GmailOAuthManager(
         credential_broker,
@@ -778,6 +779,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail={"error": "AGNES_DISABLED", "message": "AGNES skill nervous system is disabled."},
             )
         return agnes.status()
+
+    @app.get("/api/agnes/execution/status")
+    async def agnes_execution_status(
+        _: None = Depends(require_access_token),
+    ) -> dict[str, object]:
+        return agnes.dispatcher.status()
 
     @app.get("/api/agnes/skills")
     async def agnes_skills(_: None = Depends(require_access_token)) -> dict[str, object]:
