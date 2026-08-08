@@ -98,6 +98,8 @@ python scripts/package_release.py
 - `GET /docs` — OpenAPI UI
 - `GET /api/codex/status` — สถานะ Codex Bridge แบบไม่เปิดเผย credential
 - `POST /api/codex/tasks` — ส่งงานวิศวกรรมซอฟต์แวร์ให้ Codex (ปิดเป็นค่าเริ่มต้นและบังคับ bearer token)
+- `GET /api/integrations/status` — สรุป GitHub / Slack / Google Drive / n8n / OpenAI / Database โดยไม่เปิดเผย secret
+- `POST /api/integrations/test-all` — ทดสอบ integration ที่ตั้งค่าไว้จากฝั่ง server
 
 ## โครงสร้างสำคัญ
 
@@ -121,7 +123,9 @@ services/billing/   โมดูล SaaS เดิม (optional, ไม่เป
 - License template ต้องใส่ชื่อผู้ขาย เงื่อนไข support และผ่านการตรวจทางกฎหมายก่อนใช้จริง
 - หากเปิดใช้อินเทอร์เน็ตสาธารณะ ควรวางหลัง HTTPS reverse proxy และตั้ง `CKNEXUS_ACCESS_TOKEN`
 
-อ่าน [Release Checklist](docs/RELEASE_CHECKLIST.md) และ [Commercial License Template](COMMERCIAL_LICENSE_TEMPLATE.md) ก่อนขาย
+อ่าน [Release Checklist](docs/RELEASE_CHECKLIST.md) ก่อนออก release จริง ส่วน Commercial License / Seller Checklist อยู่ใน seller package แยกจาก source repository เพื่อไม่ปะปนเอกสารธุรกรรมกับโค้ดส่งมอบ
+
+รายละเอียด Integration Hub อยู่ใน [Integration Hub](docs/INTEGRATION_HUB.md) และสถานะ R4 อยู่ใน [Release Status](RELEASE_STATUS.md)
 
 รายละเอียด UI อยู่ใน [UX Design System](docs/UX_DESIGN_SYSTEM.md), ผลตรวจอยู่ใน [Security Audit](docs/SECURITY_AUDIT.md) และ [Test Report](docs/TEST_REPORT.md)
 

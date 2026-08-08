@@ -16,6 +16,7 @@ from creator_app.codex_bridge import (
 )
 from creator_app.config import Settings
 from creator_app.github_integration import GitHubIntegration
+from creator_app.integrations import GoogleDriveIntegration, N8nIntegration, SlackIntegration
 from creator_app.rate_limit import SlidingWindowRateLimiter
 from creator_app.runtime import CreatorRuntime, MissingCredentialError, ProviderRuntimeError
 from creator_app.schemas import (
@@ -63,6 +64,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         repository=resolved_settings.github_repo,
         api_base=resolved_settings.github_api_base,
     )
+    slack_integration = SlackIntegration(
+        resolved_settings.slack_bot_token,
+        api_base=resolved_settings.slack_api_base,
+        timeout=resolved_settings.integration_timeout_seconds,
+    )
+    drive_integration = GoogleDriveIntegration(
+        resolved_settings.google_drive_access_token,
+        api_base=resolved_settings.google_drive_api_base,
+        timeout=resolved_settings.integration_timeout_seconds,
+    )
+    n8n_integration = N8nIntegration(
+        resolved_settings.n8n_base_url,
+        resolved_settings.n8n_api_key,
+        timeout=resolved_settings.integration_timeout_seconds,
+    )
     email_database_path = resolved_settings.email_database_path or resolved_settings.database_path
     email_repository = create_email_repository(
         database_url=resolved_settings.email_database_url,
@@ -87,6 +103,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.store = store
     app.state.service = service
     app.state.github_integration = github_integration
+    app.state.slack_integration = slack_integration
+    app.state.drive_integration = drive_integration
+    app.state.n8n_integration = n8n_integration
     app.state.codex_bridge = codex_bridge
     app.state.email_repository = email_repository
 
@@ -476,6 +495,57 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/integrations/github/test")
     async def github_test(_: None = Depends(require_access_token)) -> dict[str, object]:
         return github_integration.status().as_dict()
+
+    @app.get("/api/integrations/status")
+    async def integrations_status(_: None = Depends(require_access_token)) -> dict[str, object]:
+        github = github_integration.status().as_dict()
+        github_normalized = {
+            "id": "github",
+            "configured": github["configured"],
+            "connected": bool(github["connected"] and github["repository_access"]),
+            "message": github["message"],
+            "details": {
+                "login": github["login"],
+                "repository": github["repository"],
+                "repository_access": github["repository_access"],
+                "default_branch": github["default_branch"],
+            },
+        }
+        openai_status = {
+            "id": "openai",
+            "configured": resolved_settings.openai_key_configured,
+            "connected": False,
+            "message": (
+                "OpenAI server credential is configured; live connectivity remains an AI001 runtime gate."
+                if resolved_settings.openai_key_configured
+                else "OpenAI server credential is not configured."
+            ),
+            "details": {"model": resolved_settings.openai_model, "live_test_required": True},
+        }
+        local_status = {
+            "id": "database",
+            "configured": True,
+            "connected": store.ping(),
+            "message": "Application database is reachable." if store.ping() else "Application database is unavailable.",
+            "details": {"backend": "postgresql" if resolved_settings.database_url else "sqlite"},
+        }
+        integrations = [
+            github_normalized,
+            slack_integration.status().as_dict(),
+            drive_integration.status().as_dict(),
+            n8n_integration.status().as_dict(),
+            openai_status,
+            local_status,
+        ]
+        return {
+            "release_status": "release_candidate",
+            "production_gate": "NO-GO until required P0 runtime evidence passes",
+            "integrations": integrations,
+        }
+
+    @app.post("/api/integrations/test-all")
+    async def integrations_test_all(_: None = Depends(require_access_token)) -> dict[str, object]:
+        return await integrations_status(_)
 
     @app.get("/api/codex/status")
     async def codex_status(_: None = Depends(require_access_token)) -> dict[str, bool | str]:

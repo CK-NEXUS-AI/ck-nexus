@@ -1,6 +1,8 @@
 .env
 .env.*
 !.env.example
+!.env.p0.example
+!.env.prod.example
 .venv/
 .tools/
 .cache/

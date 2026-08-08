@@ -1,45 +1,61 @@
-CK-NEXUS Creator Edition v0.2.0
+CK-NEXUS Creator Edition v0.2.0 — R4 Integration Hub
+
+Release classification:
+- Release Candidate
+- Not Production Ready until required P0 runtime gates pass
 
 Core application:
 - main.py
 - pyproject.toml
 - uv.lock
 - creator_app/
+- services/
 - Dockerfile
 - .env.example
+- .env.p0.example
+- .env.prod.example
 
-Quality and verification:
-- tests/
+R4 Integration Hub:
+- creator_app/integrations.py
+- GET /api/integrations/status
+- POST /api/integrations/test-all
+- GitHub / Slack / Google Drive / n8n / OpenAI configuration / database status
+- docs/INTEGRATION_HUB.md
+- docs/R4_CHANGELOG.md
+
+CI and verification:
+- .github/workflows/ci.yml
+- .github/workflows/dependency-audit.yml
+- scripts/secret_scan.py
 - scripts/release_check.py
-- scripts/package_release.py
+- tests/
 - docs/ACCEPTANCE_CRITERIA.md
 - docs/RELEASE_CHECKLIST.md
 - docs/SECURITY_AUDIT.md
 - docs/TEST_REPORT.md
-- docs/UX_DESIGN_SYSTEM.md
-- docs/CODEX_INTEGRATION.md
-- docs/OPENAI_CODEX_ADOPTION.md
-- docs/agent-interactions.png
-- docs/agent-sequence.png
+- docs/R4_VALIDATION_REPORT.md
 
-Commercial and operational documentation:
+Operational and architecture documentation:
 - README.md
-- COMMERCIAL_LICENSE_TEMPLATE.md
+- INSTALL_GUIDE.md
+- RELEASE_STATUS.md
 - THIRD_PARTY_NOTICES.md
 - docs/ARCHITECTURE.md
 - docs/BUILD_BRIEF.md
-- docs/SELLER_CHECKLIST.md
-- CHANGELOG.md
-- RELEASE_STATUS.md
-- scripts/install_codex.py
+- docs/CODEX_INTEGRATION.md
+- docs/OPENAI_CODEX_ADOPTION.md
+- VPS_P0_QUICKSTART.md
+- runbooks/
+- n8n/
 
-Optional legacy module:
-- app/db/
-- services/billing/
-- tests/test_billing.py
+Commercial boundary:
+- Seller transaction documents, legal identity, pricing, support/refund terms, and final IP transfer documents are intentionally maintained outside this source repository.
+- Third-party services, credentials, API credits, hosting, domains, and n8n/OpenAI/GitHub accounts are not transferred by this source package unless separately agreed.
 
-Excluded from delivery:
-- .env.local and all secrets
-- data/*.db and user content
+Excluded from delivery/runtime evidence:
+- .git metadata in source ZIP (Git history is supplied separately as a Git bundle when needed)
+- real .env files and all secrets
+- data/*.db, *.db-shm, *.db-wal, user content
 - .venv, caches, logs, build output
-- project-local Codex CLI binaries and Codex credential/state directories
+- Codex credential/state directories
+- staging/private P0 evidence containing secrets

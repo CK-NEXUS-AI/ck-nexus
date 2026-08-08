@@ -45,7 +45,7 @@ Retain the audit report as P0 evidence. Re-check the stable n8n release/security
 
 ## 5. OpenAI Live Mode
 
-The RC default model is `gpt-5.6-luna`, intended for cost-sensitive workloads. Confirm model access in the customer's OpenAI project. Use the production application path for final smoke evidence rather than relying only on a standalone API call.
+The RC default model is `gpt-5-mini`, intended for cost-sensitive workloads. Confirm model access in the customer's OpenAI project. Use the production application path for final smoke evidence rather than relying only on a standalone API call.
 
 ## 6. P0 Runbook
 

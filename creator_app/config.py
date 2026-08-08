@@ -33,7 +33,7 @@ def _as_int(
 class Settings:
     app_name: str = "CK-NEXUS Creator Edition"
     app_version: str = "0.2.0"
-    openai_model: str = "gpt-5.6-luna"
+    openai_model: str = "gpt-5-mini"
     database_url: str = ""
     session_database_url: str = ""
     database_path: Path = RUNTIME_ROOT / "data" / "cknexus.db"
@@ -59,6 +59,13 @@ class Settings:
     github_token: str = ""
     github_repo: str = ""
     github_api_base: str = "https://api.github.com"
+    slack_bot_token: str = ""
+    slack_api_base: str = "https://slack.com/api"
+    google_drive_access_token: str = ""
+    google_drive_api_base: str = "https://www.googleapis.com/drive/v3"
+    n8n_base_url: str = ""
+    n8n_api_key: str = ""
+    integration_timeout_seconds: int = 5
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -99,7 +106,7 @@ class Settings:
             session_database_url = "postgresql+asyncpg://" + database_url.removeprefix("postgres://")
 
         return cls(
-            openai_model=os.getenv("OPENAI_MODEL", "gpt-5.6-luna"),
+            openai_model=os.getenv("OPENAI_MODEL", "gpt-5-mini"),
             database_url=database_url,
             session_database_url=session_database_url,
             database_path=database_path,
@@ -167,6 +174,18 @@ class Settings:
             github_token=os.getenv("GITHUB_TOKEN", "").strip(),
             github_repo=os.getenv("GITHUB_REPO", "").strip(),
             github_api_base=os.getenv("GITHUB_API_BASE", "https://api.github.com").strip() or "https://api.github.com",
+            slack_bot_token=os.getenv("SLACK_BOT_TOKEN", "").strip(),
+            slack_api_base=os.getenv("SLACK_API_BASE", "https://slack.com/api").strip() or "https://slack.com/api",
+            google_drive_access_token=os.getenv("GOOGLE_DRIVE_ACCESS_TOKEN", "").strip(),
+            google_drive_api_base=os.getenv("GOOGLE_DRIVE_API_BASE", "https://www.googleapis.com/drive/v3").strip() or "https://www.googleapis.com/drive/v3",
+            n8n_base_url=os.getenv("N8N_BASE_URL", "").strip(),
+            n8n_api_key=os.getenv("N8N_API_KEY", "").strip(),
+            integration_timeout_seconds=_as_int(
+                os.getenv("CKNEXUS_INTEGRATION_TIMEOUT_SECONDS"),
+                default=5,
+                minimum=1,
+                maximum=30,
+            ),
         )
 
     @property

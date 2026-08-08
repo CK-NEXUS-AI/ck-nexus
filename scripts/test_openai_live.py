@@ -15,7 +15,7 @@ def main() -> int:
         print(f"P0-AI-001 BLOCKED: OpenAI SDK unavailable: {exc}")
         return 2
 
-    model = os.getenv("OPENAI_SMOKE_MODEL", os.getenv("OPENAI_MODEL", "gpt-5.6-luna"))
+    model = os.getenv("OPENAI_SMOKE_MODEL", os.getenv("OPENAI_MODEL", "gpt-5-mini"))
     client = OpenAI()
     response = client.responses.create(
         model=model,

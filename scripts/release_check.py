@@ -42,7 +42,6 @@ SECRET_PATTERNS = {
 REQUIRED_FILES = {
     ".env.example",
     ".gitignore",
-    "COMMERCIAL_LICENSE_TEMPLATE.md",
     "DELIVERY_MANIFEST.txt",
     "Dockerfile",
     "README.md",
@@ -60,6 +59,11 @@ REQUIRED_FILES = {
     "RELEASE_STATUS.md",
     "uv.lock",
 }
+
+COMMERCIAL_FILES = (
+    "COMMERCIAL_LICENSE_TEMPLATE.md",
+    "docs/SELLER_CHECKLIST.md",
+)
 
 
 @dataclass(slots=True)
@@ -119,12 +123,27 @@ def check_required_files() -> CheckResult:
 
 
 def check_commercial_placeholders() -> CheckResult:
-    files = [ROOT / "COMMERCIAL_LICENSE_TEMPLATE.md", ROOT / "docs" / "SELLER_CHECKLIST.md"]
+    files = [ROOT / item for item in COMMERCIAL_FILES]
+    missing = [str(path.relative_to(ROOT)) for path in files if not path.exists()]
+    if missing:
+        return CheckResult(
+            "Commercial package",
+            False,
+            "missing optional seller files: " + ", ".join(missing),
+        )
+
     remaining = 0
     for path in files:
-        remaining += path.read_text(encoding="utf-8").count("[ต้องการข้อมูลเพิ่ม]")
+        try:
+            remaining += path.read_text(encoding="utf-8").count("[ต้องการข้อมูลเพิ่ม]")
+        except OSError as exc:
+            return CheckResult(
+                "Commercial package",
+                False,
+                f"could not read {path.relative_to(ROOT)}: {exc}",
+            )
     return CheckResult(
-        "Commercial placeholders",
+        "Commercial package",
         remaining == 0,
         "complete" if remaining == 0 else f"{remaining} unresolved marker(s)",
     )
