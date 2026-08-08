@@ -418,6 +418,19 @@ class EmailGatewayRepository:
         with self._connect() as connection:
             return int(connection.execute("SELECT COUNT(*) FROM email_journal").fetchone()[0])
 
+    def count_journal_message(
+        self, *, mailbox: str, provider: str, provider_message_id: str
+    ) -> int:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT COUNT(*) FROM email_journal
+                WHERE mailbox = ? AND provider = ? AND provider_message_id = ?
+                """,
+                (mailbox.strip(), provider.strip().casefold(), provider_message_id.strip()),
+            ).fetchone()
+        return int(row[0])
+
     def count_outbox(self) -> int:
         with self._connect() as connection:
             return int(connection.execute("SELECT COUNT(*) FROM email_outbox").fetchone()[0])

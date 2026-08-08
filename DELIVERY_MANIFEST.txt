@@ -1,4 +1,4 @@
-CK-NEXUS Creator Edition v0.2.0 — R4 Integration Hub
+CK-NEXUS Creator Edition v0.2.0 — R5 Development Council + P0 Gate Hardening
 
 Release classification:
 - Release Candidate
@@ -15,13 +15,34 @@ Core application:
 - .env.p0.example
 - .env.prod.example
 
-R4 Integration Hub:
+R5 Development Council:
+- creator_app/dev_team.py
+- GET /api/dev-team
+- POST /api/dev-team/run
+- CK-NEXUS Lead Orchestrator
+- Five advisory roles: architect, research, designer, builder, reviewer
+- Research-only hosted web-search capability in Live Mode
+- Per-role model override environment slots
+- docs/DEVELOPMENT_COUNCIL.md
+- docs/R5_VALIDATION_REPORT.md
+- tests/test_dev_team.py
+- /demo DEV TEAM workspace
+
+R5 P0 hardening:
+- scripts/test_duplicate_concurrency.py enforces --require-postgres
+- PostgreSQL requirement missing => BLOCKED / exit 2
+- concurrency proof uses a unique message key per run
+- matching-row count is scoped to the exact message key
+- runbooks/p0_runbook_v3.py maps exit 2 to BLOCKED for P0-EMAIL-001
+
+R4 Integration Hub foundation retained:
 - creator_app/integrations.py
 - GET /api/integrations/status
 - POST /api/integrations/test-all
 - GitHub / Slack / Google Drive / n8n / OpenAI configuration / database status
 - docs/INTEGRATION_HUB.md
 - docs/R4_CHANGELOG.md
+- docs/R4_VALIDATION_REPORT.md
 
 CI and verification:
 - .github/workflows/ci.yml
@@ -33,7 +54,7 @@ CI and verification:
 - docs/RELEASE_CHECKLIST.md
 - docs/SECURITY_AUDIT.md
 - docs/TEST_REPORT.md
-- docs/R4_VALIDATION_REPORT.md
+- docs/R5_VALIDATION_REPORT.md
 
 Operational and architecture documentation:
 - README.md

@@ -66,6 +66,14 @@ class Settings:
     n8n_base_url: str = ""
     n8n_api_key: str = ""
     integration_timeout_seconds: int = 5
+    dev_team_enabled: bool = True
+    dev_team_web_search_enabled: bool = True
+    dev_team_max_turns: int = 8
+    dev_architect_model: str = ""
+    dev_research_model: str = ""
+    dev_designer_model: str = ""
+    dev_builder_model: str = ""
+    dev_reviewer_model: str = ""
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -186,6 +194,21 @@ class Settings:
                 minimum=1,
                 maximum=30,
             ),
+            dev_team_enabled=_as_bool(os.getenv("CKNEXUS_DEV_TEAM_ENABLED"), default=True),
+            dev_team_web_search_enabled=_as_bool(
+                os.getenv("CKNEXUS_DEV_TEAM_WEB_SEARCH"), default=True
+            ),
+            dev_team_max_turns=_as_int(
+                os.getenv("CKNEXUS_DEV_TEAM_MAX_TURNS"),
+                default=8,
+                minimum=2,
+                maximum=20,
+            ),
+            dev_architect_model=os.getenv("CKNEXUS_MODEL_ARCHITECT", "").strip(),
+            dev_research_model=os.getenv("CKNEXUS_MODEL_RESEARCH", "").strip(),
+            dev_designer_model=os.getenv("CKNEXUS_MODEL_DESIGNER", "").strip(),
+            dev_builder_model=os.getenv("CKNEXUS_MODEL_BUILDER", "").strip(),
+            dev_reviewer_model=os.getenv("CKNEXUS_MODEL_REVIEWER", "").strip(),
         )
 
     @property

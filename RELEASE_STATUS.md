@@ -1,10 +1,18 @@
-# Release Status — CK-NEXUS Creator Edition v0.2.0 R4
+# Release Status — CK-NEXUS Creator Edition v0.2.0 R5
 
 Decision: **RELEASE CANDIDATE / NO-GO FOR PRODUCTION CLAIMS**
 
-R4 is an Integration Hub and delivery-hardening iteration built on the immutable `v0.2.0-p0-rc` baseline. It does not replace the P0 staging evidence requirement.
+R5 extends the R4 Integration Hub with a five-adviser Development Council and P0 gate hardening. It does not replace the P0 staging evidence requirement.
 
-## R4 implemented
+## R5 implemented
+
+- Added CK-NEXUS Lead Orchestrator plus five advisory specialists for architecture/strategy, research/analysis, product/UX design, engineering/automation, and security/QA/DevOps review.
+- Added Development Council API endpoints, Demo Mode contract, per-role model slots, `/demo` workspace, and tests.
+- Only the Research adviser receives hosted web search; all council roles are side-effect free.
+- Live council execution remains gated by server-side `OPENAI_API_KEY`; the secure key setup flow is external to source control.
+- P0-EMAIL-001 gate semantics repaired: `--require-postgres` is enforced, missing PostgreSQL returns BLOCKED, and the proof counts only the exact unique message key.
+
+## R4 foundation retained
 
 - Unified Integration Hub API for GitHub, Slack, Google Drive, n8n, OpenAI configuration, and database reachability.
 - Full System Demo SYSTEM matrix expanded with server-side integration states.
@@ -18,7 +26,9 @@ R4 is an Integration Hub and delivery-hardening iteration built on the immutable
 ## Locally verified in this build environment
 
 - Python compilation: PASS
-- Non-billing regression: **35 passed**
+- Non-billing regression after R5 changes: **40 passed**
+- Full pytest: **46 passed / 3 errors**; the three errors are billing tests blocked by missing `aiosqlite`
+- Development Council API/contract tests: PASS
 - Integration Hub tests: PASS within the non-billing regression set
 - JavaScript syntax (`node --check`): PASS
 - Tracked-file secret scan: PASS
@@ -32,7 +42,9 @@ R4 is an Integration Hub and delivery-hardening iteration built on the immutable
 
 These are environment/tooling blockers, not production PASS evidence:
 
-- Billing tests: 3 tests cannot execute here because `aiosqlite` is not installed and package installation is unavailable in this runtime.
+- Billing tests: 3 tests cannot execute here because `aiosqlite` is not installed.
+- Development Council live run: BLOCKED because this runtime has no server-side `OPENAI_API_KEY` and no installed `openai-agents` package.
+- Docker/PostgreSQL staging: unavailable in this runtime.
 - Ruff: unavailable in this runtime.
 - Bandit: unavailable in this runtime.
 - pip-audit: unavailable in this runtime.

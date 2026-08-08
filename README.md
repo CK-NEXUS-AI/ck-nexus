@@ -91,6 +91,8 @@ python scripts/package_release.py
 - `GET /health` — readiness
 - `GET /api/status` — โหมดและสถานะการตั้งค่าแบบไม่เปิดเผย secret
 - `GET /api/agents` — agent catalog
+- `GET /api/dev-team` — รายชื่อ Development Council 5 ผู้ช่วยและสถานะ readiness
+- `POST /api/dev-team/run` — ปรึกษาทีมแบบ auto/full council/focus role โดยไม่มี side effect
 - `POST /api/runs` — สร้างผลงาน
 - `GET /api/runs` — ประวัติ
 - `GET /api/runs/{run_id}` — ผลงานรายรายการ
@@ -108,6 +110,7 @@ creator_app/
   api.py            HTTP API, auth gate, limits, security headers
   catalog.py        Creator Agent catalog และ instructions
   runtime.py        OpenAI Agents SDK / Demo Mode
+  dev_team.py       Lead Orchestrator + 5 Development Council advisers
   storage.py        Local SQLite history
   web/              หน้าเว็บแบบไม่มี third-party CDN
 docs/               build brief, architecture, prompt และคู่มือผู้ขาย
@@ -125,7 +128,7 @@ services/billing/   โมดูล SaaS เดิม (optional, ไม่เป
 
 อ่าน [Release Checklist](docs/RELEASE_CHECKLIST.md) ก่อนออก release จริง ส่วน Commercial License / Seller Checklist อยู่ใน seller package แยกจาก source repository เพื่อไม่ปะปนเอกสารธุรกรรมกับโค้ดส่งมอบ
 
-รายละเอียด Integration Hub อยู่ใน [Integration Hub](docs/INTEGRATION_HUB.md) และสถานะ R4 อยู่ใน [Release Status](RELEASE_STATUS.md)
+รายละเอียด Integration Hub อยู่ใน [Integration Hub](docs/INTEGRATION_HUB.md), ทีมผู้ช่วยพัฒนาอยู่ใน [Development Council](docs/DEVELOPMENT_COUNCIL.md) และสถานะปัจจุบันอยู่ใน [Release Status](RELEASE_STATUS.md)
 
 รายละเอียด UI อยู่ใน [UX Design System](docs/UX_DESIGN_SYSTEM.md), ผลตรวจอยู่ใน [Security Audit](docs/SECURITY_AUDIT.md) และ [Test Report](docs/TEST_REPORT.md)
 

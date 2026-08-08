@@ -188,9 +188,10 @@ def main() -> int:
     # PostgreSQL 100-way atomic idempotency. The test script must emit JSON and fail nonzero.
     c = run([sys.executable, "scripts/test_duplicate_concurrency.py", "--require-postgres"], timeout=180, env=env)
     (evidence_root / "logs" / "P0-EMAIL-001.log").write_text(c.stdout + "\n" + c.stderr, encoding="utf-8")
-    ev.gate("P0-EMAIL-001", "PASS" if c.returncode == 0 else "FAIL", command="python scripts/test_duplicate_concurrency.py",
+    email001_status = "PASS" if c.returncode == 0 else ("BLOCKED" if c.returncode == 2 else "FAIL")
+    ev.gate("P0-EMAIL-001", email001_status, command="python scripts/test_duplicate_concurrency.py --require-postgres",
             exit_code=c.returncode, evidence_files=["logs/P0-EMAIL-001.log"])
-    if c.returncode != 0:
+    if email001_status == "FAIL":
         return 1
 
     # The remaining gates are executed by dedicated scripts. Missing prerequisites are BLOCKED, never PASS.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 R5 — Development Council
+
+- Added CK-NEXUS Lead Orchestrator with five advisory specialist agents: Architect & Strategist, Research & Analyst, Product & UX Designer, Engineering & Automation Builder, and Security / QA / DevOps Reviewer.
+- Added manager-style Agents-as-tools orchestration, focused consult modes, shared conversation sessions, and a narrow hosted web-search surface available only to the Research adviser.
+- Added `GET /api/dev-team` and `POST /api/dev-team/run`, Demo Mode behavior, access/rate-limit reuse, per-adviser model override slots, documentation, tests, and a DEV TEAM workspace in `/demo`.
+- Kept all five advisers advisory-only; real mutations remain behind separately gated execution paths.
+
 ## 0.2.0
 
 - Added an optional, disabled-by-default Codex CLI bridge for trusted local engineering tasks.

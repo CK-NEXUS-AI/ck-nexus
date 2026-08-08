@@ -16,12 +16,15 @@ from creator_app.codex_bridge import (
 )
 from creator_app.config import Settings
 from creator_app.github_integration import GitHubIntegration
+from creator_app.dev_team import DevTeamRuntime
 from creator_app.integrations import GoogleDriveIntegration, N8nIntegration, SlackIntegration
 from creator_app.rate_limit import SlidingWindowRateLimiter
 from creator_app.runtime import CreatorRuntime, MissingCredentialError, ProviderRuntimeError
 from creator_app.schemas import (
     CodexTaskRequest,
     CodexTaskResult,
+    DevTeamRequest,
+    DevTeamResult,
     RunRequest,
     RunResult,
     StatusResponse,
@@ -59,6 +62,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     runtime = CreatorRuntime(resolved_settings)
     codex_bridge = CodexBridge(resolved_settings)
     service = CreatorService(resolved_settings, runtime, store)
+    dev_team = DevTeamRuntime(resolved_settings)
     github_integration = GitHubIntegration(
         resolved_settings.github_token,
         repository=resolved_settings.github_repo,
@@ -102,6 +106,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = resolved_settings
     app.state.store = store
     app.state.service = service
+    app.state.dev_team = dev_team
     app.state.github_integration = github_integration
     app.state.slack_integration = slack_integration
     app.state.drive_integration = drive_integration
@@ -486,6 +491,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             codex_enabled=resolved_settings.codex_enabled,
             codex_ready=codex_bridge.ready,
             codex_sandbox=resolved_settings.codex_sandbox,
+            dev_team_enabled=resolved_settings.dev_team_enabled,
+            dev_team_ready=dev_team.ready,
         )
 
     @app.get("/api/integrations/github/status")
@@ -569,6 +576,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             sandbox=resolved_settings.codex_sandbox,
             duration_ms=result.duration_ms,
         )
+
+
+    @app.get("/api/dev-team")
+    async def dev_team_roster(_: None = Depends(require_access_token)) -> dict[str, object]:
+        return {
+            "enabled": resolved_settings.dev_team_enabled,
+            "ready": dev_team.ready,
+            "mode": "mock" if resolved_settings.mock_ai else "openai",
+            "orchestrator": "CK-NEXUS Lead Orchestrator",
+            "web_search_enabled": resolved_settings.dev_team_web_search_enabled,
+            "advisors": dev_team.roster(),
+            "side_effect_policy": "advisory-only; execution requires a separate gated path",
+        }
+
+    @app.post("/api/dev-team/run", response_model=DevTeamResult)
+    async def run_dev_team(
+        payload: DevTeamRequest,
+        _: None = Depends(require_access_token),
+        __: None = Depends(enforce_run_rate_limit),
+    ) -> DevTeamResult:
+        if len(payload.prompt) > resolved_settings.max_prompt_chars:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": "PROMPT_TOO_LONG", "message": "Development brief is too long."},
+            )
+        if not resolved_settings.dev_team_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "DEV_TEAM_DISABLED", "message": "Development Council is disabled."},
+            )
+        return await dev_team.run(payload)
 
     @app.get("/api/agents")
     async def agents(_: None = Depends(require_access_token)):

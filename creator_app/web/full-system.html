@@ -18,6 +18,7 @@
     <nav>
       <button class="nav active" data-tab="overview">OVERVIEW</button>
       <button class="nav" data-tab="agents">AGENTS</button>
+      <button class="nav" data-tab="dev-team">DEV TEAM</button>
       <button class="nav" data-tab="email">EMAIL GATEWAY</button>
       <button class="nav" data-tab="audit">AUDIT</button>
       <button class="nav" data-tab="system">SYSTEM</button>
@@ -80,6 +81,30 @@
         </section>
       </div>
       <section class="panel output-panel"><div class="panel-head"><div><span class="step">03</span><h2>OUTPUT</h2></div><button class="ghost" id="copy-agent-output">COPY</button></div><pre class="output" id="agent-output">OUTPUT CHANNEL / IDLE</pre></section>
+    </section>
+
+    <section class="tab" id="tab-dev-team">
+      <div class="page-head"><p class="eyebrow">DEVELOPMENT COUNCIL / 5 ADVISERS</p><h1>Think. <em>Challenge. Build.</em></h1></div>
+      <div class="split">
+        <section class="panel">
+          <div class="panel-head"><div><span class="step">01</span><h2>COUNCIL ROSTER</h2></div><span id="dev-team-count">05</span></div>
+          <div id="dev-team-list" class="agent-list"><p class="muted">LOADING COUNCIL</p></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><div><span class="step">02</span><h2>CONSULT TEAM</h2></div></div>
+          <form id="dev-team-form" class="form-stack">
+            <label>QUESTION / DEVELOPMENT BRIEF<textarea id="dev-team-prompt" rows="7" required>วิเคราะห์ CK-NEXUS รุ่นปัจจุบัน แล้วเสนอ 3 เรื่องที่ควรพัฒนาต่อโดยคำนึงถึงความปลอดภัย UX และความพร้อมขาย</textarea></label>
+            <div class="form-row">
+              <label>CONSULT MODE<select id="dev-team-mode"><option value="auto">AUTO ROUTE</option><option value="council">FULL COUNCIL</option><option value="architect">ARCHITECT</option><option value="research">RESEARCH</option><option value="designer">DESIGNER</option><option value="builder">BUILDER</option><option value="reviewer">REVIEWER</option></select></label>
+              <label>LANGUAGE<select id="dev-team-language"><option>ไทย</option><option>English</option><option>ไทย + English</option></select></label>
+            </div>
+            <label>CONTEXT<textarea id="dev-team-context" rows="4">Release Candidate ต้องแยกข้อเท็จจริง หลักฐาน สมมติฐาน และข้อเสนอแนะให้ชัดเจน</textarea></label>
+            <label>SESSION ID<input id="dev-team-session" value="development-council" /></label>
+            <button class="primary" type="submit">CONSULT COUNCIL</button>
+          </form>
+        </section>
+      </div>
+      <section class="panel output-panel"><div class="panel-head"><div><span class="step">03</span><h2>COUNCIL OUTPUT</h2></div><button class="ghost" id="copy-dev-team-output">COPY</button></div><pre class="output" id="dev-team-output">COUNCIL CHANNEL / IDLE</pre></section>
     </section>
 
     <section class="tab" id="tab-email">
@@ -147,7 +172,7 @@
     <section class="tab" id="tab-system">
       <div class="page-head"><p class="eyebrow">CONTROL HUB</p><h1>System <em>matrix.</em></h1></div>
       <div class="system-grid">
-        <section class="panel"><div class="panel-head"><div><span class="step">01</span><h2>INTEGRATION HUB</h2></div><div class="button-row"><button class="ghost" id="test-integrations">TEST ALL</button><button class="ghost" id="test-github">TEST GITHUB</button></div></div><dl class="matrix"><div><dt>APPLICATION</dt><dd id="sys-app">—</dd></div><div><dt>AI MODE</dt><dd id="sys-ai">—</dd></div><div><dt>DATABASE</dt><dd id="sys-db">—</dd></div><div><dt>CODEX</dt><dd id="sys-codex">—</dd></div><div><dt>GITHUB</dt><dd id="sys-github">CHECKING</dd></div><div><dt>GITHUB REPO</dt><dd id="sys-github-repo">—</dd></div><div><dt>SLACK</dt><dd id="sys-slack">CHECKING</dd></div><div><dt>GOOGLE DRIVE</dt><dd id="sys-drive">CHECKING</dd></div><div><dt>N8N</dt><dd id="sys-n8n">CHECKING</dd></div><div><dt>OPENAI LIVE GATE</dt><dd id="sys-openai">CHECKING</dd></div></dl><pre class="mini-console" id="github-output">Integration secrets are read only from the server environment. They are never returned to this browser.</pre></section>
+        <section class="panel"><div class="panel-head"><div><span class="step">01</span><h2>INTEGRATION HUB</h2></div><div class="button-row"><button class="ghost" id="test-integrations">TEST ALL</button><button class="ghost" id="test-github">TEST GITHUB</button></div></div><dl class="matrix"><div><dt>APPLICATION</dt><dd id="sys-app">—</dd></div><div><dt>AI MODE</dt><dd id="sys-ai">—</dd></div><div><dt>DATABASE</dt><dd id="sys-db">—</dd></div><div><dt>CODEX</dt><dd id="sys-codex">—</dd></div><div><dt>DEV TEAM</dt><dd id="sys-dev-team">CHECKING</dd></div><div><dt>GITHUB</dt><dd id="sys-github">CHECKING</dd></div><div><dt>GITHUB REPO</dt><dd id="sys-github-repo">—</dd></div><div><dt>SLACK</dt><dd id="sys-slack">CHECKING</dd></div><div><dt>GOOGLE DRIVE</dt><dd id="sys-drive">CHECKING</dd></div><div><dt>N8N</dt><dd id="sys-n8n">CHECKING</dd></div><div><dt>OPENAI LIVE GATE</dt><dd id="sys-openai">CHECKING</dd></div></dl><pre class="mini-console" id="github-output">Integration secrets are read only from the server environment. They are never returned to this browser.</pre></section>
         <section class="panel"><div class="panel-head"><div><span class="step">02</span><h2>SECURE TOKENS</h2></div></div><p class="muted">เก็บเฉพาะใน sessionStorage ของ browser นี้ ไม่ส่งออกไปนอกจาก API request ที่เกี่ยวข้อง</p><div class="form-stack"><label>ACCESS TOKEN<input id="access-token" type="password" autocomplete="off" /></label><label>EMAIL WEBHOOK TOKEN<input id="email-token" type="password" autocomplete="off" /></label><button class="secondary" id="save-tokens">SAVE SESSION TOKENS</button></div></section>
         <section class="panel metrics-panel"><div class="panel-head"><div><span class="step">03</span><h2>METRICS</h2></div><button class="ghost" id="refresh-metrics">REFRESH</button></div><pre class="metrics" id="metrics-output">METRICS / IDLE</pre></section>
       </div>

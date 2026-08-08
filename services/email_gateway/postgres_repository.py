@@ -352,6 +352,28 @@ class PostgresEmailGatewayRepository:
                 output["stale_journal_leases"] = int(cursor.fetchone()["n"])
         return output
 
+    def count_journal(self) -> int:
+        with self._connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT COUNT(*) AS n FROM email_journal")
+                row = cursor.fetchone()
+        return int(row["n"])
+
+    def count_journal_message(
+        self, *, mailbox: str, provider: str, provider_message_id: str
+    ) -> int:
+        with self._connect() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT COUNT(*) AS n FROM email_journal
+                    WHERE mailbox=%s AND provider=%s AND provider_message_id=%s
+                    """,
+                    (mailbox.strip(), provider.strip().casefold(), provider_message_id.strip()),
+                )
+                row = cursor.fetchone()
+        return int(row["n"])
+
     def run_outbox_once(
         self,
         *,
