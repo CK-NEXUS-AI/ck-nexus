@@ -8,6 +8,7 @@ from fastapi import Depends, FastAPI, File, Header, HTTPException, Path, Query, 
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
+from creator_app.agnes_runtime import AgnesNervousSystem, AgnesPolicy
 from creator_app.catalog import get_agent_spec, list_agent_cards
 from creator_app.codex_bridge import (
     CodexBridge,
@@ -86,6 +87,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         provider_router=provider_router,
         credential_broker=credential_broker,
     )
+    agnes_skill_file = FilePath(__file__).resolve().parent / "skills" / "agnes" / "SKILL.md"
+    agnes = AgnesNervousSystem(
+        skill_file=agnes_skill_file,
+        ledger_path=resolved_settings.agnes_ledger_path,
+        provider_router=provider_router,
+        policy=AgnesPolicy(max_parallel_skills=resolved_settings.agnes_max_parallel_skills),
+    )
     gmail_oauth = GmailOAuthManager(
         credential_broker,
         enabled=resolved_settings.gmail_oauth_enabled,
@@ -146,6 +154,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.store = store
     app.state.service = service
     app.state.dev_team = dev_team
+    app.state.agnes = agnes
     app.state.gmail_oauth = gmail_oauth
     app.state.github_app_auth = github_app_auth
     app.state.github_integration = github_integration
@@ -760,6 +769,46 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             duration_ms=result.duration_ms,
         )
 
+
+    @app.get("/api/agnes/status")
+    async def agnes_status(_: None = Depends(require_access_token)) -> dict[str, object]:
+        if not resolved_settings.agnes_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "AGNES_DISABLED", "message": "AGNES skill nervous system is disabled."},
+            )
+        return agnes.status()
+
+    @app.get("/api/agnes/skills")
+    async def agnes_skills(_: None = Depends(require_access_token)) -> dict[str, object]:
+        return {"agent": "AGNES", "skills": agnes.skills()}
+
+    @app.get("/api/agnes/plan")
+    async def agnes_plan(
+        goal: str = Query(min_length=1, max_length=4000),
+        _: None = Depends(require_access_token),
+    ) -> dict[str, object]:
+        return agnes.plan(goal)
+
+    @app.get("/api/agnes/discovery-sources")
+    async def agnes_discovery_sources(
+        _: None = Depends(require_access_token),
+    ) -> dict[str, object]:
+        return {"sources": agnes.discovery_sources()}
+
+    @app.get("/api/agnes/model-watch-plan")
+    async def agnes_model_watch_plan(
+        limit: int = Query(default=50, ge=1, le=50),
+        _: None = Depends(require_access_token),
+    ) -> dict[str, object]:
+        return agnes.model_watch_plan(limit=limit)
+
+    @app.get("/api/agnes/upgrade-plan")
+    async def agnes_upgrade_plan(
+        goal: str = Query(min_length=1, max_length=4000),
+        _: None = Depends(require_access_token),
+    ) -> dict[str, object]:
+        return agnes.self_upgrade_plan(goal)
 
     @app.get("/api/dev-team")
     async def dev_team_roster(_: None = Depends(require_access_token)) -> dict[str, object]:

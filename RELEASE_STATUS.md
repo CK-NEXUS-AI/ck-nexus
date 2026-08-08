@@ -10,3 +10,10 @@ does not close the R12 staging evidence requirement.
 
 Passing local tests proves code-path behavior only. Production Ready remains prohibited until all
 required R12 gates PASS against one exact commit, artifact SHA-256 and staging environment identity.
+
+## R13-LAB AGNES Skill Nervous System
+
+A development-only branch adds a local-first AGNES skill nervous system, append-only learning ledger,
+quarantine-first skill discovery, Workspace Broker abstraction, and governed self-upgrade planning.
+This does **not** close R12 staging gates. Production posture remains NO-GO until the required staging
+evidence passes against one exact release identity.

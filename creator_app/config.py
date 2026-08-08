@@ -92,6 +92,9 @@ class Settings:
     dev_designer_model: str = ""
     dev_builder_model: str = ""
     dev_reviewer_model: str = ""
+    agnes_enabled: bool = True
+    agnes_ledger_path: Path = RUNTIME_ROOT / "data" / "agnes-ledger.jsonl"
+    agnes_max_parallel_skills: int = 5
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -137,6 +140,11 @@ class Settings:
             session_database_url = "postgresql+asyncpg://" + database_url.removeprefix("postgresql://")
         elif not session_database_url and database_url.startswith("postgres://"):
             session_database_url = "postgresql+asyncpg://" + database_url.removeprefix("postgres://")
+
+        agnes_ledger_value = os.getenv("CKNEXUS_AGNES_LEDGER_PATH", "data/agnes-ledger.jsonl").strip()
+        agnes_ledger_path = Path(agnes_ledger_value)
+        if not agnes_ledger_path.is_absolute():
+            agnes_ledger_path = runtime_root / agnes_ledger_path
 
         configured = cls(
             environment=(
@@ -294,6 +302,14 @@ class Settings:
             dev_designer_model=os.getenv("CKNEXUS_MODEL_DESIGNER", "").strip(),
             dev_builder_model=os.getenv("CKNEXUS_MODEL_BUILDER", "").strip(),
             dev_reviewer_model=os.getenv("CKNEXUS_MODEL_REVIEWER", "").strip(),
+            agnes_enabled=_as_bool(os.getenv("CKNEXUS_AGNES_ENABLED"), default=True),
+            agnes_ledger_path=agnes_ledger_path,
+            agnes_max_parallel_skills=_as_int(
+                os.getenv("CKNEXUS_AGNES_MAX_PARALLEL_SKILLS"),
+                default=5,
+                minimum=1,
+                maximum=12,
+            ),
         )
         configured.validate_startup()
         return configured

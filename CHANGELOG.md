@@ -34,3 +34,5 @@
 - Added Demo Mode, optional bearer protection, input limits, rate limiting, security headers, Docker support, automated tests, release checks, and commercial-delivery templates.
 - Added security, test, release-status, and UX design-system reports.
 - Preserved the original SaaS Billing module as an optional package extra.
+
+R13 AGNES Skill Nervous System: development candidate; see docs/R13_AGNES_SKILL_NERVOUS_SYSTEM.md

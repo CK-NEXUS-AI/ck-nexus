@@ -59,7 +59,7 @@ py-modules = ["main"]
 include = ["app*", "creator_app*", "services*", "gateway*", "orchestration*", "idea_engine*"]
 
 [tool.setuptools.package-data]
-creator_app = ["web/*"]
+creator_app = ["web/*", "skills/agnes/*"]
 orchestration = ["patterns.json"]
 "services.email_gateway" = ["migrations/*.sql"]
 
