@@ -1,82 +1,83 @@
-CK-NEXUS Creator Edition v0.2.0 — R5 Development Council + P0 Gate Hardening
+CK-NEXUS Creator Edition v0.2.0 — R7 Credential Broker & Provider Cutover
 
 Release classification:
-- Release Candidate
-- Not Production Ready until required P0 runtime gates pass
+- Development Candidate / Release Candidate
+- NO-GO for Production claims until required P0 runtime gates pass
 
-Core application:
-- main.py
-- pyproject.toml
-- uv.lock
-- creator_app/
-- services/
-- Dockerfile
-- .env.example
-- .env.p0.example
-- .env.prod.example
+Baseline lineage:
+- R5 Development Council: dca89ffed25e421030ae3fb88717a80b39bb8141
+- R6 Autonomy Hardening: 4603d45acdbde13491582c7a6f85570372035c86
+- R7 continues from R6 on branch r7-credential-broker
 
-R5 Development Council:
-- creator_app/dev_team.py
-- GET /api/dev-team
-- POST /api/dev-team/run
-- CK-NEXUS Lead Orchestrator
-- Five advisory roles: architect, research, designer, builder, reviewer
-- Research-only hosted web-search capability in Live Mode
-- Per-role model override environment slots
-- docs/DEVELOPMENT_COUNCIL.md
-- docs/R5_VALIDATION_REPORT.md
-- tests/test_dev_team.py
-- /demo DEV TEAM workspace
+R7 Credential Broker:
+- creator_app/credential_broker.py
+- explicit consumer-to-secret allowlists
+- consumer-bound secret leases
+- redacted status / repr
+- environment bootstrap + ephemeral runtime secret storage
+- no bulk secret-export API
 
-R5 P0 hardening:
-- scripts/test_duplicate_concurrency.py enforces --require-postgres
-- PostgreSQL requirement missing => BLOCKED / exit 2
-- concurrency proof uses a unique message key per run
-- matching-row count is scoped to the exact message key
-- runbooks/p0_runbook_v3.py maps exit 2 to BLOCKED for P0-EMAIL-001
+R7 Provider cutover:
+- creator_app/providers.py
+- creator_app/provider_router.py
+- Mock / loopback-only Ollama / broker-backed OpenAI adapters
+- CreatorRuntime selects eligible text provider through Provider Router
+- Development Council requires agents-sdk capability and fails closed otherwise
+- OpenAI success/failure feeds R6 circuit breaker
+- OpenAI Agents SDK sensitive trace payload capture disabled for CreatorRuntime/Council
 
-R4 Integration Hub foundation retained:
-- creator_app/integrations.py
-- GET /api/integrations/status
-- POST /api/integrations/test-all
-- GitHub / Slack / Google Drive / n8n / OpenAI configuration / database status
-- docs/INTEGRATION_HUB.md
-- docs/R4_CHANGELOG.md
-- docs/R4_VALIDATION_REPORT.md
+R7 Gmail OAuth:
+- creator_app/gmail_oauth.py
+- one-time OAuth state
+- server-side authorization-code exchange
+- gmail.readonly default; gmail.send optional
+- access/refresh token values remain broker-only
+- production durable encrypted token vault still required
 
-CI and verification:
-- .github/workflows/ci.yml
-- .github/workflows/dependency-audit.yml
-- scripts/secret_scan.py
-- scripts/release_check.py
-- tests/
-- docs/ACCEPTANCE_CRITERIA.md
-- docs/RELEASE_CHECKLIST.md
-- docs/SECURITY_AUDIT.md
-- docs/TEST_REPORT.md
-- docs/R5_VALIDATION_REPORT.md
+R7 GitHub App:
+- creator_app/github_app.py
+- RS256 JWT signer seam
+- short-lived installation-token minting
+- exact api.github.com credential destination + redirect blocking
+- installation token remains broker-only
+- optional PyJWT[crypto] package extra
 
-Operational and architecture documentation:
-- README.md
-- INSTALL_GUIDE.md
-- RELEASE_STATUS.md
-- THIRD_PARTY_NOTICES.md
-- docs/ARCHITECTURE.md
-- docs/BUILD_BRIEF.md
-- docs/CODEX_INTEGRATION.md
-- docs/OPENAI_CODEX_ADOPTION.md
-- VPS_P0_QUICKSTART.md
-- runbooks/
-- n8n/
+R7 APIs:
+- GET /api/providers/status
+- GET /api/security/credentials/status
+- GET /api/integrations/gmail/status
+- GET /api/integrations/gmail/oauth/start
+- GET /api/integrations/gmail/oauth/callback
+- GET /api/integrations/github-app/status
+- POST /api/integrations/github-app/token
+
+Validation evidence:
+- docs/R7_CREDENTIAL_BROKER_PROVIDER_CUTOVER.md
+- docs/R7_VALIDATION_REPORT.md
+- tests/test_credential_broker.py
+- tests/test_provider_adapters.py
+- tests/test_oauth_and_github_app.py
+- tests/test_r7_api_contract.py
+- Non-billing regression: 89/89 PASS in the local build environment
+- Full pytest: 95 PASS / 3 billing errors blocked by missing aiosqlite
+- whole-worktree secret-pattern scan: PASS before release lock
+
+R6/R5/R4 foundations retained:
+- Development Council and five advisory specialists
+- Local/mock-first provider policy + bounded fallback/circuit breaker
+- production fail-closed startup invariants
+- /health/live and /health/ready
+- repair/canary/rollback state machine
+- GitHub / Slack / Drive credential-bearing URL hardening
+- Integration Hub / Email Gateway / P0 runbooks
 
 Commercial boundary:
-- Seller transaction documents, legal identity, pricing, support/refund terms, and final IP transfer documents are intentionally maintained outside this source repository.
-- Third-party services, credentials, API credits, hosting, domains, and n8n/OpenAI/GitHub accounts are not transferred by this source package unless separately agreed.
+- Seller transaction documents, legal identity, pricing, support/refund terms, and final IP transfer documents are intentionally outside this source repository.
+- Third-party accounts, credentials, API credits, hosting, domains, and external service subscriptions are not transferred by this source package unless separately agreed.
 
 Excluded from delivery/runtime evidence:
-- .git metadata in source ZIP (Git history is supplied separately as a Git bundle when needed)
 - real .env files and all secrets
 - data/*.db, *.db-shm, *.db-wal, user content
 - .venv, caches, logs, build output
-- Codex credential/state directories
+- OAuth client-secret files / GitHub App private-key files
 - staging/private P0 evidence containing secrets

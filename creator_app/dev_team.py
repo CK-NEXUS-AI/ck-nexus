@@ -8,6 +8,8 @@ from time import perf_counter
 from uuid import uuid4
 
 from creator_app.config import Settings
+from creator_app.credential_broker import CredentialBroker, CredentialId, CredentialUnavailable
+from creator_app.provider_router import ProviderRouter
 from creator_app.runtime import MissingCredentialError, ProviderRuntimeError
 from creator_app.schemas import DevTeamRequest, DevTeamResult
 
@@ -150,13 +152,32 @@ untested recovery paths, and claims unsupported by runtime evidence. Define expl
 
 
 class DevTeamRuntime:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        provider_router: ProviderRouter | None = None,
+        credential_broker: CredentialBroker | None = None,
+    ) -> None:
         self.settings = settings
+        self.provider_router = provider_router
+        self.credential_broker = credential_broker or CredentialBroker.from_environment()
 
     @property
     def ready(self) -> bool:
-        return self.settings.dev_team_enabled and (
-            self.settings.mock_ai or self.settings.openai_key_configured
+        if not self.settings.dev_team_enabled:
+            return False
+        if self.settings.mock_ai:
+            return True
+        if self.provider_router is not None:
+            return (
+                self.provider_router.preferred_status(
+                    required_capabilities={"agents-sdk"}
+                )
+                is not None
+            )
+        return self.credential_broker.is_configured(
+            CredentialId.OPENAI_API_KEY, consumer="council.openai"
         )
 
     @staticmethod
@@ -172,11 +193,27 @@ class DevTeamRuntime:
             content = self._mock_output(request)
             mode = "mock"
         else:
-            if not self.settings.openai_key_configured:
-                raise MissingCredentialError(
-                    "Development Council Live Mode requires OPENAI_API_KEY."
+            if self.provider_router is not None:
+                preferred = self.provider_router.preferred_status(
+                    required_capabilities={"agents-sdk"}
                 )
-            content = await self._run_live(request)
+                if preferred is None:
+                    raise MissingCredentialError(
+                        "Development Council Live Mode requires an Agents-SDK-capable provider. "
+                        "Configure an OpenAI API credential through the credential broker."
+                    )
+                if preferred.name != "openai":
+                    raise ProviderRuntimeError(
+                        "Development Council provider selection failed closed."
+                    )
+            try:
+                content = await self._run_live(request)
+            except (MissingCredentialError, ProviderRuntimeError):
+                if self.provider_router is not None:
+                    self.provider_router.report_failure("openai")
+                raise
+            if self.provider_router is not None:
+                self.provider_router.report_success("openai")
             mode = "openai"
 
         return DevTeamResult(
@@ -192,11 +229,23 @@ class DevTeamRuntime:
 
     async def _run_live(self, request: DevTeamRequest) -> str:
         try:
-            from agents import Agent, Runner, SQLiteSession, WebSearchTool
+            lease = self.credential_broker.acquire(
+                CredentialId.OPENAI_API_KEY, consumer="council.openai"
+            )
+        except CredentialUnavailable as exc:
+            raise MissingCredentialError(
+                "Development Council Live Mode requires an OpenAI API credential through the credential broker."
+            ) from exc
+        api_key = lease.reveal(consumer="council.openai")
+
+        try:
+            from agents import Agent, Runner, SQLiteSession, WebSearchTool, set_default_openai_key
         except ImportError as exc:
             raise ProviderRuntimeError(
                 "OpenAI Agents SDK is not installed in this runtime."
             ) from exc
+
+        set_default_openai_key(api_key, use_for_tracing=True)
 
         specialists: dict[str, object] = {}
         for advisor in DEV_ADVISORS.values():
@@ -236,7 +285,7 @@ class DevTeamRuntime:
 
     async def _run_agent(self, agent: object, request: DevTeamRequest) -> str:
         try:
-            from agents import Runner, SQLiteSession
+            from agents import RunConfig, Runner, SQLiteSession
 
             session = self._session(request.session_id, SQLiteSession)
             async with asyncio.timeout(self.settings.run_timeout_seconds):
@@ -245,6 +294,10 @@ class DevTeamRuntime:
                     self._build_input(request),
                     session=session,
                     max_turns=self.settings.dev_team_max_turns,
+                    run_config=RunConfig(
+                        workflow_name="CK-NEXUS Development Council",
+                        trace_include_sensitive_data=False,
+                    ),
                 )
             return str(result.final_output)
         except TimeoutError as exc:

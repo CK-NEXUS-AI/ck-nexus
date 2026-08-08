@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 R7 — Credential Broker & Provider Cutover
+
+- Added a least-privilege Credential Broker with consumer-bound leases, explicit credential policy, ephemeral runtime secrets, and redacted status surfaces.
+- Added concrete Mock, loopback-only Ollama, and broker-backed OpenAI provider adapters.
+- Connected the R6 Provider Router to CreatorRuntime and the Development Council while preserving bounded attempts, circuit breaker state, local-first policy, and production fail-closed behavior.
+- Added Gmail OAuth server flow with one-time state, read-only default scope, optional send scope, and broker-only token storage.
+- Added GitHub App JWT / installation-token path with short-lived token storage and no token returned from API status/actions.
+- Added `/api/providers/status`, `/api/security/credentials/status`, Gmail OAuth endpoints, and GitHub App status/token endpoints.
+- Disabled sensitive payload capture in OpenAI Agents SDK traces for CreatorRuntime and Development Council runs.
+
 ## 0.2.0 R5 — Development Council
 
 - Added CK-NEXUS Lead Orchestrator with five advisory specialist agents: Architect & Strategist, Research & Analyst, Product & UX Designer, Engineering & Automation Builder, and Security / QA / DevOps Reviewer.

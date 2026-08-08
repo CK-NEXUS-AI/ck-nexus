@@ -130,6 +130,67 @@ class ProviderRouter:
             )
         return tuple(statuses)
 
+
+    def preferred_status(
+        self,
+        *,
+        required_capabilities: Iterable[str] = (),
+    ) -> ProviderStatus | None:
+        required = frozenset(required_capabilities)
+        candidates = self._ordered_candidates(required)
+        if not candidates:
+            return None
+        provider = candidates[0]
+        circuit = self._circuits[provider.name]
+        now = self._clock()
+        self._close_expired_circuit(circuit, now)
+        return ProviderStatus(
+            name=provider.name,
+            kind=provider.kind,
+            available=provider.is_available(),
+            circuit_open=circuit.open_until > now,
+            consecutive_failures=circuit.consecutive_failures,
+            capabilities=provider.capabilities,
+        )
+
+    async def invoke_named(
+        self,
+        provider_name: str,
+        prompt: str,
+        *,
+        required_capabilities: Iterable[str] = (),
+    ) -> ProviderSelection:
+        required = frozenset(required_capabilities)
+        provider = next((item for item in self._providers if item.name == provider_name), None)
+        if provider is None:
+            raise ProviderRouteError(
+                "NO_PROVIDER",
+                "Requested AI provider is not registered.",
+            )
+        eligible = self._ordered_candidates(required)
+        if provider not in eligible:
+            raise ProviderRouteError(
+                "NO_PROVIDER",
+                "Requested AI provider is not currently eligible for this request.",
+            )
+        try:
+            output = await provider.invoke(prompt)
+        except Exception:
+            self._record_failure(provider.name)
+            raise ProviderRouteError(
+                "DEGRADED",
+                "Requested AI provider failed safely.",
+                attempts=1,
+            ) from None
+        self._record_success(provider.name)
+        return ProviderSelection(
+            provider=provider.name,
+            kind=provider.kind,
+            output=output,
+            attempts=1,
+            degraded=False,
+        )
+
     async def route(
         self,
         prompt: str,
@@ -171,6 +232,17 @@ class ProviderRouter:
             "Eligible AI providers are degraded or failed within the bounded attempt limit.",
             attempts=attempts,
         )
+
+
+    def report_success(self, provider_name: str) -> None:
+        if provider_name not in self._circuits:
+            raise ValueError("provider is not registered")
+        self._record_success(provider_name)
+
+    def report_failure(self, provider_name: str) -> None:
+        if provider_name not in self._circuits:
+            raise ValueError("provider is not registered")
+        self._record_failure(provider_name)
 
     def _ordered_candidates(
         self, required_capabilities: frozenset[str]

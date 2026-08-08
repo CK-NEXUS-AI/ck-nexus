@@ -42,6 +42,10 @@ email = [
   "python-multipart>=0.0.20,<1",
 ]
 
+github-app = [
+  "PyJWT[crypto]>=2.10,<3",
+]
+
 [tool.setuptools]
 py-modules = ["main"]
 

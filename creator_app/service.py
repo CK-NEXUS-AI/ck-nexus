@@ -25,7 +25,7 @@ class CreatorService:
     async def create_run(self, request: RunRequest) -> RunResult:
         spec = get_agent_spec(request.agent_id)
         started = perf_counter()
-        content, mode = await self.runtime.run(spec, request)
+        selection = await self.runtime.run(spec, request)
         duration_ms = max(1, round((perf_counter() - started) * 1_000))
 
         run = RunResult(
@@ -38,9 +38,9 @@ class CreatorService:
             platform=request.platform,
             tone=request.tone,
             language=request.language,
-            content=content,
-            model=self.settings.openai_model,
-            mode=mode,
+            content=selection.content,
+            model=selection.model,
+            mode=selection.mode,
             status="completed",
             duration_ms=duration_ms,
             created_at=datetime.now(UTC),

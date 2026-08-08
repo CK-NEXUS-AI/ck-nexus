@@ -139,3 +139,13 @@ services/billing/   โมดูล SaaS เดิม (optional, ไม่เป
 ## เอกสารอ้างอิงทางเทคนิค
 
 Agent runtime ออกแบบตาม [OpenAI Agents SDK guide](https://developers.openai.com/api/docs/guides/agents) และใช้ `Runner.run` พร้อม local session memory ตาม [Running agents](https://developers.openai.com/api/docs/guides/agents/running-agents)
+
+## R7 Credential Broker & Provider Router Cutover
+
+R7 connects the R6 provider-routing primitive to the real CreatorRuntime and Development Council.
+The runtime now uses a least-privilege Credential Broker, supports a loopback-only Ollama adapter,
+keeps OpenAI behind brokered credentials, and exposes only redacted provider/credential status.
+Gmail OAuth and GitHub App authentication are available as development-candidate integrations;
+OAuth refresh tokens are ephemeral-memory only in this slice, so production still requires an
+encrypted durable vault and the existing P0 staging gates. See
+`docs/R7_CREDENTIAL_BROKER_PROVIDER_CUTOVER.md`.

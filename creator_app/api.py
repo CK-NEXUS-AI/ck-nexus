@@ -15,6 +15,10 @@ from creator_app.codex_bridge import (
     CodexBridgeUnavailableError,
 )
 from creator_app.config import Settings
+from creator_app.credential_broker import CredentialBroker, CredentialId
+from creator_app.gmail_oauth import GmailOAuthError, GmailOAuthManager
+from creator_app.github_app import GitHubAppAuth, GitHubAppAuthError
+from creator_app.providers import build_provider_router
 from creator_app.dev_team import DevTeamRuntime
 from creator_app.github_integration import GitHubIntegration
 from creator_app.health import DependencyState, DependencyStatus, evaluate_health
@@ -59,11 +63,34 @@ SESSION_ID_PATTERN = r"^[A-Za-z0-9_:-]+$"
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or Settings.from_env()
+    credential_broker = CredentialBroker.from_environment()
+    provider_router = build_provider_router(resolved_settings, credential_broker)
     store = RunStore(resolved_settings.database_path, database_url=resolved_settings.database_url)
-    runtime = CreatorRuntime(resolved_settings)
+    runtime = CreatorRuntime(
+        resolved_settings,
+        provider_router=provider_router,
+        credential_broker=credential_broker,
+    )
     codex_bridge = CodexBridge(resolved_settings)
     service = CreatorService(resolved_settings, runtime, store)
-    dev_team = DevTeamRuntime(resolved_settings)
+    dev_team = DevTeamRuntime(
+        resolved_settings,
+        provider_router=provider_router,
+        credential_broker=credential_broker,
+    )
+    gmail_oauth = GmailOAuthManager(
+        credential_broker,
+        enabled=resolved_settings.gmail_oauth_enabled,
+        redirect_uri=resolved_settings.gmail_redirect_uri,
+        include_send_scope=resolved_settings.gmail_send_enabled,
+        timeout_seconds=resolved_settings.integration_timeout_seconds,
+    )
+    github_app_auth = GitHubAppAuth(
+        credential_broker,
+        enabled=resolved_settings.github_app_enabled,
+        timeout_seconds=resolved_settings.integration_timeout_seconds,
+        api_version=resolved_settings.github_api_version,
+    )
     github_integration = GitHubIntegration(
         resolved_settings.github_token,
         repository=resolved_settings.github_repo,
@@ -105,9 +132,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.settings = resolved_settings
+    app.state.credential_broker = credential_broker
+    app.state.provider_router = provider_router
     app.state.store = store
     app.state.service = service
     app.state.dev_team = dev_team
+    app.state.gmail_oauth = gmail_oauth
+    app.state.github_app_auth = github_app_auth
     app.state.github_integration = github_integration
     app.state.slack_integration = slack_integration
     app.state.drive_integration = drive_integration
@@ -198,6 +229,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse(
             status_code=status.HTTP_502_BAD_GATEWAY,
             content={"error": "AI_PROVIDER_ERROR", "message": str(exc)},
+        )
+
+    @app.exception_handler(GmailOAuthError)
+    async def gmail_oauth_error_handler(_: Request, exc: GmailOAuthError):
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"error": "GMAIL_OAUTH_ERROR", "message": str(exc)},
+        )
+
+    @app.exception_handler(GitHubAppAuthError)
+    async def github_app_error_handler(_: Request, exc: GitHubAppAuthError):
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"error": "GITHUB_APP_AUTH_ERROR", "message": str(exc)},
         )
 
     @app.exception_handler(CodexBridgeUnavailableError)
@@ -461,7 +506,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def health_ready():
         """Readiness with stable dependency cause codes for supervisors and operators."""
         database_ready = store.ping()
-        ai_ready = resolved_settings.mock_ai or resolved_settings.openai_key_configured
+        ai_ready = runtime.ready
         report = evaluate_health(
             (
                 DependencyStatus(
@@ -507,16 +552,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def app_status() -> StatusResponse:
         if resolved_settings.mock_ai:
             mode = "mock"
-        elif resolved_settings.openai_key_configured:
-            mode = "openai"
+            model = "mock"
         else:
-            mode = "blocked"
+            preferred = provider_router.preferred_status(required_capabilities={"text"})
+            mode = preferred.name if preferred is not None else "blocked"
+            model = (
+                resolved_settings.ollama_model
+                if mode == "ollama"
+                else resolved_settings.openai_model
+            )
+        openai_key_configured = credential_broker.is_configured(
+            CredentialId.OPENAI_API_KEY, consumer="provider.openai"
+        )
         return StatusResponse(
             name=resolved_settings.app_name,
             version=resolved_settings.app_version,
             mode=mode,
-            model=resolved_settings.openai_model,
-            key_configured=resolved_settings.openai_key_configured,
+            model=model,
+            key_configured=openai_key_configured,
             database_ready=store.ping(),
             access_required=bool(resolved_settings.access_token),
             codex_enabled=resolved_settings.codex_enabled,
@@ -549,14 +602,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "default_branch": github["default_branch"],
             },
         }
+        openai_configured = credential_broker.is_configured(
+            CredentialId.OPENAI_API_KEY, consumer="provider.openai"
+        )
         openai_status = {
             "id": "openai",
-            "configured": resolved_settings.openai_key_configured,
+            "configured": openai_configured,
             "connected": False,
             "message": (
-                "OpenAI server credential is configured; live connectivity remains an AI001 runtime gate."
-                if resolved_settings.openai_key_configured
-                else "OpenAI server credential is not configured."
+                "OpenAI credential is brokered; live connectivity remains an AI001 runtime gate."
+                if openai_configured
+                else "OpenAI credential is not configured in the credential broker."
             ),
             "details": {"model": resolved_settings.openai_model, "live_test_required": True},
         }
@@ -572,6 +628,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             slack_integration.status().as_dict(),
             drive_integration.status().as_dict(),
             n8n_integration.status().as_dict(),
+            gmail_oauth.status(),
+            github_app_auth.status(),
             openai_status,
             local_status,
         ]
@@ -584,6 +642,63 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/integrations/test-all")
     async def integrations_test_all(_: None = Depends(require_access_token)) -> dict[str, object]:
         return await integrations_status(_)
+
+    @app.get("/api/providers/status")
+    async def providers_status(_: None = Depends(require_access_token)) -> dict[str, object]:
+        providers = []
+        for item in provider_router.statuses():
+            providers.append(
+                {
+                    "name": item.name,
+                    "kind": item.kind.value,
+                    "available": item.available,
+                    "circuit_open": item.circuit_open,
+                    "consecutive_failures": item.consecutive_failures,
+                    "capabilities": sorted(item.capabilities.features),
+                    "models": list(item.capabilities.models),
+                }
+            )
+        preferred = provider_router.preferred_status(required_capabilities={"text"})
+        return {
+            "preferred": preferred.name if preferred is not None else None,
+            "policy": {
+                "local_first": provider_router.policy.local_first,
+                "allow_cloud": provider_router.policy.allow_cloud,
+                "max_attempts": provider_router.policy.max_attempts,
+            },
+            "providers": providers,
+        }
+
+    @app.get("/api/security/credentials/status")
+    async def credential_status(_: None = Depends(require_access_token)) -> dict[str, object]:
+        consumers = ("provider.openai", "council.openai", "gmail.oauth", "gmail.api", "github.app")
+        return {
+            "secrets_exposed": False,
+            "consumers": {
+                consumer: [item.as_dict() for item in credential_broker.statuses(consumer=consumer)]
+                for consumer in consumers
+            },
+        }
+
+    @app.get("/api/integrations/gmail/status")
+    async def gmail_status(_: None = Depends(require_access_token)) -> dict[str, object]:
+        return gmail_oauth.status()
+
+    @app.get("/api/integrations/gmail/oauth/start")
+    async def gmail_oauth_start(_: None = Depends(require_access_token)) -> dict[str, object]:
+        return {"authorization_url": gmail_oauth.authorization_url()}
+
+    @app.get("/api/integrations/gmail/oauth/callback")
+    def gmail_oauth_callback(code: str = Query(...), state: str = Query(...)) -> dict[str, object]:
+        return {"status": "authorized", "gmail": gmail_oauth.exchange_code(code=code, state=state)}
+
+    @app.get("/api/integrations/github-app/status")
+    async def github_app_status(_: None = Depends(require_access_token)) -> dict[str, object]:
+        return github_app_auth.status()
+
+    @app.post("/api/integrations/github-app/token")
+    def github_app_token(_: None = Depends(require_access_token)) -> dict[str, object]:
+        return github_app_auth.ensure_installation_token()
 
     @app.get("/api/codex/status")
     async def codex_status(_: None = Depends(require_access_token)) -> dict[str, bool | str]:
@@ -614,7 +729,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {
             "enabled": resolved_settings.dev_team_enabled,
             "ready": dev_team.ready,
-            "mode": "mock" if resolved_settings.mock_ai else "openai",
+            "mode": (
+                "mock"
+                if resolved_settings.mock_ai
+                else (
+                    provider_router.preferred_status(
+                        required_capabilities={"agents-sdk"}
+                    ).name
+                    if provider_router.preferred_status(
+                        required_capabilities={"agents-sdk"}
+                    ) is not None
+                    else "blocked"
+                )
+            ),
             "orchestrator": "CK-NEXUS Lead Orchestrator",
             "web_search_enabled": resolved_settings.dev_team_web_search_enabled,
             "advisors": dev_team.roster(),

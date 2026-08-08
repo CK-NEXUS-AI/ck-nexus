@@ -306,6 +306,9 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "ruff" },
 ]
+github-app = [
+    { name = "pyjwt", extra = ["crypto"] },
+]
 
 [package.metadata]
 requires-dist = [
@@ -316,6 +319,7 @@ requires-dist = [
     { name = "openai-agents", specifier = ">=0.19,<1" },
     { name = "opentelemetry-api", marker = "extra == 'billing'", specifier = ">=1.27,<2" },
     { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.9,<3" },
+    { name = "pyjwt", extras = ["crypto"], marker = "extra == 'github-app'", specifier = ">=2.10,<3" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8,<10" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24,<2" },
     { name = "python-dotenv", specifier = ">=1.1,<2" },
@@ -324,7 +328,7 @@ requires-dist = [
     { name = "stripe", marker = "extra == 'billing'", specifier = ">=11,<15" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.35,<1" },
 ]
-provides-extras = ["dev", "billing"]
+provides-extras = ["dev", "billing", "github-app"]
 
 [[package]]
 name = "click"

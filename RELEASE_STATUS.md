@@ -1,67 +1,37 @@
-# Release Status — CK-NEXUS Creator Edition v0.2.0 R5
+# Release Status — CK-NEXUS Creator Edition v0.2.0 R7
 
-Decision: **RELEASE CANDIDATE / NO-GO FOR PRODUCTION CLAIMS**
+Decision: **DEVELOPMENT CANDIDATE / RELEASE CANDIDATE / NO-GO FOR PRODUCTION CLAIMS**
 
-R5 extends the R4 Integration Hub with a five-adviser Development Council and P0 gate hardening. It does not replace the P0 staging evidence requirement.
+R7 continues from R6 Autonomy Hardening and cuts the provider-routing primitive into the real CreatorRuntime and Development Council. It also introduces the first Credential Broker boundary, Gmail OAuth flow, and GitHub App installation-token path. It does not replace any staging P0 evidence requirement.
 
-## R5 implemented
+## R7 implemented
 
-- Added CK-NEXUS Lead Orchestrator plus five advisory specialists for architecture/strategy, research/analysis, product/UX design, engineering/automation, and security/QA/DevOps review.
-- Added Development Council API endpoints, Demo Mode contract, per-role model slots, `/demo` workspace, and tests.
-- Only the Research adviser receives hosted web search; all council roles are side-effect free.
-- Live council execution remains gated by server-side `OPENAI_API_KEY`; the secure key setup flow is external to source control.
-- P0-EMAIL-001 gate semantics repaired: `--require-postgres` is enforced, missing PostgreSQL returns BLOCKED, and the proof counts only the exact unique message key.
+- Least-privilege Credential Broker with explicit consumer policies, consumer-bound secret leases, ephemeral runtime token storage, and redacted status/repr.
+- Mock / loopback-only Ollama / broker-backed OpenAI adapters.
+- Provider Router integrated with CreatorRuntime and Development Council; OpenAI Agents SDK failures/successes update the R6 circuit breaker.
+- Council remains true five-specialist + lead-orchestrator execution on an Agents-SDK-capable provider; it fails closed instead of representing a single Ollama response as a five-agent council.
+- OpenAI Agents SDK tracing keeps workflow observability while setting `trace_include_sensitive_data=False` for these runtime paths.
+- Gmail OAuth server flow: one-time state, offline access, `gmail.readonly` default, optional `gmail.send`, tokens retained only inside the broker in this slice.
+- GitHub App JWT/installation-token path with short-lived broker-only installation tokens and optional `PyJWT[crypto]` dependency.
+- New redacted status endpoints for providers/credentials plus Gmail OAuth and GitHub App integration endpoints.
 
-## R4 foundation retained
+## Production blockers retained / added
 
-- Unified Integration Hub API for GitHub, Slack, Google Drive, n8n, OpenAI configuration, and database reachability.
-- Full System Demo SYSTEM matrix expanded with server-side integration states.
-- Secrets remain server-side and are not returned by integration status endpoints.
-- Default OpenAI API model normalized to `gpt-5-mini`; `OPENAI_MODEL` override remains supported.
-- GitHub Actions CI added for compile, Ruff, Bandit, secret scan, and pytest.
-- Weekly/manual dependency audit workflow added.
-- Release checker no longer crashes when seller-only commercial files are absent from the source repository.
-- `.env.p0.example` and `.env.prod.example` are now intentionally tracked examples while real `.env*` secrets remain ignored.
+- Gmail refresh-token storage is **ephemeral-memory only** in R7; production requires an encrypted durable vault and rotation/revocation procedure.
+- GitHub App must be registered/installed and exercised against the intended repository with least-privilege permissions.
+- Live OpenAI AI001 and optional Ollama runtime evidence are not claimed by unit tests.
+- PostgreSQL concurrency, n8n execution/audit, backup/restore, observability/alert delivery, clean-machine deployment, and remaining P0 gates are still open unless separately evidenced against this exact release.
 
-## Locally verified in this build environment
+## Claim discipline
 
-- Python compilation: PASS
-- Non-billing regression after R5 changes: **40 passed**
-- Full pytest: **46 passed / 3 errors**; the three errors are billing tests blocked by missing `aiosqlite`
-- Development Council API/contract tests: PASS
-- Integration Hub tests: PASS within the non-billing regression set
-- JavaScript syntax (`node --check`): PASS
-- Tracked-file secret scan: PASS
-- `/health`: HTTP 200
-- `/api/status`: HTTP 200
-- `/api/integrations/status`: HTTP 200
-- `/demo`: HTTP 200
-- Git diff whitespace check: PASS
+Passing unit/regression tests proves code-path behavior only. It does not make this build Production Ready. Critical FAIL or BLOCKED staging gates keep the overall release at NO-GO.
 
-## Local validation blockers
+## Local R7 validation
 
-These are environment/tooling blockers, not production PASS evidence:
-
-- Billing tests: 3 tests cannot execute here because `aiosqlite` is not installed.
-- Development Council live run: BLOCKED because this runtime has no server-side `OPENAI_API_KEY` and no installed `openai-agents` package.
-- Docker/PostgreSQL staging: unavailable in this runtime.
-- Ruff: unavailable in this runtime.
-- Bandit: unavailable in this runtime.
-- pip-audit: unavailable in this runtime.
-
-The GitHub CI workflow installs `.[dev,billing,email]` and is intended to run the complete suite once the repository is available.
-
-## Production P0 blockers still open
-
-- PostgreSQL concurrency/dedup evidence on staging.
-- Outbox timeout/retry and lease-recovery evidence on staging.
-- Actual n8n workflow execution/routing evidence and `n8n audit`.
-- Attachment quarantine and loop-prevention evidence through the deployed pipeline.
-- Backup/destroy/restore/boot evidence.
-- Live OpenAI production-path smoke evidence (AI001).
-- Real security tooling evidence (gitleaks/Bandit/dependency audit as applicable).
-- Observability/alert delivery after failure injection.
-- Clean-machine deployment from the exact release artifact.
-- Final commercial/legal package completion before sale close.
-
-Do not label this build `Production Ready` until the required P0 gates pass against one exact commit and environment.
+- Non-billing regression: **89 passed**.
+- Full pytest: **95 passed / 3 billing errors** (`aiosqlite` missing).
+- Python compile: PASS.
+- JavaScript syntax: PASS.
+- Whole-worktree secret-pattern scan: PASS.
+- Ruff/Bandit/pip-audit: BLOCKED because the binaries are unavailable in this runtime.
+- Fresh offline uv resolution: BLOCKED by missing `asyncpg` cache for supported platform splits.

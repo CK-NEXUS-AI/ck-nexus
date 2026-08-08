@@ -35,6 +35,15 @@ class Settings:
     app_version: str = "0.2.0"
     environment: str = "development"
     openai_model: str = "gpt-5-mini"
+    provider_local_first: bool = True
+    provider_allow_cloud: bool = True
+    provider_max_attempts: int = 3
+    provider_failure_threshold: int = 2
+    provider_circuit_cooldown_seconds: int = 30
+    provider_timeout_seconds: int = 90
+    ollama_enabled: bool = False
+    ollama_base_url: str = "http://127.0.0.1:11434"
+    ollama_model: str = ""
     database_url: str = ""
     session_database_url: str = ""
     database_path: Path = RUNTIME_ROOT / "data" / "cknexus.db"
@@ -67,6 +76,11 @@ class Settings:
     n8n_base_url: str = ""
     n8n_api_key: str = ""
     integration_timeout_seconds: int = 5
+    gmail_oauth_enabled: bool = False
+    gmail_redirect_uri: str = ""
+    gmail_send_enabled: bool = False
+    github_app_enabled: bool = False
+    github_api_version: str = "2026-03-10"
     dev_team_enabled: bool = True
     dev_team_web_search_enabled: bool = True
     dev_team_max_turns: int = 8
@@ -120,6 +134,42 @@ class Settings:
                 or "development"
             ),
             openai_model=os.getenv("OPENAI_MODEL", "gpt-5-mini"),
+            provider_local_first=_as_bool(
+                os.getenv("CKNEXUS_PROVIDER_LOCAL_FIRST"), default=True
+            ),
+            provider_allow_cloud=_as_bool(
+                os.getenv("CKNEXUS_PROVIDER_ALLOW_CLOUD"), default=True
+            ),
+            provider_max_attempts=_as_int(
+                os.getenv("CKNEXUS_PROVIDER_MAX_ATTEMPTS"),
+                default=3,
+                minimum=1,
+                maximum=8,
+            ),
+            provider_failure_threshold=_as_int(
+                os.getenv("CKNEXUS_PROVIDER_FAILURE_THRESHOLD"),
+                default=2,
+                minimum=1,
+                maximum=10,
+            ),
+            provider_circuit_cooldown_seconds=_as_int(
+                os.getenv("CKNEXUS_PROVIDER_CIRCUIT_COOLDOWN_SECONDS"),
+                default=30,
+                minimum=0,
+                maximum=3600,
+            ),
+            provider_timeout_seconds=_as_int(
+                os.getenv("CKNEXUS_PROVIDER_TIMEOUT_SECONDS"),
+                default=90,
+                minimum=5,
+                maximum=600,
+            ),
+            ollama_enabled=_as_bool(os.getenv("CKNEXUS_OLLAMA_ENABLED"), default=False),
+            ollama_base_url=(
+                os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").strip()
+                or "http://127.0.0.1:11434"
+            ),
+            ollama_model=os.getenv("OLLAMA_MODEL", "").strip(),
             database_url=database_url,
             session_database_url=session_database_url,
             database_path=database_path,
@@ -198,6 +248,19 @@ class Settings:
                 default=5,
                 minimum=1,
                 maximum=30,
+            ),
+            gmail_oauth_enabled=_as_bool(
+                os.getenv("CKNEXUS_GMAIL_OAUTH_ENABLED"), default=False
+            ),
+            gmail_redirect_uri=os.getenv("GMAIL_REDIRECT_URI", "").strip(),
+            gmail_send_enabled=_as_bool(
+                os.getenv("CKNEXUS_GMAIL_SEND_ENABLED"), default=False
+            ),
+            github_app_enabled=_as_bool(
+                os.getenv("CKNEXUS_GITHUB_APP_ENABLED"), default=False
+            ),
+            github_api_version=(
+                os.getenv("GITHUB_API_VERSION", "2026-03-10").strip() or "2026-03-10"
             ),
             dev_team_enabled=_as_bool(os.getenv("CKNEXUS_DEV_TEAM_ENABLED"), default=True),
             dev_team_web_search_enabled=_as_bool(

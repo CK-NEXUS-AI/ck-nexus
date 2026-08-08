@@ -46,7 +46,7 @@ class RunResult(BaseModel):
     language: str
     content: str
     model: str
-    mode: Literal["mock", "openai"]
+    mode: Literal["mock", "openai", "ollama"]
     status: Literal["completed", "failed"]
     duration_ms: int
     created_at: datetime
@@ -55,7 +55,7 @@ class RunResult(BaseModel):
 class StatusResponse(BaseModel):
     name: str
     version: str
-    mode: Literal["mock", "openai", "blocked"]
+    mode: Literal["mock", "openai", "ollama", "blocked"]
     model: str
     key_configured: bool
     database_ready: bool
@@ -108,7 +108,7 @@ class DevTeamResult(BaseModel):
     consult_mode: str
     content: str
     model: str
-    mode: Literal["mock", "openai"]
+    mode: Literal["mock", "openai", "ollama"]
     duration_ms: int
     advisors_available: int
 
