@@ -1,0 +1,30 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_started
+      app:
+        condition: service_healthy
+    environment:
+      CKN_ENV: ${CKN_ENV:-staging}
+      CKN_POLICY_VERSION: ${CKN_POLICY_VERSION:-2026-08-09.1}
+      CKN_AUDIT_REQUIRED: "true"
+      CKNEXUS_JWT_PUBLIC_KEY: ${CKNEXUS_JWT_PUBLIC_KEY:?set CKNEXUS_JWT_PUBLIC_KEY}
+      CKNEXUS_JWT_ISSUER: ${CKNEXUS_JWT_ISSUER:-ck-nexus}
+      CKNEXUS_JWT_ALGORITHM: ${CKNEXUS_JWT_ALGORITHM:-RS256}
+      CKNEXUS_REDIS_URL: redis://redis:6379/0
+      CKNEXUS_CREATOR_API_URL: http://app:8000
+      CKNEXUS_DEVTEAM_URL: http://app:8000
+      CKNEXUS_INTEGRATIONS_URL: http://app:8000
+    ports:
+      - "127.0.0.1:${CKNEXUS_GATEWAY_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=3).read()"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+    networks: [backend]

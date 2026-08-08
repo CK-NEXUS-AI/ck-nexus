@@ -149,3 +149,11 @@ Gmail OAuth and GitHub App authentication are available as development-candidate
 OAuth refresh tokens are ephemeral-memory only in this slice, so production still requires an
 encrypted durable vault and the existing P0 staging gates. See
 `docs/R7_CREDENTIAL_BROKER_PROVIDER_CUTOVER.md`.
+
+## R9–R11 Canonical Implementation Branch
+
+The `gateway/`, `orchestration/`, and `idea_engine/` packages implement Canonical Master Source
+revision 1 sections 5–7 on top of the verified R8 baseline. R9 distributed rate limiting is
+implemented with an atomic Redis Lua token bucket and does **not** silently fall back to the
+process-local limiter in production. The real two-instance Redis proof remains a staging gate;
+local unit tests are not production evidence.

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CKNexusWorkflowPattern",
+  "type": "object",
+  "required": ["id", "version", "intent_tags", "agents", "allowed_tools", "forbidden_tools", "approval_policy", "side_effect_policy", "max_steps", "timeout_seconds"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "version": {"type": "string", "minLength": 1},
+    "intent_tags": {"type": "array", "items": {"type": "string"}},
+    "agents": {"type": "array", "items": {"type": "string"}},
+    "allowed_tools": {"type": "array", "items": {"type": "string"}},
+    "forbidden_tools": {"type": "array", "items": {"type": "string"}},
+    "approval_policy": {"type": "string"},
+    "side_effect_policy": {"type": "string"},
+    "max_steps": {"type": "integer", "minimum": 1, "maximum": 100},
+    "max_parallelism": {"type": "integer", "minimum": 1, "maximum": 20},
+    "timeout_seconds": {"type": "integer", "minimum": 1},
+    "evidence_requirements": {"type": "array", "items": {"type": "string"}},
+    "output_schema": {"type": ["string", "null"]}
+  },
+  "additionalProperties": true
+}
