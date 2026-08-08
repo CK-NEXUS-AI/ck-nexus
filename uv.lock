@@ -285,6 +285,7 @@ name = "ck-nexus-creator"
 version = "0.2.0"
 source = { editable = "." }
 dependencies = [
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "openai-agents" },
     { name = "python-dotenv" },
@@ -314,6 +315,7 @@ github-app = [
 requires-dist = [
     { name = "aiosqlite", marker = "extra == 'billing'", specifier = ">=0.20,<1" },
     { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.8,<2" },
+    { name = "cryptography", specifier = ">=46,<51" },
     { name = "fastapi", specifier = ">=0.116,<1" },
     { name = "httpx2", marker = "extra == 'dev'", specifier = ">=2.9,<3" },
     { name = "openai-agents", specifier = ">=0.19,<1" },

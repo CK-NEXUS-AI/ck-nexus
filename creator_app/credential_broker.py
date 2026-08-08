@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from time import monotonic
-from typing import Mapping
+from typing import Protocol
 
 
 class CredentialId(StrEnum):
@@ -68,6 +69,23 @@ class CredentialUnavailable(RuntimeError):
     """Raised when an allowed credential is not configured or has expired."""
 
 
+class PersistentCredentialStore(Protocol):
+    """Minimal encrypted-store boundary used by the broker."""
+
+    def get(self, credential_id: CredentialId) -> tuple[str, str, float | None] | None: ...
+
+    def put(
+        self,
+        credential_id: CredentialId,
+        value: str,
+        *,
+        source: str,
+        ttl_seconds: float | None = None,
+    ) -> None: ...
+
+    def delete(self, credential_id: CredentialId, *, reason: str) -> None: ...
+
+
 @dataclass(frozen=True, slots=True, repr=False)
 class SecretLease:
     credential_id: CredentialId
@@ -126,19 +144,29 @@ class CredentialBroker:
         *,
         environment: Mapping[CredentialId, str] | None = None,
         policy: Mapping[str, frozenset[CredentialId]] | None = None,
+        persistent_store: PersistentCredentialStore | None = None,
     ) -> None:
         self._environment = dict(environment or {})
         self._policy = dict(policy or DEFAULT_CONSUMER_POLICY)
         self._ephemeral: dict[CredentialId, _EphemeralSecret] = {}
+        self._persistent_store = persistent_store
 
     @classmethod
-    def from_environment(cls) -> CredentialBroker:
+    def from_environment(
+        cls,
+        *,
+        persistent_store: PersistentCredentialStore | None = None,
+    ) -> CredentialBroker:
         values: dict[CredentialId, str] = {}
         for credential_id, env_name in ENV_BINDINGS.items():
             value = os.getenv(env_name, "").strip()
             if value:
                 values[credential_id] = value
-        return cls(environment=values)
+        return cls(environment=values, persistent_store=persistent_store)
+
+    @property
+    def persistent_available(self) -> bool:
+        return self._persistent_store is not None
 
     def is_allowed(self, credential_id: CredentialId, *, consumer: str) -> bool:
         return credential_id in self._policy.get(consumer, frozenset())
@@ -186,6 +214,28 @@ class CredentialBroker:
     def clear_ephemeral(self, credential_id: CredentialId) -> None:
         self._ephemeral.pop(credential_id, None)
 
+    def put_persistent(
+        self,
+        credential_id: CredentialId,
+        value: str,
+        *,
+        source: str,
+        ttl_seconds: float | None = None,
+    ) -> None:
+        if self._persistent_store is None:
+            raise CredentialUnavailable("Persistent credential storage is unavailable.")
+        self._persistent_store.put(
+            credential_id,
+            value,
+            source=source,
+            ttl_seconds=ttl_seconds,
+        )
+
+    def clear_persistent(self, credential_id: CredentialId, *, reason: str = "revoked") -> None:
+        if self._persistent_store is None:
+            return
+        self._persistent_store.delete(credential_id, reason=reason)
+
     def statuses(self, *, consumer: str) -> tuple[CredentialStatus, ...]:
         allowed = sorted(self._policy.get(consumer, frozenset()), key=lambda item: item.value)
         result: list[CredentialStatus] = []
@@ -206,7 +256,9 @@ class CredentialBroker:
         return tuple(result)
 
     def __repr__(self) -> str:
-        configured = sum(1 for credential_id in CredentialId if self._resolve(credential_id) is not None)
+        configured = sum(
+            1 for credential_id in CredentialId if self._resolve(credential_id) is not None
+        )
         return f"CredentialBroker(configured={configured}, values=<redacted>)"
 
     def _resolve(self, credential_id: CredentialId) -> tuple[str, str, float | None] | None:
@@ -216,6 +268,14 @@ class CredentialBroker:
                 self._ephemeral.pop(credential_id, None)
             else:
                 return ephemeral.value, ephemeral.source, ephemeral.expires_at
+        if self._persistent_store is not None:
+            persisted = self._persistent_store.get(credential_id)
+            if persisted is not None:
+                value, source, ttl_remaining = persisted
+                expires_at = (
+                    monotonic() + ttl_remaining if ttl_remaining is not None else None
+                )
+                return value, source, expires_at
         value = self._environment.get(credential_id, "").strip()
         if not value:
             return None

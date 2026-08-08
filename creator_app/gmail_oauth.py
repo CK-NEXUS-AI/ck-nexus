@@ -14,7 +14,6 @@ from creator_app.credential_broker import (
 )
 from creator_app.integration_security import open_trusted_request
 
-
 GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send"
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -97,9 +96,20 @@ class GmailOAuthManager:
             "configured": self.configured,
             "authorized": self.authorized,
             "scopes": list(self.scopes),
-            "token_persistence": "ephemeral-memory",
-            "production_vault_required": True,
+            "token_persistence": (
+                "encrypted-vault" if self.broker.persistent_available else "ephemeral-memory"
+            ),
+            "production_vault_required": not self.broker.persistent_available,
         }
+
+    def revoke_local_tokens(self) -> dict[str, object]:
+        for credential_id in (
+            CredentialId.GMAIL_ACCESS_TOKEN,
+            CredentialId.GMAIL_REFRESH_TOKEN,
+        ):
+            self.broker.clear_ephemeral(credential_id)
+            self.broker.clear_persistent(credential_id, reason="revoked")
+        return self.status()
 
     def authorization_url(self) -> str:
         if not self.configured:
@@ -175,9 +185,16 @@ class GmailOAuthManager:
             ttl_seconds=max(60, expires_in - 30),
         )
         if refresh_token:
-            self.broker.put_ephemeral(
-                CredentialId.GMAIL_REFRESH_TOKEN,
-                refresh_token,
-                source="gmail-oauth",
-            )
+            if self.broker.persistent_available:
+                self.broker.put_persistent(
+                    CredentialId.GMAIL_REFRESH_TOKEN,
+                    refresh_token,
+                    source="gmail-oauth",
+                )
+            else:
+                self.broker.put_ephemeral(
+                    CredentialId.GMAIL_REFRESH_TOKEN,
+                    refresh_token,
+                    source="gmail-oauth",
+                )
         return self.status()

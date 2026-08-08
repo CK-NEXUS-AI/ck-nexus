@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from creator_app.config import Settings, _as_bool, _as_int
 
 
@@ -62,3 +64,19 @@ def test_nonproduction_keeps_local_fail_open_compatibility(tmp_path: Path, monke
 
     assert configured.environment == "development"
     assert configured.access_token == ""
+
+
+def test_production_oauth_requires_encrypted_vault(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("CKNEXUS_HOME", str(tmp_path))
+    monkeypatch.setenv("CKNEXUS_ENVIRONMENT", "production")
+    monkeypatch.setenv("CKNEXUS_ACCESS_TOKEN", "runtime-access-secret")
+    monkeypatch.setenv("CKNEXUS_GMAIL_OAUTH_ENABLED", "true")
+    monkeypatch.delenv("CKNEXUS_VAULT_ENABLED", raising=False)
+    monkeypatch.delenv("CKNEXUS_VAULT_KEY", raising=False)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        Settings.from_env()
+
+    message = str(exc_info.value)
+    assert "CKNEXUS_VAULT_ENABLED" in message
+    assert "CKNEXUS_VAULT_KEY" in message

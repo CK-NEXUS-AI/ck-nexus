@@ -41,6 +41,9 @@ class Settings:
     provider_failure_threshold: int = 2
     provider_circuit_cooldown_seconds: int = 30
     provider_timeout_seconds: int = 90
+    credential_vault_enabled: bool = False
+    credential_vault_path: Path = RUNTIME_ROOT / "data" / "credential-vault.db"
+    credential_vault_key_configured: bool = False
     ollama_enabled: bool = False
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str = ""
@@ -100,6 +103,13 @@ class Settings:
         database_path = Path(database_value)
         if not database_path.is_absolute():
             database_path = runtime_root / database_path
+
+        vault_database_value = os.getenv(
+            "CKNEXUS_VAULT_PATH", "data/credential-vault.db"
+        ).strip()
+        credential_vault_path = Path(vault_database_value)
+        if not credential_vault_path.is_absolute():
+            credential_vault_path = runtime_root / credential_vault_path
 
         email_database_value = os.getenv("CKNEXUS_EMAIL_DATABASE_PATH", "").strip()
         if email_database_value:
@@ -163,6 +173,13 @@ class Settings:
                 default=90,
                 minimum=5,
                 maximum=600,
+            ),
+            credential_vault_enabled=_as_bool(
+                os.getenv("CKNEXUS_VAULT_ENABLED"), default=False
+            ),
+            credential_vault_path=credential_vault_path,
+            credential_vault_key_configured=_is_runtime_secret(
+                os.getenv("CKNEXUS_VAULT_KEY", "")
             ),
             ollama_enabled=_as_bool(os.getenv("CKNEXUS_OLLAMA_ENABLED"), default=False),
             ollama_base_url=(
@@ -295,6 +312,11 @@ class Settings:
             missing.append("CKNEXUS_ACCESS_TOKEN")
         if self.email_gateway_enabled and not _is_runtime_secret(self.email_webhook_token):
             missing.append("CKNEXUS_EMAIL_WEBHOOK_TOKEN")
+        if self.gmail_oauth_enabled or self.github_app_enabled:
+            if not self.credential_vault_enabled:
+                missing.append("CKNEXUS_VAULT_ENABLED")
+            if not self.credential_vault_key_configured:
+                missing.append("CKNEXUS_VAULT_KEY")
         if missing:
             names = ", ".join(missing)
             raise RuntimeError(f"Production startup blocked: configure secure values for {names}.")

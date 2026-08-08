@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Callable
 from urllib.request import Request
 
 from creator_app.credential_broker import (
@@ -118,12 +118,20 @@ class GitHubAppAuth:
                 ttl_seconds = max(60, int((expiry - datetime.now(UTC)).total_seconds()) - 30)
             except ValueError:
                 ttl_seconds = 3300
-        self.broker.put_ephemeral(
-            CredentialId.GITHUB_INSTALLATION_TOKEN,
-            token,
-            source="github-app",
-            ttl_seconds=ttl_seconds,
-        )
+        if self.broker.persistent_available:
+            self.broker.put_persistent(
+                CredentialId.GITHUB_INSTALLATION_TOKEN,
+                token,
+                source="github-app",
+                ttl_seconds=ttl_seconds,
+            )
+        else:
+            self.broker.put_ephemeral(
+                CredentialId.GITHUB_INSTALLATION_TOKEN,
+                token,
+                source="github-app",
+                ttl_seconds=ttl_seconds,
+            )
         return self.status()
 
     @staticmethod

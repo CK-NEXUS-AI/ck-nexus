@@ -16,6 +16,7 @@ from creator_app.codex_bridge import (
 )
 from creator_app.config import Settings
 from creator_app.credential_broker import CredentialBroker, CredentialId
+from creator_app.credential_vault import build_credential_vault
 from creator_app.gmail_oauth import GmailOAuthError, GmailOAuthManager
 from creator_app.github_app import GitHubAppAuth, GitHubAppAuthError
 from creator_app.providers import build_provider_router
@@ -63,7 +64,14 @@ SESSION_ID_PATTERN = r"^[A-Za-z0-9_:-]+$"
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     resolved_settings = settings or Settings.from_env()
-    credential_broker = CredentialBroker.from_environment()
+    resolved_settings.validate_startup()
+    credential_vault = build_credential_vault(
+        enabled=resolved_settings.credential_vault_enabled,
+        path=resolved_settings.credential_vault_path,
+    )
+    credential_broker = CredentialBroker.from_environment(
+        persistent_store=credential_vault
+    )
     provider_router = build_provider_router(resolved_settings, credential_broker)
     store = RunStore(resolved_settings.database_path, database_url=resolved_settings.database_url)
     runtime = CreatorRuntime(
@@ -132,6 +140,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.settings = resolved_settings
+    app.state.credential_vault = credential_vault
     app.state.credential_broker = credential_broker
     app.state.provider_router = provider_router
     app.state.store = store
@@ -680,6 +689,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
         }
 
+    @app.get("/api/security/credential-vault/status")
+    async def credential_vault_status(
+        _: None = Depends(require_access_token),
+    ) -> dict[str, object]:
+        return {
+            "enabled": credential_vault is not None,
+            "backend": "sqlite-fernet" if credential_vault is not None else None,
+            "key_configured": resolved_settings.credential_vault_key_configured,
+            "secrets_exposed": False,
+        }
+
+    @app.get("/api/security/credential-vault/audit")
+    async def credential_vault_audit(
+        _: None = Depends(require_access_token),
+    ) -> dict[str, object]:
+        events = credential_vault.audit_events() if credential_vault is not None else ()
+        return {
+            "enabled": credential_vault is not None,
+            "events": [event.as_dict() for event in events],
+            "secrets_exposed": False,
+        }
+
     @app.get("/api/integrations/gmail/status")
     async def gmail_status(_: None = Depends(require_access_token)) -> dict[str, object]:
         return gmail_oauth.status()
@@ -691,6 +722,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/integrations/gmail/oauth/callback")
     def gmail_oauth_callback(code: str = Query(...), state: str = Query(...)) -> dict[str, object]:
         return {"status": "authorized", "gmail": gmail_oauth.exchange_code(code=code, state=state)}
+
+    @app.post("/api/integrations/gmail/revoke-local")
+    async def gmail_revoke_local(
+        _: None = Depends(require_access_token),
+    ) -> dict[str, object]:
+        return {"status": "revoked", "gmail": gmail_oauth.revoke_local_tokens()}
 
     @app.get("/api/integrations/github-app/status")
     async def github_app_status(_: None = Depends(require_access_token)) -> dict[str, object]:
