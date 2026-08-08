@@ -1,0 +1,45 @@
+CK-NEXUS Creator Edition v0.2.0
+
+Core application:
+- main.py
+- pyproject.toml
+- uv.lock
+- creator_app/
+- Dockerfile
+- .env.example
+
+Quality and verification:
+- tests/
+- scripts/release_check.py
+- scripts/package_release.py
+- docs/ACCEPTANCE_CRITERIA.md
+- docs/RELEASE_CHECKLIST.md
+- docs/SECURITY_AUDIT.md
+- docs/TEST_REPORT.md
+- docs/UX_DESIGN_SYSTEM.md
+- docs/CODEX_INTEGRATION.md
+- docs/OPENAI_CODEX_ADOPTION.md
+- docs/agent-interactions.png
+- docs/agent-sequence.png
+
+Commercial and operational documentation:
+- README.md
+- COMMERCIAL_LICENSE_TEMPLATE.md
+- THIRD_PARTY_NOTICES.md
+- docs/ARCHITECTURE.md
+- docs/BUILD_BRIEF.md
+- docs/SELLER_CHECKLIST.md
+- CHANGELOG.md
+- RELEASE_STATUS.md
+- scripts/install_codex.py
+
+Optional legacy module:
+- app/db/
+- services/billing/
+- tests/test_billing.py
+
+Excluded from delivery:
+- .env.local and all secrets
+- data/*.db and user content
+- .venv, caches, logs, build output
+- project-local Codex CLI binaries and Codex credential/state directories

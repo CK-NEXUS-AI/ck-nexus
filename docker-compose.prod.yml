@@ -1,0 +1,115 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cknexus
+      POSTGRES_USER: cknexus
+      POSTGRES_PASSWORD: ${CKNEXUS_DB_PASSWORD:?set CKNEXUS_DB_PASSWORD}
+    volumes:
+      - cknexus_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cknexus -d cknexus"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks: [backend]
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      CKNEXUS_HOST: 0.0.0.0
+      PORT: 8000
+      CKNEXUS_MOCK_AI: "false"
+      CKNEXUS_DATABASE_URL: postgresql://cknexus:${CKNEXUS_DB_PASSWORD}@db:5432/cknexus
+      CKNEXUS_SESSION_DATABASE_URL: postgresql+asyncpg://cknexus:${CKNEXUS_DB_PASSWORD}@db:5432/cknexus
+      CKNEXUS_EMAIL_DATABASE_URL: postgresql://cknexus:${CKNEXUS_DB_PASSWORD}@db:5432/cknexus
+      CKNEXUS_EMAIL_GATEWAY_ENABLED: "true"
+      CKNEXUS_EMAIL_WEBHOOK_TOKEN: ${CKNEXUS_EMAIL_WEBHOOK_TOKEN:?set CKNEXUS_EMAIL_WEBHOOK_TOKEN}
+      CKNEXUS_ACCESS_TOKEN: ${CKNEXUS_ACCESS_TOKEN:?set CKNEXUS_ACCESS_TOKEN}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.6-luna}
+      CKNEXUS_EMAIL_LEASE_SECONDS: ${CKNEXUS_EMAIL_LEASE_SECONDS:-300}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_REPO: ${GITHUB_REPO:-}
+      GITHUB_API_BASE: ${GITHUB_API_BASE:-https://api.github.com}
+    ports:
+      - "127.0.0.1:${CKNEXUS_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+    networks: [backend]
+
+  n8n-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: n8n
+      POSTGRES_USER: n8n
+      POSTGRES_PASSWORD: ${N8N_DB_PASSWORD:?set N8N_DB_PASSWORD}
+    volumes:
+      - n8n_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n -d n8n"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks: [backend]
+
+  n8n:
+    image: ${N8N_IMAGE:-n8nio/n8n:2.32.6}
+    restart: unless-stopped
+    depends_on:
+      n8n-db:
+        condition: service_healthy
+      app:
+        condition: service_healthy
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: n8n-db
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: n8n
+      DB_POSTGRESDB_PASSWORD: ${N8N_DB_PASSWORD}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?set N8N_ENCRYPTION_KEY}
+      N8N_METRICS: "true"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_VERSION_NOTIFICATIONS_ENABLED: "true"
+      N8N_HOST: 0.0.0.0
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      GENERIC_TIMEZONE: ${TZ:-Asia/Bangkok}
+      TZ: ${TZ:-Asia/Bangkok}
+      CKNEXUS_EMAIL_API_BASE: http://app:8000
+      CKNEXUS_EMAIL_WEBHOOK_TOKEN: ${CKNEXUS_EMAIL_WEBHOOK_TOKEN}
+    ports:
+      - "127.0.0.1:${N8N_PORT:-5678}:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n/workflows:/workflows:ro
+    networks: [backend]
+
+  redis:
+    image: redis:7-alpine
+    profiles: ["queue"]
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks: [backend]
+
+networks:
+  backend:
+
+volumes:
+  cknexus_pg:
+  n8n_pg:
+  n8n_data:
+  redis_data:

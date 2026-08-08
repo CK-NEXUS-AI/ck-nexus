@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="th" data-theme="midnight">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="CK-NEXUS Full System Demo — Creator Agents + Email Gateway + Audit + Metrics" />
+  <title>CK-NEXUS / Full System Demo</title>
+  <link rel="stylesheet" href="/static/full-system.css" />
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>
+
+  <header class="topbar">
+    <a class="brand" href="/demo" aria-label="CK-NEXUS Full System Demo">
+      <span class="brand-mark">CK/NX</span>
+      <span><strong>CK-NEXUS</strong><small>FULL SYSTEM DEMO / RC</small></span>
+    </a>
+    <nav>
+      <button class="nav active" data-tab="overview">OVERVIEW</button>
+      <button class="nav" data-tab="agents">AGENTS</button>
+      <button class="nav" data-tab="email">EMAIL GATEWAY</button>
+      <button class="nav" data-tab="audit">AUDIT</button>
+      <button class="nav" data-tab="system">SYSTEM</button>
+    </nav>
+    <div class="runtime-pill" id="runtime-pill">[ CHECKING ]</div>
+  </header>
+
+  <main>
+    <section class="tab active" id="tab-overview">
+      <div class="hero-grid">
+        <div>
+          <p class="eyebrow">FULL-CYCLE / SALES + TECHNICAL DEMO</p>
+          <h1>ทดสอบ CK-NEXUS<br><em>ตั้งแต่ต้นจนจบ</em></h1>
+          <p class="lede">หน้าเดียวสำหรับทดลอง Creator Agents, Email Gateway, atomic deduplication, routing, quarantine, outbox, audit trail และ metrics ผ่าน API จริงของ CK-NEXUS</p>
+        </div>
+        <div class="hero-status">
+          <span class="index">01</span>
+          <strong id="hero-state">SYSTEM CHECK</strong>
+          <small id="hero-detail">กำลังตรวจ runtime</small>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <article><span>APP</span><strong id="kpi-app">CHECKING</strong><small id="kpi-version">VERSION —</small></article>
+        <article><span>AI RUNTIME</span><strong id="kpi-ai">CHECKING</strong><small id="kpi-model">MODEL —</small></article>
+        <article><span>DATABASE</span><strong id="kpi-db">CHECKING</strong><small>CREATOR HISTORY</small></article>
+        <article><span>EMAIL GATEWAY</span><strong id="kpi-email">CHECKING</strong><small>DEDUP / OUTBOX / AUDIT</small></article>
+      </div>
+
+      <section class="panel full-cycle">
+        <div class="panel-head">
+          <div><span class="step">RUN</span><h2>FULL CYCLE DEMO</h2></div>
+          <button class="primary" id="run-full-cycle">RUN FULL CYCLE</button>
+        </div>
+        <div class="flow">
+          <span>HEALTH</span><b>→</b><span>AGENT</span><b>→</b><span>ROUTE</span><b>→</b><span>INGEST</span><b>→</b><span>DEDUP</span><b>→</b><span>OUTBOX</span><b>→</b><span>AUDIT</span><b>→</b><span>METRICS</span>
+        </div>
+        <div class="run-progress" id="run-progress"></div>
+        <pre class="console" id="cycle-console">READY / กด RUN FULL CYCLE เพื่อเริ่มทดสอบ</pre>
+      </section>
+    </section>
+
+    <section class="tab" id="tab-agents">
+      <div class="page-head"><p class="eyebrow">CREATOR WORKSPACE</p><h1>Agent <em>workspace.</em></h1></div>
+      <div class="split">
+        <section class="panel">
+          <div class="panel-head"><div><span class="step">01</span><h2>SPECIALISTS</h2></div><span id="agent-count">00</span></div>
+          <div id="agent-list" class="agent-list"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><div><span class="step">02</span><h2>RUN AGENT</h2></div></div>
+          <form id="agent-form" class="form-stack">
+            <input type="hidden" id="agent-id" />
+            <label>BRIEF<textarea id="agent-prompt" rows="7" required>สร้างสคริปต์วิดีโอ 45 วินาที แนะนำระบบ CK-NEXUS สำหรับทีมคอนเทนต์</textarea></label>
+            <div class="form-row"><label>AUDIENCE<input id="agent-audience" value="เจ้าของธุรกิจและทีมครีเอเตอร์" /></label><label>PLATFORM<select id="agent-platform"><option>TikTok</option><option>YouTube Shorts</option><option>Facebook</option><option>LinkedIn</option></select></label></div>
+            <div class="form-row"><label>TONE<select id="agent-tone"><option>มืออาชีพ</option><option>เป็นธรรมชาติ</option><option>กระชับและทรงพลัง</option></select></label><label>LANGUAGE<select id="agent-language"><option>ไทย</option><option>English</option><option>ไทย + English</option></select></label></div>
+            <label>SESSION ID<input id="agent-session" value="web-demo" /></label>
+            <button class="primary" type="submit">GENERATE</button>
+          </form>
+        </section>
+      </div>
+      <section class="panel output-panel"><div class="panel-head"><div><span class="step">03</span><h2>OUTPUT</h2></div><button class="ghost" id="copy-agent-output">COPY</button></div><pre class="output" id="agent-output">OUTPUT CHANNEL / IDLE</pre></section>
+    </section>
+
+    <section class="tab" id="tab-email">
+      <div class="page-head"><p class="eyebrow">EMAIL RELIABILITY LAYER</p><h1>Email <em>gateway.</em></h1></div>
+      <div class="email-grid">
+        <section class="panel">
+          <div class="panel-head"><div><span class="step">A</span><h2>ROUTING</h2></div></div>
+          <form id="route-form" class="form-stack compact">
+            <label>MATCHED ALIAS<input id="route-alias" value="ai@ck-nexus.com" /></label>
+            <label>SUBJECT<input id="route-subject" value="ช่วยสร้างโพสต์เปิดตัวสินค้าใหม่" /></label>
+            <label>SENDER<input id="route-sender" value="buyer@example.com" /></label>
+            <button class="secondary">ROUTE MESSAGE</button>
+          </form>
+          <pre class="mini-console" id="route-output">WAITING</pre>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><div><span class="step">B</span><h2>ATOMIC INGEST</h2></div></div>
+          <form id="ingest-form" class="form-stack compact">
+            <label>MAILBOX<input id="ingest-mailbox" value="admin@ck-nexus.com" /></label>
+            <label>PROVIDER<select id="ingest-provider"><option>gmail</option><option>outlook</option><option>imap</option></select></label>
+            <label>PROVIDER MESSAGE ID<input id="ingest-message-id" value="web-demo-001" /></label>
+            <button class="secondary">INGEST / CLAIM</button>
+          </form>
+          <div class="button-row"><button class="ghost" id="ingest-duplicate">SEND DUPLICATE</button></div>
+          <pre class="mini-console" id="ingest-output">WAITING</pre>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><div><span class="step">C</span><h2>LOOP + ATTACHMENT</h2></div></div>
+          <form id="loop-form" class="form-stack compact"><label>AUTO-SUBMITTED<input id="loop-header" value="auto-replied" /></label><button class="secondary">CHECK LOOP</button></form>
+          <form id="attachment-form" class="form-stack compact"><label>ATTACHMENT<input id="attachment-file" type="file" /></label><button class="secondary">SCAN FILE</button></form>
+          <div class="button-row"><button class="ghost" id="scan-safe-fixture">TEST SAFE TXT</button><button class="ghost" id="scan-danger-fixture">TEST EXE</button></div>
+          <pre class="mini-console" id="safety-output">WAITING</pre>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><div><span class="step">D</span><h2>OUTBOX WORKER</h2></div></div>
+          <form id="outbox-form" class="form-stack compact">
+            <label>JOURNAL ID<input id="outbox-journal" placeholder="ได้จาก Atomic Ingest" /></label>
+            <label>DESTINATION<input id="outbox-destination" value="buyer@example.com" /></label>
+            <button class="secondary">ENQUEUE OUTBOX</button>
+          </form>
+          <div class="button-row"><button class="ghost" id="claim-outbox">CLAIM</button><button class="ghost" id="mark-sent">MARK SENT</button><button class="ghost" id="recover-leases">RECOVER</button></div>
+          <pre class="mini-console" id="outbox-output">WAITING</pre>
+        </section>
+      </div>
+    </section>
+
+    <section class="tab" id="tab-audit">
+      <div class="page-head"><p class="eyebrow">TRACEABILITY / EVIDENCE</p><h1>Audit <em>trail.</em></h1></div>
+      <div class="split">
+        <section class="panel">
+          <div class="panel-head"><div><span class="step">01</span><h2>TRACE JOURNAL</h2></div></div>
+          <form id="audit-form" class="form-stack"><label>JOURNAL ID<input id="audit-journal" placeholder="journal UUID" /></label><button class="primary">LOAD TRACE</button></form>
+          <div id="audit-events" class="timeline"><p class="muted">NO TRACE LOADED</p></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><div><span class="step">02</span><h2>RECENT CREATOR HISTORY</h2></div><button class="ghost" id="refresh-history">REFRESH</button></div>
+          <div id="history-list" class="history-list"><p class="muted">NO HISTORY</p></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="tab" id="tab-system">
+      <div class="page-head"><p class="eyebrow">CONTROL HUB</p><h1>System <em>matrix.</em></h1></div>
+      <div class="system-grid">
+        <section class="panel"><div class="panel-head"><div><span class="step">01</span><h2>CONNECTION</h2></div><button class="ghost" id="test-github">TEST GITHUB</button></div><dl class="matrix"><div><dt>APPLICATION</dt><dd id="sys-app">—</dd></div><div><dt>AI MODE</dt><dd id="sys-ai">—</dd></div><div><dt>DATABASE</dt><dd id="sys-db">—</dd></div><div><dt>CODEX</dt><dd id="sys-codex">—</dd></div><div><dt>GITHUB</dt><dd id="sys-github">CHECKING</dd></div><div><dt>GITHUB REPO</dt><dd id="sys-github-repo">—</dd></div></dl><pre class="mini-console" id="github-output">GitHub token is read only from the server environment. It is never stored in this browser.</pre></section>
+        <section class="panel"><div class="panel-head"><div><span class="step">02</span><h2>SECURE TOKENS</h2></div></div><p class="muted">เก็บเฉพาะใน sessionStorage ของ browser นี้ ไม่ส่งออกไปนอกจาก API request ที่เกี่ยวข้อง</p><div class="form-stack"><label>ACCESS TOKEN<input id="access-token" type="password" autocomplete="off" /></label><label>EMAIL WEBHOOK TOKEN<input id="email-token" type="password" autocomplete="off" /></label><button class="secondary" id="save-tokens">SAVE SESSION TOKENS</button></div></section>
+        <section class="panel metrics-panel"><div class="panel-head"><div><span class="step">03</span><h2>METRICS</h2></div><button class="ghost" id="refresh-metrics">REFRESH</button></div><pre class="metrics" id="metrics-output">METRICS / IDLE</pre></section>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/static/full-system.js" defer></script>
+</body>
+</html>

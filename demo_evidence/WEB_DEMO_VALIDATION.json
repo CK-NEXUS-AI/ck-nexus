@@ -1,0 +1,25 @@
+{
+  "status": "PASS",
+  "validated_surface": "/demo",
+  "runtime": "FastAPI + SQLite safe demo backend",
+  "checks": {
+    "health": "PASS",
+    "html_route": "PASS",
+    "javascript_syntax": "PASS",
+    "core_email_tests": "22/22 PASS",
+    "agents_available": 4,
+    "agent_run": "PASS (mock/demo mode)",
+    "deterministic_routing": "PASS (AI_REQUEST / R-ALIAS-AI)",
+    "atomic_ingest": "PASS (accepted)",
+    "duplicate_replay": "PASS (duplicate / provider_message_already_claimed)",
+    "outbox_enqueue_claim_sent": "PASS",
+    "audit_trace_events": 4,
+    "prometheus_metric_lines": 13
+  },
+  "boundary": {
+    "openai_live": "NOT TESTED in this validation run",
+    "external_email_provider": "SIMULATED boundary after outbox claim",
+    "n8n_activated_staging": "NOT TESTED",
+    "production_p0_gate": "NOT CLAIMED"
+  }
+}

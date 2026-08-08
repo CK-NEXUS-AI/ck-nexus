@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="th" data-theme="midnight">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="CK-NEXUS Creator Edition — Typography-first AI workspace for creators"
+    />
+    <title>CK-NEXUS Creator Edition</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="mesh" aria-hidden="true">
+      <span class="mesh-field mesh-a"></span>
+      <span class="mesh-field mesh-b"></span>
+      <span class="mesh-field mesh-c"></span>
+    </div>
+
+    <header class="topbar">
+      <button class="brand magnetic" type="button" data-view-target="workspace-view">
+        <span class="brand-code">CK/NX</span>
+        <span>
+          <strong>CK-NEXUS</strong>
+          <small>CREATOR EDITION / 0.1.0</small>
+        </span>
+      </button>
+
+      <nav class="text-nav" aria-label="หน้าหลัก">
+        <button class="nav-link active" type="button" data-view-target="workspace-view">
+          WORKSPACE
+        </button>
+        <button class="nav-link" type="button" data-view-target="stream-view">STREAM</button>
+        <button class="nav-link" type="button" data-view-target="system-view">SYSTEM</button>
+      </nav>
+
+      <div class="top-actions">
+        <button class="command-hint magnetic" id="command-open" type="button">
+          COMMAND <kbd>CTRL K</kbd>
+        </button>
+        <span class="status-text checking" id="system-status" role="status" aria-live="polite">
+          [ CHECKING ]
+        </span>
+      </div>
+    </header>
+
+    <main>
+      <section class="view-panel active" id="workspace-view" aria-labelledby="workspace-title">
+        <header class="hero">
+          <div>
+            <p class="eyebrow reveal-item">CREATIVE OPERATING SYSTEM / LOCAL-FIRST</p>
+            <h1 id="workspace-title" aria-label="เปลี่ยนไอเดียให้เป็นคอนเทนต์พร้อมใช้">
+              <span class="reveal-line"><span>เปลี่ยนไอเดีย</span></span>
+              <span class="reveal-line"><span>ให้เป็นคอนเทนต์พร้อมใช้</span></span>
+            </h1>
+            <p class="hero-copy reveal-item">
+              เลือกผู้เชี่ยวชาญจากระบบข้อความ เติม Creative Brief แล้วรับผลงานที่พร้อมนำไปปรับใช้
+              โดยไม่ต้องเขียนพรอมป์ยาว
+            </p>
+          </div>
+          <div class="hero-index reveal-item" aria-label="ผลิตภัณฑ์รุ่นหนึ่ง">
+            <span>01</span>
+            <p>MENU-DRIVEN<br />SOURCE PRODUCT</p>
+          </div>
+        </header>
+
+        <div class="workspace-grid reveal-item">
+          <aside class="agent-panel" aria-labelledby="agent-heading">
+            <div class="section-heading">
+              <div>
+                <span class="step">01</span>
+                <h2 id="agent-heading">SELECT SPECIALIST</h2>
+              </div>
+              <span class="count" id="agent-count">00</span>
+            </div>
+            <div class="agent-list" id="agent-list" aria-live="polite"></div>
+          </aside>
+
+          <section class="brief-panel" aria-labelledby="brief-heading">
+            <div class="section-heading">
+              <div>
+                <span class="step">02</span>
+                <h2 id="brief-heading">CREATIVE BRIEF</h2>
+              </div>
+              <button class="text-button magnetic" id="clear-form" type="button">CLEAR</button>
+            </div>
+
+            <form id="brief-form">
+              <input id="agent-id" name="agent_id" type="hidden" />
+              <label class="field field-large">
+                <span>OBJECTIVE / SOURCE MATERIAL</span>
+                <textarea
+                  id="prompt"
+                  name="prompt"
+                  rows="8"
+                  maxlength="8000"
+                  required
+                  placeholder="เขียนสคริปต์วิดีโอ 60 วินาที อธิบายวิธีเริ่มใช้ AI สำหรับเจ้าของร้านเล็ก ๆ"
+                ></textarea>
+                <small><span id="char-count">0</span>/8,000</small>
+              </label>
+
+              <div class="field-row">
+                <label class="field">
+                  <span>AUDIENCE</span>
+                  <input id="audience" name="audience" value="ครีเอเตอร์มือใหม่" maxlength="160" />
+                </label>
+                <label class="field">
+                  <span>PLATFORM</span>
+                  <select id="platform" name="platform">
+                    <option>YouTube Shorts</option>
+                    <option>TikTok</option>
+                    <option>Facebook</option>
+                    <option>Instagram</option>
+                    <option>LinkedIn</option>
+                    <option>บทความ / Blog</option>
+                    <option>ไม่ระบุ</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="field-row">
+                <label class="field">
+                  <span>TONE</span>
+                  <select id="tone" name="tone">
+                    <option>เป็นธรรมชาติ</option>
+                    <option>มืออาชีพ</option>
+                    <option>เป็นกันเอง</option>
+                    <option>กระชับและทรงพลัง</option>
+                    <option>ให้ความรู้</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>LANGUAGE</span>
+                  <select id="language" name="language">
+                    <option>ไทย</option>
+                    <option>English</option>
+                    <option>ไทย + English</option>
+                  </select>
+                </label>
+              </div>
+
+              <details class="advanced">
+                <summary>ADVANCED CONNECTION</summary>
+                <div class="field-row advanced-fields">
+                  <label class="field">
+                    <span>SESSION ID</span>
+                    <input id="session-id" name="session_id" value="creator-default" maxlength="96" />
+                  </label>
+                  <label class="field">
+                    <span>ACCESS TOKEN</span>
+                    <input id="access-token" type="password" autocomplete="off" />
+                  </label>
+                </div>
+              </details>
+
+              <div class="form-footer">
+                <p id="selected-agent-copy">SELECT A SPECIALIST</p>
+                <button class="primary-button magnetic" id="run-button" type="submit" disabled>
+                  <span>GENERATE</span>
+                  <span>ENTER</span>
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+
+        <section class="result-panel reveal-item" id="result-panel" aria-labelledby="result-heading">
+          <div class="section-heading">
+            <div>
+              <span class="step">03</span>
+              <h2 id="result-heading">OUTPUT</h2>
+            </div>
+            <div class="section-actions">
+              <button class="text-button magnetic" id="download-result" type="button" disabled>
+                DOWNLOAD TXT
+              </button>
+              <button class="text-button magnetic" id="copy-result" type="button" disabled>
+                COPY
+              </button>
+            </div>
+          </div>
+          <div class="empty-state" id="empty-result">
+            <span>OUTPUT CHANNEL / IDLE</span>
+            <p>ผลงานจาก Specialist จะปรากฏตรงนี้</p>
+          </div>
+          <article class="result-content hidden" id="result-content">
+            <div class="result-meta" id="result-meta"></div>
+            <pre id="result-text"></pre>
+          </article>
+        </section>
+      </section>
+
+      <section class="view-panel" id="stream-view" aria-labelledby="stream-title">
+        <header class="page-intro">
+          <p class="eyebrow">LIVE DATA STREAM / LOCAL DATABASE</p>
+          <h1 id="stream-title">Operational<br /><em>overview.</em></h1>
+        </header>
+
+        <div class="metrics-grid">
+          <article class="metric-card">
+            <span class="metric-label">COMPLETED RUNS</span>
+            <strong class="metric-value" id="metric-runs">00</strong>
+            <small>LOCAL HISTORY</small>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">ACTIVE SPECIALISTS</span>
+            <strong class="metric-value" id="metric-agents">00</strong>
+            <small>DIRECT SELECTION</small>
+          </article>
+          <article class="metric-card metric-wide">
+            <span class="metric-label">RUNTIME STATE</span>
+            <strong class="metric-state" id="metric-mode">[ CHECKING ]</strong>
+            <small id="metric-model">MODEL / UNKNOWN</small>
+          </article>
+        </div>
+
+        <section class="history-panel" aria-labelledby="history-heading">
+          <div class="section-heading">
+            <div>
+              <span class="step">04</span>
+              <h2 id="history-heading">RECENT OUTPUT STREAM</h2>
+            </div>
+            <button class="text-button magnetic" id="refresh-history" type="button">REFRESH</button>
+          </div>
+          <div class="history-list" id="history-list">
+            <p class="muted">NO RECORDS</p>
+          </div>
+        </section>
+      </section>
+
+      <section class="view-panel" id="system-view" aria-labelledby="system-title">
+        <header class="page-intro">
+          <p class="eyebrow">CONTROL HUB / ENVIRONMENT</p>
+          <h1 id="system-title">System<br /><em>matrix.</em></h1>
+        </header>
+
+        <div class="system-grid">
+          <section class="control-card">
+            <div class="section-heading">
+              <div><span class="step">A</span><h2>ENVIRONMENT THEME</h2></div>
+            </div>
+            <div class="theme-options" role="group" aria-label="เลือกธีม">
+              <button class="theme-button magnetic" type="button" data-theme-value="midnight">
+                <strong>DEEP MIDNIGHT</strong><small>#0F172A / #311042</small>
+              </button>
+              <button class="theme-button magnetic" type="button" data-theme-value="alabaster">
+                <strong>CLEAN ALABASTER</strong><small>#F8FAFC / #F1F5F9</small>
+              </button>
+              <button class="theme-button magnetic" type="button" data-theme-value="aurora">
+                <strong>CYBER AURORA</strong><small>EMERALD / CYAN</small>
+              </button>
+            </div>
+          </section>
+
+          <section class="control-card">
+            <div class="section-heading">
+              <div><span class="step">B</span><h2>CONNECTION MATRIX</h2></div>
+            </div>
+            <dl class="status-list">
+              <div><dt>APPLICATION</dt><dd id="system-app-state">[ CHECKING ]</dd></div>
+              <div><dt>OPENAI RUNTIME</dt><dd id="system-ai-state">[ CHECKING ]</dd></div>
+              <div><dt>LOCAL MEMORY</dt><dd id="system-db-state">[ CHECKING ]</dd></div>
+              <div><dt>ACCESS GATE</dt><dd id="system-gate-state">[ CHECKING ]</dd></div>
+            </dl>
+            <button class="outline-button magnetic" id="clear-session-token" type="button">
+              CLEAR SESSION TOKEN
+            </button>
+            <button class="outline-button danger-button magnetic" id="delete-local-session" type="button">
+              DELETE LOCAL SESSION
+            </button>
+          </section>
+
+          <section class="control-card control-wide">
+            <div class="section-heading">
+              <div><span class="step">C</span><h2>FUNCTIONAL BLUEPRINT</h2></div>
+            </div>
+            <div class="blueprint" aria-label="แผนผังฟังก์ชัน">
+              <p><strong>TYPOGRAPHY CONTROL HUB</strong><span>[ LINKED ]</span></p>
+              <p class="branch"><strong>CREATOR WORKSPACE</strong><span>[ ACTIVE ]</span></p>
+              <p class="branch"><strong>DATA STREAM</strong><span>[ ACTIVE ]</span></p>
+              <p class="branch"><strong>LOCAL SESSION MEMORY</strong><span>[ ACTIVE ]</span></p>
+              <p class="branch"><strong>TEXT FILE EXPORT</strong><span>[ ACTIVE ]</span></p>
+              <p class="branch unavailable"><strong>FILE DEPOT</strong><span>[ ROADMAP ]</span></p>
+              <p class="branch unavailable"><strong>EXTERNAL PUBLISHING</strong><span>[ DISCONNECTED ]</span></p>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>CK-NEXUS / CREATOR EDITION / 2026</span>
+      <span>LOCAL HISTORY / NO AUTOMATIC PUBLISHING</span>
+    </footer>
+
+    <dialog class="system-dialog" id="access-gate">
+      <form id="gate-form">
+        <span class="dialog-index">GATE / AUTHORIZATION</span>
+        <h2>Establish<br /><em>connection.</em></h2>
+        <p>ระบบนี้ตั้งค่า Access Token ไว้ กรุณาใส่ token สำหรับ session นี้</p>
+        <label class="field">
+          <span>ACCESS TOKEN</span>
+          <input id="gate-token" type="password" autocomplete="off" required />
+        </label>
+        <button class="primary-button magnetic" type="submit">
+          <span>CONNECT</span><span>ENTER</span>
+        </button>
+        <small>Token ถูกเก็บใน session ของเบราว์เซอร์นี้เท่านั้น</small>
+      </form>
+    </dialog>
+
+    <dialog class="command-dialog" id="command-palette">
+      <div class="command-shell">
+        <label>
+          <span>COMMAND PALETTE</span>
+          <input id="command-input" autocomplete="off" placeholder="พิมพ์ workspace, stream, theme..." />
+        </label>
+        <div class="command-list" id="command-list"></div>
+        <small>ESC TO CLOSE / ENTER TO RUN</small>
+      </div>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
