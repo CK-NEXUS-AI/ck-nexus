@@ -33,6 +33,7 @@ def _as_int(
 class Settings:
     app_name: str = "CK-NEXUS Creator Edition"
     app_version: str = "0.2.0"
+    environment: str = "development"
     openai_model: str = "gpt-5-mini"
     database_url: str = ""
     session_database_url: str = ""
@@ -113,7 +114,11 @@ class Settings:
         elif not session_database_url and database_url.startswith("postgres://"):
             session_database_url = "postgresql+asyncpg://" + database_url.removeprefix("postgres://")
 
-        return cls(
+        configured = cls(
+            environment=(
+                os.getenv("CKNEXUS_ENVIRONMENT", "development").strip().lower()
+                or "development"
+            ),
             openai_model=os.getenv("OPENAI_MODEL", "gpt-5-mini"),
             database_url=database_url,
             session_database_url=session_database_url,
@@ -210,7 +215,34 @@ class Settings:
             dev_builder_model=os.getenv("CKNEXUS_MODEL_BUILDER", "").strip(),
             dev_reviewer_model=os.getenv("CKNEXUS_MODEL_REVIEWER", "").strip(),
         )
+        configured.validate_startup()
+        return configured
+
+    def validate_startup(self) -> None:
+        """Fail closed for production-only authentication invariants.
+
+        Development and staging remain usable for local evidence collection. Production
+        must never silently expose protected routes because a secret was omitted.
+        """
+        if self.environment != "production":
+            return
+
+        missing: list[str] = []
+        if not _is_runtime_secret(self.access_token):
+            missing.append("CKNEXUS_ACCESS_TOKEN")
+        if self.email_gateway_enabled and not _is_runtime_secret(self.email_webhook_token):
+            missing.append("CKNEXUS_EMAIL_WEBHOOK_TOKEN")
+        if missing:
+            names = ", ".join(missing)
+            raise RuntimeError(f"Production startup blocked: configure secure values for {names}.")
 
     @property
     def openai_key_configured(self) -> bool:
         return bool(os.getenv("OPENAI_API_KEY", "").strip())
+
+
+def _is_runtime_secret(value: str) -> bool:
+    candidate = value.strip()
+    if not candidate:
+        return False
+    return not candidate.upper().startswith("CHANGE_ME")

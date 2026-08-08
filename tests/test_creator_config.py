@@ -23,3 +23,42 @@ def test_runtime_home_controls_relative_database_path(tmp_path: Path, monkeypatc
     monkeypatch.setenv("CKNEXUS_DATABASE_PATH", "state/creator.db")
     configured = Settings.from_env()
     assert configured.database_path == tmp_path / "state" / "creator.db"
+
+
+def test_production_startup_fails_closed_without_access_token(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("CKNEXUS_HOME", str(tmp_path))
+    monkeypatch.setenv("CKNEXUS_ENVIRONMENT", "production")
+    monkeypatch.delenv("CKNEXUS_ACCESS_TOKEN", raising=False)
+
+    try:
+        Settings.from_env()
+    except RuntimeError as exc:
+        assert "CKNEXUS_ACCESS_TOKEN" in str(exc)
+    else:
+        raise AssertionError("production must not start without access authentication")
+
+
+def test_production_email_gateway_requires_webhook_secret(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("CKNEXUS_HOME", str(tmp_path))
+    monkeypatch.setenv("CKNEXUS_ENVIRONMENT", "production")
+    monkeypatch.setenv("CKNEXUS_ACCESS_TOKEN", "runtime-access-secret")
+    monkeypatch.setenv("CKNEXUS_EMAIL_GATEWAY_ENABLED", "true")
+    monkeypatch.setenv("CKNEXUS_EMAIL_WEBHOOK_TOKEN", "CHANGE_ME_RANDOM")
+
+    try:
+        Settings.from_env()
+    except RuntimeError as exc:
+        assert "CKNEXUS_EMAIL_WEBHOOK_TOKEN" in str(exc)
+    else:
+        raise AssertionError("production email gateway must require a real webhook secret")
+
+
+def test_nonproduction_keeps_local_fail_open_compatibility(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("CKNEXUS_HOME", str(tmp_path))
+    monkeypatch.setenv("CKNEXUS_ENVIRONMENT", "development")
+    monkeypatch.delenv("CKNEXUS_ACCESS_TOKEN", raising=False)
+
+    configured = Settings.from_env()
+
+    assert configured.environment == "development"
+    assert configured.access_token == ""

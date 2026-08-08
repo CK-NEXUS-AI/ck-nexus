@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+from creator_app.integration_security import (
+    normalize_trusted_hosts,
+    open_trusted_request,
+    validate_trusted_https_base_url,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,8 +34,14 @@ class IntegrationStatus:
 
 
 class _JsonHttpIntegration:
-    def __init__(self, *, timeout: int = 5) -> None:
+    def __init__(
+        self,
+        *,
+        trusted_hosts: Iterable[str] | None = None,
+        timeout: int = 5,
+    ) -> None:
         self.timeout = timeout
+        self.trusted_hosts = normalize_trusted_hosts(trusted_hosts) if trusted_hosts else None
 
     def _request_json(
         self,
@@ -44,7 +57,15 @@ class _JsonHttpIntegration:
                 **(headers or {}),
             },
         )
-        with urlopen(request, timeout=self.timeout) as response:  # nosec B310 - trusted server configuration
+        if self.trusted_hosts is None:
+            response_context = urlopen(request, timeout=self.timeout)  # noqa: S310
+        else:
+            response_context = open_trusted_request(
+                request,
+                trusted_hosts=self.trusted_hosts,
+                timeout=self.timeout,
+            )
+        with response_context as response:
             payload = response.read(512_000)
         decoded = json.loads(payload.decode("utf-8"))
         if not isinstance(decoded, dict):
@@ -53,14 +74,28 @@ class _JsonHttpIntegration:
 
 
 class SlackIntegration(_JsonHttpIntegration):
-    def __init__(self, token: str, *, api_base: str = "https://slack.com/api", timeout: int = 5) -> None:
-        super().__init__(timeout=timeout)
+    DEFAULT_TRUSTED_HOSTS = frozenset({"slack.com"})
+
+    def __init__(
+        self,
+        token: str,
+        *,
+        api_base: str = "https://slack.com/api",
+        timeout: int = 5,
+        trusted_hosts: Iterable[str] | None = None,
+    ) -> None:
+        allowed_hosts = self.DEFAULT_TRUSTED_HOSTS | normalize_trusted_hosts(
+            trusted_hosts or self.DEFAULT_TRUSTED_HOSTS
+        )
+        super().__init__(trusted_hosts=allowed_hosts, timeout=timeout)
         self.token = token.strip()
-        self.api_base = api_base.rstrip("/")
+        self.api_base = validate_trusted_https_base_url(api_base, trusted_hosts=allowed_hosts)
 
     def status(self) -> IntegrationStatus:
         if not self.token:
-            return IntegrationStatus("slack", False, False, "Slack server credential is not configured.")
+            return IntegrationStatus(
+                "slack", False, False, "Slack server credential is not configured."
+            )
         try:
             payload = self._request_json(
                 f"{self.api_base}/auth.test",
@@ -86,20 +121,28 @@ class SlackIntegration(_JsonHttpIntegration):
         except HTTPError as exc:
             return IntegrationStatus("slack", True, False, f"Slack API returned HTTP {exc.code}.")
         except (URLError, TimeoutError, OSError, ValueError, RuntimeError):
-            return IntegrationStatus("slack", True, False, "Slack API is unreachable from this runtime.")
+            return IntegrationStatus(
+                "slack", True, False, "Slack API is unreachable from this runtime."
+            )
 
 
 class GoogleDriveIntegration(_JsonHttpIntegration):
+    DEFAULT_TRUSTED_HOSTS = frozenset({"www.googleapis.com"})
+
     def __init__(
         self,
         access_token: str,
         *,
         api_base: str = "https://www.googleapis.com/drive/v3",
         timeout: int = 5,
+        trusted_hosts: Iterable[str] | None = None,
     ) -> None:
-        super().__init__(timeout=timeout)
+        allowed_hosts = self.DEFAULT_TRUSTED_HOSTS | normalize_trusted_hosts(
+            trusted_hosts or self.DEFAULT_TRUSTED_HOSTS
+        )
+        super().__init__(trusted_hosts=allowed_hosts, timeout=timeout)
         self.access_token = access_token.strip()
-        self.api_base = api_base.rstrip("/")
+        self.api_base = validate_trusted_https_base_url(api_base, trusted_hosts=allowed_hosts)
 
     def status(self) -> IntegrationStatus:
         if not self.access_token:
@@ -116,7 +159,11 @@ class GoogleDriveIntegration(_JsonHttpIntegration):
                 headers={"Authorization": f"Bearer {self.access_token}"},
             )
             user = payload.get("user") if isinstance(payload.get("user"), dict) else {}
-            quota = payload.get("storageQuota") if isinstance(payload.get("storageQuota"), dict) else {}
+            quota = (
+                payload.get("storageQuota")
+                if isinstance(payload.get("storageQuota"), dict)
+                else {}
+            )
             return IntegrationStatus(
                 "google_drive",
                 True,
@@ -151,7 +198,8 @@ class N8nIntegration(_JsonHttpIntegration):
                 "n8n",
                 True,
                 False,
-                "n8n API credential is not configured; instance URL is present but API access is unverified.",
+                "n8n API credential is not configured; instance URL is present but API access "
+                "is unverified.",
                 details={"base_url_configured": True},
             )
         try:
@@ -169,4 +217,6 @@ class N8nIntegration(_JsonHttpIntegration):
         except HTTPError as exc:
             return IntegrationStatus("n8n", True, False, f"n8n API returned HTTP {exc.code}.")
         except (URLError, TimeoutError, OSError, ValueError, RuntimeError):
-            return IntegrationStatus("n8n", True, False, "n8n API is unreachable from this runtime.")
+            return IntegrationStatus(
+                "n8n", True, False, "n8n API is unreachable from this runtime."
+            )

@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
-from urllib.request import Request, urlopen
+from urllib.request import Request
+
+from creator_app.integration_security import (
+    normalize_trusted_hosts,
+    open_trusted_request,
+    validate_trusted_https_base_url,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,16 +39,33 @@ class GitHubStatus:
 class GitHubIntegration:
     """Minimal GitHub connectivity check without persisting or logging credentials."""
 
-    def __init__(self, token: str, repository: str = "", api_base: str = "https://api.github.com") -> None:
+    DEFAULT_TRUSTED_HOSTS = frozenset({"api.github.com"})
+
+    def __init__(
+        self,
+        token: str,
+        repository: str = "",
+        api_base: str = "https://api.github.com",
+        *,
+        trusted_hosts: Iterable[str] | None = None,
+    ) -> None:
         self._token = token.strip()
         self.repository = repository.strip().strip("/")
-        self.api_base = api_base.rstrip("/")
+        self.trusted_hosts = self.DEFAULT_TRUSTED_HOSTS | normalize_trusted_hosts(
+            trusted_hosts or self.DEFAULT_TRUSTED_HOSTS
+        )
+        self.api_base = validate_trusted_https_base_url(
+            api_base,
+            trusted_hosts=self.trusted_hosts,
+        )
 
     @property
     def configured(self) -> bool:
         return bool(self._token)
 
     def _request_json(self, path: str) -> dict[str, object]:
+        url = f"{self.api_base}{path}"
+        validate_trusted_https_base_url(self.api_base, trusted_hosts=self.trusted_hosts)
         headers = {
             "Accept": "application/vnd.github+json",
             "User-Agent": "CK-NEXUS-Creator/0.2.0",
@@ -49,8 +73,8 @@ class GitHubIntegration:
         }
         if self._token:
             headers["Authorization"] = f"Bearer {self._token}"
-        request = Request(f"{self.api_base}{path}", headers=headers, method="GET")
-        with urlopen(request, timeout=8) as response:  # noqa: S310 - fixed HTTPS API base by default
+        request = Request(url, headers=headers, method="GET")
+        with open_trusted_request(request, trusted_hosts=self.trusted_hosts, timeout=8) as response:
             payload = response.read(1_048_576)
         decoded = json.loads(payload.decode("utf-8"))
         if not isinstance(decoded, dict):

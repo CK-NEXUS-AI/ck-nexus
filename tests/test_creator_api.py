@@ -51,6 +51,24 @@ def test_health_status_and_security_headers(tmp_path: Path):
         assert status["codex_sandbox"] == "read-only"
 
 
+def test_split_liveness_and_readiness_probes(tmp_path: Path):
+    with TestClient(create_app(settings(tmp_path))) as client:
+        live = client.get("/health/live")
+        assert live.status_code == 200
+        assert live.json()["live"] is True
+
+        ready = client.get("/health/ready")
+        assert ready.status_code == 200
+        body = ready.json()
+        assert body["ready"] is True
+        assert body["degraded"] is False
+        assert body["dependencies"][0] == {
+            "name": "database",
+            "state": "healthy",
+            "required": True,
+        }
+
+
 def test_typography_control_hub_is_served_without_external_assets(tmp_path: Path):
     with TestClient(create_app(settings(tmp_path))) as client:
         response = client.get("/")

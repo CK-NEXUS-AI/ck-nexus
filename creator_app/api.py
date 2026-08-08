@@ -15,8 +15,9 @@ from creator_app.codex_bridge import (
     CodexBridgeUnavailableError,
 )
 from creator_app.config import Settings
-from creator_app.github_integration import GitHubIntegration
 from creator_app.dev_team import DevTeamRuntime
+from creator_app.github_integration import GitHubIntegration
+from creator_app.health import DependencyState, DependencyStatus, evaluate_health
 from creator_app.integrations import GoogleDriveIntegration, N8nIntegration, SlackIntegration
 from creator_app.rate_limit import SlidingWindowRateLimiter
 from creator_app.runtime import CreatorRuntime, MissingCredentialError, ProviderRuntimeError
@@ -450,6 +451,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not store.ping():
             return JSONResponse(status_code=503, content={"status": "degraded", "version": resolved_settings.app_version, "database": "unavailable"})
         return {"status": "ok", "version": resolved_settings.app_version, "database": "ok"}
+
+    @app.get("/health/live")
+    async def health_live() -> dict[str, object]:
+        """Process liveness only; dependency outages do not turn this probe off."""
+        return evaluate_health(process_live=True).as_dict()
+
+    @app.get("/health/ready")
+    async def health_ready():
+        """Readiness with stable dependency cause codes for supervisors and operators."""
+        database_ready = store.ping()
+        ai_ready = resolved_settings.mock_ai or resolved_settings.openai_key_configured
+        report = evaluate_health(
+            (
+                DependencyStatus(
+                    "database",
+                    DependencyState.HEALTHY if database_ready else DependencyState.UNAVAILABLE,
+                    required=True,
+                ),
+                DependencyStatus(
+                    "ai-provider",
+                    DependencyState.HEALTHY if ai_ready else DependencyState.UNAVAILABLE,
+                    required=False,
+                ),
+            )
+        )
+        payload = report.as_dict()
+        payload["version"] = resolved_settings.app_version
+        if report.ready:
+            return payload
+        return JSONResponse(status_code=503, content=payload)
 
     @app.get("/metrics", response_class=PlainTextResponse)
     async def metrics(_: None = Depends(require_access_token)) -> str:
