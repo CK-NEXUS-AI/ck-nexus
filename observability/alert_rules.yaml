@@ -1,0 +1,24 @@
+groups:
+  - name: ck-nexus-runtime
+    rules:
+      - alert: CKNexusHigh5xxRate
+        expr: sum(ckn_http_5xx_total) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: CK-NEXUS is returning server errors
+      - alert: CKNexusEmailStaleLeases
+        expr: ckn_email_stale_processing_leases > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: CK-NEXUS email processing leases are stale
+      - alert: CKNexusEmailOutboxBacklog
+        expr: ckn_email_outbox_pending > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: CK-NEXUS email outbox backlog is elevated

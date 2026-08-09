@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import time
 from contextlib import asynccontextmanager
 from uuid import uuid4
 from pathlib import Path as FilePath
@@ -25,6 +26,7 @@ from creator_app.providers import build_provider_router
 from creator_app.dev_team import DevTeamRuntime
 from creator_app.github_integration import GitHubIntegration
 from creator_app.health import DependencyState, DependencyStatus, evaluate_health
+from creator_app.observability import CORRELATION_HEADER, MetricsRegistry, RequestObservation, StructuredLogger, correlation_id
 from creator_app.integrations import GoogleDriveIntegration, SlackIntegration
 from creator_app.rate_limit import SlidingWindowRateLimiter
 from creator_app.runtime import CreatorRuntime, MissingCredentialError, ProviderRuntimeError
@@ -141,6 +143,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         database_path=email_database_path,
     )
     limiter = SlidingWindowRateLimiter(resolved_settings.rate_limit_per_minute)
+    metrics_registry = MetricsRegistry()
+    structured_logger = StructuredLogger()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -170,6 +174,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.drive_integration = drive_integration
     app.state.codex_bridge = codex_bridge
     app.state.email_repository = email_repository
+    app.state.metrics_registry = metrics_registry
 
     async def require_access_token(
         authorization: str | None = Header(default=None),
@@ -206,6 +211,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 },
             )
         await require_access_token(authorization)
+
+    @app.middleware("http")
+    async def request_observability(request: Request, call_next):
+        corr = correlation_id(request.headers.get(CORRELATION_HEADER))
+        request.state.correlation_id = corr
+        started = time.perf_counter()
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            return response
+        finally:
+            duration = time.perf_counter() - started
+            route = getattr(request.scope.get("route"), "path", request.url.path)
+            metrics_registry.observe(RequestObservation(request.method, route, status_code, duration))
+            structured_logger.emit(
+                "http_request",
+                correlation_id=corr,
+                method=request.method,
+                route=route,
+                status_code=status_code,
+                duration_ms=round(duration * 1000, 3),
+            )
+            response_obj = locals().get("response")
+            if response_obj is not None:
+                response_obj.headers[CORRELATION_HEADER] = corr
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
@@ -559,6 +590,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "# TYPE ckn_build_info gauge",
             f'ckn_build_info{{version="{resolved_settings.app_version}"}} 1',
         ]
+        lines.extend(metrics_registry.render_prometheus())
         if resolved_settings.email_gateway_enabled:
             snapshot = email_repository.metrics_snapshot()
             metrics_map = {
