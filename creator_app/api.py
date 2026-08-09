@@ -105,6 +105,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         phase3_enabled=resolved_settings.agnes_phase3_enabled,
         environment=resolved_settings.environment,
         phase3_redis_url=resolved_settings.agnes_redis_url,
+        phase3_cgroup_root=resolved_settings.agnes_cgroup_root,
     )
     gmail_oauth = GmailOAuthManager(
         credential_broker,

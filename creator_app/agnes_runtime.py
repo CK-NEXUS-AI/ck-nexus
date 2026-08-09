@@ -21,6 +21,7 @@ from creator_app.agnes.execution.phase3 import (
     RedisIdempotencyStore,
     WorkspaceLifecycleManager,
 )
+from creator_app.agnes.execution.phase3.hardening import CgroupV2Manager
 from creator_app.agnes.execution.phase3.sandbox import HardenedLinuxNamespaceRunner
 from creator_app.agnes.execution.request import ExecutorType, SkillExecutionRequest
 from creator_app.agnes.execution.result import SkillExecutionResult
@@ -69,6 +70,7 @@ class AgnesNervousSystem:
         phase3_enabled: bool = False,
         environment: str = "development",
         phase3_redis_url: str = "",
+        phase3_cgroup_root: Path = Path("/sys/fs/cgroup"),
     ) -> None:
         self.skill_file = skill_file
         self.registry = AgnesSkillRegistry.load(skill_file)
@@ -85,6 +87,7 @@ class AgnesNervousSystem:
             sandbox_root = (sandbox_root or (ledger_path.parent / "agnes-sandbox")).resolve()
             repository_root = (sandbox_repository_root or Path.cwd()).resolve()
             normalized_environment = environment.strip().lower() or "development"
+            cgroups = CgroupV2Manager(root=phase3_cgroup_root) if phase3_enabled else None
             if phase3_enabled and normalized_environment in {"staging", "production"}:
                 if not phase3_redis_url:
                     raise RuntimeError("distributed_idempotency_required: CKNEXUS_AGNES_REDIS_URL is not configured")
@@ -102,6 +105,8 @@ class AgnesNervousSystem:
                     health_check_interval=30,
                 )
                 idempotency = RedisIdempotencyStore(redis_client)
+                if not cgroups or not cgroups.health().get("ready"):
+                    raise RuntimeError("cgroup_v2_enforcement_required: delegated writable cgroup v2 root is unavailable")
             else:
                 idempotency = SQLiteIdempotencyStore(sandbox_root / "idempotency.sqlite3")
             self.dispatcher = SkillExecutionDispatcher(
@@ -121,7 +126,11 @@ class AgnesNervousSystem:
                 repository_root=repository_root,
             )
             workspace_manager = SandboxWorkspaceManager(sandbox_policy)
-            runner = HardenedLinuxNamespaceRunner(sandbox_policy) if phase3_enabled else LinuxNamespaceRunner(sandbox_policy)
+            if phase3_enabled:
+                assert cgroups is not None
+                runner = HardenedLinuxNamespaceRunner(sandbox_policy, cgroups=cgroups)
+            else:
+                runner = LinuxNamespaceRunner(sandbox_policy)
             self.dispatcher.register(LinuxNamespaceSandboxExecutor(workspace_manager, runner))
             if phase3_enabled:
                 self.dev_controller = AutonomousDevController(

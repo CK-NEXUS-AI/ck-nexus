@@ -97,6 +97,7 @@ class Settings:
     agnes_sandbox_enabled: bool = False
     agnes_phase3_enabled: bool = False
     agnes_redis_url: str = ""
+    agnes_cgroup_root: Path = Path("/sys/fs/cgroup")
     agnes_sandbox_root: Path = RUNTIME_ROOT / "data" / "agnes-sandbox"
     agnes_sandbox_repository_root: Path = RUNTIME_ROOT
 
@@ -330,6 +331,10 @@ class Settings:
                 os.getenv("CKNEXUS_AGNES_PHASE3_ENABLED"), default=False
             ),
             agnes_redis_url=os.getenv("CKNEXUS_AGNES_REDIS_URL", "").strip(),
+            agnes_cgroup_root=Path(
+                os.getenv("CKNEXUS_AGNES_CGROUP_ROOT", "/sys/fs/cgroup").strip()
+                or "/sys/fs/cgroup"
+            ).expanduser().resolve(),
             agnes_sandbox_root=agnes_sandbox_root,
             agnes_sandbox_repository_root=agnes_sandbox_repository_root,
         )
