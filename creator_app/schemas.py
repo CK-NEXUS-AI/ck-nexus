@@ -151,6 +151,26 @@ class AgnesExecuteRequest(BaseModel):
     timeout_seconds: int = Field(default=300, ge=1, le=1800)
 
 
+class AgnesPipelineStartRequest(BaseModel):
+    goal: str = Field(min_length=1, max_length=8_000)
+    patch: str = Field(min_length=1, max_length=2_000_000)
+    baseline_commit: str = Field(min_length=40, max_length=64)
+    approval_id: str | None = Field(default=None, max_length=128)
+    idempotency_key: str = Field(min_length=1, max_length=256)
+    workspace_id: str | None = Field(default=None, max_length=96)
+    correlation_id: str | None = Field(default=None, max_length=128)
+    tenant_id: str = Field(default="default", min_length=1, max_length=128)
+    actor_id: str = Field(default="human", min_length=1, max_length=128)
+    environment: Literal["development", "test", "staging", "production"] = "development"
+    allowlist_paths: list[str] = Field(default_factory=lambda: ["**"], max_length=128)
+    test_command: list[str] = Field(default_factory=lambda: ["python", "-m", "compileall", "-q", "."], max_length=64)
+    scan_command: list[str] = Field(default_factory=lambda: ["python", "-c", "print('security-scan:PASS')"], max_length=64)
+
+
+class AgnesPipelineDiscardRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=1000)
+
+
 class AgnesApprovalRequest(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 

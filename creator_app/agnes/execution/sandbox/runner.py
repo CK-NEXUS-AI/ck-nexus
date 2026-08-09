@@ -26,7 +26,8 @@ _SETUP_SCRIPT = r'''
 set -euo pipefail
 ROOT="$1"
 WORK="$2"
-shift 2
+LAUNCHER="$3"
+shift 3
 mount --make-rprivate /
 for d in usr bin lib lib64 opt; do
   if [ -e "/$d" ]; then
@@ -35,7 +36,7 @@ for d in usr bin lib lib64 opt; do
     mount -o remount,bind,ro "$ROOT/$d"
   fi
 done
-mkdir -p "$ROOT/workspace" "$ROOT/tmp" "$ROOT/dev"
+mkdir -p "$ROOT/workspace" "$ROOT/tmp" "$ROOT/dev" "$ROOT/opt"
 mount --bind "$WORK" "$ROOT/workspace"
 mount -t tmpfs -o nodev,nosuid,noexec,size=64m tmpfs "$ROOT/tmp"
 for dev in null zero random urandom; do
@@ -45,6 +46,16 @@ for dev in null zero random urandom; do
     mount -o remount,bind,ro "$ROOT/dev/$dev"
   fi
 done
+if [ -n "$LAUNCHER" ]; then
+  touch "$ROOT/agnes-seccomp"
+  mount --bind "$LAUNCHER" "$ROOT/agnes-seccomp"
+  mount -o remount,bind,ro "$ROOT/agnes-seccomp"
+  exec chroot "$ROOT" /usr/bin/env -i \
+    PATH=/opt/pyvenv/bin:/usr/local/bin:/usr/bin:/bin \
+    HOME=/tmp TMPDIR=/tmp PYTHONPATH=/workspace CKNEXUS_SANDBOX=hardened_linux_namespace \
+    /usr/bin/setpriv --no-new-privs --bounding-set=-all --inh-caps=-all --ambient-caps=-all \
+    /bin/bash -c 'cd /workspace && exec /agnes-seccomp "$@"' _ "$@"
+fi
 exec chroot "$ROOT" /usr/bin/env -i \
   PATH=/opt/pyvenv/bin:/usr/local/bin:/usr/bin:/bin \
   HOME=/tmp \
@@ -102,6 +113,15 @@ class LinuxNamespaceRunner:
             raise SandboxViolation("executable_outside_readonly_system_roots")
         return (executable, *command[1:])
 
+    def _launcher_path(self) -> str:
+        return ""
+
+    async def _after_process_start(self, pid: int, execution_id: str) -> None:
+        return None
+
+    async def _after_process_finish(self, execution_id: str) -> None:
+        return None
+
     def _limits(self) -> None:
         resource.setrlimit(resource.RLIMIT_CPU, (self.policy.cpu_seconds, self.policy.cpu_seconds + 1))
         resource.setrlimit(resource.RLIMIT_AS, (self.policy.memory_bytes, self.policy.memory_bytes))
@@ -135,6 +155,7 @@ class LinuxNamespaceRunner:
             "_",
             str(rootfs),
             str(workspace.resolve()),
+            self._launcher_path(),
             *resolved,
         ]
         proc = await asyncio.create_subprocess_exec(
@@ -144,6 +165,7 @@ class LinuxNamespaceRunner:
             start_new_session=True,
             preexec_fn=self._limits,
         )
+        await self._after_process_start(proc.pid, execution_id)
         output_limited = False
 
         async def read_limited(stream: asyncio.StreamReader | None) -> bytes:
@@ -182,6 +204,7 @@ class LinuxNamespaceRunner:
                 await proc.wait()
         finally:
             stdout, stderr = await asyncio.gather(stdout_task, stderr_task)
+            await self._after_process_finish(execution_id)
             shutil.rmtree(rootfs.parent, ignore_errors=True)
 
         return SandboxCommandResult(

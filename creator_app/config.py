@@ -96,6 +96,7 @@ class Settings:
     agnes_ledger_path: Path = RUNTIME_ROOT / "data" / "agnes-ledger.jsonl"
     agnes_max_parallel_skills: int = 5
     agnes_sandbox_enabled: bool = False
+    agnes_phase3_enabled: bool = False
     agnes_sandbox_root: Path = RUNTIME_ROOT / "data" / "agnes-sandbox"
     agnes_sandbox_repository_root: Path = RUNTIME_ROOT
 
@@ -323,6 +324,9 @@ class Settings:
             ),
             agnes_sandbox_enabled=_as_bool(
                 os.getenv("CKNEXUS_AGNES_SANDBOX_ENABLED"), default=False
+            ),
+            agnes_phase3_enabled=_as_bool(
+                os.getenv("CKNEXUS_AGNES_PHASE3_ENABLED"), default=False
             ),
             agnes_sandbox_root=agnes_sandbox_root,
             agnes_sandbox_repository_root=agnes_sandbox_repository_root,

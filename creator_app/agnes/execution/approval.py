@@ -69,6 +69,14 @@ class StickyApprovalResolver:
         self._grants[approval_id] = grant
         return grant
 
+
+    def find_matching(self, fingerprint: str) -> ApprovalGrant | None:
+        now = time()
+        for grant in self._grants.values():
+            if grant.expires_at > now and hmac.compare_digest(grant.fingerprint, fingerprint):
+                return grant
+        return None
+
     def is_approved(self, *, approval_id: str | None, fingerprint: str) -> bool:
         if not approval_id:
             return False

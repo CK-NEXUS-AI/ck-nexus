@@ -16,6 +16,8 @@ from creator_app.agnes.execution.guards import ExecutionPolicyEngine
 from creator_app.agnes.execution.idempotency import SQLiteIdempotencyStore
 from creator_app.agnes.execution.adapters.linux_namespace_sandbox import LinuxNamespaceSandboxExecutor
 from creator_app.agnes.execution.sandbox import LinuxNamespaceRunner, SandboxPolicy, SandboxWorkspaceManager
+from creator_app.agnes.execution.phase3 import AutonomousDevController, WorkspaceLifecycleManager
+from creator_app.agnes.execution.phase3.sandbox import HardenedLinuxNamespaceRunner
 from creator_app.agnes.execution.request import ExecutorType, SkillExecutionRequest
 from creator_app.agnes.execution.result import SkillExecutionResult
 from creator_app.provider_router import ProviderKind, ProviderRouter
@@ -60,6 +62,7 @@ class AgnesNervousSystem:
         sandbox_enabled: bool = False,
         sandbox_root: Path | None = None,
         sandbox_repository_root: Path | None = None,
+        phase3_enabled: bool = False,
     ) -> None:
         self.skill_file = skill_file
         self.registry = AgnesSkillRegistry.load(skill_file)
@@ -69,6 +72,7 @@ class AgnesNervousSystem:
         self.workspace_broker = WorkspaceBroker()
         self.discovery = SkillDiscoveryPolicy()
         self.approvals = StickyApprovalResolver()
+        self.dev_controller: AutonomousDevController | None = None
         if dispatcher is not None:
             self.dispatcher = dispatcher
         elif sandbox_enabled:
@@ -92,8 +96,15 @@ class AgnesNervousSystem:
                 repository_root=repository_root,
             )
             workspace_manager = SandboxWorkspaceManager(sandbox_policy)
-            runner = LinuxNamespaceRunner(sandbox_policy)
+            runner = HardenedLinuxNamespaceRunner(sandbox_policy) if phase3_enabled else LinuxNamespaceRunner(sandbox_policy)
             self.dispatcher.register(LinuxNamespaceSandboxExecutor(workspace_manager, runner))
+            if phase3_enabled:
+                self.dev_controller = AutonomousDevController(
+                    agnes=self,
+                    workspaces=WorkspaceLifecycleManager(workspace_manager),
+                    ledger=self.ledger,
+                    approvals=self.approvals,
+                )
         else:
             self.dispatcher = build_phase1_dispatcher(
                 skill_registry=self.registry,
@@ -136,6 +147,7 @@ class AgnesNervousSystem:
             "workspace_providers": [item.as_dict() for item in self.workspace_broker.providers()],
             "discovery_sources": self.discovery.source_catalog(),
             "execution_kernel": self.dispatcher.status(),
+            "autonomous_dev_pipeline": {"enabled": self.dev_controller is not None, "auto_merge": False, "production_deploy": False},
             "production_gate": "NO-GO until R12 staging evidence passes",
         }
 

@@ -31,6 +31,8 @@ from creator_app.runtime import CreatorRuntime, MissingCredentialError, Provider
 from creator_app.schemas import (
     AgnesApprovalRequest,
     AgnesExecuteRequest,
+    AgnesPipelineStartRequest,
+    AgnesPipelineDiscardRequest,
     CodexTaskRequest,
     CodexTaskResult,
     DevTeamRequest,
@@ -100,6 +102,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         sandbox_enabled=resolved_settings.agnes_sandbox_enabled,
         sandbox_root=resolved_settings.agnes_sandbox_root,
         sandbox_repository_root=resolved_settings.agnes_sandbox_repository_root,
+        phase3_enabled=resolved_settings.agnes_phase3_enabled,
     )
     gmail_oauth = GmailOAuthManager(
         credential_broker,
@@ -821,6 +824,83 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             idempotency_key=payload.idempotency_key,
         )
         return result.as_dict()
+
+    @app.post("/api/agnes/pipeline/start")
+    async def agnes_pipeline_start(
+        payload: AgnesPipelineStartRequest,
+        _: None = Depends(require_access_token),
+        __: None = Depends(enforce_run_rate_limit),
+    ) -> dict[str, object]:
+        if agnes.dev_controller is None:
+            raise HTTPException(status_code=503, detail={"error": "AGNES_PHASE3_DISABLED"})
+        from creator_app.agnes.execution.request import ExecutorType, SkillExecutionRequest
+        execution_id = f"agnes_pipe_exec_{uuid4().hex}"
+        workspace_id = payload.workspace_id or execution_id
+        request = SkillExecutionRequest(
+            execution_id=execution_id,
+            correlation_id=payload.correlation_id or f"agnes_pipe_{uuid4().hex}",
+            skill_id="hands.code_patch",
+            skill_version=agnes.registry.get("hands.code_patch").version,
+            executor=ExecutorType.SANDBOX,
+            goal=payload.goal,
+            inputs={"patch": payload.patch, "test_command": payload.test_command, "scan_command": payload.scan_command},
+            tenant_id=payload.tenant_id, actor_id=payload.actor_id, environment=payload.environment,
+            workspace_id=workspace_id, baseline_commit=payload.baseline_commit,
+            approval_id=payload.approval_id, idempotency_key=payload.idempotency_key,
+            allowlist_paths=tuple(payload.allowlist_paths),
+            granted_capabilities=("code_write", "patch"),
+        )
+        handle = await agnes.dev_controller.start_pipeline(request)
+        status_obj = await agnes.dev_controller.run_to_candidate(handle)
+        return status_obj.as_dict()
+
+    @app.post("/api/agnes/pipeline/{pipeline_id}/advance")
+    async def agnes_pipeline_advance(
+        pipeline_id: str,
+        _: None = Depends(require_access_token),
+        __: None = Depends(enforce_run_rate_limit),
+    ) -> dict[str, object]:
+        if agnes.dev_controller is None:
+            raise HTTPException(status_code=503, detail={"error": "AGNES_PHASE3_DISABLED"})
+        try:
+            from creator_app.agnes.execution.phase3 import PipelineHandle
+            current = await agnes.dev_controller.get_status(pipeline_id)
+            status_obj = await agnes.dev_controller.run_to_candidate(
+                PipelineHandle(pipeline_id, current.execution_id)
+            )
+            return status_obj.as_dict()
+        except KeyError:
+            raise HTTPException(status_code=404, detail={"error": "PIPELINE_NOT_FOUND"})
+
+    @app.get("/api/agnes/pipeline/{pipeline_id}")
+    async def agnes_pipeline_status(
+        pipeline_id: str,
+        _: None = Depends(require_access_token),
+    ) -> dict[str, object]:
+        if agnes.dev_controller is None:
+            raise HTTPException(status_code=503, detail={"error": "AGNES_PHASE3_DISABLED"})
+        try:
+            status_obj = await agnes.dev_controller.get_status(pipeline_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail={"error": "PIPELINE_NOT_FOUND"})
+        body = status_obj.as_dict()
+        if status_obj.state.value == "candidate_ready":
+            body["candidate"] = (await agnes.dev_controller.collect_candidate(pipeline_id)).as_dict()
+        return body
+
+    @app.post("/api/agnes/pipeline/{pipeline_id}/discard")
+    async def agnes_pipeline_discard(
+        pipeline_id: str,
+        payload: AgnesPipelineDiscardRequest,
+        _: None = Depends(require_access_token),
+    ) -> dict[str, object]:
+        if agnes.dev_controller is None:
+            raise HTTPException(status_code=503, detail={"error": "AGNES_PHASE3_DISABLED"})
+        try:
+            await agnes.dev_controller.discard(pipeline_id, payload.reason)
+            return (await agnes.dev_controller.get_status(pipeline_id)).as_dict()
+        except KeyError:
+            raise HTTPException(status_code=404, detail={"error": "PIPELINE_NOT_FOUND"})
 
     @app.post("/api/agnes/approvals")
     async def agnes_approval(

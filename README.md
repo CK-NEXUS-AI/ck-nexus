@@ -157,3 +157,11 @@ revision 1 sections 5–7 on top of the verified R8 baseline. R9 distributed rat
 implemented with an atomic Redis Lua token bucket and does **not** silently fall back to the
 process-local limiter in production. The real two-instance Redis proof remains a staging gate;
 local unit tests are not production evidence.
+
+## AGNES Execution Kernel Phase 3
+
+Phase 3 adds a bounded autonomous development pipeline on top of the Phase 1 control plane and Phase 2
+isolated sandbox. It adds real seccomp-BPF filtering, no-new-privileges/capability drop, cgroup-v2
+integration hooks, distributed Redis/PostgreSQL idempotency adapters, workspace lifecycle, pipeline
+state/evidence, and candidate artifacts. The pipeline always stops before merge and production deploy.
+See `docs/AGNES_EXECUTION_KERNEL_PHASE3_HARDENED_PIPELINE.md`.
