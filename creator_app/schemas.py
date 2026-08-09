@@ -129,3 +129,32 @@ class CodexTaskResult(BaseModel):
 class ErrorResponse(BaseModel):
     error: str
     message: str
+
+
+class AgnesExecuteRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    skill_id: str = Field(min_length=1, max_length=128)
+    goal: str = Field(min_length=1, max_length=8_000)
+    executor: str | None = Field(default=None, max_length=64)
+    inputs: dict = Field(default_factory=dict)
+    correlation_id: str | None = Field(default=None, max_length=128)
+    tenant_id: str = Field(default="default", min_length=1, max_length=128)
+    actor_id: str = Field(default="human", min_length=1, max_length=128)
+    environment: Literal["development", "test", "staging", "production"] = "development"
+    workspace_id: str | None = Field(default=None, max_length=96)
+    baseline_commit: str | None = Field(default=None, max_length=80)
+    approval_id: str | None = Field(default=None, max_length=128)
+    idempotency_key: str | None = Field(default=None, max_length=256)
+    allowlist_paths: list[str] = Field(default_factory=list, max_length=128)
+    granted_capabilities: list[str] = Field(default_factory=list, max_length=128)
+    timeout_seconds: int = Field(default=300, ge=1, le=1800)
+
+
+class AgnesApprovalRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    approval_id: str = Field(min_length=1, max_length=128)
+    fingerprint: str = Field(min_length=64, max_length=64)
+    approved_by: str = Field(min_length=1, max_length=128)
+    ttl_seconds: int = Field(default=900, ge=30, le=3600)

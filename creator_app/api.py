@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hmac
 from contextlib import asynccontextmanager
+from uuid import uuid4
 from pathlib import Path as FilePath
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Path, Query, Request, UploadFile, status
@@ -28,6 +29,8 @@ from creator_app.integrations import GoogleDriveIntegration, N8nIntegration, Sla
 from creator_app.rate_limit import SlidingWindowRateLimiter
 from creator_app.runtime import CreatorRuntime, MissingCredentialError, ProviderRuntimeError
 from creator_app.schemas import (
+    AgnesApprovalRequest,
+    AgnesExecuteRequest,
     CodexTaskRequest,
     CodexTaskResult,
     DevTeamRequest,
@@ -94,6 +97,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         provider_router=provider_router,
         policy=AgnesPolicy(max_parallel_skills=resolved_settings.agnes_max_parallel_skills),
         credential_broker=credential_broker,
+        sandbox_enabled=resolved_settings.agnes_sandbox_enabled,
+        sandbox_root=resolved_settings.agnes_sandbox_root,
+        sandbox_repository_root=resolved_settings.agnes_sandbox_repository_root,
     )
     gmail_oauth = GmailOAuthManager(
         credential_broker,
@@ -785,6 +791,54 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         _: None = Depends(require_access_token),
     ) -> dict[str, object]:
         return agnes.dispatcher.status()
+
+    @app.post("/api/agnes/execute")
+    async def agnes_execute(
+        payload: AgnesExecuteRequest,
+        _: None = Depends(require_access_token),
+        __: None = Depends(enforce_run_rate_limit),
+    ) -> dict[str, object]:
+        skill = agnes.registry.get(payload.skill_id)
+        plan_step = {
+            "id": skill.id,
+            "version": skill.version,
+            "executor": payload.executor or skill.executor,
+            "inputs": payload.inputs,
+            "timeout_seconds": payload.timeout_seconds,
+            "allowlist_paths": payload.allowlist_paths,
+            "granted_capabilities": payload.granted_capabilities,
+        }
+        result = await agnes.execute_skill(
+            plan_step,
+            goal=payload.goal,
+            correlation_id=payload.correlation_id or f"agnes_api_{uuid4().hex}",
+            tenant_id=payload.tenant_id,
+            actor_id=payload.actor_id,
+            environment=payload.environment,
+            workspace_id=payload.workspace_id,
+            baseline_commit=payload.baseline_commit,
+            approval_id=payload.approval_id,
+            idempotency_key=payload.idempotency_key,
+        )
+        return result.as_dict()
+
+    @app.post("/api/agnes/approvals")
+    async def agnes_approval(
+        payload: AgnesApprovalRequest,
+        _: None = Depends(require_access_token),
+    ) -> dict[str, object]:
+        grant = agnes.approvals.grant(
+            approval_id=payload.approval_id,
+            fingerprint=payload.fingerprint,
+            approved_by=payload.approved_by,
+            ttl_seconds=payload.ttl_seconds,
+        )
+        return {
+            "approval_id": grant.approval_id,
+            "approved_by": grant.approved_by,
+            "expires_at": grant.expires_at,
+            "fingerprint": grant.fingerprint,
+        }
 
     @app.get("/api/agnes/skills")
     async def agnes_skills(_: None = Depends(require_access_token)) -> dict[str, object]:

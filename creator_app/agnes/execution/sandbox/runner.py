@@ -1,0 +1,200 @@
+from __future__ import annotations
+
+import asyncio
+import os
+import resource
+import shutil
+import signal
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+
+from .guards import CommandGuard, SandboxViolation
+from .policy import SandboxPolicy
+
+
+@dataclass(frozen=True, slots=True)
+class SandboxCommandResult:
+    returncode: int
+    stdout: str
+    stderr: str
+    timed_out: bool = False
+    output_limited: bool = False
+
+
+_SETUP_SCRIPT = r'''
+set -euo pipefail
+ROOT="$1"
+WORK="$2"
+shift 2
+mount --make-rprivate /
+for d in usr bin lib lib64 opt; do
+  if [ -e "/$d" ]; then
+    mkdir -p "$ROOT/$d"
+    mount --bind "/$d" "$ROOT/$d"
+    mount -o remount,bind,ro "$ROOT/$d"
+  fi
+done
+mkdir -p "$ROOT/workspace" "$ROOT/tmp" "$ROOT/dev"
+mount --bind "$WORK" "$ROOT/workspace"
+mount -t tmpfs -o nodev,nosuid,noexec,size=64m tmpfs "$ROOT/tmp"
+for dev in null zero random urandom; do
+  if [ -e "/dev/$dev" ]; then
+    touch "$ROOT/dev/$dev"
+    mount --bind "/dev/$dev" "$ROOT/dev/$dev"
+    mount -o remount,bind,ro "$ROOT/dev/$dev"
+  fi
+done
+exec chroot "$ROOT" /usr/bin/env -i \
+  PATH=/opt/pyvenv/bin:/usr/local/bin:/usr/bin:/bin \
+  HOME=/tmp \
+  TMPDIR=/tmp \
+  PYTHONPATH=/workspace \
+  CKNEXUS_SANDBOX=linux_namespace \
+  /bin/bash -c 'cd /workspace && exec "$@"' _ "$@"
+'''
+
+
+class LinuxNamespaceRunner:
+    """Linux user/mount/PID/network namespace + chroot development sandbox.
+
+    It provides real filesystem-root and network namespace separation on supported
+    Linux hosts, but remains `production_safe=False` until a hardened backend adds
+    seccomp/cgroup enforcement and passes staging evidence.
+    """
+
+    backend_name = "linux_namespace_chroot"
+    production_safe = False
+
+    def __init__(self, policy: SandboxPolicy) -> None:
+        self.policy = policy
+        self.unshare = shutil.which("unshare")
+        if self.policy.require_namespace and not self.unshare:
+            raise RuntimeError("unshare_not_available")
+
+    async def health(self) -> dict[str, object]:
+        if not self.unshare:
+            return {"ready": False, "backend": self.backend_name, "reason": "unshare_not_available"}
+        proc = await asyncio.create_subprocess_exec(
+            self.unshare,
+            "-Urmpn",
+            "--fork",
+            "/bin/true",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        return {
+            "ready": proc.returncode == 0,
+            "backend": self.backend_name,
+            "network": "isolated_namespace",
+            "filesystem": "chroot_with_read_only_system_binds",
+            "production_safe": self.production_safe,
+            "reason": None if proc.returncode == 0 else stderr.decode(errors="replace")[:1000],
+        }
+
+    def _resolve_executable(self, command: tuple[str, ...]) -> tuple[str, ...]:
+        executable = shutil.which(command[0])
+        if executable is None:
+            raise SandboxViolation(f"command_unavailable:{command[0]}")
+        allowed_roots = ("/usr/", "/bin/", "/opt/", "/usr/local/")
+        if not executable.startswith(allowed_roots):
+            raise SandboxViolation("executable_outside_readonly_system_roots")
+        return (executable, *command[1:])
+
+    def _limits(self) -> None:
+        resource.setrlimit(resource.RLIMIT_CPU, (self.policy.cpu_seconds, self.policy.cpu_seconds + 1))
+        resource.setrlimit(resource.RLIMIT_AS, (self.policy.memory_bytes, self.policy.memory_bytes))
+        resource.setrlimit(resource.RLIMIT_NPROC, (self.policy.max_processes, self.policy.max_processes))
+        resource.setrlimit(resource.RLIMIT_FSIZE, (self.policy.max_file_bytes, self.policy.max_file_bytes))
+        resource.setrlimit(resource.RLIMIT_NOFILE, (self.policy.max_open_files, self.policy.max_open_files))
+
+    async def run(
+        self,
+        *,
+        workspace: Path,
+        execution_id: str,
+        command: list[str] | tuple[str, ...],
+        timeout_seconds: int,
+    ) -> SandboxCommandResult:
+        validated = CommandGuard.validate(command)
+        resolved = self._resolve_executable(validated)
+        if not workspace.is_dir():
+            raise SandboxViolation("workspace_missing")
+        runtime_parent = self.policy.base_dir / "runtime"
+        runtime_parent.mkdir(parents=True, exist_ok=True)
+        rootfs = Path(tempfile.mkdtemp(prefix=f"{execution_id}-", dir=runtime_parent)) / "root"
+        rootfs.mkdir(parents=True, exist_ok=True)
+        args = [
+            self.unshare or "unshare",
+            "-Urmpn",
+            "--fork",
+            "/bin/bash",
+            "-c",
+            _SETUP_SCRIPT,
+            "_",
+            str(rootfs),
+            str(workspace.resolve()),
+            *resolved,
+        ]
+        proc = await asyncio.create_subprocess_exec(
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            start_new_session=True,
+            preexec_fn=self._limits,
+        )
+        output_limited = False
+
+        async def read_limited(stream: asyncio.StreamReader | None) -> bytes:
+            nonlocal output_limited
+            if stream is None:
+                return b""
+            chunks: list[bytes] = []
+            total = 0
+            while True:
+                chunk = await stream.read(65536)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > self.policy.max_output_bytes:
+                    output_limited = True
+                    remaining = max(0, self.policy.max_output_bytes - (total - len(chunk)))
+                    if remaining:
+                        chunks.append(chunk[:remaining])
+                    self._kill_group(proc.pid, signal.SIGTERM)
+                    break
+                chunks.append(chunk)
+            return b"".join(chunks)
+
+        stdout_task = asyncio.create_task(read_limited(proc.stdout))
+        stderr_task = asyncio.create_task(read_limited(proc.stderr))
+        timed_out = False
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=timeout_seconds)
+        except asyncio.TimeoutError:
+            timed_out = True
+            self._kill_group(proc.pid, signal.SIGTERM)
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=self.policy.kill_grace_seconds)
+            except asyncio.TimeoutError:
+                self._kill_group(proc.pid, signal.SIGKILL)
+                await proc.wait()
+        finally:
+            stdout, stderr = await asyncio.gather(stdout_task, stderr_task)
+            shutil.rmtree(rootfs.parent, ignore_errors=True)
+
+        return SandboxCommandResult(
+            returncode=proc.returncode if proc.returncode is not None else -signal.SIGKILL,
+            stdout=stdout.decode("utf-8", errors="replace"),
+            stderr=stderr.decode("utf-8", errors="replace"),
+            timed_out=timed_out,
+            output_limited=output_limited,
+        )
+
+    @staticmethod
+    def _kill_group(pid: int, sig: signal.Signals) -> None:
+        try:
+            os.killpg(pid, sig)
+        except ProcessLookupError:
+            pass

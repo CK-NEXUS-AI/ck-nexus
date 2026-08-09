@@ -95,6 +95,9 @@ class Settings:
     agnes_enabled: bool = True
     agnes_ledger_path: Path = RUNTIME_ROOT / "data" / "agnes-ledger.jsonl"
     agnes_max_parallel_skills: int = 5
+    agnes_sandbox_enabled: bool = False
+    agnes_sandbox_root: Path = RUNTIME_ROOT / "data" / "agnes-sandbox"
+    agnes_sandbox_repository_root: Path = RUNTIME_ROOT
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -145,6 +148,14 @@ class Settings:
         agnes_ledger_path = Path(agnes_ledger_value)
         if not agnes_ledger_path.is_absolute():
             agnes_ledger_path = runtime_root / agnes_ledger_path
+        agnes_sandbox_root_value = os.getenv("CKNEXUS_AGNES_SANDBOX_ROOT", "data/agnes-sandbox").strip()
+        agnes_sandbox_root = Path(agnes_sandbox_root_value)
+        if not agnes_sandbox_root.is_absolute():
+            agnes_sandbox_root = runtime_root / agnes_sandbox_root
+        agnes_repo_value = os.getenv("CKNEXUS_AGNES_SANDBOX_REPOSITORY_ROOT", "").strip()
+        agnes_sandbox_repository_root = (
+            Path(agnes_repo_value).expanduser() if agnes_repo_value else runtime_root
+        ).resolve()
 
         configured = cls(
             environment=(
@@ -310,6 +321,11 @@ class Settings:
                 minimum=1,
                 maximum=12,
             ),
+            agnes_sandbox_enabled=_as_bool(
+                os.getenv("CKNEXUS_AGNES_SANDBOX_ENABLED"), default=False
+            ),
+            agnes_sandbox_root=agnes_sandbox_root,
+            agnes_sandbox_repository_root=agnes_sandbox_repository_root,
         )
         configured.validate_startup()
         return configured

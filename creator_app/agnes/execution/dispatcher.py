@@ -14,7 +14,7 @@ from .approval import StickyApprovalResolver
 from .credentials import CredentialLeaseDenied, CredentialLeaseService
 from .evidence import EvidenceBuilder, redact
 from .guards import ExecutionPolicyEngine, RiskClassifier
-from .idempotency import IdempotencyState, InMemoryIdempotencyStore
+from .idempotency import IdempotencyState, IdempotencyStore, InMemoryIdempotencyStore
 from .kill_switch import KillSwitchHierarchy
 from .manifest import ImmutableExecutionManifest
 from .permissions import PermissionResolver
@@ -27,6 +27,7 @@ from .verification import ResultVerifier
 @dataclass(slots=True)
 class DispatcherPolicy:
     require_durable_idempotency_for_high_risk: bool = True
+    require_distributed_idempotency_for_staging_and_production: bool = True
 
 
 class SkillExecutionDispatcher:
@@ -41,7 +42,7 @@ class SkillExecutionDispatcher:
         ledger: AppendOnlyLedger,
         credential_broker: CredentialBroker | None,
         kill_switches: KillSwitchHierarchy | None = None,
-        idempotency_store: InMemoryIdempotencyStore | None = None,
+        idempotency_store: IdempotencyStore | None = None,
         dispatcher_policy: DispatcherPolicy | None = None,
     ) -> None:
         self.skill_registry = skill_registry
@@ -63,18 +64,26 @@ class SkillExecutionDispatcher:
         self.executors.register(executor)
 
     def status(self) -> dict[str, object]:
+        executor_status = self.executors.status()
+        sandbox_enabled = bool(executor_status.get("registered", {}).get("sandbox"))
         return {
-            "phase": "AGNES Execution Kernel Phase 1 — Security Baseline",
+            "phase": (
+                "AGNES Execution Kernel Phase 2 — Isolated Sandbox Baseline"
+                if sandbox_enabled
+                else "AGNES Execution Kernel Phase 1 — Security Baseline"
+            ),
             "agent_is_executor": False,
-            "workspace_is_sandbox": False,
-            "sandbox_executor_enabled": False,
+            "workspace_is_sandbox": sandbox_enabled,
+            "sandbox_executor_enabled": sandbox_enabled,
             "fail_closed": True,
             "idempotency": {
-                "backend": "memory",
+                "backend": type(self.idempotency).__name__,
+                "durable": self.idempotency.durable,
+                "distributed": self.idempotency.distributed,
                 "production_safe": self.idempotency.production_safe,
             },
-            "executors": self.executors.status(),
-            "production_execution": "blocked_until_R12_and_durable_execution_controls",
+            "executors": executor_status,
+            "production_execution": "blocked_until_R12_and_production_safe_sandbox_evidence",
         }
 
     async def execute(self, request: SkillExecutionRequest) -> SkillExecutionResult:
@@ -146,11 +155,25 @@ class SkillExecutionDispatcher:
             if (
                 self.dispatcher_policy.require_durable_idempotency_for_high_risk
                 and risk.rank >= ExecutorRiskClass.HIGH.rank
-                and not self.idempotency.production_safe
+                and not self.idempotency.durable
             ):
                 return self._blocked(
                     request,
                     "durable_idempotency_required_for_high_risk",
+                    start=start,
+                    manifest=manifest,
+                    approval_fingerprint=approval_fingerprint,
+                    risk=risk,
+                )
+            if (
+                self.dispatcher_policy.require_distributed_idempotency_for_staging_and_production
+                and request.environment in {"staging", "production"}
+                and risk.rank >= ExecutorRiskClass.HIGH.rank
+                and not self.idempotency.production_safe
+            ):
+                return self._blocked(
+                    request,
+                    "distributed_idempotency_required_for_high_risk",
                     start=start,
                     manifest=manifest,
                     approval_fingerprint=approval_fingerprint,

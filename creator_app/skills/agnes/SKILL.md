@@ -80,3 +80,18 @@ The R13 skill nervous system is extended, not replaced, by the execution securit
 - Results follow candidate -> verify -> scan -> approve -> promote; no direct production promotion.
 - Phase 1 has no auto-merge and no auto-production deployment.
 - The default Phase-1 executor registry is intentionally empty; missing executors fail closed.
+
+## AGNES Execution Kernel Phase 2 — Isolated Sandbox Baseline
+
+Phase 2 extends the Phase-1 control plane without replacing any prior invariant:
+
+- Sandbox execution remains disabled by default and must be explicitly enabled by runtime configuration.
+- `hands.code_patch`, `hands.test`, and `hands.security_scan` may execute only through a registered sandbox executor.
+- The local Linux backend uses user/mount/PID/network namespaces plus chroot; network egress is denied.
+- System runtime paths are read-only; only the selected workspace is writable.
+- Commands are argv-only and executable-allowlisted; network-capable Git operations are denied.
+- Resource ceilings and process-group timeout termination are mandatory.
+- Patch paths require an explicit allowlist; path traversal, symlinks, and file deletion are denied in Phase 2.
+- Local SQLite idempotency is durable across restart but single-host only; it is not production-safe.
+- Staging/production high-risk execution still requires distributed idempotency and R12 evidence.
+- Phase 2 still has no auto-merge and no auto-production deployment.

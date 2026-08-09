@@ -11,8 +11,11 @@ from creator_app.agnes_skills import AgnesSkillRegistry, SkillDefinition, SkillR
 from creator_app.agnes_workbench import WorkspaceBroker, WorkspaceKind
 from creator_app.credential_broker import CredentialBroker
 from creator_app.agnes.execution.approval import StickyApprovalResolver
-from creator_app.agnes.execution.dispatcher import SkillExecutionDispatcher, build_phase1_dispatcher
+from creator_app.agnes.execution.dispatcher import DispatcherPolicy, SkillExecutionDispatcher, build_phase1_dispatcher
 from creator_app.agnes.execution.guards import ExecutionPolicyEngine
+from creator_app.agnes.execution.idempotency import SQLiteIdempotencyStore
+from creator_app.agnes.execution.adapters.linux_namespace_sandbox import LinuxNamespaceSandboxExecutor
+from creator_app.agnes.execution.sandbox import LinuxNamespaceRunner, SandboxPolicy, SandboxWorkspaceManager
 from creator_app.agnes.execution.request import ExecutorType, SkillExecutionRequest
 from creator_app.agnes.execution.result import SkillExecutionResult
 from creator_app.provider_router import ProviderKind, ProviderRouter
@@ -54,6 +57,9 @@ class AgnesNervousSystem:
         policy: AgnesPolicy | None = None,
         credential_broker: CredentialBroker | None = None,
         dispatcher: SkillExecutionDispatcher | None = None,
+        sandbox_enabled: bool = False,
+        sandbox_root: Path | None = None,
+        sandbox_repository_root: Path | None = None,
     ) -> None:
         self.skill_file = skill_file
         self.registry = AgnesSkillRegistry.load(skill_file)
@@ -63,13 +69,39 @@ class AgnesNervousSystem:
         self.workspace_broker = WorkspaceBroker()
         self.discovery = SkillDiscoveryPolicy()
         self.approvals = StickyApprovalResolver()
-        self.dispatcher = dispatcher or build_phase1_dispatcher(
-            skill_registry=self.registry,
-            policy_engine=ExecutionPolicyEngine(self.policy),
-            approval_service=self.approvals,
-            ledger=self.ledger,
-            credential_broker=credential_broker,
-        )
+        if dispatcher is not None:
+            self.dispatcher = dispatcher
+        elif sandbox_enabled:
+            sandbox_root = (sandbox_root or (ledger_path.parent / "agnes-sandbox")).resolve()
+            repository_root = (sandbox_repository_root or Path.cwd()).resolve()
+            idempotency = SQLiteIdempotencyStore(sandbox_root / "idempotency.sqlite3")
+            self.dispatcher = SkillExecutionDispatcher(
+                skill_registry=self.registry,
+                policy_engine=ExecutionPolicyEngine(self.policy),
+                approval_service=self.approvals,
+                ledger=self.ledger,
+                credential_broker=credential_broker,
+                idempotency_store=idempotency,
+                dispatcher_policy=DispatcherPolicy(
+                    require_durable_idempotency_for_high_risk=True,
+                    require_distributed_idempotency_for_staging_and_production=True,
+                ),
+            )
+            sandbox_policy = SandboxPolicy(
+                base_dir=sandbox_root,
+                repository_root=repository_root,
+            )
+            workspace_manager = SandboxWorkspaceManager(sandbox_policy)
+            runner = LinuxNamespaceRunner(sandbox_policy)
+            self.dispatcher.register(LinuxNamespaceSandboxExecutor(workspace_manager, runner))
+        else:
+            self.dispatcher = build_phase1_dispatcher(
+                skill_registry=self.registry,
+                policy_engine=ExecutionPolicyEngine(self.policy),
+                approval_service=self.approvals,
+                ledger=self.ledger,
+                credential_broker=credential_broker,
+            )
 
     def _inference_status(self) -> dict[str, object]:
         if self.provider_router is None:
@@ -180,8 +212,11 @@ class AgnesNervousSystem:
         skill_id = str(plan_step.get("id") or plan_step.get("skill_id") or "").strip()
         skill = self.registry.get(skill_id)
         executor = ExecutorType(str(plan_step.get("executor") or skill.executor))
+        execution_id = str(plan_step.get("execution_id") or f"agnes_exec_{uuid4().hex}")
+        if executor is ExecutorType.SANDBOX and workspace_id is None:
+            workspace_id = execution_id
         request = SkillExecutionRequest(
-            execution_id=str(plan_step.get("execution_id") or f"agnes_exec_{uuid4().hex}"),
+            execution_id=execution_id,
             correlation_id=correlation_id,
             skill_id=skill.id,
             skill_version=str(plan_step.get("version") or skill.version),
