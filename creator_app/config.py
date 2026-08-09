@@ -96,6 +96,7 @@ class Settings:
     agnes_max_parallel_skills: int = 5
     agnes_sandbox_enabled: bool = False
     agnes_phase3_enabled: bool = False
+    agnes_redis_url: str = ""
     agnes_sandbox_root: Path = RUNTIME_ROOT / "data" / "agnes-sandbox"
     agnes_sandbox_repository_root: Path = RUNTIME_ROOT
 
@@ -328,6 +329,7 @@ class Settings:
             agnes_phase3_enabled=_as_bool(
                 os.getenv("CKNEXUS_AGNES_PHASE3_ENABLED"), default=False
             ),
+            agnes_redis_url=os.getenv("CKNEXUS_AGNES_REDIS_URL", "").strip(),
             agnes_sandbox_root=agnes_sandbox_root,
             agnes_sandbox_repository_root=agnes_sandbox_repository_root,
         )

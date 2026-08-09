@@ -21,6 +21,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       CKNEXUS_HOST: 0.0.0.0
       PORT: 8000
@@ -29,6 +31,9 @@ services:
       CKNEXUS_SESSION_DATABASE_URL: postgresql+asyncpg://cknexus:${CKNEXUS_DB_PASSWORD}@db:5432/cknexus
       CKNEXUS_EMAIL_DATABASE_URL: postgresql://cknexus:${CKNEXUS_DB_PASSWORD}@db:5432/cknexus
       CKNEXUS_EMAIL_GATEWAY_ENABLED: "true"
+      CKNEXUS_AGNES_SANDBOX_ENABLED: "true"
+      CKNEXUS_AGNES_PHASE3_ENABLED: "true"
+      CKNEXUS_AGNES_REDIS_URL: redis://redis:6379/0
       CKNEXUS_EMAIL_WEBHOOK_TOKEN: ${CKNEXUS_EMAIL_WEBHOOK_TOKEN:?set CKNEXUS_EMAIL_WEBHOOK_TOKEN}
       CKNEXUS_ACCESS_TOKEN: ${CKNEXUS_ACCESS_TOKEN:?set CKNEXUS_ACCESS_TOKEN}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -53,9 +58,13 @@ services:
 
   redis:
     image: redis:7-alpine
-    profiles: ["queue"]
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
     volumes:
       - redis_data:/data
     networks: [backend]

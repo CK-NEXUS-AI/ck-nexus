@@ -103,6 +103,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         sandbox_root=resolved_settings.agnes_sandbox_root,
         sandbox_repository_root=resolved_settings.agnes_sandbox_repository_root,
         phase3_enabled=resolved_settings.agnes_phase3_enabled,
+        environment=resolved_settings.environment,
+        phase3_redis_url=resolved_settings.agnes_redis_url,
     )
     gmail_oauth = GmailOAuthManager(
         credential_broker,

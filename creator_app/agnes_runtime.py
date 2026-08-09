@@ -16,7 +16,11 @@ from creator_app.agnes.execution.guards import ExecutionPolicyEngine
 from creator_app.agnes.execution.idempotency import SQLiteIdempotencyStore
 from creator_app.agnes.execution.adapters.linux_namespace_sandbox import LinuxNamespaceSandboxExecutor
 from creator_app.agnes.execution.sandbox import LinuxNamespaceRunner, SandboxPolicy, SandboxWorkspaceManager
-from creator_app.agnes.execution.phase3 import AutonomousDevController, WorkspaceLifecycleManager
+from creator_app.agnes.execution.phase3 import (
+    AutonomousDevController,
+    RedisIdempotencyStore,
+    WorkspaceLifecycleManager,
+)
 from creator_app.agnes.execution.phase3.sandbox import HardenedLinuxNamespaceRunner
 from creator_app.agnes.execution.request import ExecutorType, SkillExecutionRequest
 from creator_app.agnes.execution.result import SkillExecutionResult
@@ -63,6 +67,8 @@ class AgnesNervousSystem:
         sandbox_root: Path | None = None,
         sandbox_repository_root: Path | None = None,
         phase3_enabled: bool = False,
+        environment: str = "development",
+        phase3_redis_url: str = "",
     ) -> None:
         self.skill_file = skill_file
         self.registry = AgnesSkillRegistry.load(skill_file)
@@ -78,7 +84,26 @@ class AgnesNervousSystem:
         elif sandbox_enabled:
             sandbox_root = (sandbox_root or (ledger_path.parent / "agnes-sandbox")).resolve()
             repository_root = (sandbox_repository_root or Path.cwd()).resolve()
-            idempotency = SQLiteIdempotencyStore(sandbox_root / "idempotency.sqlite3")
+            normalized_environment = environment.strip().lower() or "development"
+            if phase3_enabled and normalized_environment in {"staging", "production"}:
+                if not phase3_redis_url:
+                    raise RuntimeError("distributed_idempotency_required: CKNEXUS_AGNES_REDIS_URL is not configured")
+                if not phase3_redis_url.startswith(("redis://", "rediss://")):
+                    raise RuntimeError("distributed_idempotency_required: unsupported Redis URL scheme")
+                try:
+                    from redis.asyncio import Redis
+                except ImportError as exc:
+                    raise RuntimeError("distributed_idempotency_required: redis client is unavailable") from exc
+                redis_client = Redis.from_url(
+                    phase3_redis_url,
+                    decode_responses=False,
+                    socket_connect_timeout=5,
+                    socket_timeout=5,
+                    health_check_interval=30,
+                )
+                idempotency = RedisIdempotencyStore(redis_client)
+            else:
+                idempotency = SQLiteIdempotencyStore(sandbox_root / "idempotency.sqlite3")
             self.dispatcher = SkillExecutionDispatcher(
                 skill_registry=self.registry,
                 policy_engine=ExecutionPolicyEngine(self.policy),
