@@ -166,6 +166,10 @@ def main() -> int:
             [sys.executable, "-m", "compileall", "-q", "creator_app", "main.py"],
         ),
         run_command(
+            "Council capability authority",
+            [sys.executable, "scripts/gate_council_authority.py"],
+        ),
+        run_command(
             "Trusted toolchain",
             [sys.executable, "scripts/gate_trusted_toolchain.py"],
         ),

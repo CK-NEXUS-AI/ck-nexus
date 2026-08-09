@@ -36,3 +36,23 @@
 - Preserved the original SaaS Billing module as an optional package extra.
 
 R13 AGNES Skill Nervous System: development candidate; see docs/R13_AGNES_SKILL_NERVOUS_SYSTEM.md
+
+## R24 — Council Capability Authority Hardening
+
+- Added one Python policy authority for Council capability enforcement.
+- Added signed service identity; callers cannot self-assert agent identity.
+- Added verified evidence registry and source-evidence quality checks.
+- Added parameter-bound, signed, one-time execution grants.
+- Reused the existing CK-NEXUS Credential Broker through a scope adapter; no second secret store.
+- Added transactional budget accounting and admin-gated top-up capability.
+- Added authorized safety veto and fail-closed human-review arbitration.
+- Added hash-chained audit records and authenticated transcript access.
+- Added thin Node.js capability client with zero policy logic.
+- Added a required release gate and regression tests for authority invariants.
+
+## R24 — Council Capability Authority Hardening
+- Added authenticated single-authority Council capability enforcement.
+- Added verified evidence registry and params-bound signed one-time grants.
+- Reused the existing Credential Broker through a scope adapter.
+- Added transactional budgets, authorized safety veto, hash-chained audit, and a thin Node client.
+- Added a required Council capability release gate.

@@ -88,3 +88,13 @@ R14 Cognitive Brain Runtime (current development lineage):
 - per-run OpenAIProvider / Responses path; no process-global OpenAI key mutation
 - n8n retired from active runtime and deployment paths
 - current status remains Development Candidate / NO-GO until production gates pass
+contracts/capability-policy.schema.json
+contracts/capability-policy.example.json
+creator_app/council_authority/authority.py
+creator_app/council_authority/identity.py
+creator_app/council_authority/storage.py
+creator_app/council_authority/arbitration.py
+creator_app/council_authority/service.py
+council-runtime/node/capability-client.js
+docs/R24_COUNCIL_CAPABILITY_AUTHORITY.md
+R24_COUNCIL_CAPABILITY_AUTHORITY_VALIDATION.md

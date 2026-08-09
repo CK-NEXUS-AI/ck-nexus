@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ck-nexus.internal/schemas/capability-policy.schema.json",
+  "title": "CK-NEXUS Capability Policy Contract",
+  "type": "object",
+  "required": ["version", "capabilities", "agents"],
+  "properties": {
+    "version": {"type": "string", "minLength": 1},
+    "capabilities": {"type": "object"},
+    "agents": {"type": "object"}
+  },
+  "additionalProperties": false
+}
