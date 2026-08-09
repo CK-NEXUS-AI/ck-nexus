@@ -174,6 +174,10 @@ def main() -> int:
             [sys.executable, "scripts/gate_lock_consistency.py"],
         ),
         run_command(
+            "Dependency closure",
+            [sys.executable, "scripts/gate_dependency_closure.py"],
+        ),
+        run_command(
             "Dependency preflight",
             [sys.executable, "scripts/dependency_preflight.py"],
         ),
