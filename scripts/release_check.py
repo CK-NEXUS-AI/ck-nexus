@@ -166,6 +166,10 @@ def main() -> int:
             [sys.executable, "-m", "compileall", "-q", "creator_app", "main.py"],
         ),
         run_command(
+            "Lock consistency",
+            [sys.executable, "scripts/gate_lock_consistency.py"],
+        ),
+        run_command(
             "Dependency preflight",
             [sys.executable, "scripts/dependency_preflight.py"],
         ),
