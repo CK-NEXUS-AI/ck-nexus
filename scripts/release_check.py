@@ -165,6 +165,10 @@ def main() -> int:
             "Python compile",
             [sys.executable, "-m", "compileall", "-q", "creator_app", "main.py"],
         ),
+        run_command(
+            "Dependency preflight",
+            [sys.executable, "scripts/dependency_preflight.py"],
+        ),
         run_command("Test suite", [sys.executable, "-m", "pytest", "-q"]),
         run_command("Ruff", [sys.executable, "-m", "ruff", "check", "."]),
         run_command(
@@ -196,7 +200,6 @@ def main() -> int:
                 "--progress-spinner",
                 "off",
             ],
-            required=False,
         ),
     ]
     commercial = check_commercial_placeholders()

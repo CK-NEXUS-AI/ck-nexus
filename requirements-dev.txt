@@ -1,2 +1,1 @@
--e .[dev,billing]
-
+-e .[dev,billing,email,gateway,github-app]
