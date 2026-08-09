@@ -166,6 +166,10 @@ def main() -> int:
             [sys.executable, "-m", "compileall", "-q", "creator_app", "main.py"],
         ),
         run_command(
+            "Trusted toolchain",
+            [sys.executable, "scripts/gate_trusted_toolchain.py"],
+        ),
+        run_command(
             "Lock consistency",
             [sys.executable, "scripts/gate_lock_consistency.py"],
         ),
