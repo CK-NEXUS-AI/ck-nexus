@@ -8,6 +8,7 @@ from pathlib import Path
 from creator_app.catalog import BASE_INSTRUCTIONS, CreatorAgentSpec
 from creator_app.config import Settings
 from creator_app.credential_broker import CredentialBroker, CredentialId, CredentialUnavailable
+from creator_app.openai_brain import OpenAIBrainUnavailable, build_openai_agents_run_config
 from creator_app.provider_router import ProviderRouteError, ProviderRouter
 from creator_app.schemas import RunRequest
 
@@ -108,11 +109,21 @@ class CreatorRuntime:
         api_key = lease.reveal(consumer="provider.openai")
 
         try:
-            from agents import Agent, RunConfig, Runner, SQLiteSession, set_default_openai_key
+            from agents import Agent, Runner, SQLiteSession
         except ImportError as exc:
             raise ProviderRuntimeError("OpenAI Agents SDK is not installed in this runtime.") from exc
 
-        set_default_openai_key(api_key, use_for_tracing=True)
+        try:
+            brain = build_openai_agents_run_config(
+                api_key=api_key,
+                model=self.settings.openai_model,
+                workflow_name="CK-NEXUS Creator Runtime",
+                tracing_enabled=self.settings.openai_tracing_enabled,
+                group_id=request.session_id,
+            )
+        except OpenAIBrainUnavailable as exc:
+            raise ProviderRuntimeError("OpenAI Agents SDK is not installed in this runtime.") from exc
+
         agent = Agent(
             name=spec.name,
             handoff_description=spec.description,
@@ -139,10 +150,7 @@ class CreatorRuntime:
                     self._build_input(request),
                     session=session,
                     max_turns=3,
-                    run_config=RunConfig(
-                        workflow_name="CK-NEXUS Creator Runtime",
-                        trace_include_sensitive_data=False,
-                    ),
+                    run_config=brain.run_config,
                 )
         except TimeoutError as exc:
             raise ProviderRuntimeError("The AI request timed out. Please try again.") from exc

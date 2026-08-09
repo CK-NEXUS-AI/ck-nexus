@@ -1,35 +1,26 @@
-# CK-NEXUS Integration Hub — R4
+# CK-NEXUS Integration Hub — R14
 
-Status: **Release Candidate**. This feature does not close P0 production runtime gates by itself.
+CK-NEXUS owns orchestration and execution policy. Integrations are adapters behind the
+Capability/Skill layer; no external workflow engine is part of the runtime path.
 
-## Supported status checks
+## Active server-side integrations
 
-- GitHub — `GITHUB_TOKEN`, `GITHUB_REPO`, `GITHUB_API_BASE`
-- Slack — `SLACK_BOT_TOKEN`, optional `SLACK_API_BASE`
-- Google Drive — `GOOGLE_DRIVE_ACCESS_TOKEN`, optional `GOOGLE_DRIVE_API_BASE`
-- n8n — `N8N_BASE_URL`, `N8N_API_KEY`
-- OpenAI — `OPENAI_API_KEY` presence + selected `OPENAI_MODEL`; live AI connectivity remains AI001
-- Database — local SQLite or configured PostgreSQL reachability
+- GitHub — token/GitHub App through Credential Broker and integration adapter.
+- Slack — server credential through trusted-host HTTPS adapter.
+- Google Drive — server OAuth/access token through trusted-host HTTPS adapter.
+- Gmail — OAuth credentials through Credential Broker.
+- OpenAI — provider credential through Credential Broker; live connectivity remains AI001.
+- PostgreSQL/SQLite — canonical application and email state.
+- Redis/PostgreSQL idempotency adapters — optional distributed execution coordination.
 
-## API
+## Retired integration
 
-- `GET /api/integrations/status`
-- `POST /api/integrations/test-all`
-- `GET /api/integrations/github/status`
-- `POST /api/integrations/github/test`
+n8n was removed from the active CK-NEXUS runtime in R14. Historical R4-R13 documents may
+mention n8n as evidence of earlier architecture, but no current compose service, API integration,
+P0 gate, or deployment script may start or require it.
 
-When `CKNEXUS_ACCESS_TOKEN` is configured, integration endpoints require the same Bearer token.
+## Security rule
 
-No integration endpoint returns secret values.
-
-## Credential boundary
-
-ChatGPT connector credentials are not exported into CK-NEXUS. Runtime credentials must be configured independently on the server/VPS through environment variables or a secret manager.
-
-## OpenAI model default
-
-R4 uses `gpt-5-mini` as the default API model while preserving `OPENAI_MODEL` override. Confirm account availability before production deployment.
-
-## n8n
-
-CK-NEXUS verifies n8n through the Public API using `X-N8N-API-KEY`. The n8n security audit remains a separate P0 security gate and must be executed against the actual staging/production instance.
+Secrets are server-side only. Status APIs return configuration/health metadata and never return
+secret values. All mutations remain subject to CK-NEXUS permissions, idempotency, evidence and
+verification gates.

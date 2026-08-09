@@ -30,20 +30,10 @@ else
   [[ "$status" -eq 1 ]] || status=2
 fi
 
-if command -v docker >/dev/null 2>&1; then
-  if docker compose --env-file "${CKNEXUS_ENV_FILE:-.env.p0}" -f "${CKNEXUS_COMPOSE_FILE:-docker-compose.p0.yml}" ps n8n --status running >/dev/null 2>&1; then
-    if docker compose --env-file "${CKNEXUS_ENV_FILE:-.env.p0}" -f "${CKNEXUS_COMPOSE_FILE:-docker-compose.p0.yml}" exec -T n8n n8n audit; then
-      echo '[PASS] n8n audit command completed'
-    else
-      echo '[FAIL] n8n audit'
-      status=1
-    fi
-  else
-    echo '[BLOCKED] n8n container is not running'
-    [[ "$status" -eq 1 ]] || status=2
-  fi
+if python -m pip_audit --version >/dev/null 2>&1; then
+  python -m pip_audit || status=1
 else
-  echo '[BLOCKED] docker command not installed; cannot run n8n audit'
+  echo '[BLOCKED] pip-audit module not installed'
   [[ "$status" -eq 1 ]] || status=2
 fi
 

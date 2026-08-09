@@ -34,7 +34,8 @@ class Settings:
     app_name: str = "CK-NEXUS Creator Edition"
     app_version: str = "0.2.0"
     environment: str = "development"
-    openai_model: str = "gpt-5-mini"
+    openai_model: str = "gpt-5.6-sol"
+    openai_tracing_enabled: bool = False
     provider_local_first: bool = True
     provider_allow_cloud: bool = True
     provider_max_attempts: int = 3
@@ -76,8 +77,6 @@ class Settings:
     slack_api_base: str = "https://slack.com/api"
     google_drive_access_token: str = ""
     google_drive_api_base: str = "https://www.googleapis.com/drive/v3"
-    n8n_base_url: str = ""
-    n8n_api_key: str = ""
     integration_timeout_seconds: int = 5
     gmail_oauth_enabled: bool = False
     gmail_redirect_uri: str = ""
@@ -163,7 +162,10 @@ class Settings:
                 os.getenv("CKNEXUS_ENVIRONMENT", "development").strip().lower()
                 or "development"
             ),
-            openai_model=os.getenv("OPENAI_MODEL", "gpt-5-mini"),
+            openai_model=os.getenv("OPENAI_MODEL", "gpt-5.6-sol"),
+            openai_tracing_enabled=_as_bool(
+                os.getenv("CKNEXUS_OPENAI_TRACING_ENABLED"), default=False
+            ),
             provider_local_first=_as_bool(
                 os.getenv("CKNEXUS_PROVIDER_LOCAL_FIRST"), default=True
             ),
@@ -278,8 +280,6 @@ class Settings:
             slack_api_base=os.getenv("SLACK_API_BASE", "https://slack.com/api").strip() or "https://slack.com/api",
             google_drive_access_token=os.getenv("GOOGLE_DRIVE_ACCESS_TOKEN", "").strip(),
             google_drive_api_base=os.getenv("GOOGLE_DRIVE_API_BASE", "https://www.googleapis.com/drive/v3").strip() or "https://www.googleapis.com/drive/v3",
-            n8n_base_url=os.getenv("N8N_BASE_URL", "").strip(),
-            n8n_api_key=os.getenv("N8N_API_KEY", "").strip(),
             integration_timeout_seconds=_as_int(
                 os.getenv("CKNEXUS_INTEGRATION_TIMEOUT_SECONDS"),
                 default=5,

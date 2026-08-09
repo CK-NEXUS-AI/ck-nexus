@@ -139,7 +139,7 @@ def test_email_gateway_api_requires_token_and_deduplicates(tmp_path: Path):
         "provider": "gmail",
         "provider_message_id": "gmail-api-1",
         "internet_message_id": "<header@example.test>",
-        "execution_id": "n8n-execution-1",
+        "execution_id": "ck-worker-execution-1",
     }
     with TestClient(create_app(settings)) as client:
         assert client.post("/api/email/ingest", json=payload).status_code == 401
@@ -222,14 +222,14 @@ def test_audit_trace_is_complete_and_queryable(tmp_path: Path):
         mailbox="admin@ck-nexus.test",
         provider="gmail",
         provider_message_id="trace-1",
-        claimed_by="n8n-1",
+        claimed_by="ck-worker-1",
     )
     assert claim.journal_id
     store.audit(
         email_journal_id=claim.journal_id,
         event_type="INGRESS_ACCEPTED",
-        actor_type="n8n",
-        actor_id="n8n-1",
+        actor_type="cknexus-email-worker",
+        actor_id="ck-worker-1",
         action="claim",
         result="PASS",
     )
@@ -265,7 +265,7 @@ def test_metrics_and_api_audit_trace(tmp_path: Path):
             "mailbox": "admin@ck-nexus.test",
             "provider": "gmail",
             "provider_message_id": "metrics-1",
-            "execution_id": "n8n-metrics",
+            "execution_id": "ck-worker-metrics",
         }
         response = client.post("/api/email/ingest", json=payload, headers=headers)
         journal_id = response.json()["journal_id"]
@@ -284,7 +284,7 @@ def test_metrics_and_api_audit_trace(tmp_path: Path):
         assert "ckn_email_duplicate_total 1" in metrics.text
 
 
-def test_n8n_service_endpoints_route_loop_scan_and_outbox_worker(tmp_path: Path):
+def test_internal_email_worker_endpoints_route_loop_scan_and_outbox(tmp_path: Path):
     from fastapi.testclient import TestClient
 
     from creator_app.api import create_app
@@ -330,7 +330,7 @@ def test_n8n_service_endpoints_route_loop_scan_and_outbox_worker(tmp_path: Path)
                 "mailbox": "admin@ck-nexus.test",
                 "provider": "gmail",
                 "provider_message_id": "worker-api-1",
-                "execution_id": "n8n-ingress",
+                "execution_id": "ck-worker-ingress",
             },
         ).json()
         enqueue = client.post(
@@ -347,7 +347,7 @@ def test_n8n_service_endpoints_route_loop_scan_and_outbox_worker(tmp_path: Path)
         claimed = client.post(
             "/api/email/outbox/claim",
             headers=headers,
-            json={"worker_id": "n8n-outbox-1", "limit": 10, "lease_seconds": 120},
+            json={"worker_id": "ck-outbox-1", "limit": 10, "lease_seconds": 120},
         )
         assert claimed.status_code == 200
         assert [item["id"] for item in claimed.json()["items"]] == [enqueue["outbox_id"]]

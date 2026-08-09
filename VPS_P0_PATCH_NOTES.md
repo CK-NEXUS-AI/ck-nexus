@@ -1,3 +1,7 @@
+# R14 NOTICE
+
+> n8n is retired from the active CK-NEXUS runtime. Any n8n instructions below are historical R4-R13 material and must not be used for R14 deployment. Use `docker-compose.p0.yml` / `docker-compose.prod.yml` as the current source of truth.
+
 # CK-NEXUS v0.2.0 — P0 VPS RC Patch Notes
 
 Status: **P0 staging-ready package; not a Production PASS.**

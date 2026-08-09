@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from creator_app.api import create_app
 from creator_app.config import Settings
-from creator_app.integrations import GoogleDriveIntegration, N8nIntegration, SlackIntegration
+from creator_app.integrations import GoogleDriveIntegration, SlackIntegration
 
 
 def test_integration_hub_is_safe_when_secrets_missing(tmp_path: Path):
@@ -17,7 +17,8 @@ def test_integration_hub_is_safe_when_secrets_missing(tmp_path: Path):
         body = response.json()
         assert body["release_status"] == "release_candidate"
         ids = {item["id"] for item in body["integrations"]}
-        assert {"github", "slack", "google_drive", "n8n", "openai", "database"} <= ids
+        assert {"github", "slack", "google_drive", "openai", "database"} <= ids
+        assert "n8n" not in ids
         serialized = str(body).lower()
         assert "bot_token" not in serialized
         assert "api_key" not in serialized
@@ -48,19 +49,3 @@ def test_drive_status_reports_success(monkeypatch):
     assert status.configured is True
     assert status.connected is True
     assert status.details["account"] == "Demo"
-
-
-def test_n8n_requires_key_for_verified_connection():
-    status = N8nIntegration("https://n8n.example", "").status()
-    assert status.configured is True
-    assert status.connected is False
-    assert "unverified" in status.message.lower()
-
-
-def test_n8n_status_reports_success(monkeypatch):
-    integration = N8nIntegration("https://n8n.example", "secret")
-    monkeypatch.setattr(integration, "_request_json", lambda *args, **kwargs: {"data": []})
-    status = integration.status()
-    assert status.configured is True
-    assert status.connected is True
-    assert status.details["workflow_list_shape_valid"] is True

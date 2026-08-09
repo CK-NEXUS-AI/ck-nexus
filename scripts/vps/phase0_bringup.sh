@@ -11,7 +11,7 @@ if [[ ! -f "$ENV_FILE" ]]; then echo "Missing env file: $ENV_FILE" >&2; exit 2; 
 if [[ "$(stat -c '%a' "$ENV_FILE")" != "600" ]]; then echo "Env file must be mode 600." >&2; exit 1; fi
 set -a; source "$ENV_FILE"; set +a
 if [[ "${CKNEXUS_ENVIRONMENT:-}" != "staging" ]]; then echo "Refusing: CKNEXUS_ENVIRONMENT must be staging" >&2; exit 2; fi
-if grep -Eq 'replace-with|^CKNEXUS_DB_PASSWORD=$|^N8N_DB_PASSWORD=$|^N8N_ENCRYPTION_KEY=$|^CKNEXUS_ACCESS_TOKEN=$|^CKNEXUS_EMAIL_WEBHOOK_TOKEN=$' "$ENV_FILE"; then
+if grep -Eq 'replace-with|^CKNEXUS_DB_PASSWORD=$|^CKNEXUS_ACCESS_TOKEN=$|^CKNEXUS_EMAIL_WEBHOOK_TOKEN=$' "$ENV_FILE"; then
   echo "Placeholder/empty required secret detected." >&2; exit 2
 fi
 {
@@ -26,8 +26,8 @@ fi
 } > "$OUT/manifest.txt"
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE" config > "$OUT/artifacts/compose.resolved.yml"
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE" pull db migrate n8n-db n8n 2>&1 | tee "$OUT/logs/pull.log"
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d --build db migrate app n8n-db n8n 2>&1 | tee "$OUT/logs/up.log"
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE" pull db migrate 2>&1 | tee "$OUT/logs/pull.log"
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d --build db migrate app 2>&1 | tee "$OUT/logs/up.log"
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE" ps > "$OUT/artifacts/compose-ps.txt"
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE" logs --no-color --tail=500 > "$OUT/logs/compose.log"
 
@@ -38,10 +38,8 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE" exec -T db psql -U cknexus -
 if grep -qE '^$' "$OUT/artifacts/schema.txt"; then echo "Schema verification failed" >&2; exit 1; fi
 
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE" exec -T db postgres --version > "$OUT/artifacts/postgres-version.txt"
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE" exec -T n8n n8n --version > "$OUT/artifacts/n8n-version.txt"
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE" exec -T app python --version > "$OUT/artifacts/python-version.txt" 2>&1
 
-docker image inspect "${N8N_IMAGE:-n8nio/n8n:2.32.6}" --format '{{json .RepoDigests}}' > "$OUT/artifacts/n8n-image-digests.json" || true
 docker image inspect "${POSTGRES_IMAGE:-postgres:16-alpine}" --format '{{json .RepoDigests}}' > "$OUT/artifacts/postgres-image-digests.json" || true
 (cd "$OUT" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS)
 echo "P0 Phase 0 bring-up: PASS"

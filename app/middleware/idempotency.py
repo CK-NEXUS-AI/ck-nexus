@@ -13,7 +13,7 @@ def claim_email_once(
     internet_message_id: str | None = None,
     lease_seconds: int = 300,
 ) -> ClaimResult:
-    """Shared FastAPI/n8n atomic-claim boundary.
+    """Shared CK-NEXUS API/worker atomic-claim boundary.
 
     Hard identity is (mailbox, provider, provider_message_id). Internet Message-ID
     is correlation metadata only and is never trusted as the primary dedup key.

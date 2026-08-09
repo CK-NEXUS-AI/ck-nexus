@@ -58,7 +58,7 @@ python -m venv .venv
 
 1. บันทึกคีย์ไว้ใน `.env.local` ภายใต้ตัวแปร `OPENAI_API_KEY`
 2. เปลี่ยน `CKNEXUS_MOCK_AI=false`
-3. เลือกโมเดลผ่าน `OPENAI_MODEL` (ค่าเริ่มต้น `gpt-5-mini`)
+3. เลือกโมเดลผ่าน `OPENAI_MODEL` (ค่าเริ่มต้น `gpt-5.6-sol`)
 4. เริ่มเซิร์ฟเวอร์ใหม่
 
 ห้ามใส่คีย์ลงใน source code, commit, screenshot หรือข้อความแชท
@@ -100,7 +100,7 @@ python scripts/package_release.py
 - `GET /docs` — OpenAPI UI
 - `GET /api/codex/status` — สถานะ Codex Bridge แบบไม่เปิดเผย credential
 - `POST /api/codex/tasks` — ส่งงานวิศวกรรมซอฟต์แวร์ให้ Codex (ปิดเป็นค่าเริ่มต้นและบังคับ bearer token)
-- `GET /api/integrations/status` — สรุป GitHub / Slack / Google Drive / n8n / OpenAI / Database โดยไม่เปิดเผย secret
+- `GET /api/integrations/status` — สรุป GitHub / Slack / Google Drive / OpenAI / Database โดยไม่เปิดเผย secret
 - `POST /api/integrations/test-all` — ทดสอบ integration ที่ตั้งค่าไว้จากฝั่ง server
 
 ## โครงสร้างสำคัญ

@@ -164,7 +164,7 @@ def main() -> int:
         k, v = line.split("=", 1)
         env.setdefault(k, v)
 
-    up = run(["docker", "compose", "--env-file", str(env_path), "-f", str(COMPOSE), "up", "-d", "--build", "db", "app", "n8n-db", "n8n"], timeout=900, env=env)
+    up = run(["docker", "compose", "--env-file", str(env_path), "-f", str(COMPOSE), "up", "-d", "--build", "db", "app"], timeout=900, env=env)
     (evidence_root / "logs" / "P0-OPS-compose.log").write_text(up.stdout + "\n" + up.stderr, encoding="utf-8")
     if up.returncode != 0 or not wait_http(f"http://127.0.0.1:{env.get('CKNEXUS_PORT','8000')}/health", 180):
         ev.gate("P0-OPS", "FAIL", command="docker compose up", exit_code=up.returncode,
@@ -174,7 +174,6 @@ def main() -> int:
     versions = {}
     version_cmds = {
         "postgres": ["docker", "compose", "--env-file", str(env_path), "-f", str(COMPOSE), "exec", "-T", "db", "postgres", "--version"],
-        "n8n": ["docker", "compose", "--env-file", str(env_path), "-f", str(COMPOSE), "exec", "-T", "n8n", "n8n", "--version"],
         "python": ["docker", "compose", "--env-file", str(env_path), "-f", str(COMPOSE), "exec", "-T", "app", "python", "--version"],
     }
     for name, cmd in version_cmds.items():
@@ -198,7 +197,7 @@ def main() -> int:
     gate_scripts = {
         "P0-EMAIL-002": "scripts/gate_outbox_timeout.py",
         "P0-EMAIL-003": "scripts/gate_lease_recovery.py",
-        "P0-EMAIL-004": "scripts/gate_n8n_routing.py",
+        "P0-EMAIL-004": "scripts/gate_email_routing.py",
         "P0-EMAIL-005": "scripts/gate_attachment_quarantine.py",
         "P0-EMAIL-006": "scripts/gate_loop_prevention.py",
         "P0-EMAIL-007": "scripts/gate_audit_trace.py",

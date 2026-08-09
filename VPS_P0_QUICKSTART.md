@@ -1,3 +1,7 @@
+# R14 NOTICE
+
+> n8n is retired from the active CK-NEXUS runtime. Any n8n instructions below are historical R4-R13 material and must not be used for R14 deployment. Use `docker-compose.p0.yml` / `docker-compose.prod.yml` as the current source of truth.
+
 # CK-NEXUS P0 VPS Quickstart
 
 This kit is for an isolated **staging VPS**, not production. Runtime evidence is required before promoting the product from Early Access RC to GA.

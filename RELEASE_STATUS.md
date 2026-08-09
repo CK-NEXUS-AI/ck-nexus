@@ -1,19 +1,38 @@
-# Release Status — CK-NEXUS R9–R11 Canonical Implementation Candidate
+# Release Status — CK-NEXUS R14 Cognitive Brain Runtime
 
-Decision: **DEVELOPMENT CANDIDATE / RELEASE CANDIDATE / NO-GO FOR PRODUCTION CLAIMS**
+Decision: **DEVELOPMENT CANDIDATE / NO-GO FOR PRODUCTION CLAIMS**
 
-Baseline: verified R8 commit `ded79e08b930b5a6b733bcc658bfc9615d1b09a8`.
+Baseline R13 commit: `540590a6174febd10031d7af7f62b1adf5d35276`
+R14 branch: `r14-cognitive-brain-runtime`
 
-This branch implements Canonical Master Source revision 1 sections 5–7: R9 API Gateway,
-R10 governed Pattern Library, and R11 Idea/Creativity Engine. It adds executable capability but
-does not close the R12 staging evidence requirement.
+## R14 changes
 
-Passing local tests proves code-path behavior only. Production Ready remains prohibited until all
-required R12 gates PASS against one exact commit, artifact SHA-256 and staging environment identity.
+- OpenAI Agents SDK credentials are now scoped per run through Credential Broker and `OpenAIProvider`; no process-global OpenAI key mutation remains.
+- OpenAI uses the Responses model path through the current Agents SDK provider contract.
+- Sensitive trace payload capture is disabled; trace export is disabled by default and requires explicit configuration.
+- Default `OPENAI_MODEL` is `gpt-5.6-sol` and remains environment-overridable; live model/account access is still a runtime gate.
+- n8n is retired from active CK-NEXUS runtime, compose, integration status, VPS bring-up and P0 routing/security execution paths.
+- Email routing/outbox APIs remain CK-NEXUS-owned and are validated directly.
 
-## R13-LAB AGNES Skill Nervous System
+## Current local verification
 
-A development-only branch adds a local-first AGNES skill nervous system, append-only learning ledger,
-quarantine-first skill discovery, Workspace Broker abstraction, and governed self-upgrade planning.
-This does **not** close R12 staging gates. Production posture remains NO-GO until the required staging
-evidence passes against one exact release identity.
+- R14 non-billing regression: **168/168 PASS**.
+- Python compile: **PASS**.
+- JavaScript syntax: **PASS**.
+- Shell syntax: **PASS**.
+- Internal tracked-file secret scan: **PASS**.
+- Full suite in this host: **174 PASS / 3 ERROR**, all three caused by unavailable `aiosqlite` in the host environment.
+- Ruff/Bandit/pip-audit: **BLOCKED** in this host because the binaries/modules are not installed.
+
+## Production blockers
+
+Production Ready remains prohibited until the exact R14 release identity has evidence for:
+
+1. fully provisioned dependency environment and full test suite;
+2. Ruff, Bandit and dependency audit;
+3. live OpenAI/provider AI001;
+4. live PostgreSQL/Redis distributed idempotency;
+5. delegated cgroup v2 enforcement on staging Linux;
+6. backup/restore, observability and clean-machine deployment gates.
+
+Historical R4-R13 documents remain lineage evidence and do not override the R14 architecture.

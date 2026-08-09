@@ -25,7 +25,7 @@ from creator_app.providers import build_provider_router
 from creator_app.dev_team import DevTeamRuntime
 from creator_app.github_integration import GitHubIntegration
 from creator_app.health import DependencyState, DependencyStatus, evaluate_health
-from creator_app.integrations import GoogleDriveIntegration, N8nIntegration, SlackIntegration
+from creator_app.integrations import GoogleDriveIntegration, SlackIntegration
 from creator_app.rate_limit import SlidingWindowRateLimiter
 from creator_app.runtime import CreatorRuntime, MissingCredentialError, ProviderRuntimeError
 from creator_app.schemas import (
@@ -132,11 +132,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         api_base=resolved_settings.google_drive_api_base,
         timeout=resolved_settings.integration_timeout_seconds,
     )
-    n8n_integration = N8nIntegration(
-        resolved_settings.n8n_base_url,
-        resolved_settings.n8n_api_key,
-        timeout=resolved_settings.integration_timeout_seconds,
-    )
     email_database_path = resolved_settings.email_database_path or resolved_settings.database_path
     email_repository = create_email_repository(
         database_url=resolved_settings.email_database_url,
@@ -170,7 +165,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.github_integration = github_integration
     app.state.slack_integration = slack_integration
     app.state.drive_integration = drive_integration
-    app.state.n8n_integration = n8n_integration
     app.state.codex_bridge = codex_bridge
     app.state.email_repository = email_repository
 
@@ -346,7 +340,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         email_repository.audit(
             email_journal_id=claim.journal_id,
             event_type="INGRESS_ACCEPTED" if claim.claimed else "INGRESS_DUPLICATE",
-            actor_type="n8n",
+            actor_type="cknexus-email-worker",
             actor_id=payload.execution_id,
             action="atomic_claim",
             result="PASS",
@@ -377,7 +371,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         email_repository.audit(
             email_journal_id=payload.journal_id,
             event_type="OUTBOX_ENQUEUED" if created else "OUTBOX_DUPLICATE",
-            actor_type="n8n",
+            actor_type="cknexus-email-worker",
             action=payload.action_type,
             result="PASS",
             details={"outbox_id": outbox_id, "destination": payload.destination},
@@ -489,7 +483,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             email_repository.audit(
                 email_journal_id=str(row["email_journal_id"]),
                 event_type="OUTBOX_SENT",
-                actor_type="n8n",
+                actor_type="cknexus-email-worker",
                 action="send",
                 result="PASS",
                 details={"outbox_id": outbox_id, "provider_message_id": payload.provider_message_id},
@@ -655,7 +649,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             github_normalized,
             slack_integration.status().as_dict(),
             drive_integration.status().as_dict(),
-            n8n_integration.status().as_dict(),
             gmail_oauth.status(),
             github_app_auth.status(),
             openai_status,

@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from creator_app.config import Settings
 from creator_app.credential_broker import CredentialBroker, CredentialId, CredentialUnavailable
+from creator_app.openai_brain import OpenAIBrainUnavailable, build_openai_agents_run_config
 from creator_app.provider_router import ProviderRouter
 from creator_app.runtime import MissingCredentialError, ProviderRuntimeError
 from creator_app.schemas import DevTeamRequest, DevTeamResult
@@ -239,13 +240,22 @@ class DevTeamRuntime:
         api_key = lease.reveal(consumer="council.openai")
 
         try:
-            from agents import Agent, Runner, SQLiteSession, WebSearchTool, set_default_openai_key
+            from agents import Agent, Runner, SQLiteSession, WebSearchTool
         except ImportError as exc:
             raise ProviderRuntimeError(
                 "OpenAI Agents SDK is not installed in this runtime."
             ) from exc
 
-        set_default_openai_key(api_key, use_for_tracing=True)
+        try:
+            brain = build_openai_agents_run_config(
+                api_key=api_key,
+                model=self.settings.openai_model,
+                workflow_name="CK-NEXUS Development Council",
+                tracing_enabled=self.settings.openai_tracing_enabled,
+                group_id=f"dev-team:{request.session_id}",
+            )
+        except OpenAIBrainUnavailable as exc:
+            raise ProviderRuntimeError("OpenAI Agents SDK is not installed in this runtime.") from exc
 
         specialists: dict[str, object] = {}
         for advisor in DEV_ADVISORS.values():
@@ -262,7 +272,7 @@ class DevTeamRuntime:
 
         if request.consult_mode not in {"auto", "council"}:
             specialist = specialists[request.consult_mode]
-            return await self._run_agent(specialist, request)
+            return await self._run_agent(specialist, request, brain.run_config)
 
         orchestrator_tools = []
         for advisor in DEV_ADVISORS.values():
@@ -281,11 +291,11 @@ class DevTeamRuntime:
             model=self.settings.openai_model,
             tools=orchestrator_tools,
         )
-        return await self._run_agent(orchestrator, request)
+        return await self._run_agent(orchestrator, request, brain.run_config)
 
-    async def _run_agent(self, agent: object, request: DevTeamRequest) -> str:
+    async def _run_agent(self, agent: object, request: DevTeamRequest, run_config: object) -> str:
         try:
-            from agents import RunConfig, Runner, SQLiteSession
+            from agents import Runner, SQLiteSession
 
             session = self._session(request.session_id, SQLiteSession)
             async with asyncio.timeout(self.settings.run_timeout_seconds):
@@ -294,10 +304,7 @@ class DevTeamRuntime:
                     self._build_input(request),
                     session=session,
                     max_turns=self.settings.dev_team_max_turns,
-                    run_config=RunConfig(
-                        workflow_name="CK-NEXUS Development Council",
-                        trace_include_sensitive_data=False,
-                    ),
+                    run_config=run_config,
                 )
             return str(result.final_output)
         except TimeoutError as exc:

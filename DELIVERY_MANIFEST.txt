@@ -81,3 +81,10 @@ Excluded from delivery/runtime evidence:
 - .venv, caches, logs, build output
 - OAuth client-secret files / GitHub App private-key files
 - staging/private P0 evidence containing secrets
+
+R14 Cognitive Brain Runtime (current development lineage):
+- branch: r14-cognitive-brain-runtime
+- baseline: 540590a6174febd10031d7af7f62b1adf5d35276
+- per-run OpenAIProvider / Responses path; no process-global OpenAI key mutation
+- n8n retired from active runtime and deployment paths
+- current status remains Development Candidate / NO-GO until production gates pass
