@@ -178,3 +178,21 @@ class AgnesApprovalRequest(BaseModel):
     fingerprint: str = Field(min_length=64, max_length=64)
     approved_by: str = Field(min_length=1, max_length=128)
     ttl_seconds: int = Field(default=900, ge=30, le=3600)
+
+
+class ConnectorRegisterRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    connector_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
+    url: str = Field(min_length=8, max_length=2048)
+    protocol: Literal["mcp", "openapi"]
+    credential_ref: str | None = Field(default=None, max_length=128)
+    trust_source: Literal["manual", "trusted_registry", "signed_registry"] = "manual"
+    allow_private_network: bool = False
+    allowed_tools: list[str] = Field(default_factory=list, max_length=512)
+    auto_discover: bool = True
+    auto_activate_read_only: bool = False
+
+
+class ConnectorActivateRequest(BaseModel):
+    allow_write: bool = False

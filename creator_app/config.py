@@ -100,6 +100,10 @@ class Settings:
     agnes_cgroup_root: Path = Path("/sys/fs/cgroup")
     agnes_sandbox_root: Path = RUNTIME_ROOT / "data" / "agnes-sandbox"
     agnes_sandbox_repository_root: Path = RUNTIME_ROOT
+    connector_fabric_enabled: bool = False
+    connector_registry_path: Path = RUNTIME_ROOT / "data" / "connector-registry.json"
+    connector_evidence_path: Path = RUNTIME_ROOT / "data" / "connector-evidence.jsonl"
+    connector_timeout_seconds: int = 8
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -158,6 +162,18 @@ class Settings:
         agnes_sandbox_repository_root = (
             Path(agnes_repo_value).expanduser() if agnes_repo_value else runtime_root
         ).resolve()
+        connector_registry_value = os.getenv(
+            "CKNEXUS_CONNECTOR_REGISTRY_PATH", "data/connector-registry.json"
+        ).strip()
+        connector_registry_path = Path(connector_registry_value)
+        if not connector_registry_path.is_absolute():
+            connector_registry_path = runtime_root / connector_registry_path
+        connector_evidence_value = os.getenv(
+            "CKNEXUS_CONNECTOR_EVIDENCE_PATH", "data/connector-evidence.jsonl"
+        ).strip()
+        connector_evidence_path = Path(connector_evidence_value)
+        if not connector_evidence_path.is_absolute():
+            connector_evidence_path = runtime_root / connector_evidence_path
 
         configured = cls(
             environment=(
@@ -337,6 +353,17 @@ class Settings:
             ).expanduser().resolve(),
             agnes_sandbox_root=agnes_sandbox_root,
             agnes_sandbox_repository_root=agnes_sandbox_repository_root,
+            connector_fabric_enabled=_as_bool(
+                os.getenv("CKNEXUS_CONNECTOR_FABRIC_ENABLED"), default=False
+            ),
+            connector_registry_path=connector_registry_path,
+            connector_evidence_path=connector_evidence_path,
+            connector_timeout_seconds=_as_int(
+                os.getenv("CKNEXUS_CONNECTOR_TIMEOUT_SECONDS"),
+                default=8,
+                minimum=1,
+                maximum=60,
+            ),
         )
         configured.validate_startup()
         return configured

@@ -19,6 +19,16 @@ from creator_app.codex_bridge import (
     CodexBridgeUnavailableError,
 )
 from creator_app.config import Settings
+from creator_app.connector_fabric import (
+    ConnectorConfig,
+    ConnectorEvidenceLedger,
+    ConnectorFabric,
+    ConnectorProtocol,
+    ConnectorRegistry,
+    MCPClient,
+    OpenAPIClient,
+)
+from creator_app.connector_fabric.security import EndpointSecurityError
 from creator_app.credential_broker import CredentialBroker, CredentialId
 from creator_app.credential_vault import build_credential_vault
 from creator_app.gmail_oauth import GmailOAuthError, GmailOAuthManager
@@ -34,6 +44,8 @@ from creator_app.runtime import CreatorRuntime, MissingCredentialError, Provider
 from creator_app.runtime_binding import close_all as close_runtime_bindings, runtime_binding_status, verify_runtime_binding_or_raise
 from creator_app.schemas import (
     AgnesApprovalRequest,
+    ConnectorActivateRequest,
+    ConnectorRegisterRequest,
     AgnesExecuteRequest,
     AgnesPipelineStartRequest,
     AgnesPipelineDiscardRequest,
@@ -82,6 +94,40 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     credential_broker = CredentialBroker.from_environment(
         persistent_store=credential_vault
     )
+
+    connector_consumer_by_credential = {
+        CredentialId.OPENAI_API_KEY: "provider.openai",
+        CredentialId.GMAIL_ACCESS_TOKEN: "gmail.api",
+        CredentialId.GMAIL_REFRESH_TOKEN: "gmail.api",
+        CredentialId.GITHUB_INSTALLATION_TOKEN: "github.app",
+    }
+
+    def resolve_connector_credential(connector_id: str, credential_ref: str) -> str | None:
+        del connector_id  # consumer binding is enforced by CredentialBroker policy.
+        try:
+            credential_id = CredentialId(credential_ref)
+        except ValueError:
+            return None
+        consumer = connector_consumer_by_credential.get(credential_id)
+        if consumer is None:
+            return None
+        lease = credential_broker.acquire(credential_id, consumer=consumer)
+        return lease.reveal(consumer=consumer)
+
+    connector_fabric = None
+    if resolved_settings.connector_fabric_enabled:
+        connector_fabric = ConnectorFabric(
+            registry=ConnectorRegistry(resolved_settings.connector_registry_path),
+            evidence=ConnectorEvidenceLedger(resolved_settings.connector_evidence_path),
+            mcp_client=MCPClient(
+                credential_resolver=resolve_connector_credential,
+                timeout_seconds=resolved_settings.connector_timeout_seconds,
+            ),
+            openapi_client=OpenAPIClient(
+                timeout_seconds=resolved_settings.connector_timeout_seconds
+            ),
+        )
+
     provider_router = build_provider_router(resolved_settings, credential_broker)
     store = RunStore(resolved_settings.database_path, database_url=resolved_settings.database_url)
     runtime = CreatorRuntime(
@@ -186,6 +232,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.email_repository = email_repository
     app.state.metrics_registry = metrics_registry
     app.state.runtime_binding_required = runtime_binding_required
+    app.state.connector_fabric = connector_fabric
 
     async def require_access_token(
         authorization: str | None = Header(default=None),
@@ -204,6 +251,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "message": "A valid CK-NEXUS access token is required.",
                 },
             )
+
+    def require_connector_fabric() -> ConnectorFabric:
+        if connector_fabric is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "error": "CONNECTOR_FABRIC_DISABLED",
+                    "message": "Enable CKNEXUS_CONNECTOR_FABRIC_ENABLED to use dynamic connectors.",
+                },
+            )
+        return connector_fabric
 
     async def require_codex_access_token(
         authorization: str | None = Header(default=None),
@@ -661,6 +719,107 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             dev_team_enabled=resolved_settings.dev_team_enabled,
             dev_team_ready=dev_team.ready,
         )
+
+    @app.get("/api/connectors", dependencies=[Depends(require_access_token)])
+    async def list_connectors():
+        fabric = require_connector_fabric()
+        return {"connectors": [record.as_dict() for record in fabric.registry.list()]}
+
+    @app.post("/api/connectors", dependencies=[Depends(require_access_token)])
+    async def register_connector(payload: ConnectorRegisterRequest):
+        fabric = require_connector_fabric()
+        config = ConnectorConfig(
+            connector_id=payload.connector_id,
+            url=payload.url,
+            protocol=ConnectorProtocol(payload.protocol),
+            credential_ref=payload.credential_ref,
+            trust_source=payload.trust_source,
+            allow_private_network=payload.allow_private_network,
+            allowed_tools=tuple(payload.allowed_tools),
+        )
+        try:
+            record = fabric.register(config)
+        except EndpointSecurityError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "CONNECTOR_ENDPOINT_REJECTED",
+                    "message": "Connector endpoint failed security validation.",
+                },
+            ) from None
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"error": "CONNECTOR_EXISTS", "message": "connector_id is already registered."},
+            ) from None
+        if payload.auto_discover:
+            try:
+                record = fabric.discover(payload.connector_id)
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail={
+                        "error": "CONNECTOR_DISCOVERY_BLOCKED",
+                        "message": "Connector discovery failed closed.",
+                        "evidenceType": type(exc).__name__,
+                    },
+                ) from None
+        if payload.auto_activate_read_only:
+            if not payload.auto_discover:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"error": "DISCOVERY_REQUIRED", "message": "Auto-activation requires auto_discover=true."},
+                )
+            record = fabric.activate(payload.connector_id, allow_write=False)
+        exposed = fabric.model_tools(payload.connector_id) if payload.auto_activate_read_only else ()
+        return {"connector": record.as_dict(), "modelTools": list(exposed)}
+
+    @app.post("/api/connectors/{connector_id}/discover", dependencies=[Depends(require_access_token)])
+    async def discover_connector(connector_id: str):
+        fabric = require_connector_fabric()
+        try:
+            record = fabric.discover(connector_id)
+            snapshot = fabric.registry.snapshot(connector_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail={"error": "CONNECTOR_NOT_FOUND"}) from None
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail={
+                    "error": "CONNECTOR_DISCOVERY_BLOCKED",
+                    "message": "Connector discovery failed closed.",
+                    "evidenceType": type(exc).__name__,
+                },
+            ) from None
+        return {"connector": record.as_dict(), "snapshot": snapshot.as_dict()}
+
+    @app.post("/api/connectors/{connector_id}/activate", dependencies=[Depends(require_access_token)])
+    async def activate_connector(connector_id: str, payload: ConnectorActivateRequest):
+        fabric = require_connector_fabric()
+        try:
+            record = fabric.activate(connector_id, allow_write=payload.allow_write)
+        except KeyError:
+            raise HTTPException(status_code=404, detail={"error": "CONNECTOR_NOT_FOUND"}) from None
+        except RuntimeError:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"error": "CONNECTOR_NOT_VERIFIED", "message": "Discover and verify connector schema before activation."},
+            ) from None
+        return {"connector": record.as_dict(), "modelTools": list(fabric.model_tools(connector_id))}
+
+    @app.get("/api/connectors/{connector_id}/tools", dependencies=[Depends(require_access_token)])
+    async def connector_tools(connector_id: str):
+        fabric = require_connector_fabric()
+        try:
+            snapshot = fabric.registry.snapshot(connector_id)
+            record = fabric.registry.get(connector_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail={"error": "CONNECTOR_NOT_DISCOVERED"}) from None
+        return {
+            "connector": record.as_dict(),
+            "verifiedTools": [tool.as_dict() for tool in snapshot.tools],
+            "modelTools": list(fabric.model_tools(connector_id)),
+        }
 
     @app.get("/api/integrations/github/status")
     async def github_status(_: None = Depends(require_access_token)) -> dict[str, object]:

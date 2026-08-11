@@ -56,3 +56,9 @@ R13 AGNES Skill Nervous System: development candidate; see docs/R13_AGNES_SKILL_
 - Reused the existing Credential Broker through a scope adapter.
 - Added transactional budgets, authorized safety veto, hash-chained audit, and a thin Node client.
 - Added a required Council capability release gate.
+
+## R28 Universal Auto Connector Fabric (development candidate)
+- Added MCP 2026-07-28 stateless discovery client with pagination, cache metadata, required request metadata and mirrored HTTP method/name headers.
+- Added OpenAPI 3.x discovery and schema normalization.
+- Added persistent connector registry, conservative risk classifier, model-neutral namespaced tool binding, SSRF-oriented endpoint validation, bounded no-redirect transport, and hash-chained connector evidence.
+- Added Creator API registration/discovery/activation/read endpoints. Connector execution remains fail-closed and is not publicly exposed until Policy Authority integration is complete.
