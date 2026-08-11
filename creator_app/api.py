@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import os
 import time
 from contextlib import asynccontextmanager
 from uuid import uuid4
@@ -30,6 +31,7 @@ from creator_app.observability import CORRELATION_HEADER, MetricsRegistry, Reque
 from creator_app.integrations import GoogleDriveIntegration, SlackIntegration
 from creator_app.rate_limit import SlidingWindowRateLimiter
 from creator_app.runtime import CreatorRuntime, MissingCredentialError, ProviderRuntimeError
+from creator_app.runtime_binding import close_all as close_runtime_bindings, runtime_binding_status, verify_runtime_binding_or_raise
 from creator_app.schemas import (
     AgnesApprovalRequest,
     AgnesExecuteRequest,
@@ -146,12 +148,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     metrics_registry = MetricsRegistry()
     structured_logger = StructuredLogger()
 
+    runtime_binding_required = os.getenv("CKNEXUS_RUNTIME_BINDING_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
+
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         store.initialize()
         if resolved_settings.email_gateway_enabled:
             email_repository.initialize()
-        yield
+        if runtime_binding_required:
+            await verify_runtime_binding_or_raise()
+        try:
+            yield
+        finally:
+            if runtime_binding_required:
+                await close_runtime_bindings()
 
     app = FastAPI(
         title=resolved_settings.app_name,
@@ -175,6 +185,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.codex_bridge = codex_bridge
     app.state.email_repository = email_repository
     app.state.metrics_registry = metrics_registry
+    app.state.runtime_binding_required = runtime_binding_required
 
     async def require_access_token(
         authorization: str | None = Header(default=None),
@@ -563,20 +574,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """Readiness with stable dependency cause codes for supervisors and operators."""
         database_ready = store.ping()
         ai_ready = runtime.ready
-        report = evaluate_health(
-            (
-                DependencyStatus(
-                    "database",
-                    DependencyState.HEALTHY if database_ready else DependencyState.UNAVAILABLE,
-                    required=True,
-                ),
-                DependencyStatus(
-                    "ai-provider",
-                    DependencyState.HEALTHY if ai_ready else DependencyState.UNAVAILABLE,
-                    required=False,
-                ),
+        dependencies = [
+            DependencyStatus(
+                "database",
+                DependencyState.HEALTHY if database_ready else DependencyState.UNAVAILABLE,
+                required=True,
+            ),
+            DependencyStatus(
+                "ai-provider",
+                DependencyState.HEALTHY if ai_ready else DependencyState.UNAVAILABLE,
+                required=False,
+            ),
+        ]
+        if runtime_binding_required:
+            binding = await runtime_binding_status()
+            dependencies.extend(
+                (
+                    DependencyStatus(
+                        "postgres-runtime-binding",
+                        DependencyState.HEALTHY if binding["postgres"] else DependencyState.UNAVAILABLE,
+                        required=True,
+                    ),
+                    DependencyStatus(
+                        "redis-runtime-binding",
+                        DependencyState.HEALTHY if binding["redis"] else DependencyState.UNAVAILABLE,
+                        required=True,
+                    ),
+                )
             )
-        )
+        report = evaluate_health(dependencies)
         payload = report.as_dict()
         payload["version"] = resolved_settings.app_version
         if report.ready:

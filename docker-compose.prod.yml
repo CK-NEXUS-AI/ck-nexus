@@ -28,12 +28,20 @@ services:
       PORT: 8000
       CKNEXUS_MOCK_AI: "false"
       CKNEXUS_DATABASE_URL: postgresql://cknexus:${CKNEXUS_DB_PASSWORD}@db:5432/cknexus
+      DATABASE_URL: postgresql://cknexus:${CKNEXUS_DB_PASSWORD}@db:5432/cknexus
       CKNEXUS_SESSION_DATABASE_URL: postgresql+asyncpg://cknexus:${CKNEXUS_DB_PASSWORD}@db:5432/cknexus
       CKNEXUS_EMAIL_DATABASE_URL: postgresql://cknexus:${CKNEXUS_DB_PASSWORD}@db:5432/cknexus
       CKNEXUS_EMAIL_GATEWAY_ENABLED: "true"
       CKNEXUS_AGNES_SANDBOX_ENABLED: "true"
       CKNEXUS_AGNES_PHASE3_ENABLED: "true"
       CKNEXUS_AGNES_REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://redis:6379/0
+      CKNEXUS_RUNTIME_BINDING_ENABLED: "true"
+      RUNTIME_BINDING_FAIL_FAST: "true"
+      DB_POOL_MIN: ${DB_POOL_MIN:-2}
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      REDIS_SOCKET_TIMEOUT: ${REDIS_SOCKET_TIMEOUT:-5}
+      REDIS_MAX_CONNECTIONS: ${REDIS_MAX_CONNECTIONS:-20}
       CKNEXUS_EMAIL_WEBHOOK_TOKEN: ${CKNEXUS_EMAIL_WEBHOOK_TOKEN:?set CKNEXUS_EMAIL_WEBHOOK_TOKEN}
       CKNEXUS_ACCESS_TOKEN: ${CKNEXUS_ACCESS_TOKEN:?set CKNEXUS_ACCESS_TOKEN}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -47,13 +55,28 @@ services:
       GOOGLE_DRIVE_ACCESS_TOKEN: ${GOOGLE_DRIVE_ACCESS_TOKEN:-}
       GOOGLE_DRIVE_API_BASE: ${GOOGLE_DRIVE_API_BASE:-https://www.googleapis.com/drive/v3}
       CKNEXUS_INTEGRATION_TIMEOUT_SECONDS: ${CKNEXUS_INTEGRATION_TIMEOUT_SECONDS:-5}
-    ports:
-      - "127.0.0.1:${CKNEXUS_PORT:-8000}:8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"]
       interval: 5s
       timeout: 4s
       retries: 30
+    networks: [backend]
+
+  edge:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      CKNEXUS_DOMAIN: ${CKNEXUS_DOMAIN:?set CKNEXUS_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
     networks: [backend]
 
   redis:
@@ -75,3 +98,5 @@ networks:
 volumes:
   cknexus_pg:
   redis_data:
+  caddy_data:
+  caddy_config:

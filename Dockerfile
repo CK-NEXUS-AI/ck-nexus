@@ -16,7 +16,7 @@ COPY services ./services
 COPY migrations ./migrations
 COPY main.py ./main.py
 
-RUN python -m pip install --no-cache-dir ".[email]" \
+RUN python -m pip install --no-cache-dir ".[email,gateway]" \
     && mkdir -p /app/data \
     && chown -R cknexus:cknexus /app
 
