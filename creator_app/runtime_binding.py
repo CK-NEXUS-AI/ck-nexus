@@ -14,6 +14,7 @@ import os
 import sys
 import time
 import uuid
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any, Optional
 
@@ -41,6 +42,10 @@ class RuntimeBindingConfig:
     redis_url: str
     db_pool_min: int = 1
     db_pool_max: int = 5
+    db_connect_timeout: float = 5.0
+    db_command_timeout: float = 10.0
+    db_pool_acquire_timeout: float = 5.0
+    redis_connect_timeout: float = 5.0
     redis_socket_timeout: float = 5.0
     redis_max_connections: int = 10
     fail_fast: bool = True
@@ -60,6 +65,10 @@ class RuntimeBindingConfig:
             redis_url=redis_url,
             db_pool_min=int(os.environ.get("DB_POOL_MIN", "1")),
             db_pool_max=int(os.environ.get("DB_POOL_MAX", "5")),
+            db_connect_timeout=float(os.environ.get("DB_CONNECT_TIMEOUT", "5")),
+            db_command_timeout=float(os.environ.get("DB_COMMAND_TIMEOUT", "10")),
+            db_pool_acquire_timeout=float(os.environ.get("DB_POOL_ACQUIRE_TIMEOUT", "5")),
+            redis_connect_timeout=float(os.environ.get("REDIS_CONNECT_TIMEOUT", "5")),
             redis_socket_timeout=float(os.environ.get("REDIS_SOCKET_TIMEOUT", "5")),
             redis_max_connections=int(os.environ.get("REDIS_MAX_CONNECTIONS", "10")),
             fail_fast=os.environ.get("RUNTIME_BINDING_FAIL_FAST", "true").strip().lower()
@@ -73,8 +82,15 @@ class RuntimeBindingConfig:
             raise RuntimeError("DB_POOL_MIN must be >= 1")
         if self.db_pool_max < self.db_pool_min:
             raise RuntimeError("DB_POOL_MAX must be >= DB_POOL_MIN")
-        if self.redis_socket_timeout <= 0:
-            raise RuntimeError("REDIS_SOCKET_TIMEOUT must be > 0")
+        for name, value in (
+            ("DB_CONNECT_TIMEOUT", self.db_connect_timeout),
+            ("DB_COMMAND_TIMEOUT", self.db_command_timeout),
+            ("DB_POOL_ACQUIRE_TIMEOUT", self.db_pool_acquire_timeout),
+            ("REDIS_CONNECT_TIMEOUT", self.redis_connect_timeout),
+            ("REDIS_SOCKET_TIMEOUT", self.redis_socket_timeout),
+        ):
+            if value <= 0:
+                raise RuntimeError(f"{name} must be > 0")
         if self.redis_max_connections < 1:
             raise RuntimeError("REDIS_MAX_CONNECTIONS must be >= 1")
 
@@ -94,12 +110,26 @@ async def get_db_pool(cfg: Optional[RuntimeBindingConfig] = None):
         raise RuntimeError("asyncpg is not installed")
     if _db_pool is None:
         cfg = cfg or RuntimeBindingConfig.from_env()
-        _db_pool = await asyncpg.create_pool(
-            dsn=cfg.database_url,
-            min_size=cfg.db_pool_min,
-            max_size=cfg.db_pool_max,
+        _db_pool = await asyncio.wait_for(
+            asyncpg.create_pool(
+                dsn=cfg.database_url,
+                min_size=cfg.db_pool_min,
+                max_size=cfg.db_pool_max,
+                command_timeout=cfg.db_command_timeout,
+            ),
+            timeout=cfg.db_connect_timeout,
         )
     return _db_pool
+
+
+@asynccontextmanager
+async def acquire_db_connection(pool: Any, cfg: RuntimeBindingConfig):
+    """Acquire a DB connection with a bounded wait and guaranteed release."""
+    conn = await asyncio.wait_for(pool.acquire(), timeout=cfg.db_pool_acquire_timeout)
+    try:
+        yield conn
+    finally:
+        await pool.release(conn)
 
 
 async def get_redis_client(cfg: Optional[RuntimeBindingConfig] = None):
@@ -110,6 +140,7 @@ async def get_redis_client(cfg: Optional[RuntimeBindingConfig] = None):
         cfg = cfg or RuntimeBindingConfig.from_env()
         _redis_client = redis.from_url(
             cfg.redis_url,
+            socket_connect_timeout=cfg.redis_connect_timeout,
             socket_timeout=cfg.redis_socket_timeout,
             max_connections=cfg.redis_max_connections,
             decode_responses=True,
@@ -137,13 +168,23 @@ async def runtime_binding_status() -> dict[str, bool]:
     redis_ok = False
     if _db_pool is not None:
         try:
-            async with _db_pool.acquire() as conn:
-                db_ok = (await conn.fetchval("SELECT 1")) == 1
+            cfg = RuntimeBindingConfig.from_env()
+            async with acquire_db_connection(_db_pool, cfg) as conn:
+                db_ok = (
+                    await asyncio.wait_for(
+                        conn.fetchval("SELECT 1"), timeout=cfg.db_command_timeout
+                    )
+                ) == 1
         except Exception:
             db_ok = False
     if _redis_client is not None:
         try:
-            redis_ok = bool(await _redis_client.ping())
+            cfg = RuntimeBindingConfig.from_env()
+            redis_ok = bool(
+                await asyncio.wait_for(
+                    _redis_client.ping(), timeout=cfg.redis_socket_timeout
+                )
+            )
         except Exception:
             redis_ok = False
     return {"postgres": db_ok, "redis": redis_ok}
@@ -161,8 +202,10 @@ async def verify_runtime_binding_or_raise() -> None:
     try:
         try:
             pool = await get_db_pool(cfg)
-            async with pool.acquire() as conn:
-                result = await conn.fetchval("SELECT 1")
+            async with acquire_db_connection(pool, cfg) as conn:
+                result = await asyncio.wait_for(
+                    conn.fetchval("SELECT 1"), timeout=cfg.db_command_timeout
+                )
             if result != 1:
                 raise RuntimeError("unexpected PostgreSQL health-query result")
         except Exception as exc:  # startup boundary
@@ -170,7 +213,9 @@ async def verify_runtime_binding_or_raise() -> None:
 
         try:
             client = await get_redis_client(cfg)
-            pong = await client.ping()
+            pong = await asyncio.wait_for(
+            client.ping(), timeout=cfg.redis_socket_timeout
+        )
             if not pong:
                 raise RuntimeError("Redis PING returned a false value")
         except Exception as exc:  # startup boundary
@@ -199,8 +244,12 @@ async def _verify_postgres_connectivity(cfg: RuntimeBindingConfig) -> dict[str, 
 
     conn = None
     try:
-        conn = await asyncpg.connect(dsn=cfg.database_url, timeout=5)
-        version = await conn.fetchval("SELECT version()")
+        conn = await asyncpg.connect(
+            dsn=cfg.database_url, timeout=cfg.db_connect_timeout
+        )
+        version = await asyncio.wait_for(
+            conn.fetchval("SELECT version()"), timeout=cfg.db_command_timeout
+        )
         return {
             "level": "CONNECTIVITY",
             "status": "PASS",
@@ -222,8 +271,10 @@ async def _verify_postgres_application_binding(
 ) -> dict[str, str]:
     try:
         pool = await get_db_pool(cfg)
-        async with pool.acquire() as conn:
-            result = await conn.fetchval("SELECT 1")
+        async with acquire_db_connection(pool, cfg) as conn:
+            result = await asyncio.wait_for(
+                conn.fetchval("SELECT 1"), timeout=cfg.db_command_timeout
+            )
         return {
             "level": "APPLICATION_BINDING",
             "status": "PASS" if result == 1 else "FAIL",
@@ -249,10 +300,13 @@ async def _verify_redis_connectivity(cfg: RuntimeBindingConfig) -> dict[str, str
     try:
         client = redis.from_url(
             cfg.redis_url,
+            socket_connect_timeout=cfg.redis_connect_timeout,
             socket_timeout=cfg.redis_socket_timeout,
             decode_responses=True,
         )
-        pong = await client.ping()
+        pong = await asyncio.wait_for(
+            client.ping(), timeout=cfg.redis_socket_timeout
+        )
         return {
             "level": "CONNECTIVITY",
             "status": "PASS" if pong else "FAIL",
@@ -277,8 +331,12 @@ async def _verify_redis_application_binding(
     try:
         client = await get_redis_client(cfg)
         marker = f"{time.time_ns()}:{uuid.uuid4().hex}"
-        await client.set(key, marker, ex=30)
-        readback = await client.get(key)
+        await asyncio.wait_for(
+            client.set(key, marker, ex=30), timeout=cfg.redis_socket_timeout
+        )
+        readback = await asyncio.wait_for(
+            client.get(key), timeout=cfg.redis_socket_timeout
+        )
         ok = readback == marker
         return {
             "level": "APPLICATION_BINDING",
