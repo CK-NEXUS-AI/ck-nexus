@@ -1,0 +1,160 @@
+name: CK-NEXUS Release Gates Q04-Q08
+
+on:
+  push:
+    branches: [release/q04-q08-multilane]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  q04_q08:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cknexus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cknexus"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+
+      - name: Q04 lock check
+        run: uv lock --check
+
+      - name: Q04 frozen sync
+        run: uv sync --all-extras --dev --frozen
+
+      - name: Q04 runtime import smoke
+        run: .venv/bin/python -c "import aiosqlite, asyncpg, psycopg, redis; print('Q04 runtime imports PASS')"
+
+      - name: Compile
+        run: .venv/bin/python -m compileall -q main.py creator_app services scripts
+
+      - name: Ruff
+        run: .venv/bin/ruff check main.py creator_app services tests scripts --output-format=github
+
+      - name: Bandit diagnostics
+        shell: bash
+        run: |
+          set +e
+          .venv/bin/bandit -r creator_app services main.py -f json -o bandit.json
+          diagnostic_rc=$?
+          set -e
+          cat bandit.json
+          echo "Bandit all-severity diagnostic exit=$diagnostic_rc"
+
+      - name: Bandit exact medium-high gate
+        run: |
+          .venv/bin/python - <<'PY'
+          import hashlib
+          import json
+          import sys
+
+          report = json.load(open("bandit.json", encoding="utf-8"))
+          reviewed = {
+              ("B608", "services/email_gateway/repository.py", 221,
+               "a248369faca360edbca232b1700ef67d87d9eeae8401bb1b379122f3274a4a6a"),
+              ("B608", "services/email_gateway/repository.py", 230,
+               "2948e929a8c5a30e600e2d06c3cea59da396aa196adfd234183556d877df3de0"),
+          }
+          blocking = []
+          for result in report.get("results", []):
+              if result.get("issue_severity") not in {"MEDIUM", "HIGH"}:
+                  continue
+              fingerprint = (
+                  result.get("test_id"), result.get("filename"), result.get("line_number"),
+                  hashlib.sha256(result.get("code", "").encode()).hexdigest(),
+              )
+              if fingerprint not in reviewed:
+                  blocking.append(fingerprint)
+          if blocking:
+              print("Blocking MEDIUM/HIGH Bandit findings:")
+              for item in blocking:
+                  print(item)
+              sys.exit(1)
+          print("Bandit exact reviewed gate PASS")
+          PY
+
+      - name: Secret scan
+        run: .venv/bin/python scripts/secret_scan.py
+
+      - name: Q05 portable tests
+        run: >-
+          .venv/bin/pytest -q
+          --ignore=tests/test_agnes_execution_kernel_phase2.py
+          --ignore=tests/test_agnes_execution_kernel_phase3.py
+
+      - name: Q05 verify capability-lane sandbox evidence binding
+        shell: bash
+        run: |
+          manifest=$(git ls-tree -r HEAD -- creator_app services tests scripts main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          .venv/bin/python - "$manifest" <<'PY'
+          import json
+          import sys
+
+          observed = sys.argv[1]
+          evidence = json.load(open("evidence/Q05_SANDBOX_MULTILANE.json", encoding="utf-8"))
+          expected = evidence["subject_manifest_sha256"]
+          print(f"sandbox evidence subject observed={observed}")
+          print(f"sandbox evidence subject expected={expected}")
+          assert observed == expected, "sandbox_evidence_stale_source_manifest"
+          assert evidence["result"] == "PASS"
+          assert evidence["tests_passed"] == 17
+          assert evidence["tests_failed"] == 0
+          assert evidence["namespace_probe"].startswith("PASS:")
+          print("Q05 sandbox multi-lane evidence binding PASS")
+          PY
+
+      - name: Q06 Q07 live application binding
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cknexus
+          REDIS_URL: redis://127.0.0.1:6379/0
+          DB_CONNECT_TIMEOUT: '5'
+          DB_COMMAND_TIMEOUT: '5'
+          DB_POOL_ACQUIRE_TIMEOUT: '5'
+          REDIS_CONNECT_TIMEOUT: '5'
+          REDIS_SOCKET_TIMEOUT: '5'
+          RUNTIME_BINDING_FAIL_FAST: 'true'
+        run: .venv/bin/python creator_app/runtime_binding.py --verify
+
+      - name: Q08 distributed idempotency contract regression
+        run: .venv/bin/pytest -q tests/test_r17_distributed_idempotency_runtime.py
+
+      - name: Upload release diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: q04-q08-release-diagnostics
+          path: bandit.json
+          if-no-files-found: ignore
+          retention-days: 7
