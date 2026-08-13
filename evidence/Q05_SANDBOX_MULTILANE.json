@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "gate": "Q05",
+  "lane": "isolated_local_linux_namespace",
+  "github_source_sha": "01a0bce0b1f1ba84e3e9e550071a1122834fa1ed",
+  "github_source_tree": "55ab676c56c6081bf7390cbe220331fb0acf47b8",
+  "subject_paths": [
+    "creator_app",
+    "services",
+    "tests",
+    "scripts",
+    "main.py",
+    "pyproject.toml",
+    "uv.lock"
+  ],
+  "subject_manifest_sha256": "62f77fe881a23221f131156c307b87ae2ca1e516ed3130347f89e43710967f3f",
+  "command": "PYTHONPATH=. pytest -q tests/test_agnes_execution_kernel_phase2.py tests/test_agnes_execution_kernel_phase3.py",
+  "result": "PASS",
+  "tests_passed": 17,
+  "tests_failed": 0,
+  "python": "3.13.5",
+  "kernel": "Linux 6.18.35 x86_64",
+  "namespace_probe": "PASS: unshare -Urmpn --fork /bin/true",
+  "cgroup_v2": {
+    "unified_v2": true,
+    "delegated_writable": false,
+    "required_controllers_present": true,
+    "ready": false
+  },
+  "evidence_semantics": "This is real execution evidence on an isolated capable Linux lane. It is not staging or production evidence. CI must recompute subject_manifest_sha256 and fail closed if application/test blobs change."
+}
