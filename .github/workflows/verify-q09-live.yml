@@ -1,0 +1,101 @@
+name: Verify Q09 live evidence
+
+on:
+  push:
+    branches: [verify/q09-live-evidence]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cknexus
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cknexus"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: b88d0aefba7cc14f0f10871e07dbb0865e63f97a
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Frozen environment
+        run: |
+          python -m pip install --upgrade pip uv
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+      - name: Q09 governance regression
+        run: |
+          .venv/bin/python -m compileall -q creator_app/connector_fabric/governance.py
+          .venv/bin/ruff check creator_app/connector_fabric/governance.py
+          .venv/bin/pytest -q tests/test_council_capability_authority.py tests/test_r28_connector_fabric.py
+      - name: Q06 Q07 application binding
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cknexus
+          REDIS_URL: redis://127.0.0.1:6379/0
+          DB_CONNECT_TIMEOUT: '5'
+          DB_COMMAND_TIMEOUT: '5'
+          DB_POOL_ACQUIRE_TIMEOUT: '5'
+          REDIS_CONNECT_TIMEOUT: '5'
+          REDIS_SOCKET_TIMEOUT: '5'
+          RUNTIME_BINDING_FAIL_FAST: 'true'
+        run: .venv/bin/python creator_app/runtime_binding.py --verify
+      - name: Q08 live Redis and PostgreSQL idempotency
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cknexus
+          REDIS_URL: redis://127.0.0.1:6379/0
+        run: |
+          .venv/bin/python - <<'PY'
+          import asyncio, os, uuid
+          import asyncpg
+          import redis.asyncio as redis_async
+          from creator_app.agnes.execution.idempotency import IdempotencyState
+          from creator_app.agnes.execution.phase3.idempotency import PostgresIdempotencyStore, RedisIdempotencyStore
+
+          async def exercise(a, b, key):
+              claims = await asyncio.gather(a.claim(key, 'manifest-A'), b.claim(key, 'manifest-A'))
+              assert sum(1 for claimed, _ in claims if claimed) == 1
+              await a.complete(key, success=True, result={'once': True})
+              claimed, replay = await b.claim(key, 'manifest-A')
+              assert not claimed and replay is not None
+              assert replay.state is IdempotencyState.SUCCEEDED and replay.result == {'once': True}
+
+          async def main():
+              r1 = redis_async.Redis.from_url(os.environ['REDIS_URL'], decode_responses=False)
+              r2 = redis_async.Redis.from_url(os.environ['REDIS_URL'], decode_responses=False)
+              rkey = 'cknexus:q09:' + uuid.uuid4().hex
+              try:
+                  await exercise(RedisIdempotencyStore(r1), RedisIdempotencyStore(r2), rkey)
+              finally:
+                  await r1.delete(rkey); await r1.aclose(); await r2.aclose()
+
+              pool = await asyncpg.create_pool(os.environ['DATABASE_URL'], min_size=1, max_size=4, timeout=5)
+              pkey = 'cknexus:q09:' + uuid.uuid4().hex
+              try:
+                  await pool.execute('CREATE TABLE IF NOT EXISTS agnes_idempotency (idem_key TEXT PRIMARY KEY, manifest_hash TEXT NOT NULL, state TEXT NOT NULL, result_json JSONB)')
+                  a = PostgresIdempotencyStore(pool.execute, pool.fetchrow)
+                  b = PostgresIdempotencyStore(pool.execute, pool.fetchrow)
+                  await exercise(a, b, pkey)
+                  await pool.execute('DELETE FROM agnes_idempotency WHERE idem_key=$1', pkey)
+              finally:
+                  await pool.close()
+              print('Q08 live idempotency PASS')
+          asyncio.run(main())
+          PY
