@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from creator_app.integration_security import (
     normalize_trusted_hosts,
@@ -37,11 +37,11 @@ class _JsonHttpIntegration:
     def __init__(
         self,
         *,
-        trusted_hosts: Iterable[str] | None = None,
+        trusted_hosts: Iterable[str],
         timeout: int = 5,
     ) -> None:
         self.timeout = timeout
-        self.trusted_hosts = normalize_trusted_hosts(trusted_hosts) if trusted_hosts else None
+        self.trusted_hosts = normalize_trusted_hosts(trusted_hosts)
 
     def _request_json(
         self,
@@ -57,14 +57,11 @@ class _JsonHttpIntegration:
                 **(headers or {}),
             },
         )
-        if self.trusted_hosts is None:
-            response_context = urlopen(request, timeout=self.timeout)  # noqa: S310
-        else:
-            response_context = open_trusted_request(
-                request,
-                trusted_hosts=self.trusted_hosts,
-                timeout=self.timeout,
-            )
+        response_context = open_trusted_request(
+            request,
+            trusted_hosts=self.trusted_hosts,
+            timeout=self.timeout,
+        )
         with response_context as response:
             payload = response.read(512_000)
         decoded = json.loads(payload.decode("utf-8"))
