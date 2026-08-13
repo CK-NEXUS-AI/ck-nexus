@@ -1,0 +1,30 @@
+name: Export verification source
+
+on:
+  push:
+    branches: [verify/q04-q05-converged]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Archive exact source SHA
+        run: |
+          git archive --format=tar.gz --output=ck-nexus-source.tar.gz HEAD
+          git rev-parse HEAD > SOURCE_SHA.txt
+          sha256sum ck-nexus-source.tar.gz > SOURCE_SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ck-nexus-verification-source
+          path: |
+            ck-nexus-source.tar.gz
+            SOURCE_SHA.txt
+            SOURCE_SHA256.txt
+          retention-days: 1
