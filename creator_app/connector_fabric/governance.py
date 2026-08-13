@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
-from creator_app.council_authority.authority import CapabilityAuthority, PolicyDenied
-from creator_app.council_authority.identity import CallerIdentity
 from creator_app.connector_fabric.fabric import ToolAuthorizationDecision
 from creator_app.connector_fabric.models import ConnectorRecord, NormalizedTool, RiskClass
+from creator_app.council_authority.authority import CapabilityAuthority, PolicyDenied
+from creator_app.council_authority.identity import CallerIdentity
 
 CapabilityMapper = Callable[[ConnectorRecord, NormalizedTool], str]
 
