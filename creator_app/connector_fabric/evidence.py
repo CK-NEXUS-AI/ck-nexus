@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from threading import Lock
 from typing import Any
@@ -28,7 +28,7 @@ class ConnectorEvidenceLedger:
     def append(self, event: str, connector_id: str, details: dict[str, Any]) -> dict[str, Any]:
         with self._lock:
             payload = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "event": event,
                 "connectorId": connector_id,
                 "details": details,

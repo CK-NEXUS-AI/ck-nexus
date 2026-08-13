@@ -1,21 +1,22 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
-from typing import Any, Mapping
 
-from creator_app.agnes_discovery import SkillDiscoveryPolicy
-from creator_app.agnes_ledger import AppendOnlyLedger
-from creator_app.agnes_skills import AgnesSkillRegistry, SkillDefinition, SkillRisk
-from creator_app.agnes_workbench import WorkspaceBroker, WorkspaceKind
-from creator_app.credential_broker import CredentialBroker
+from creator_app.agnes.execution.adapters.linux_namespace_sandbox import (
+    LinuxNamespaceSandboxExecutor,
+)
 from creator_app.agnes.execution.approval import StickyApprovalResolver
-from creator_app.agnes.execution.dispatcher import DispatcherPolicy, SkillExecutionDispatcher, build_phase1_dispatcher
+from creator_app.agnes.execution.dispatcher import (
+    DispatcherPolicy,
+    SkillExecutionDispatcher,
+    build_phase1_dispatcher,
+)
 from creator_app.agnes.execution.guards import ExecutionPolicyEngine
 from creator_app.agnes.execution.idempotency import SQLiteIdempotencyStore
-from creator_app.agnes.execution.adapters.linux_namespace_sandbox import LinuxNamespaceSandboxExecutor
-from creator_app.agnes.execution.sandbox import LinuxNamespaceRunner, SandboxPolicy, SandboxWorkspaceManager
 from creator_app.agnes.execution.phase3 import (
     AutonomousDevController,
     RedisIdempotencyStore,
@@ -25,6 +26,16 @@ from creator_app.agnes.execution.phase3.hardening import CgroupV2Manager
 from creator_app.agnes.execution.phase3.sandbox import HardenedLinuxNamespaceRunner
 from creator_app.agnes.execution.request import ExecutorType, SkillExecutionRequest
 from creator_app.agnes.execution.result import SkillExecutionResult
+from creator_app.agnes.execution.sandbox import (
+    LinuxNamespaceRunner,
+    SandboxPolicy,
+    SandboxWorkspaceManager,
+)
+from creator_app.agnes_discovery import SkillDiscoveryPolicy
+from creator_app.agnes_ledger import AppendOnlyLedger
+from creator_app.agnes_skills import AgnesSkillRegistry, SkillDefinition, SkillRisk
+from creator_app.agnes_workbench import WorkspaceBroker, WorkspaceKind
+from creator_app.credential_broker import CredentialBroker
 from creator_app.provider_router import ProviderKind, ProviderRouter
 
 
@@ -90,13 +101,20 @@ class AgnesNervousSystem:
             cgroups = CgroupV2Manager(root=phase3_cgroup_root) if phase3_enabled else None
             if phase3_enabled and normalized_environment in {"staging", "production"}:
                 if not phase3_redis_url:
-                    raise RuntimeError("distributed_idempotency_required: CKNEXUS_AGNES_REDIS_URL is not configured")
+                    raise RuntimeError(
+                        "distributed_idempotency_required: "
+                        "CKNEXUS_AGNES_REDIS_URL is not configured"
+                    )
                 if not phase3_redis_url.startswith(("redis://", "rediss://")):
-                    raise RuntimeError("distributed_idempotency_required: unsupported Redis URL scheme")
+                    raise RuntimeError(
+                        "distributed_idempotency_required: unsupported Redis URL scheme"
+                    )
                 try:
                     from redis.asyncio import Redis
                 except ImportError as exc:
-                    raise RuntimeError("distributed_idempotency_required: redis client is unavailable") from exc
+                    raise RuntimeError(
+                        "distributed_idempotency_required: redis client is unavailable"
+                    ) from exc
                 redis_client = Redis.from_url(
                     phase3_redis_url,
                     decode_responses=False,
@@ -106,7 +124,10 @@ class AgnesNervousSystem:
                 )
                 idempotency = RedisIdempotencyStore(redis_client)
                 if not cgroups or not cgroups.health().get("ready"):
-                    raise RuntimeError("cgroup_v2_enforcement_required: delegated writable cgroup v2 root is unavailable")
+                    raise RuntimeError(
+                        "cgroup_v2_enforcement_required: delegated writable cgroup v2 "
+                        "root is unavailable"
+                    )
             else:
                 idempotency = SQLiteIdempotencyStore(sandbox_root / "idempotency.sqlite3")
             self.dispatcher = SkillExecutionDispatcher(
@@ -154,9 +175,11 @@ class AgnesNervousSystem:
         statuses = self.provider_router.statuses()
         local = next(
             (
-                status for status in statuses
+                status
+                for status in statuses
                 if status.kind in {ProviderKind.LOCAL, ProviderKind.MOCK}
-                and status.available and not status.circuit_open
+                and status.available
+                and not status.circuit_open
             ),
             None,
         )
@@ -181,7 +204,11 @@ class AgnesNervousSystem:
             "workspace_providers": [item.as_dict() for item in self.workspace_broker.providers()],
             "discovery_sources": self.discovery.source_catalog(),
             "execution_kernel": self.dispatcher.status(),
-            "autonomous_dev_pipeline": {"enabled": self.dev_controller is not None, "auto_merge": False, "production_deploy": False},
+            "autonomous_dev_pipeline": {
+                "enabled": self.dev_controller is not None,
+                "auto_merge": False,
+                "production_deploy": False,
+            },
             "production_gate": "NO-GO until R12 staging evidence passes",
         }
 
@@ -214,9 +241,12 @@ class AgnesNervousSystem:
     ) -> None:
         if uses_user_api_key and not self.policy.allow_user_api_keys:
             raise AgnesPolicyViolation("AGNES is not allowed to consume user API keys.")
-        if environment == "production" and skill.risk is not SkillRisk.READ_ONLY:
-            if not self.policy.allow_production_mutation:
-                raise AgnesPolicyViolation("AGNES production mutation is disabled.")
+        if (
+            environment == "production"
+            and skill.risk is not SkillRisk.READ_ONLY
+            and not self.policy.allow_production_mutation
+        ):
+            raise AgnesPolicyViolation("AGNES production mutation is disabled.")
         if skill.risk in {SkillRisk.EXTERNAL_WRITE, SkillRisk.HIGH_IMPACT} and not approved:
             raise AgnesPolicyViolation("This AGNES skill requires explicit approval.")
 
@@ -238,8 +268,6 @@ class AgnesNervousSystem:
                 "preservation_rule": "append_only_no_historical_delete",
             },
         )
-
-
 
     async def execute_skill(
         self,

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
-import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from services.email_gateway.repository import ClaimResult, OutboxItem, build_idempotency_key
 
@@ -37,9 +37,7 @@ class PostgresEmailGatewayRepository:
         return psycopg.connect(self.database_url, row_factory=dict_row)
 
     def initialize(self) -> None:
-        migration = (
-            Path(__file__).resolve().parent / "migrations" / "postgresql.sql"
-        )
+        migration = Path(__file__).resolve().parent / "migrations" / "postgresql.sql"
         with self._connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute(migration.read_text(encoding="utf-8"))
@@ -79,8 +77,15 @@ class PostgresEmailGatewayRepository:
                     RETURNING id
                     """,
                     (
-                        mailbox.strip(), provider.strip().casefold(), provider_message_id.strip(),
-                        internet_message_id, dedup_key, claimed_by, locked_until, timestamp, timestamp,
+                        mailbox.strip(),
+                        provider.strip().casefold(),
+                        provider_message_id.strip(),
+                        internet_message_id,
+                        dedup_key,
+                        claimed_by,
+                        locked_until,
+                        timestamp,
+                        timestamp,
                     ),
                 )
                 row = cursor.fetchone()
@@ -141,9 +146,14 @@ class PostgresEmailGatewayRepository:
                     RETURNING id
                     """,
                     (
-                        email_journal_id, action_type, destination,
+                        email_journal_id,
+                        action_type,
+                        destination,
                         json.dumps(payload, ensure_ascii=False, sort_keys=True),
-                        deduplication_key, timestamp, timestamp, timestamp,
+                        deduplication_key,
+                        timestamp,
+                        timestamp,
+                        timestamp,
                     ),
                 )
                 row = cursor.fetchone()
@@ -312,9 +322,15 @@ class PostgresEmailGatewayRepository:
                     RETURNING id
                     """,
                     (
-                        email_journal_id, event_type, actor_type, actor_id,
-                        routing_category, action, result,
-                        json.dumps(details or {}, ensure_ascii=False, sort_keys=True), timestamp,
+                        email_journal_id,
+                        event_type,
+                        actor_type,
+                        actor_id,
+                        routing_category,
+                        action,
+                        result,
+                        json.dumps(details or {}, ensure_ascii=False, sort_keys=True),
+                        timestamp,
                     ),
                 )
                 row = cursor.fetchone()
@@ -322,56 +338,55 @@ class PostgresEmailGatewayRepository:
         return str(row["id"])
 
     def trace_audit(self, journal_id: str) -> list[dict[str, Any]]:
-        with self._connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "SELECT * FROM email_audit_logs WHERE email_journal_id=%s ORDER BY created_at, id",
-                    (journal_id,),
-                )
-                rows = cursor.fetchall()
+        with self._connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT * FROM email_audit_logs WHERE email_journal_id=%s ORDER BY created_at, id",
+                (journal_id,),
+            )
+            rows = cursor.fetchall()
         return [dict(row) for row in rows]
 
     def metrics_snapshot(self, *, now: datetime | None = None) -> dict[str, int]:
         timestamp = now or utc_now()
-        with self._connect() as connection:
-            with connection.cursor() as cursor:
-                queries = {
-                    "journal_total": "SELECT COUNT(*) AS n FROM email_journal",
-                    "duplicates_total": "SELECT COUNT(*) AS n FROM email_audit_logs WHERE event_type='INGRESS_DUPLICATE'",
-                    "outbox_pending": "SELECT COUNT(*) AS n FROM email_outbox WHERE status IN ('PENDING','FAILED_RETRYABLE')",
-                    "outbox_sending": "SELECT COUNT(*) AS n FROM email_outbox WHERE status='SENDING'",
-                }
-                output = {}
-                for key, query in queries.items():
-                    cursor.execute(query)
-                    output[key] = int(cursor.fetchone()["n"])
-                cursor.execute(
-                    "SELECT COUNT(*) AS n FROM email_journal WHERE status='PROCESSING' AND locked_until IS NOT NULL AND locked_until < %s",
-                    (timestamp,),
-                )
-                output["stale_journal_leases"] = int(cursor.fetchone()["n"])
+        with self._connect() as connection, connection.cursor() as cursor:
+            queries = {
+                "journal_total": "SELECT COUNT(*) AS n FROM email_journal",
+                "duplicates_total": "SELECT COUNT(*) AS n FROM email_audit_logs "
+                "WHERE event_type='INGRESS_DUPLICATE'",
+                "outbox_pending": "SELECT COUNT(*) AS n FROM email_outbox "
+                "WHERE status IN ('PENDING','FAILED_RETRYABLE')",
+                "outbox_sending": "SELECT COUNT(*) AS n FROM email_outbox WHERE status='SENDING'",
+            }
+            output = {}
+            for key, query in queries.items():
+                cursor.execute(query)
+                output[key] = int(cursor.fetchone()["n"])
+            cursor.execute(
+                "SELECT COUNT(*) AS n FROM email_journal WHERE status='PROCESSING' AND "
+                "locked_until IS NOT NULL AND locked_until < %s",
+                (timestamp,),
+            )
+            output["stale_journal_leases"] = int(cursor.fetchone()["n"])
         return output
 
     def count_journal(self) -> int:
-        with self._connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT COUNT(*) AS n FROM email_journal")
-                row = cursor.fetchone()
+        with self._connect() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) AS n FROM email_journal")
+            row = cursor.fetchone()
         return int(row["n"])
 
     def count_journal_message(
         self, *, mailbox: str, provider: str, provider_message_id: str
     ) -> int:
-        with self._connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    """
+        with self._connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
                     SELECT COUNT(*) AS n FROM email_journal
                     WHERE mailbox=%s AND provider=%s AND provider_message_id=%s
                     """,
-                    (mailbox.strip(), provider.strip().casefold(), provider_message_id.strip()),
-                )
-                row = cursor.fetchone()
+                (mailbox.strip(), provider.strip().casefold(), provider_message_id.strip()),
+            )
+            row = cursor.fetchone()
         return int(row["n"])
 
     def run_outbox_once(

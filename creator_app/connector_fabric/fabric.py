@@ -67,7 +67,11 @@ class ConnectorFabric:
         self.evidence.append(
             "connector.registered",
             config.connector_id,
-            {"protocol": config.protocol.value, "trustSource": config.trust_source, "credentialRef": config.credential_ref},
+            {
+                "protocol": config.protocol.value,
+                "trustSource": config.trust_source,
+                "credentialRef": config.credential_ref,
+            },
         )
         return record
 
@@ -81,7 +85,9 @@ class ConnectorFabric:
             else:
                 raise RuntimeError("Unsupported connector protocol.")
         except Exception as exc:
-            blocked = self.registry.set_state(connector_id, ConnectorState.BLOCKED, blocked_reason=type(exc).__name__)
+            self.registry.set_state(
+                connector_id, ConnectorState.BLOCKED, blocked_reason=type(exc).__name__
+            )
             self.evidence.append(
                 "connector.discovery_blocked",
                 connector_id,
@@ -174,7 +180,9 @@ class ConnectorFabric:
             )
             raise PermissionError("Connector execution denied by policy authority.")
         if record.config.protocol is not ConnectorProtocol.MCP:
-            raise RuntimeError("OpenAPI execution is not enabled in this release; discovery/binding only.")
+            raise RuntimeError(
+                "OpenAPI execution is not enabled in this release; discovery/binding only."
+            )
         result = self.mcp_client.call_tool(record.config, tool, arguments)
         self.evidence.append(
             "connector.execution_completed",

@@ -6,11 +6,20 @@ from collections.abc import Callable
 from typing import Any
 
 from creator_app.connector_fabric.evidence import sha256_json
-from creator_app.connector_fabric.models import ConnectorConfig, ConnectorProtocol, DiscoverySnapshot, NormalizedTool
+from creator_app.connector_fabric.models import (
+    ConnectorConfig,
+    ConnectorProtocol,
+    DiscoverySnapshot,
+    NormalizedTool,
+)
 from creator_app.connector_fabric.risk import classify_mcp_tool
-from creator_app.connector_fabric.security import EndpointPolicy, encode_mcp_header_value, validate_endpoint, validate_x_mcp_headers
+from creator_app.connector_fabric.security import (
+    EndpointPolicy,
+    encode_mcp_header_value,
+    validate_endpoint,
+    validate_x_mcp_headers,
+)
 from creator_app.connector_fabric.transport import HttpTransport, UrllibHttpTransport
-
 
 MCP_PROTOCOL_VERSION = "2026-07-28"
 _TOOL_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")
@@ -60,11 +69,17 @@ class MCPClient:
         capabilities = discovered.get("capabilities", {}) if isinstance(discovered, dict) else {}
         versions = discovered.get("supportedVersions", []) if isinstance(discovered, dict) else []
         if not isinstance(versions, list) or MCP_PROTOCOL_VERSION not in versions:
-            raise MCPDiscoveryError("PROTOCOL_VERSION", "MCP server does not advertise the required protocol version.")
+            raise MCPDiscoveryError(
+                "PROTOCOL_VERSION", "MCP server does not advertise the required protocol version."
+            )
 
         raw_tools, tool_cache = self._list_all(config, "tools/list", "tools")
-        raw_resources, resource_cache = self._list_all(config, "resources/list", "resources", tolerate_method_not_found=True)
-        raw_prompts, prompt_cache = self._list_all(config, "prompts/list", "prompts", tolerate_method_not_found=True)
+        raw_resources, resource_cache = self._list_all(
+            config, "resources/list", "resources", tolerate_method_not_found=True
+        )
+        raw_prompts, prompt_cache = self._list_all(
+            config, "prompts/list", "prompts", tolerate_method_not_found=True
+        )
 
         normalized: list[NormalizedTool] = []
         rejected: list[dict[str, str]] = []
@@ -86,7 +101,9 @@ class MCPClient:
             "resources": raw_resources,
             "prompts": raw_prompts,
         }
-        ttl_candidates = [item[0] for item in (tool_cache, resource_cache, prompt_cache) if item[0] is not None]
+        ttl_candidates = [
+            item[0] for item in (tool_cache, resource_cache, prompt_cache) if item[0] is not None
+        ]
         scopes = [item[1] for item in (tool_cache, resource_cache, prompt_cache) if item[1]]
         return DiscoverySnapshot(
             connector_id=config.connector_id,
@@ -102,13 +119,17 @@ class MCPClient:
             rejected_tools=tuple(rejected),
         )
 
-    def call_tool(self, config: ConnectorConfig, tool: NormalizedTool, arguments: dict[str, Any]) -> dict[str, Any]:
+    def call_tool(
+        self, config: ConnectorConfig, tool: NormalizedTool, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
         validate_endpoint(
             config.url,
             policy=EndpointPolicy(allow_private_network=config.allow_private_network),
         )
         validate_x_mcp_headers(tool.input_schema)
-        result = self._rpc(config, "tools/call", {"name": tool.name, "arguments": arguments}, name=tool.name)
+        result = self._rpc(
+            config, "tools/call", {"name": tool.name, "arguments": arguments}, name=tool.name
+        )
         if not isinstance(result, dict):
             raise MCPDiscoveryError("BAD_RESULT", "MCP tool returned a malformed result.")
         return result
@@ -142,7 +163,9 @@ class MCPClient:
                 if isinstance(item, dict):
                     items.append(item)
             if len(items) > self.max_items:
-                raise MCPDiscoveryError("TOO_MANY_ITEMS", "MCP discovery exceeded item safety limit.")
+                raise MCPDiscoveryError(
+                    "TOO_MANY_ITEMS", "MCP discovery exceeded item safety limit."
+                )
             if isinstance(result, dict):
                 value = result.get("ttlMs")
                 if isinstance(value, int) and value >= 0:
@@ -156,7 +179,9 @@ class MCPClient:
             if not isinstance(next_cursor, str) or not next_cursor:
                 return items, (ttl_ms, cache_scope)
             cursor = next_cursor
-        raise MCPDiscoveryError("PAGINATION_LIMIT", "MCP discovery exceeded pagination safety limit.")
+        raise MCPDiscoveryError(
+            "PAGINATION_LIMIT", "MCP discovery exceeded pagination safety limit."
+        )
 
     def _rpc(
         self,
@@ -174,10 +199,18 @@ class MCPClient:
         request_params = dict(params)
         request_params["_meta"] = {
             "io.modelcontextprotocol/protocolVersion": MCP_PROTOCOL_VERSION,
-            "io.modelcontextprotocol/clientInfo": {"name": self.client_name, "version": self.client_version},
+            "io.modelcontextprotocol/clientInfo": {
+                "name": self.client_name,
+                "version": self.client_version,
+            },
             "io.modelcontextprotocol/clientCapabilities": {},
         }
-        payload = {"jsonrpc": "2.0", "id": self._request_id, "method": method, "params": request_params}
+        payload = {
+            "jsonrpc": "2.0",
+            "id": self._request_id,
+            "method": method,
+            "params": request_params,
+        }
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
@@ -204,7 +237,9 @@ class MCPClient:
             raise MCPDiscoveryError("HTTP_ERROR", f"MCP server returned HTTP {response.status}.")
         envelope = self._decode_envelope(response.body, response.headers)
         if not isinstance(envelope, dict) or envelope.get("jsonrpc") != "2.0":
-            raise MCPDiscoveryError("BAD_ENVELOPE", "MCP server returned an invalid JSON-RPC envelope.")
+            raise MCPDiscoveryError(
+                "BAD_ENVELOPE", "MCP server returned an invalid JSON-RPC envelope."
+            )
         error = envelope.get("error")
         if isinstance(error, dict):
             code = error.get("code")
@@ -216,9 +251,10 @@ class MCPClient:
             raise MCPDiscoveryError("BAD_RESULT", "MCP response did not contain an object result.")
         result_type = result.get("resultType")
         if result_type != "complete":
-            raise MCPDiscoveryError("INPUT_REQUIRED", "MCP request requires additional input and was not auto-approved.")
+            raise MCPDiscoveryError(
+                "INPUT_REQUIRED", "MCP request requires additional input and was not auto-approved."
+            )
         return result
-
 
     @staticmethod
     def _decode_envelope(body: bytes, headers: Any) -> dict[str, Any]:
@@ -232,7 +268,9 @@ class MCPClient:
         except UnicodeDecodeError:
             raise MCPDiscoveryError("BAD_JSON", "MCP server returned invalid UTF-8.") from None
         if "text/event-stream" in content_type:
-            data_lines = [line[5:].lstrip() for line in text.splitlines() if line.startswith("data:")]
+            data_lines = [
+                line[5:].lstrip() for line in text.splitlines() if line.startswith("data:")
+            ]
             if not data_lines:
                 raise MCPDiscoveryError("BAD_SSE", "MCP server returned an empty event stream.")
             text = "\n".join(data_lines)
@@ -241,7 +279,9 @@ class MCPClient:
         except json.JSONDecodeError:
             raise MCPDiscoveryError("BAD_JSON", "MCP server returned invalid JSON.") from None
         if not isinstance(envelope, dict):
-            raise MCPDiscoveryError("BAD_ENVELOPE", "MCP server returned an invalid JSON-RPC envelope.")
+            raise MCPDiscoveryError(
+                "BAD_ENVELOPE", "MCP server returned an invalid JSON-RPC envelope."
+            )
         return envelope
 
     def _resolve_token(self, config: ConnectorConfig) -> str | None:

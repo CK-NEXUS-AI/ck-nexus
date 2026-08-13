@@ -13,10 +13,22 @@ class ArtifactPromotionState(StrEnum):
 
 
 _PROMOTION_TRANSITIONS = {
-    ArtifactPromotionState.CANDIDATE: {ArtifactPromotionState.VERIFIED, ArtifactPromotionState.REJECTED},
-    ArtifactPromotionState.VERIFIED: {ArtifactPromotionState.SCANNED, ArtifactPromotionState.REJECTED},
-    ArtifactPromotionState.SCANNED: {ArtifactPromotionState.APPROVED, ArtifactPromotionState.REJECTED},
-    ArtifactPromotionState.APPROVED: {ArtifactPromotionState.PROMOTED, ArtifactPromotionState.REJECTED},
+    ArtifactPromotionState.CANDIDATE: {
+        ArtifactPromotionState.VERIFIED,
+        ArtifactPromotionState.REJECTED,
+    },
+    ArtifactPromotionState.VERIFIED: {
+        ArtifactPromotionState.SCANNED,
+        ArtifactPromotionState.REJECTED,
+    },
+    ArtifactPromotionState.SCANNED: {
+        ArtifactPromotionState.APPROVED,
+        ArtifactPromotionState.REJECTED,
+    },
+    ArtifactPromotionState.APPROVED: {
+        ArtifactPromotionState.PROMOTED,
+        ArtifactPromotionState.REJECTED,
+    },
     ArtifactPromotionState.PROMOTED: set(),
     ArtifactPromotionState.REJECTED: set(),
 }

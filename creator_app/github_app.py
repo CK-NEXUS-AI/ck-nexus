@@ -67,9 +67,9 @@ class GitHubAppAuth:
         if not self.configured:
             raise GitHubAppAuthError("GitHub App authentication is not fully configured.")
         try:
-            app_id = self.broker.acquire(
-                CredentialId.GITHUB_APP_ID, consumer="github.app"
-            ).reveal(consumer="github.app")
+            app_id = self.broker.acquire(CredentialId.GITHUB_APP_ID, consumer="github.app").reveal(
+                consumer="github.app"
+            )
             private_key = self.broker.acquire(
                 CredentialId.GITHUB_APP_PRIVATE_KEY, consumer="github.app"
             ).reveal(consumer="github.app")
@@ -139,8 +139,6 @@ class GitHubAppAuth:
         try:
             import jwt
         except ImportError as exc:
-            raise GitHubAppAuthError(
-                "GitHub App JWT signing dependency is unavailable."
-            ) from exc
+            raise GitHubAppAuthError("GitHub App JWT signing dependency is unavailable.") from exc
         encoded = jwt.encode(payload, private_key, algorithm="RS256")
         return str(encoded)

@@ -193,7 +193,9 @@ def test_loop_prevention_blocks_automation_and_system_mail():
     assert evaluate_loop_headers({"X-CK-NEXUS-Loop": "evt-1"}).allow_automatic_reply is False
     assert evaluate_loop_headers({"Auto-Submitted": "auto-replied"}).allow_automatic_reply is False
     assert evaluate_loop_headers({"Precedence": "bulk"}).allow_automatic_reply is False
-    assert evaluate_loop_headers({"From": "MAILER-DAEMON@example.test"}).allow_automatic_reply is False
+    assert (
+        evaluate_loop_headers({"From": "MAILER-DAEMON@example.test"}).allow_automatic_reply is False
+    )
     assert evaluate_loop_headers({"From": "person@example.test"}).allow_automatic_reply is True
 
 

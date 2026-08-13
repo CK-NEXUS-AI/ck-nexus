@@ -94,6 +94,7 @@ class ConnectorRegistry:
         if not isinstance(items, list):
             raise RuntimeError("Connector registry is corrupt.")
         from creator_app.connector_fabric.models import ConnectorProtocol
+
         for item in items:
             if not isinstance(item, dict):
                 continue

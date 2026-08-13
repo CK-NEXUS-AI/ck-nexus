@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from creator_app.integration_security import (
     normalize_trusted_hosts,
@@ -40,8 +40,10 @@ class _JsonHttpIntegration:
         trusted_hosts: Iterable[str] | None = None,
         timeout: int = 5,
     ) -> None:
+        if not trusted_hosts:
+            raise ValueError("Trusted HTTPS hosts are required for integration requests.")
         self.timeout = timeout
-        self.trusted_hosts = normalize_trusted_hosts(trusted_hosts) if trusted_hosts else None
+        self.trusted_hosts = normalize_trusted_hosts(trusted_hosts)
 
     def _request_json(
         self,
@@ -57,14 +59,11 @@ class _JsonHttpIntegration:
                 **(headers or {}),
             },
         )
-        if self.trusted_hosts is None:
-            response_context = urlopen(request, timeout=self.timeout)  # noqa: S310
-        else:
-            response_context = open_trusted_request(
-                request,
-                trusted_hosts=self.trusted_hosts,
-                timeout=self.timeout,
-            )
+        response_context = open_trusted_request(
+            request,
+            trusted_hosts=self.trusted_hosts,
+            timeout=self.timeout,
+        )
         with response_context as response:
             payload = response.read(512_000)
         decoded = json.loads(payload.decode("utf-8"))
@@ -160,9 +159,7 @@ class GoogleDriveIntegration(_JsonHttpIntegration):
             )
             user = payload.get("user") if isinstance(payload.get("user"), dict) else {}
             quota = (
-                payload.get("storageQuota")
-                if isinstance(payload.get("storageQuota"), dict)
-                else {}
+                payload.get("storageQuota") if isinstance(payload.get("storageQuota"), dict) else {}
             )
             return IntegrationStatus(
                 "google_drive",

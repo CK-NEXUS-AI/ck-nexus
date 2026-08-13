@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -8,8 +7,7 @@ from pathlib import Path
 from ..sandbox.runner import LinuxNamespaceRunner
 from .hardening import CgroupLimits, CgroupV2Manager
 
-
-_SECCOMP_C = r'''
+_SECCOMP_C = r"""
 #define _GNU_SOURCE
 #include <errno.h>
 #include <linux/audit.h>
@@ -87,13 +85,16 @@ int main(int argc, char **argv) {
 #endif
         BPF_STMT(BPF_RET+BPF_K, SECCOMP_RET_ALLOW),
     };
-    struct sock_fprog prog = { .len = (unsigned short)(sizeof(filter)/sizeof(filter[0])), .filter = filter };
+    struct sock_fprog prog = {
+        .len = (unsigned short)(sizeof(filter)/sizeof(filter[0])),
+        .filter = filter
+    };
     if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)) { perror("seccomp"); return 66; }
     execvp(argv[1], &argv[1]);
     perror("execvp");
     return 127;
 }
-'''
+"""
 
 
 class HardenedLinuxNamespaceRunner(LinuxNamespaceRunner):
@@ -121,9 +122,14 @@ class HardenedLinuxNamespaceRunner(LinuxNamespaceRunner):
         gcc = shutil.which("gcc")
         if not gcc:
             raise RuntimeError("gcc_required_to_build_seccomp_launcher")
-        proc = subprocess.run([gcc, "-O2", "-Wall", "-Wextra", str(source), "-o", str(binary)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.run(
+            [gcc, "-O2", "-Wall", "-Wextra", str(source), "-o", str(binary)],
+            capture_output=True,
+        )
         if proc.returncode != 0:
-            raise RuntimeError("seccomp_launcher_build_failed:" + proc.stderr.decode(errors="replace")[:1000])
+            raise RuntimeError(
+                "seccomp_launcher_build_failed:" + proc.stderr.decode(errors="replace")[:1000]
+            )
         binary.chmod(0o500)
         return binary
 

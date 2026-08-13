@@ -8,7 +8,13 @@ from fastapi.testclient import TestClient
 
 from creator_app.api import create_app
 from creator_app.config import Settings
-from creator_app.observability import MetricsRegistry, RequestObservation, StructuredLogger, correlation_id, redact
+from creator_app.observability import (
+    MetricsRegistry,
+    RequestObservation,
+    StructuredLogger,
+    correlation_id,
+    redact,
+)
 
 
 def test_correlation_id_preserves_safe_and_replaces_unsafe():
@@ -24,7 +30,9 @@ def test_redaction_is_recursive():
 
 def test_structured_logger_never_emits_secret(caplog):
     caplog.set_level(logging.INFO, logger="cknexus.observability")
-    StructuredLogger().emit("test", token="never-print-this", nested={"password": "never-print-this-either"})
+    StructuredLogger().emit(
+        "test", token="never-print-this", nested={"password": "never-print-this-either"}
+    )
     text = caplog.text
     assert "never-print-this" not in text
     assert "[REDACTED]" in text

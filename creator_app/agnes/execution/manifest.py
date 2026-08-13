@@ -38,7 +38,7 @@ class ImmutableExecutionManifest:
         *,
         risk_class: ExecutorRiskClass,
         approval_fingerprint: str,
-    ) -> "ImmutableExecutionManifest":
+    ) -> ImmutableExecutionManifest:
         goal_hash = _sha(request.goal)
         input_hash = _sha(canonical_json(request.inputs))
         plan_hash = _sha(canonical_json(request.plan_step))
@@ -50,7 +50,9 @@ class ImmutableExecutionManifest:
             }
             for item in request.credential_requirements
         ]
-        permissions_hash = _sha(json.dumps(list(request.granted_capabilities), separators=(",", ":")))
+        permissions_hash = _sha(
+            json.dumps(list(request.granted_capabilities), separators=(",", ":"))
+        )
         credential_requirements_hash = _sha(
             json.dumps(credentials_payload, sort_keys=True, separators=(",", ":"))
         )

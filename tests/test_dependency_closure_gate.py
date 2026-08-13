@@ -36,7 +36,9 @@ def test_gate_reports_missing_lock_and_runtime(monkeypatch, tmp_path):
     lock = tmp_path / "uv.lock"
     _write_pyproject(pyproject)
     _write_lock(lock, ["alpha", "pip-audit"])
-    monkeypatch.setattr(gate, "installed", lambda required: {name: name == "alpha" for name in required})
+    monkeypatch.setattr(
+        gate, "installed", lambda required: {name: name == "alpha" for name in required}
+    )
     monkeypatch.setattr(gate, "registry_status", lambda: gate.RegistryStatus(True, True))
 
     result = gate.evaluate(pyproject, lock, gate.DEFAULT_GROUPS)

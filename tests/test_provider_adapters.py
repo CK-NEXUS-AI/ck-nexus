@@ -26,9 +26,7 @@ def test_ollama_requires_enablement_and_model() -> None:
     disabled = OllamaProviderAdapter(
         base_url="http://127.0.0.1:11434", model="gemma3", enabled=False
     )
-    missing_model = OllamaProviderAdapter(
-        base_url="http://127.0.0.1:11434", model="", enabled=True
-    )
+    missing_model = OllamaProviderAdapter(base_url="http://127.0.0.1:11434", model="", enabled=True)
     assert disabled.is_available() is False
     assert missing_model.is_available() is False
 

@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
@@ -33,9 +34,13 @@ def validate_loopback_base_url(url: str) -> str:
         raise UnsafeLocalProviderUrl("Local provider URL must not contain user information.")
     host = (parsed.hostname or "").lower().rstrip(".")
     if host not in {"localhost", "127.0.0.1", "::1"}:
-        raise UnsafeLocalProviderUrl("Local provider URL must resolve to an explicit loopback host.")
+        raise UnsafeLocalProviderUrl(
+            "Local provider URL must resolve to an explicit loopback host."
+        )
     if parsed.query or parsed.fragment:
-        raise UnsafeLocalProviderUrl("Local provider base URL must not contain query or fragment data.")
+        raise UnsafeLocalProviderUrl(
+            "Local provider base URL must not contain query or fragment data."
+        )
     return url.rstrip("/")
 
 
@@ -137,9 +142,7 @@ class OpenAIProviderAdapter:
 
     async def invoke(self, prompt: str) -> str:
         try:
-            lease = self.broker.acquire(
-                CredentialId.OPENAI_API_KEY, consumer="provider.openai"
-            )
+            lease = self.broker.acquire(CredentialId.OPENAI_API_KEY, consumer="provider.openai")
         except CredentialUnavailable as exc:
             raise RuntimeError("OpenAI credential is not configured.") from exc
         api_key = lease.reveal(consumer="provider.openai")

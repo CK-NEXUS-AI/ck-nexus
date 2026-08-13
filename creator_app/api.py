@@ -4,10 +4,22 @@ import hmac
 import os
 import time
 from contextlib import asynccontextmanager
-from uuid import uuid4
 from pathlib import Path as FilePath
+from typing import Annotated
+from uuid import uuid4
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Path, Query, Request, UploadFile, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    Header,
+    HTTPException,
+    Path,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -31,26 +43,33 @@ from creator_app.connector_fabric import (
 from creator_app.connector_fabric.security import EndpointSecurityError
 from creator_app.credential_broker import CredentialBroker, CredentialId
 from creator_app.credential_vault import build_credential_vault
-from creator_app.gmail_oauth import GmailOAuthError, GmailOAuthManager
-from creator_app.github_app import GitHubAppAuth, GitHubAppAuthError
-from creator_app.providers import build_provider_router
 from creator_app.dev_team import DevTeamRuntime
+from creator_app.github_app import GitHubAppAuth, GitHubAppAuthError
 from creator_app.github_integration import GitHubIntegration
+from creator_app.gmail_oauth import GmailOAuthError, GmailOAuthManager
 from creator_app.health import DependencyState, DependencyStatus, evaluate_health
-from creator_app.observability import CORRELATION_HEADER, MetricsRegistry, RequestObservation, StructuredLogger, correlation_id
 from creator_app.integrations import GoogleDriveIntegration, SlackIntegration
+from creator_app.observability import (
+    CORRELATION_HEADER,
+    MetricsRegistry,
+    RequestObservation,
+    StructuredLogger,
+    correlation_id,
+)
+from creator_app.providers import build_provider_router
 from creator_app.rate_limit import SlidingWindowRateLimiter
 from creator_app.runtime import CreatorRuntime, MissingCredentialError, ProviderRuntimeError
-from creator_app.runtime_binding import close_all as close_runtime_bindings, runtime_binding_status, verify_runtime_binding_or_raise
+from creator_app.runtime_binding import close_all as close_runtime_bindings
+from creator_app.runtime_binding import runtime_binding_status, verify_runtime_binding_or_raise
 from creator_app.schemas import (
     AgnesApprovalRequest,
-    ConnectorActivateRequest,
-    ConnectorRegisterRequest,
     AgnesExecuteRequest,
-    AgnesPipelineStartRequest,
     AgnesPipelineDiscardRequest,
+    AgnesPipelineStartRequest,
     CodexTaskRequest,
     CodexTaskResult,
+    ConnectorActivateRequest,
+    ConnectorRegisterRequest,
     DevTeamRequest,
     DevTeamResult,
     RunRequest,
@@ -59,7 +78,10 @@ from creator_app.schemas import (
 )
 from creator_app.service import CreatorService
 from creator_app.storage import RunStore
+from services.email_gateway.attachments import scan_attachment
 from services.email_gateway.factory import create_email_repository
+from services.email_gateway.loop_prevention import evaluate_loop_headers
+from services.email_gateway.routing import route_email
 from services.email_gateway.schemas import (
     EmailIngressRequest,
     EmailIngressResult,
@@ -76,9 +98,6 @@ from services.email_gateway.schemas import (
     RoutingRequest,
     RoutingResult,
 )
-from services.email_gateway.attachments import scan_attachment
-from services.email_gateway.loop_prevention import evaluate_loop_headers
-from services.email_gateway.routing import route_email
 
 WEB_DIR = FilePath(__file__).resolve().parent / "web"
 SESSION_ID_PATTERN = r"^[A-Za-z0-9_:-]+$"
@@ -91,9 +110,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         enabled=resolved_settings.credential_vault_enabled,
         path=resolved_settings.credential_vault_path,
     )
-    credential_broker = CredentialBroker.from_environment(
-        persistent_store=credential_vault
-    )
+    credential_broker = CredentialBroker.from_environment(persistent_store=credential_vault)
 
     connector_consumer_by_credential = {
         CredentialId.OPENAI_API_KEY: "provider.openai",
@@ -194,7 +211,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     metrics_registry = MetricsRegistry()
     structured_logger = StructuredLogger()
 
-    runtime_binding_required = os.getenv("CKNEXUS_RUNTIME_BINDING_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
+    runtime_binding_required = os.getenv(
+        "CKNEXUS_RUNTIME_BINDING_ENABLED", "false"
+    ).strip().lower() in {"1", "true", "yes", "on"}
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -294,7 +313,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             duration = time.perf_counter() - started
             route = getattr(request.scope.get("route"), "path", request.url.path)
-            metrics_registry.observe(RequestObservation(request.method, route, status_code, duration))
+            metrics_registry.observe(
+                RequestObservation(request.method, route, status_code, duration)
+            )
             structured_logger.emit(
                 "http_request",
                 correlation_id=corr,
@@ -513,7 +534,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/email/scan-attachment")
     async def email_scan_attachment(
-        file: UploadFile = File(...),
+        file: Annotated[UploadFile, File()],
         _: None = Depends(require_email_webhook_token),
     ) -> dict[str, object]:
         import tempfile
@@ -581,7 +602,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         email_repository.mark_outbox_sent(
             outbox_id, provider_message_id=payload.provider_message_id
         )
-        row = email_repository.get_outbox(outbox_id) if hasattr(email_repository, "get_outbox") else None
+        row = (
+            email_repository.get_outbox(outbox_id)
+            if hasattr(email_repository, "get_outbox")
+            else None
+        )
         if row and row.get("email_journal_id"):
             email_repository.audit(
                 email_journal_id=str(row["email_journal_id"]),
@@ -589,7 +614,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 actor_type="cknexus-email-worker",
                 action="send",
                 result="PASS",
-                details={"outbox_id": outbox_id, "provider_message_id": payload.provider_message_id},
+                details={
+                    "outbox_id": outbox_id,
+                    "provider_message_id": payload.provider_message_id,
+                },
             )
         return {"status": "sent"}
 
@@ -619,7 +647,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/health")
     async def health():
         if not store.ping():
-            return JSONResponse(status_code=503, content={"status": "degraded", "version": resolved_settings.app_version, "database": "unavailable"})
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "degraded",
+                    "version": resolved_settings.app_version,
+                    "database": "unavailable",
+                },
+            )
         return {"status": "ok", "version": resolved_settings.app_version, "database": "ok"}
 
     @app.get("/health/live")
@@ -650,12 +685,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 (
                     DependencyStatus(
                         "postgres-runtime-binding",
-                        DependencyState.HEALTHY if binding["postgres"] else DependencyState.UNAVAILABLE,
+                        DependencyState.HEALTHY
+                        if binding["postgres"]
+                        else DependencyState.UNAVAILABLE,
                         required=True,
                     ),
                     DependencyStatus(
                         "redis-runtime-binding",
-                        DependencyState.HEALTHY if binding["redis"] else DependencyState.UNAVAILABLE,
+                        DependencyState.HEALTHY
+                        if binding["redis"]
+                        else DependencyState.UNAVAILABLE,
                         required=True,
                     ),
                 )
@@ -750,7 +789,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail={"error": "CONNECTOR_EXISTS", "message": "connector_id is already registered."},
+                detail={
+                    "error": "CONNECTOR_EXISTS",
+                    "message": "connector_id is already registered.",
+                },
             ) from None
         if payload.auto_discover:
             try:
@@ -768,13 +810,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             if not payload.auto_discover:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"error": "DISCOVERY_REQUIRED", "message": "Auto-activation requires auto_discover=true."},
+                    detail={
+                        "error": "DISCOVERY_REQUIRED",
+                        "message": "Auto-activation requires auto_discover=true.",
+                    },
                 )
             record = fabric.activate(payload.connector_id, allow_write=False)
-        exposed = fabric.model_tools(payload.connector_id) if payload.auto_activate_read_only else ()
+        exposed = (
+            fabric.model_tools(payload.connector_id) if payload.auto_activate_read_only else ()
+        )
         return {"connector": record.as_dict(), "modelTools": list(exposed)}
 
-    @app.post("/api/connectors/{connector_id}/discover", dependencies=[Depends(require_access_token)])
+    @app.post(
+        "/api/connectors/{connector_id}/discover", dependencies=[Depends(require_access_token)]
+    )
     async def discover_connector(connector_id: str):
         fabric = require_connector_fabric()
         try:
@@ -793,7 +842,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             ) from None
         return {"connector": record.as_dict(), "snapshot": snapshot.as_dict()}
 
-    @app.post("/api/connectors/{connector_id}/activate", dependencies=[Depends(require_access_token)])
+    @app.post(
+        "/api/connectors/{connector_id}/activate", dependencies=[Depends(require_access_token)]
+    )
     async def activate_connector(connector_id: str, payload: ConnectorActivateRequest):
         fabric = require_connector_fabric()
         try:
@@ -803,7 +854,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except RuntimeError:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail={"error": "CONNECTOR_NOT_VERIFIED", "message": "Discover and verify connector schema before activation."},
+                detail={
+                    "error": "CONNECTOR_NOT_VERIFIED",
+                    "message": "Discover and verify connector schema before activation.",
+                },
             ) from None
         return {"connector": record.as_dict(), "modelTools": list(fabric.model_tools(connector_id))}
 
@@ -814,7 +868,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             snapshot = fabric.registry.snapshot(connector_id)
             record = fabric.registry.get(connector_id)
         except KeyError:
-            raise HTTPException(status_code=404, detail={"error": "CONNECTOR_NOT_DISCOVERED"}) from None
+            raise HTTPException(
+                status_code=404, detail={"error": "CONNECTOR_NOT_DISCOVERED"}
+            ) from None
         return {
             "connector": record.as_dict(),
             "verifiedTools": [tool.as_dict() for tool in snapshot.tools],
@@ -862,7 +918,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "id": "database",
             "configured": True,
             "connected": store.ping(),
-            "message": "Application database is reachable." if store.ping() else "Application database is unavailable.",
+            "message": "Application database is reachable."
+            if store.ping()
+            else "Application database is unavailable.",
             "details": {"backend": "postgresql" if resolved_settings.database_url else "sqlite"},
         }
         integrations = [
@@ -992,13 +1050,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             duration_ms=result.duration_ms,
         )
 
-
     @app.get("/api/agnes/status")
     async def agnes_status(_: None = Depends(require_access_token)) -> dict[str, object]:
         if not resolved_settings.agnes_enabled:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail={"error": "AGNES_DISABLED", "message": "AGNES skill nervous system is disabled."},
+                detail={
+                    "error": "AGNES_DISABLED",
+                    "message": "AGNES skill nervous system is disabled.",
+                },
             )
         return agnes.status()
 
@@ -1047,6 +1107,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if agnes.dev_controller is None:
             raise HTTPException(status_code=503, detail={"error": "AGNES_PHASE3_DISABLED"})
         from creator_app.agnes.execution.request import ExecutorType, SkillExecutionRequest
+
         execution_id = f"agnes_pipe_exec_{uuid4().hex}"
         workspace_id = payload.workspace_id or execution_id
         request = SkillExecutionRequest(
@@ -1056,10 +1117,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             skill_version=agnes.registry.get("hands.code_patch").version,
             executor=ExecutorType.SANDBOX,
             goal=payload.goal,
-            inputs={"patch": payload.patch, "test_command": payload.test_command, "scan_command": payload.scan_command},
-            tenant_id=payload.tenant_id, actor_id=payload.actor_id, environment=payload.environment,
-            workspace_id=workspace_id, baseline_commit=payload.baseline_commit,
-            approval_id=payload.approval_id, idempotency_key=payload.idempotency_key,
+            inputs={
+                "patch": payload.patch,
+                "test_command": payload.test_command,
+                "scan_command": payload.scan_command,
+            },
+            tenant_id=payload.tenant_id,
+            actor_id=payload.actor_id,
+            environment=payload.environment,
+            workspace_id=workspace_id,
+            baseline_commit=payload.baseline_commit,
+            approval_id=payload.approval_id,
+            idempotency_key=payload.idempotency_key,
             allowlist_paths=tuple(payload.allowlist_paths),
             granted_capabilities=("code_write", "patch"),
         )
@@ -1077,13 +1146,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=503, detail={"error": "AGNES_PHASE3_DISABLED"})
         try:
             from creator_app.agnes.execution.phase3 import PipelineHandle
+
             current = await agnes.dev_controller.get_status(pipeline_id)
             status_obj = await agnes.dev_controller.run_to_candidate(
                 PipelineHandle(pipeline_id, current.execution_id)
             )
             return status_obj.as_dict()
         except KeyError:
-            raise HTTPException(status_code=404, detail={"error": "PIPELINE_NOT_FOUND"})
+            raise HTTPException(status_code=404, detail={"error": "PIPELINE_NOT_FOUND"}) from None
 
     @app.get("/api/agnes/pipeline/{pipeline_id}")
     async def agnes_pipeline_status(
@@ -1095,10 +1165,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             status_obj = await agnes.dev_controller.get_status(pipeline_id)
         except KeyError:
-            raise HTTPException(status_code=404, detail={"error": "PIPELINE_NOT_FOUND"})
+            raise HTTPException(status_code=404, detail={"error": "PIPELINE_NOT_FOUND"}) from None
         body = status_obj.as_dict()
         if status_obj.state.value == "candidate_ready":
-            body["candidate"] = (await agnes.dev_controller.collect_candidate(pipeline_id)).as_dict()
+            body["candidate"] = (
+                await agnes.dev_controller.collect_candidate(pipeline_id)
+            ).as_dict()
         return body
 
     @app.post("/api/agnes/pipeline/{pipeline_id}/discard")
@@ -1113,7 +1185,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await agnes.dev_controller.discard(pipeline_id, payload.reason)
             return (await agnes.dev_controller.get_status(pipeline_id)).as_dict()
         except KeyError:
-            raise HTTPException(status_code=404, detail={"error": "PIPELINE_NOT_FOUND"})
+            raise HTTPException(status_code=404, detail={"error": "PIPELINE_NOT_FOUND"}) from None
 
     @app.post("/api/agnes/approvals")
     async def agnes_approval(
@@ -1173,12 +1245,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "mock"
                 if resolved_settings.mock_ai
                 else (
-                    provider_router.preferred_status(
-                        required_capabilities={"agents-sdk"}
-                    ).name
-                    if provider_router.preferred_status(
-                        required_capabilities={"agents-sdk"}
-                    ) is not None
+                    provider_router.preferred_status(required_capabilities={"agents-sdk"}).name
+                    if provider_router.preferred_status(required_capabilities={"agents-sdk"})
+                    is not None
                     else "blocked"
                 )
             ),
@@ -1202,7 +1271,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if not resolved_settings.dev_team_enabled:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail={"error": "DEV_TEAM_DISABLED", "message": "Development Council is disabled."},
+                detail={
+                    "error": "DEV_TEAM_DISABLED",
+                    "message": "Development Council is disabled.",
+                },
             )
         return await dev_team.run(payload)
 
@@ -1260,6 +1332,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             if resolved_settings.session_database_url:
                 from agents.extensions.memory import SQLAlchemySession
+
                 agent_session = SQLAlchemySession.from_url(
                     session_id,
                     url=resolved_settings.session_database_url,
@@ -1270,6 +1343,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await agent_session.engine.dispose()
             else:
                 from agents import SQLiteSession
+
                 agent_session = SQLiteSession(session_id, db_path=resolved_settings.database_path)
                 await agent_session.clear_session()
                 agent_session.close()

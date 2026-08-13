@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import fnmatch
 import re
+from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
-from typing import Iterable
 
 
 class SandboxViolation(PermissionError):
@@ -37,12 +37,17 @@ class PathGuard:
         normalized = path.as_posix()
         if normalized.startswith("./"):
             normalized = normalized[2:]
-        if any(normalized == prefix or normalized.startswith(prefix + "/") for prefix in cls._forbidden_prefixes):
+        if any(
+            normalized == prefix or normalized.startswith(prefix + "/")
+            for prefix in cls._forbidden_prefixes
+        ):
             raise SandboxViolation("forbidden_path")
         return normalized
 
     @classmethod
-    def resolve_inside(cls, workspace: Path, relative: str, *, require_exists: bool = False) -> Path:
+    def resolve_inside(
+        cls, workspace: Path, relative: str, *, require_exists: bool = False
+    ) -> Path:
         normalized = cls.normalize_relative(relative)
         root = workspace.resolve()
         candidate = root / normalized

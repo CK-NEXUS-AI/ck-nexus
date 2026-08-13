@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import asyncio
 import json
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from ..idempotency import IdempotencyRecord, IdempotencyState
 
@@ -19,7 +19,9 @@ class RedisIdempotencyStore:
         self.ttl_seconds = ttl_seconds
 
     async def claim(self, key: str, manifest_hash: str) -> tuple[bool, IdempotencyRecord | None]:
-        payload = json.dumps({"manifest_hash": manifest_hash, "state": "running", "result": None}, sort_keys=True)
+        payload = json.dumps(
+            {"manifest_hash": manifest_hash, "state": "running", "result": None}, sort_keys=True
+        )
         created = await self.client.set(key, payload, nx=True, ex=self.ttl_seconds)
         if created:
             return True, IdempotencyRecord(manifest_hash, IdempotencyState.RUNNING)
@@ -81,7 +83,9 @@ class PostgresIdempotencyStore:
         result = row["result_json"]
         if isinstance(result, str):
             result = json.loads(result)
-        return False, IdempotencyRecord(str(row["manifest_hash"]), IdempotencyState(str(row["state"])), result)
+        return False, IdempotencyRecord(
+            str(row["manifest_hash"]), IdempotencyState(str(row["state"])), result
+        )
 
     async def complete(self, key: str, *, success: bool, result: dict[str, object]) -> None:
         await self._execute(
