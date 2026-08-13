@@ -12,6 +12,30 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cknexus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cknexus"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v6
         with:
@@ -100,32 +124,85 @@ jobs:
         continue-on-error: true
         run: .venv/bin/python scripts/secret_scan.py
 
-      - name: Tests
-        id: tests
+      - name: Q05 portable tests
+        id: portable_tests
         continue-on-error: true
-        run: .venv/bin/pytest -q
+        run: >-
+          .venv/bin/pytest -q
+          --ignore=tests/test_agnes_execution_kernel_phase2.py
+          --ignore=tests/test_agnes_execution_kernel_phase3.py
 
-      - name: Upload Q05 diagnostics
+      - name: Q05 sandbox capability tests in privileged container
+        id: sandbox_tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          docker run --rm --privileged \
+            --security-opt seccomp=unconfined \
+            -v "$PWD:/workspace" \
+            -w /workspace \
+            python:3.12-bookworm \
+            bash -euo pipefail -c '
+              apt-get update -qq
+              DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git util-linux gcc >/dev/null
+              python -m pip install -q uv
+              git config --global --add safe.directory /workspace
+              echo "[CAPABILITY] privileged user namespace probe"
+              unshare --user --map-root-user true
+              UV_PROJECT_ENVIRONMENT=/tmp/cknexus-venv uv sync --all-extras --dev --frozen
+              /tmp/cknexus-venv/bin/pytest -q \
+                tests/test_agnes_execution_kernel_phase2.py \
+                tests/test_agnes_execution_kernel_phase3.py
+            '
+
+      - name: Q06/Q07 live application binding
+        id: runtime_binding
+        continue-on-error: true
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cknexus
+          REDIS_URL: redis://127.0.0.1:6379/0
+          DB_CONNECT_TIMEOUT: '5'
+          DB_COMMAND_TIMEOUT: '5'
+          DB_POOL_ACQUIRE_TIMEOUT: '5'
+          REDIS_CONNECT_TIMEOUT: '5'
+          REDIS_SOCKET_TIMEOUT: '5'
+          RUNTIME_BINDING_FAIL_FAST: 'true'
+        run: .venv/bin/python creator_app/runtime_binding.py --verify
+
+      - name: Q08 distributed-idempotency contract regression
+        id: idempotency_contract
+        continue-on-error: true
+        run: .venv/bin/pytest -q tests/test_r17_distributed_idempotency_runtime.py
+
+      - name: Upload diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: q05-diagnostics
+          name: q04-q08-diagnostics
           path: bandit.json
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Q05 final gate
+      - name: Q04-Q08 evidence gate
         if: always()
         shell: bash
         env:
           RUFF_OUTCOME: ${{ steps.ruff.outcome }}
           BANDIT_OUTCOME: ${{ steps.bandit.outcome }}
           SECRET_OUTCOME: ${{ steps.secret_scan.outcome }}
-          TESTS_OUTCOME: ${{ steps.tests.outcome }}
+          PORTABLE_OUTCOME: ${{ steps.portable_tests.outcome }}
+          SANDBOX_OUTCOME: ${{ steps.sandbox_tests.outcome }}
+          RUNTIME_BINDING_OUTCOME: ${{ steps.runtime_binding.outcome }}
+          IDEMPOTENCY_CONTRACT_OUTCOME: ${{ steps.idempotency_contract.outcome }}
         run: |
-          printf 'Ruff=%s\nBandit=%s\nSecretScan=%s\nTests=%s\n' \
-            "$RUFF_OUTCOME" "$BANDIT_OUTCOME" "$SECRET_OUTCOME" "$TESTS_OUTCOME"
+          printf 'Ruff=%s\nBandit=%s\nSecretScan=%s\nPortableTests=%s\nSandboxTests=%s\nRuntimeBinding=%s\nIdempotencyContract=%s\n' \
+            "$RUFF_OUTCOME" "$BANDIT_OUTCOME" "$SECRET_OUTCOME" \
+            "$PORTABLE_OUTCOME" "$SANDBOX_OUTCOME" "$RUNTIME_BINDING_OUTCOME" \
+            "$IDEMPOTENCY_CONTRACT_OUTCOME"
           test "$RUFF_OUTCOME" = success
           test "$BANDIT_OUTCOME" = success
           test "$SECRET_OUTCOME" = success
-          test "$TESTS_OUTCOME" = success
+          test "$PORTABLE_OUTCOME" = success
+          test "$SANDBOX_OUTCOME" = success
+          test "$RUNTIME_BINDING_OUTCOME" = success
+          test "$IDEMPOTENCY_CONTRACT_OUTCOME" = success
