@@ -1,0 +1,93 @@
+name: Verify Q09 live v2
+
+on:
+  push:
+    branches: [verify/q09-live-evidence-v2]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cknexus
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cknexus"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Frozen environment
+        run: |
+          python -m pip install --upgrade pip uv
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+      - name: Q09 governance regression
+        run: |
+          .venv/bin/python -m compileall -q creator_app/connector_fabric/governance.py
+          .venv/bin/ruff check creator_app/connector_fabric/governance.py
+          .venv/bin/pytest -q tests/test_council_capability_authority.py tests/test_r28_connector_fabric.py
+      - name: Q06 Q07 application binding
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cknexus
+          REDIS_URL: redis://127.0.0.1:6379/0
+          DB_CONNECT_TIMEOUT: '5'
+          DB_COMMAND_TIMEOUT: '5'
+          DB_POOL_ACQUIRE_TIMEOUT: '5'
+          REDIS_CONNECT_TIMEOUT: '5'
+          REDIS_SOCKET_TIMEOUT: '5'
+          RUNTIME_BINDING_FAIL_FAST: 'true'
+        run: .venv/bin/python creator_app/runtime_binding.py --verify
+      - name: Q08 live idempotency regression
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cknexus
+          REDIS_URL: redis://127.0.0.1:6379/0
+        run: |
+          .venv/bin/pytest -q tests/test_r17_distributed_idempotency_runtime.py
+          .venv/bin/python - <<'PY'
+          import asyncio, os, uuid
+          import asyncpg
+          import redis.asyncio as redis_async
+          from creator_app.agnes.execution.phase3.idempotency import PostgresIdempotencyStore, RedisIdempotencyStore
+
+          async def once(a, b, key):
+              results = await asyncio.gather(a.claim(key, 'm'), b.claim(key, 'm'))
+              assert sum(1 for claimed, _ in results if claimed) == 1
+              await a.complete(key, success=True, result={'ok': True})
+              claimed, replay = await b.claim(key, 'm')
+              assert claimed is False and replay is not None and replay.result == {'ok': True}
+
+          async def main():
+              r1=redis_async.Redis.from_url(os.environ['REDIS_URL'], decode_responses=False)
+              r2=redis_async.Redis.from_url(os.environ['REDIS_URL'], decode_responses=False)
+              rk='q09:'+uuid.uuid4().hex
+              try: await once(RedisIdempotencyStore(r1), RedisIdempotencyStore(r2), rk)
+              finally: await r1.delete(rk); await r1.aclose(); await r2.aclose()
+              pool=await asyncpg.create_pool(os.environ['DATABASE_URL'], min_size=1, max_size=4, timeout=5)
+              pk='q09:'+uuid.uuid4().hex
+              try:
+                  await pool.execute('CREATE TABLE IF NOT EXISTS agnes_idempotency (idem_key TEXT PRIMARY KEY, manifest_hash TEXT NOT NULL, state TEXT NOT NULL, result_json JSONB)')
+                  await once(PostgresIdempotencyStore(pool.execute,pool.fetchrow), PostgresIdempotencyStore(pool.execute,pool.fetchrow), pk)
+                  await pool.execute('DELETE FROM agnes_idempotency WHERE idem_key=$1', pk)
+              finally: await pool.close()
+              print('Q08 live idempotency PASS')
+          asyncio.run(main())
+          PY
