@@ -73,15 +73,13 @@ class WorkspaceLifecycleManager:
             if rel in diff["added"]:
                 proc = subprocess.run(
                     ["git", "diff", "--no-index", "--", "/dev/null", str(target)],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    capture_output=True,
                     text=True,
                 )
             else:
                 original = subprocess.run(
                     ["git", "-C", str(repo), "show", f"{workspace.baseline_commit}:{rel}"],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    capture_output=True,
                     check=True,
                 ).stdout
                 tmp = workspace.path / ".agnes" / "baseline-diff" / rel
@@ -89,8 +87,7 @@ class WorkspaceLifecycleManager:
                 tmp.write_bytes(original)
                 proc = subprocess.run(
                     ["git", "diff", "--no-index", "--", str(tmp), str(target)],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    capture_output=True,
                     text=True,
                 )
             if proc.stdout:

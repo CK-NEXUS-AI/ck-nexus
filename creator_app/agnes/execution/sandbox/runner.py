@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import resource
 import shutil
@@ -22,7 +23,7 @@ class SandboxCommandResult:
     output_limited: bool = False
 
 
-_SETUP_SCRIPT = r'''
+_SETUP_SCRIPT = r"""
 set -euo pipefail
 ROOT="$1"
 WORK="$2"
@@ -63,7 +64,7 @@ exec chroot "$ROOT" /usr/bin/env -i \
   PYTHONPATH=/workspace \
   CKNEXUS_SANDBOX=linux_namespace \
   /bin/bash -c 'cd /workspace && exec "$@"' _ "$@"
-'''
+"""
 
 
 class LinuxNamespaceRunner:
@@ -123,11 +124,19 @@ class LinuxNamespaceRunner:
         return None
 
     def _limits(self) -> None:
-        resource.setrlimit(resource.RLIMIT_CPU, (self.policy.cpu_seconds, self.policy.cpu_seconds + 1))
+        resource.setrlimit(
+            resource.RLIMIT_CPU, (self.policy.cpu_seconds, self.policy.cpu_seconds + 1)
+        )
         resource.setrlimit(resource.RLIMIT_AS, (self.policy.memory_bytes, self.policy.memory_bytes))
-        resource.setrlimit(resource.RLIMIT_NPROC, (self.policy.max_processes, self.policy.max_processes))
-        resource.setrlimit(resource.RLIMIT_FSIZE, (self.policy.max_file_bytes, self.policy.max_file_bytes))
-        resource.setrlimit(resource.RLIMIT_NOFILE, (self.policy.max_open_files, self.policy.max_open_files))
+        resource.setrlimit(
+            resource.RLIMIT_NPROC, (self.policy.max_processes, self.policy.max_processes)
+        )
+        resource.setrlimit(
+            resource.RLIMIT_FSIZE, (self.policy.max_file_bytes, self.policy.max_file_bytes)
+        )
+        resource.setrlimit(
+            resource.RLIMIT_NOFILE, (self.policy.max_open_files, self.policy.max_open_files)
+        )
 
     async def run(
         self,
@@ -194,12 +203,12 @@ class LinuxNamespaceRunner:
         timed_out = False
         try:
             await asyncio.wait_for(proc.wait(), timeout=timeout_seconds)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             timed_out = True
             self._kill_group(proc.pid, signal.SIGTERM)
             try:
                 await asyncio.wait_for(proc.wait(), timeout=self.policy.kill_grace_seconds)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._kill_group(proc.pid, signal.SIGKILL)
                 await proc.wait()
         finally:
@@ -217,7 +226,5 @@ class LinuxNamespaceRunner:
 
     @staticmethod
     def _kill_group(pid: int, sig: signal.Signals) -> None:
-        try:
+        with contextlib.suppress(ProcessLookupError):
             os.killpg(pid, sig)
-        except ProcessLookupError:
-            pass

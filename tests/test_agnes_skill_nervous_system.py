@@ -11,7 +11,12 @@ from creator_app.agnes_runtime import AgnesNervousSystem, AgnesPolicyViolation
 from creator_app.agnes_skills import AgnesSkillRegistry
 from creator_app.api import create_app
 from creator_app.config import Settings
-from creator_app.provider_router import ProviderCapabilities, ProviderKind, ProviderRouter, ProviderRouterPolicy
+from creator_app.provider_router import (
+    ProviderCapabilities,
+    ProviderKind,
+    ProviderRouter,
+    ProviderRouterPolicy,
+)
 
 
 class _LocalProvider:
@@ -40,7 +45,10 @@ def test_single_agnes_skill_file_loads_unique_manifest():
 
 def test_registry_selects_model_watch_and_verification():
     registry = AgnesSkillRegistry.load(_skill_file())
-    ids = {skill.id for skill in registry.select("watch latest ai model news and verify source", limit=6)}
+    ids = {
+        skill.id
+        for skill in registry.select("watch latest ai model news and verify source", limit=6)
+    }
     assert "eyes.model_watch_50" in ids
     assert "brain.verify_sources" in ids
 
@@ -83,7 +91,9 @@ def test_agnes_blocks_user_api_key_and_unapproved_high_impact(tmp_path: Path):
     with pytest.raises(AgnesPolicyViolation):
         agnes.authorize_skill(skill, environment="development", approved=False)
     with pytest.raises(AgnesPolicyViolation):
-        agnes.authorize_skill(skill, environment="development", approved=True, uses_user_api_key=True)
+        agnes.authorize_skill(
+            skill, environment="development", approved=True, uses_user_api_key=True
+        )
 
 
 def test_agnes_blocks_production_mutation_even_when_approved(tmp_path: Path):

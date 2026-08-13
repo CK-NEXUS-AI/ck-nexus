@@ -10,13 +10,14 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 try:
     from dotenv import load_dotenv
@@ -51,7 +52,7 @@ class RuntimeBindingConfig:
     fail_fast: bool = True
 
     @classmethod
-    def from_env(cls) -> "RuntimeBindingConfig":
+    def from_env(cls) -> RuntimeBindingConfig:
         database_url = os.environ.get("DATABASE_URL", "").strip()
         redis_url = os.environ.get("REDIS_URL", "").strip()
 
@@ -95,8 +96,8 @@ class RuntimeBindingConfig:
             raise RuntimeError("REDIS_MAX_CONNECTIONS must be >= 1")
 
 
-_db_pool: Optional[Any] = None
-_redis_client: Optional[Any] = None
+_db_pool: Any | None = None
+_redis_client: Any | None = None
 
 
 def _safe_error(exc: BaseException) -> str:
@@ -104,7 +105,7 @@ def _safe_error(exc: BaseException) -> str:
     return f"{type(exc).__name__}: connection/binding operation failed"
 
 
-async def get_db_pool(cfg: Optional[RuntimeBindingConfig] = None):
+async def get_db_pool(cfg: RuntimeBindingConfig | None = None):
     global _db_pool
     if asyncpg is None:
         raise RuntimeError("asyncpg is not installed")
@@ -132,7 +133,7 @@ async def acquire_db_connection(pool: Any, cfg: RuntimeBindingConfig):
         await pool.release(conn)
 
 
-async def get_redis_client(cfg: Optional[RuntimeBindingConfig] = None):
+async def get_redis_client(cfg: RuntimeBindingConfig | None = None):
     global _redis_client
     if redis is None:
         raise RuntimeError("redis package is not installed")
@@ -160,8 +161,6 @@ async def close_all() -> None:
         _redis_client = None
 
 
-
-
 async def runtime_binding_status() -> dict[str, bool]:
     """Return secret-free app-level binding state using the shared pool/client."""
     db_ok = False
@@ -181,9 +180,7 @@ async def runtime_binding_status() -> dict[str, bool]:
         try:
             cfg = RuntimeBindingConfig.from_env()
             redis_ok = bool(
-                await asyncio.wait_for(
-                    _redis_client.ping(), timeout=cfg.redis_socket_timeout
-                )
+                await asyncio.wait_for(_redis_client.ping(), timeout=cfg.redis_socket_timeout)
             )
         except Exception:
             redis_ok = False
@@ -213,9 +210,7 @@ async def verify_runtime_binding_or_raise() -> None:
 
         try:
             client = await get_redis_client(cfg)
-            pong = await asyncio.wait_for(
-            client.ping(), timeout=cfg.redis_socket_timeout
-        )
+            pong = await asyncio.wait_for(client.ping(), timeout=cfg.redis_socket_timeout)
             if not pong:
                 raise RuntimeError("Redis PING returned a false value")
         except Exception as exc:  # startup boundary
@@ -244,9 +239,7 @@ async def _verify_postgres_connectivity(cfg: RuntimeBindingConfig) -> dict[str, 
 
     conn = None
     try:
-        conn = await asyncpg.connect(
-            dsn=cfg.database_url, timeout=cfg.db_connect_timeout
-        )
+        conn = await asyncpg.connect(dsn=cfg.database_url, timeout=cfg.db_connect_timeout)
         version = await asyncio.wait_for(
             conn.fetchval("SELECT version()"), timeout=cfg.db_command_timeout
         )
@@ -304,9 +297,7 @@ async def _verify_redis_connectivity(cfg: RuntimeBindingConfig) -> dict[str, str
             socket_timeout=cfg.redis_socket_timeout,
             decode_responses=True,
         )
-        pong = await asyncio.wait_for(
-            client.ping(), timeout=cfg.redis_socket_timeout
-        )
+        pong = await asyncio.wait_for(client.ping(), timeout=cfg.redis_socket_timeout)
         return {
             "level": "CONNECTIVITY",
             "status": "PASS" if pong else "FAIL",
@@ -331,12 +322,8 @@ async def _verify_redis_application_binding(
     try:
         client = await get_redis_client(cfg)
         marker = f"{time.time_ns()}:{uuid.uuid4().hex}"
-        await asyncio.wait_for(
-            client.set(key, marker, ex=30), timeout=cfg.redis_socket_timeout
-        )
-        readback = await asyncio.wait_for(
-            client.get(key), timeout=cfg.redis_socket_timeout
-        )
+        await asyncio.wait_for(client.set(key, marker, ex=30), timeout=cfg.redis_socket_timeout)
+        readback = await asyncio.wait_for(client.get(key), timeout=cfg.redis_socket_timeout)
         ok = readback == marker
         return {
             "level": "APPLICATION_BINDING",
@@ -351,10 +338,8 @@ async def _verify_redis_application_binding(
         }
     finally:
         if client is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await client.delete(key)
-            except Exception:
-                pass
 
 
 async def run_verification() -> bool:
@@ -383,21 +368,18 @@ async def run_verification() -> bool:
         for name, connectivity_fn, binding_fn in checks:
             print(f"\n--- {name} ---")
             conn_result = await connectivity_fn(cfg)
-            print(
-                f"  [{conn_result['status']:7s}] CONNECTIVITY       : {conn_result['detail']}"
-            )
+            print(f"  [{conn_result['status']:7s}] CONNECTIVITY       : {conn_result['detail']}")
 
             if conn_result["status"] != "PASS":
                 print(
-                    "  [SKIPPED] APPLICATION_BINDING : connectivity failed/blocked; app-level check not counted"
+                    "  [SKIPPED] APPLICATION_BINDING : connectivity failed/blocked; "
+                    "app-level check not counted"
                 )
                 overall_pass = False
                 continue
 
             bind_result = await binding_fn(cfg)
-            print(
-                f"  [{bind_result['status']:7s}] APPLICATION_BINDING: {bind_result['detail']}"
-            )
+            print(f"  [{bind_result['status']:7s}] APPLICATION_BINDING: {bind_result['detail']}")
             if bind_result["status"] != "PASS":
                 overall_pass = False
     finally:
@@ -420,7 +402,8 @@ def main() -> int:
     if "--verify" not in sys.argv:
         print("Usage: python runtime_binding.py --verify")
         print(
-            "Or import get_db_pool / get_redis_client / verify_runtime_binding_or_raise in CK-NEXUS app"
+            "Or import get_db_pool / get_redis_client / "
+            "verify_runtime_binding_or_raise in CK-NEXUS app"
         )
         return 2
 

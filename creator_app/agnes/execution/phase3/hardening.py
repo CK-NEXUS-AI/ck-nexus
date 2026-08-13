@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,7 +25,9 @@ class CgroupV2Manager:
 
     REQUIRED_CONTROLLERS = frozenset({"cpu", "memory", "pids"})
 
-    def __init__(self, root: Path = Path("/sys/fs/cgroup"), group_prefix: str = "cknexus-agnes") -> None:
+    def __init__(
+        self, root: Path = Path("/sys/fs/cgroup"), group_prefix: str = "cknexus-agnes"
+    ) -> None:
         self.root = root
         self.group_prefix = group_prefix
 
@@ -76,7 +79,5 @@ class CgroupV2Manager:
 
     @staticmethod
     def cleanup(path: Path) -> None:
-        try:
+        with contextlib.suppress(OSError):
             path.rmdir()
-        except OSError:
-            pass

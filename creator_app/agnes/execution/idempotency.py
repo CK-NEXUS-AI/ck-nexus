@@ -27,7 +27,9 @@ class IdempotencyStore(Protocol):
     distributed: bool
     production_safe: bool
 
-    async def claim(self, key: str, manifest_hash: str) -> tuple[bool, IdempotencyRecord | None]: ...
+    async def claim(
+        self, key: str, manifest_hash: str
+    ) -> tuple[bool, IdempotencyRecord | None]: ...
 
     async def complete(self, key: str, *, success: bool, result: dict[str, object]) -> None: ...
 
@@ -117,7 +119,8 @@ class SQLiteIdempotencyStore:
             except sqlite3.IntegrityError:
                 con.execute("ROLLBACK")
                 row = con.execute(
-                    "SELECT manifest_hash, state, result_json FROM agnes_idempotency WHERE idem_key=?",
+                    "SELECT manifest_hash, state, result_json FROM agnes_idempotency "
+                    "WHERE idem_key=?",
                     (key,),
                 ).fetchone()
                 if row is None:

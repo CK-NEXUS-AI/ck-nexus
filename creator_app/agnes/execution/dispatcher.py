@@ -9,9 +9,9 @@ from creator_app.agnes_skills import AgnesSkillRegistry
 from creator_app.credential_broker import CredentialBroker
 
 from .adapters.base import ExecutionContext, SkillExecutor
-from .capabilities import CapabilityResolutionError, CapabilityResolver
 from .approval import StickyApprovalResolver
-from .credentials import CredentialLeaseDenied, CredentialLeaseService
+from .capabilities import CapabilityResolutionError, CapabilityResolver
+from .credentials import CredentialLeaseService
 from .evidence import EvidenceBuilder, redact
 from .guards import ExecutionPolicyEngine, RiskClassifier
 from .idempotency import IdempotencyState, IdempotencyStore, InMemoryIdempotencyStore
@@ -209,7 +209,11 @@ class SkillExecutionDispatcher:
                             approval_fingerprint=approval_fingerprint,
                             risk=risk,
                         )
-                    if existing and existing.state is IdempotencyState.SUCCEEDED and existing.result:
+                    if (
+                        existing
+                        and existing.state is IdempotencyState.SUCCEEDED
+                        and existing.result
+                    ):
                         cached = dict(existing.result)
                         cached["policy_decision"] = "idempotent_replay"
                         return SkillExecutionResult(

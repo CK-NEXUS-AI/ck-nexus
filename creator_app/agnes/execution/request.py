@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any
 
 
 class ExecutorType(StrEnum):
@@ -94,7 +95,9 @@ class SkillExecutionRequest:
         object.__setattr__(self, "plan_step", _freeze(dict(self.plan_step)))
         object.__setattr__(self, "inputs", _freeze(dict(self.inputs)))
         object.__setattr__(self, "allowlist_paths", tuple(self.allowlist_paths))
-        object.__setattr__(self, "granted_capabilities", tuple(sorted(set(self.granted_capabilities))))
+        object.__setattr__(
+            self, "granted_capabilities", tuple(sorted(set(self.granted_capabilities)))
+        )
         object.__setattr__(self, "credential_requirements", tuple(self.credential_requirements))
         if not self.execution_id or not self.correlation_id or not self.skill_id:
             raise ValueError("execution_id, correlation_id, and skill_id are required")

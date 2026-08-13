@@ -303,9 +303,7 @@ async def test_executor_risk_escalation_invalidates_manifest_scope(tmp_path: Pat
 
 @pytest.mark.asyncio
 async def test_credential_lease_forbids_user_sourced_secret(tmp_path: Path):
-    broker = CredentialBroker(
-        policy={"provider.openai": frozenset({CredentialId.OPENAI_API_KEY})}
-    )
+    broker = CredentialBroker(policy={"provider.openai": frozenset({CredentialId.OPENAI_API_KEY})})
     broker.put_ephemeral(
         CredentialId.OPENAI_API_KEY,
         "not-a-real-secret",
@@ -314,9 +312,7 @@ async def test_credential_lease_forbids_user_sourced_secret(tmp_path: Path):
     dispatcher = _dispatcher(tmp_path, credential_broker=broker)
     request = _request(
         credential_requirements=(
-            CredentialRequirement(
-                "openai.api_key", "provider.openai", "test-only-provider-call"
-            ),
+            CredentialRequirement("openai.api_key", "provider.openai", "test-only-provider-call"),
         )
     )
     result = await dispatcher.execute(request)
@@ -365,6 +361,7 @@ def test_api_exposes_execution_kernel_status(tmp_path: Path):
         body = response.json()
         assert body["phase"] == "AGNES Execution Kernel Phase 1 — Security Baseline"
         assert body["sandbox_executor_enabled"] is False
+
 
 @pytest.mark.asyncio
 async def test_pre_audit_failure_prevents_executor_run(tmp_path: Path):

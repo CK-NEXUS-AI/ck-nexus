@@ -49,9 +49,7 @@ def test_optional_failure_degrades_without_blocking_readiness() -> None:
 
 
 def test_optional_disabled_dependency_is_not_a_failure() -> None:
-    report = evaluate_health(
-        [DependencyStatus("github", DependencyState.DISABLED, required=False)]
-    )
+    report = evaluate_health([DependencyStatus("github", DependencyState.DISABLED, required=False)])
     assert report.state is HealthState.READY
     assert report.ready is True
     assert report.degraded is False
@@ -69,6 +67,4 @@ def test_health_serialization_contains_no_free_form_dependency_details() -> None
     report = evaluate_health([DependencyStatus("database", DependencyState.HEALTHY)])
     payload = report.as_dict()
     assert payload["state"] == "ready"
-    assert payload["dependencies"] == [
-        {"name": "database", "state": "healthy", "required": True}
-    ]
+    assert payload["dependencies"] == [{"name": "database", "state": "healthy", "required": True}]

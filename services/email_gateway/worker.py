@@ -24,7 +24,9 @@ def placeholder_sender(item: OutboxItem) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="CK-NEXUS email outbox worker")
-    parser.add_argument("--database", default=os.getenv("CKNEXUS_EMAIL_DATABASE_PATH", "data/cknexus.db"))
+    parser.add_argument(
+        "--database", default=os.getenv("CKNEXUS_EMAIL_DATABASE_PATH", "data/cknexus.db")
+    )
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--interval", type=float, default=5.0)
     args = parser.parse_args()
