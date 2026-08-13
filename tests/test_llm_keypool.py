@@ -207,3 +207,19 @@ def test_http_prober_maps_http_errors(monkeypatch):
     result = prober.probe(spec("a"), "k", timeout=1)
     assert result.status == 401
     assert result.ok is False
+
+
+def test_quota_429_classified_as_exhaustion():
+    assert LlmKeyPool.classify_failure_status(429, "insufficient balance, please recharge") == 402
+    assert LlmKeyPool.classify_failure_status(429, "rate limit exceeded") == 429
+    assert LlmKeyPool.classify_failure_status(429, "suspended due to quota") == 402
+    assert LlmKeyPool.classify_failure_status(401, "bad key") == 401
+
+
+def test_quota_exhaustion_marks_key_and_rotates(monkeypatch):
+    pool = make_pool(FakeProber({}))
+    first = pool.acquire()
+    pool.report_status(first.key_id, 402)
+    assert pool.acquire().key_id != first.key_id
+    status = {item.key_id: item for item in pool.status()}
+    assert status[first.key_id].exhausted is True

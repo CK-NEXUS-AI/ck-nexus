@@ -292,6 +292,22 @@ class LlmKeyPool:
 
     # ---------- feedback ----------
 
+    QUOTA_MARKERS = (
+        "quota",
+        "balance",
+        "insufficient",
+        "credit",
+        "suspended",
+        "billing",
+    )
+
+    @staticmethod
+    def classify_failure_status(status: int | None, detail: str = "") -> int | None:
+        """Map a quota-style 429 (insufficient balance) to 402 so it exhausts the key."""
+        if status == 429 and any(marker in detail.lower() for marker in LlmKeyPool.QUOTA_MARKERS):
+            return 402
+        return status
+
     def report_status(self, key_id: str, http_status: int) -> None:
         now = self._clock()
         if http_status == 429:

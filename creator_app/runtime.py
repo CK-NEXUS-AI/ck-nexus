@@ -188,13 +188,11 @@ class CreatorRuntime:
                 raise ProviderRuntimeError("The AI request timed out. Please try again.") from exc
             except Exception as exc:
                 status = getattr(exc, "status_code", None)
-                if (
-                    key_id is not None
-                    and self.key_pool is not None
-                    and status in (401, 402, 403, 429)
-                ):
-                    self.key_pool.report_status(key_id, status)
-                    continue
+                if key_id is not None and self.key_pool is not None:
+                    status = self.key_pool.classify_failure_status(status, str(exc))
+                    if status in (401, 402, 403, 429):
+                        self.key_pool.report_status(key_id, status)
+                        continue
                 if key_id is not None and self.key_pool is not None:
                     self.key_pool.report_failure(key_id)
                 raise ProviderRuntimeError(
