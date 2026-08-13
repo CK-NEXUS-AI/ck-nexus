@@ -1,0 +1,35 @@
+name: Q04 Exact-SHA Frozen Sync
+
+on:
+  push:
+    branches:
+      - verify/q04-exact-sha
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frozen-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout canonical source under test
+        uses: actions/checkout@v6
+        with:
+          ref: e1bb690e63255fbe351dd4d2879f9e59b2c3fd50
+          persist-credentials: false
+      - name: Verify exact source SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "e1bb690e63255fbe351dd4d2879f9e59b2c3fd50"
+          git rev-parse HEAD
+          sha256sum pyproject.toml uv.lock
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+      - name: Verify lock
+        run: uv lock --check
+      - name: Frozen sync
+        run: uv sync --all-extras --dev --frozen
+      - name: Required dependency import smoke
+        run: uv run python -c "import asyncpg, psycopg, redis, aiosqlite; print('Q04_IMPORT_SMOKE_PASS')"
