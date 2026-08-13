@@ -119,7 +119,10 @@ class HardenedLinuxNamespaceRunner(LinuxNamespaceRunner):
         gcc = shutil.which("gcc")
         if not gcc:
             raise RuntimeError("gcc_required_to_build_seccomp_launcher")
-        proc = subprocess.run([gcc, "-O2", "-Wall", "-Wextra", str(source), "-o", str(binary)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.run(
+            [gcc, "-O2", "-Wall", "-Wextra", str(source), "-o", str(binary)],
+            capture_output=True,
+        )
         if proc.returncode != 0:
             raise RuntimeError("seccomp_launcher_build_failed:" + proc.stderr.decode(errors="replace")[:1000])
         binary.chmod(0o500)

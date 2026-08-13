@@ -50,9 +50,12 @@ def validate_endpoint(
         raise EndpointSecurityError("Connector URL query strings are not allowed; bind credentials through the broker.")
     if not parsed.hostname:
         raise EndpointSecurityError("Connector URL must include a hostname.")
-    if policy.require_https and parsed.scheme.lower() != "https":
-        if not (policy.allow_private_network and parsed.scheme.lower() == "http"):
-            raise EndpointSecurityError("Remote connector endpoints must use HTTPS.")
+    if (
+        policy.require_https
+        and parsed.scheme.lower() != "https"
+        and not (policy.allow_private_network and parsed.scheme.lower() == "http")
+    ):
+        raise EndpointSecurityError("Remote connector endpoints must use HTTPS.")
     if parsed.scheme.lower() not in {"https", "http"}:
         raise EndpointSecurityError("Unsupported connector URL scheme.")
 

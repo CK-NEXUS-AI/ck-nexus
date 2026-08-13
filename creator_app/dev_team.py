@@ -239,7 +239,7 @@ class DevTeamRuntime:
         api_key = lease.reveal(consumer="council.openai")
 
         try:
-            from agents import Agent, Runner, SQLiteSession, WebSearchTool
+            from agents import Agent, WebSearchTool
         except ImportError as exc:
             raise ProviderRuntimeError(
                 "OpenAI Agents SDK is not installed in this runtime."

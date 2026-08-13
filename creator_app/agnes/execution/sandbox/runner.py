@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import resource
 import shutil
@@ -217,7 +218,5 @@ class LinuxNamespaceRunner:
 
     @staticmethod
     def _kill_group(pid: int, sig: signal.Signals) -> None:
-        try:
+        with contextlib.suppress(ProcessLookupError):
             os.killpg(pid, sig)
-        except ProcessLookupError:
-            pass

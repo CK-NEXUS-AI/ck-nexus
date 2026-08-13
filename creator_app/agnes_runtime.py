@@ -225,9 +225,12 @@ class AgnesNervousSystem:
     ) -> None:
         if uses_user_api_key and not self.policy.allow_user_api_keys:
             raise AgnesPolicyViolation("AGNES is not allowed to consume user API keys.")
-        if environment == "production" and skill.risk is not SkillRisk.READ_ONLY:
-            if not self.policy.allow_production_mutation:
-                raise AgnesPolicyViolation("AGNES production mutation is disabled.")
+        if (
+            environment == "production"
+            and skill.risk is not SkillRisk.READ_ONLY
+            and not self.policy.allow_production_mutation
+        ):
+            raise AgnesPolicyViolation("AGNES production mutation is disabled.")
         if skill.risk in {SkillRisk.EXTERNAL_WRITE, SkillRisk.HIGH_IMPACT} and not approved:
             raise AgnesPolicyViolation("This AGNES skill requires explicit approval.")
 

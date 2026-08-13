@@ -81,7 +81,7 @@ class ConnectorFabric:
             else:
                 raise RuntimeError("Unsupported connector protocol.")
         except Exception as exc:
-            blocked = self.registry.set_state(connector_id, ConnectorState.BLOCKED, blocked_reason=type(exc).__name__)
+            self.registry.set_state(connector_id, ConnectorState.BLOCKED, blocked_reason=type(exc).__name__)
             self.evidence.append(
                 "connector.discovery_blocked",
                 connector_id,

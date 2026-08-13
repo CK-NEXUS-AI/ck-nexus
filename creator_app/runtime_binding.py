@@ -10,6 +10,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import sys
 import time
@@ -351,10 +352,8 @@ async def _verify_redis_application_binding(
         }
     finally:
         if client is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await client.delete(key)
-            except Exception:
-                pass
 
 
 async def run_verification() -> bool:

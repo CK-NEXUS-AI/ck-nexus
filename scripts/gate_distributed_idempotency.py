@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import os
 import sys
@@ -12,7 +13,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from creator_app.agnes.execution.phase3 import PostgresIdempotencyStore, RedisIdempotencyStore
+from creator_app.agnes.execution.phase3 import (  # noqa: E402
+    PostgresIdempotencyStore,
+    RedisIdempotencyStore,
+)
 
 
 def _configured(name: str) -> bool:
@@ -85,10 +89,8 @@ async def _postgres_gate(url: str) -> dict[str, object]:
         return {"status": "BLOCKED", "reason": f"postgres_unreachable:{type(exc).__name__}"}
     finally:
         if conn is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await conn.execute("DELETE FROM agnes_idempotency WHERE idem_key=$1", key)
-            except Exception:
-                pass
             await conn.close()
 
 

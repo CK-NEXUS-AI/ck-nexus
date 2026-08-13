@@ -5,6 +5,7 @@ import os
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path as FilePath
+from typing import Annotated
 from uuid import uuid4
 
 from fastapi import (
@@ -531,7 +532,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/email/scan-attachment")
     async def email_scan_attachment(
-        file: UploadFile = File(...),
+        file: Annotated[UploadFile, File()],
         _: None = Depends(require_email_webhook_token),
     ) -> dict[str, object]:
         import tempfile
@@ -1101,7 +1102,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
             return status_obj.as_dict()
         except KeyError:
-            raise HTTPException(status_code=404, detail={"error": "PIPELINE_NOT_FOUND"})
+            raise HTTPException(status_code=404, detail={"error": "PIPELINE_NOT_FOUND"}) from None
 
     @app.get("/api/agnes/pipeline/{pipeline_id}")
     async def agnes_pipeline_status(
@@ -1113,7 +1114,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             status_obj = await agnes.dev_controller.get_status(pipeline_id)
         except KeyError:
-            raise HTTPException(status_code=404, detail={"error": "PIPELINE_NOT_FOUND"})
+            raise HTTPException(status_code=404, detail={"error": "PIPELINE_NOT_FOUND"}) from None
         body = status_obj.as_dict()
         if status_obj.state.value == "candidate_ready":
             body["candidate"] = (await agnes.dev_controller.collect_candidate(pipeline_id)).as_dict()
@@ -1131,7 +1132,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await agnes.dev_controller.discard(pipeline_id, payload.reason)
             return (await agnes.dev_controller.get_status(pipeline_id)).as_dict()
         except KeyError:
-            raise HTTPException(status_code=404, detail={"error": "PIPELINE_NOT_FOUND"})
+            raise HTTPException(status_code=404, detail={"error": "PIPELINE_NOT_FOUND"}) from None
 
     @app.post("/api/agnes/approvals")
     async def agnes_approval(
