@@ -23,7 +23,7 @@ class SandboxCommandResult:
     output_limited: bool = False
 
 
-_SETUP_SCRIPT = r'''
+_SETUP_SCRIPT = r"""
 set -euo pipefail
 ROOT="$1"
 WORK="$2"
@@ -64,7 +64,7 @@ exec chroot "$ROOT" /usr/bin/env -i \
   PYTHONPATH=/workspace \
   CKNEXUS_SANDBOX=linux_namespace \
   /bin/bash -c 'cd /workspace && exec "$@"' _ "$@"
-'''
+"""
 
 
 class LinuxNamespaceRunner:
@@ -124,11 +124,19 @@ class LinuxNamespaceRunner:
         return None
 
     def _limits(self) -> None:
-        resource.setrlimit(resource.RLIMIT_CPU, (self.policy.cpu_seconds, self.policy.cpu_seconds + 1))
+        resource.setrlimit(
+            resource.RLIMIT_CPU, (self.policy.cpu_seconds, self.policy.cpu_seconds + 1)
+        )
         resource.setrlimit(resource.RLIMIT_AS, (self.policy.memory_bytes, self.policy.memory_bytes))
-        resource.setrlimit(resource.RLIMIT_NPROC, (self.policy.max_processes, self.policy.max_processes))
-        resource.setrlimit(resource.RLIMIT_FSIZE, (self.policy.max_file_bytes, self.policy.max_file_bytes))
-        resource.setrlimit(resource.RLIMIT_NOFILE, (self.policy.max_open_files, self.policy.max_open_files))
+        resource.setrlimit(
+            resource.RLIMIT_NPROC, (self.policy.max_processes, self.policy.max_processes)
+        )
+        resource.setrlimit(
+            resource.RLIMIT_FSIZE, (self.policy.max_file_bytes, self.policy.max_file_bytes)
+        )
+        resource.setrlimit(
+            resource.RLIMIT_NOFILE, (self.policy.max_open_files, self.policy.max_open_files)
+        )
 
     async def run(
         self,

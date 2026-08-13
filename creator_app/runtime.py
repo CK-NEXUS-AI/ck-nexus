@@ -85,7 +85,9 @@ class CreatorRuntime:
                     provider=selected.provider,
                 )
             if preferred.name != "openai":
-                raise ProviderRuntimeError("The selected AI provider is not supported by this runtime.")
+                raise ProviderRuntimeError(
+                    "The selected AI provider is not supported by this runtime."
+                )
 
         try:
             result = await self._run_openai(spec, request)
@@ -111,7 +113,9 @@ class CreatorRuntime:
         try:
             from agents import Agent, Runner, SQLiteSession
         except ImportError as exc:
-            raise ProviderRuntimeError("OpenAI Agents SDK is not installed in this runtime.") from exc
+            raise ProviderRuntimeError(
+                "OpenAI Agents SDK is not installed in this runtime."
+            ) from exc
 
         try:
             brain = build_openai_agents_run_config(
@@ -122,7 +126,9 @@ class CreatorRuntime:
                 group_id=request.session_id,
             )
         except OpenAIBrainUnavailable as exc:
-            raise ProviderRuntimeError("OpenAI Agents SDK is not installed in this runtime.") from exc
+            raise ProviderRuntimeError(
+                "OpenAI Agents SDK is not installed in this runtime."
+            ) from exc
 
         agent = Agent(
             name=spec.name,

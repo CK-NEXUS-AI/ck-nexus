@@ -50,7 +50,9 @@ class ImmutableExecutionManifest:
             }
             for item in request.credential_requirements
         ]
-        permissions_hash = _sha(json.dumps(list(request.granted_capabilities), separators=(",", ":")))
+        permissions_hash = _sha(
+            json.dumps(list(request.granted_capabilities), separators=(",", ":"))
+        )
         credential_requirements_hash = _sha(
             json.dumps(credentials_payload, sort_keys=True, separators=(",", ":"))
         )

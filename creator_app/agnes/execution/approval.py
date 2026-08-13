@@ -69,7 +69,6 @@ class StickyApprovalResolver:
         self._grants[approval_id] = grant
         return grant
 
-
     def find_matching(self, fingerprint: str) -> ApprovalGrant | None:
         now = time()
         for grant in self._grants.values():

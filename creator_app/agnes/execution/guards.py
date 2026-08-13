@@ -29,10 +29,14 @@ class RiskClassifier:
         "knowledge_write": ExecutorRiskClass.MEDIUM,
     }
 
-    def classify(self, skill: SkillDefinition, executor_risk: ExecutorRiskClass | None = None) -> ExecutorRiskClass:
+    def classify(
+        self, skill: SkillDefinition, executor_risk: ExecutorRiskClass | None = None
+    ) -> ExecutorRiskClass:
         candidates = [self._skill_risk[skill.risk]]
         candidates.extend(
-            risk for capability, risk in self._capability_floor.items() if capability in skill.capabilities
+            risk
+            for capability, risk in self._capability_floor.items()
+            if capability in skill.capabilities
         )
         if executor_risk is not None:
             candidates.append(executor_risk)

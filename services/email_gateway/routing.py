@@ -43,7 +43,9 @@ def route_email(
 ) -> RoutingDecision:
     """Deterministic, versionable P0 router. No model call is permitted here."""
     if quarantined:
-        return RoutingDecision("QUARANTINE", "critical", "R-000", ("attachment_or_policy_quarantine",))
+        return RoutingDecision(
+            "QUARANTINE", "critical", "R-000", ("attachment_or_policy_quarantine",)
+        )
 
     alias_local = ""
     if matched_alias:
@@ -57,7 +59,9 @@ def route_email(
     alias_category = _ALIAS_RULES.get(alias_local)
     if alias_category:
         priority = "high" if alias_category in {"BILLING", "DEVOPS", "SYSTEM_ALERT"} else "normal"
-        return RoutingDecision(alias_category, priority, f"R-ALIAS-{alias_local.upper()}", (f"alias:{alias_local}",))
+        return RoutingDecision(
+            alias_category, priority, f"R-ALIAS-{alias_local.upper()}", (f"alias:{alias_local}",)
+        )
 
     ordered = (
         ("BILLING", _BILLING_TERMS, "R-200", "high"),

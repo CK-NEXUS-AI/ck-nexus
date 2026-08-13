@@ -10,7 +10,9 @@ class LoopDecision:
     reason: str
 
 
-def evaluate_loop_headers(headers: Mapping[str, str], *, system_addresses: set[str] | None = None) -> LoopDecision:
+def evaluate_loop_headers(
+    headers: Mapping[str, str], *, system_addresses: set[str] | None = None
+) -> LoopDecision:
     normalized = {key.casefold(): value.strip() for key, value in headers.items()}
     auto_submitted = normalized.get("auto-submitted", "no").casefold()
     precedence = normalized.get("precedence", "").casefold()

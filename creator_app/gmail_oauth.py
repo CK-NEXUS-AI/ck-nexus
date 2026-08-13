@@ -76,18 +76,14 @@ class GmailOAuthManager:
             self.enabled
             and bool(self.redirect_uri)
             and self.broker.is_configured(CredentialId.GMAIL_CLIENT_ID, consumer="gmail.oauth")
-            and self.broker.is_configured(
-                CredentialId.GMAIL_CLIENT_SECRET, consumer="gmail.oauth"
-            )
+            and self.broker.is_configured(CredentialId.GMAIL_CLIENT_SECRET, consumer="gmail.oauth")
         )
 
     @property
     def authorized(self) -> bool:
         return self.broker.is_configured(
             CredentialId.GMAIL_ACCESS_TOKEN, consumer="gmail.api"
-        ) or self.broker.is_configured(
-            CredentialId.GMAIL_REFRESH_TOKEN, consumer="gmail.api"
-        )
+        ) or self.broker.is_configured(CredentialId.GMAIL_REFRESH_TOKEN, consumer="gmail.api")
 
     def status(self) -> dict[str, object]:
         return {

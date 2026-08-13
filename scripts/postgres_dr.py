@@ -38,11 +38,15 @@ def _identity(url: str) -> DbIdentity:
 
 def _same_database(a: DbIdentity, b: DbIdentity) -> bool:
     return (a.host.lower(), a.port or 5432, a.database.lower()) == (
-        b.host.lower(), b.port or 5432, b.database.lower()
+        b.host.lower(),
+        b.port or 5432,
+        b.database.lower(),
     )
 
 
-def validate_restore_boundary(source_url: str, target_url: str, environment: str, allow: str, target_class: str) -> tuple[DbIdentity, DbIdentity]:
+def validate_restore_boundary(
+    source_url: str, target_url: str, environment: str, allow: str, target_class: str
+) -> tuple[DbIdentity, DbIdentity]:
     if environment != "staging":
         raise DRBlocked("restore drill requires CKNEXUS_ENVIRONMENT=staging")
     if allow != "YES":
@@ -74,7 +78,9 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def _run(cmd: list[str], *, env: dict[str, str] | None = None, stdin=None) -> subprocess.CompletedProcess[str]:
+def _run(
+    cmd: list[str], *, env: dict[str, str] | None = None, stdin=None
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(cmd, env=env, stdin=stdin, text=True, capture_output=True, check=False)
 
 
@@ -85,7 +91,12 @@ def backup(source_url: str, output_dir: Path, rpo_seconds: int) -> dict[str, obj
     dump = output_dir / "postgres.dump"
     started = time.time()
     with dump.open("wb") as fh:
-        proc = subprocess.run([pg_dump, "--dbname", source_url, "--format=custom", "--no-owner", "--no-acl"], stdout=fh, stderr=subprocess.PIPE, check=False)
+        proc = subprocess.run(
+            [pg_dump, "--dbname", source_url, "--format=custom", "--no-owner", "--no-acl"],
+            stdout=fh,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
     if proc.returncode != 0:
         dump.unlink(missing_ok=True)
         raise RuntimeError(f"pg_dump failed with exit code {proc.returncode}")
@@ -104,7 +115,9 @@ def backup(source_url: str, output_dir: Path, rpo_seconds: int) -> dict[str, obj
         "rpo_target_seconds": rpo_seconds,
     }
     (output_dir / "SHA256SUMS").write_text(f"{digest}  {dump.name}\n")
-    (output_dir / "backup-metadata.json").write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n")
+    (output_dir / "backup-metadata.json").write_text(
+        json.dumps(metadata, indent=2, sort_keys=True) + "\n"
+    )
     return metadata
 
 
@@ -120,7 +133,9 @@ def verify_dump(backup_dir: Path) -> dict[str, object]:
     return {"status": "PASS", "sha256": actual, "size_bytes": dump.stat().st_size}
 
 
-def restore(source_url: str, target_url: str, backup_dir: Path, rto_seconds: int) -> dict[str, object]:
+def restore(
+    source_url: str, target_url: str, backup_dir: Path, rto_seconds: int
+) -> dict[str, object]:
     validate_restore_boundary(
         source_url,
         target_url,
@@ -133,13 +148,28 @@ def restore(source_url: str, target_url: str, backup_dir: Path, rto_seconds: int
     integrity = verify_dump(backup_dir)
     dump = backup_dir / "postgres.dump"
     started = time.time()
-    proc = _run([pg_restore, "--dbname", target_url, "--clean", "--if-exists", "--no-owner", "--no-acl", str(dump)])
+    proc = _run(
+        [
+            pg_restore,
+            "--dbname",
+            target_url,
+            "--clean",
+            "--if-exists",
+            "--no-owner",
+            "--no-acl",
+            str(dump),
+        ]
+    )
     if proc.returncode != 0:
         raise RuntimeError(f"pg_restore failed with exit code {proc.returncode}")
-    table_sql = "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' ORDER BY tablename;"
+    table_sql = (
+        "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' ORDER BY tablename;"
+    )
     verify = _run([psql, target_url, "-Atqc", table_sql])
     if verify.returncode != 0:
-        raise RuntimeError(f"post-restore verification query failed with exit code {verify.returncode}")
+        raise RuntimeError(
+            f"post-restore verification query failed with exit code {verify.returncode}"
+        )
     tables = {line.strip() for line in verify.stdout.splitlines() if line.strip()}
     missing = sorted(set(REQUIRED_TABLES) - tables)
     if missing:
@@ -158,30 +188,40 @@ def restore(source_url: str, target_url: str, backup_dir: Path, rto_seconds: int
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="CK-NEXUS PostgreSQL backup/isolated restore drill")
+    parser = argparse.ArgumentParser(
+        description="CK-NEXUS PostgreSQL backup/isolated restore drill"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     b = sub.add_parser("backup")
     b.add_argument("--source-url", default=os.getenv("CKNEXUS_DATABASE_URL", ""))
     b.add_argument("--output-dir", required=True)
-    b.add_argument("--rpo-seconds", type=int, default=int(os.getenv("CKNEXUS_RPO_TARGET_SECONDS", "3600")))
+    b.add_argument(
+        "--rpo-seconds", type=int, default=int(os.getenv("CKNEXUS_RPO_TARGET_SECONDS", "3600"))
+    )
     r = sub.add_parser("restore")
     r.add_argument("--source-url", default=os.getenv("CKNEXUS_DATABASE_URL", ""))
     r.add_argument("--target-url", default=os.getenv("CKNEXUS_RESTORE_DATABASE_URL", ""))
     r.add_argument("--backup-dir", required=True)
-    r.add_argument("--rto-seconds", type=int, default=int(os.getenv("CKNEXUS_RTO_TARGET_SECONDS", "900")))
+    r.add_argument(
+        "--rto-seconds", type=int, default=int(os.getenv("CKNEXUS_RTO_TARGET_SECONDS", "900"))
+    )
     args = parser.parse_args()
     try:
         if args.command == "backup":
             result = backup(args.source_url, Path(args.output_dir), args.rpo_seconds)
         else:
-            result = restore(args.source_url, args.target_url, Path(args.backup_dir), args.rto_seconds)
+            result = restore(
+                args.source_url, args.target_url, Path(args.backup_dir), args.rto_seconds
+            )
         print(json.dumps(result, sort_keys=True))
         return 0 if result.get("status") == "PASS" else 1
     except DRBlocked as exc:
         print(json.dumps({"status": "BLOCKED", "reason": str(exc)}, sort_keys=True))
         return 2
     except Exception as exc:
-        print(json.dumps({"status": "FAIL", "reason": f"{type(exc).__name__}:{exc}"}, sort_keys=True))
+        print(
+            json.dumps({"status": "FAIL", "reason": f"{type(exc).__name__}:{exc}"}, sort_keys=True)
+        )
         return 1
 
 

@@ -33,7 +33,9 @@ class AppendOnlyLedger:
 
     @staticmethod
     def _digest(record_without_hash: dict[str, Any]) -> str:
-        payload = json.dumps(record_without_hash, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        payload = json.dumps(
+            record_without_hash, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     def append(self, event_type: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -66,13 +68,19 @@ class AppendOnlyLedger:
                 for count, line in enumerate(handle, start=1):
                     record = json.loads(line)
                     if record.get("sequence") != count:
-                        return LedgerVerification(False, count - 1, previous_hash, "sequence mismatch")
+                        return LedgerVerification(
+                            False, count - 1, previous_hash, "sequence mismatch"
+                        )
                     if record.get("previous_hash") != previous_hash:
-                        return LedgerVerification(False, count - 1, previous_hash, "hash chain mismatch")
+                        return LedgerVerification(
+                            False, count - 1, previous_hash, "hash chain mismatch"
+                        )
                     claimed = str(record.get("hash") or "")
                     base = {key: value for key, value in record.items() if key != "hash"}
                     if not claimed or claimed != self._digest(base):
-                        return LedgerVerification(False, count - 1, previous_hash, "record digest mismatch")
+                        return LedgerVerification(
+                            False, count - 1, previous_hash, "record digest mismatch"
+                        )
                     previous_hash = claimed
         except (OSError, json.JSONDecodeError) as exc:
             return LedgerVerification(False, max(count - 1, 0), previous_hash, type(exc).__name__)

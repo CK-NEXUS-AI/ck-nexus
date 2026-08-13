@@ -27,7 +27,9 @@ class IdempotencyStore(Protocol):
     distributed: bool
     production_safe: bool
 
-    async def claim(self, key: str, manifest_hash: str) -> tuple[bool, IdempotencyRecord | None]: ...
+    async def claim(
+        self, key: str, manifest_hash: str
+    ) -> tuple[bool, IdempotencyRecord | None]: ...
 
     async def complete(self, key: str, *, success: bool, result: dict[str, object]) -> None: ...
 

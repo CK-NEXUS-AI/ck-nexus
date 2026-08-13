@@ -264,6 +264,7 @@ def test_phase2_status_does_not_claim_production_safe(tmp_path: Path):
     assert status["idempotency"]["production_safe"] is False
     assert "R12" in status["production_execution"]
 
+
 @pytest.mark.asyncio
 async def test_system_mounts_are_read_only_and_output_is_bounded(tmp_path: Path):
     work = tmp_path / "work-ro"
@@ -329,7 +330,9 @@ async def test_api_phase2_approval_then_execute(tmp_path: Path):
         "skill_id": "hands.code_patch",
         "goal": "api sandbox patch",
         "executor": "sandbox",
-        "inputs": {"patch": "--- /dev/null\n+++ b/api_phase2_probe.py\n@@ -0,0 +1 @@\n+print('api-ok')\n"},
+        "inputs": {
+            "patch": "--- /dev/null\n+++ b/api_phase2_probe.py\n@@ -0,0 +1 @@\n+print('api-ok')\n"
+        },
         "correlation_id": "api-corr",
         "workspace_id": "api-ws",
         "baseline_commit": BASELINE,

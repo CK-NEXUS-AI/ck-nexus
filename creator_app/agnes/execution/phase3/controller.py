@@ -58,7 +58,9 @@ class AutonomousDevController:
                 risk = self.agnes.dispatcher.risk_classifier.classify(skill)
                 fingerprint = self.agnes.approvals.fingerprint(request, risk)
                 status.approval_fingerprint = fingerprint
-                decision = self.agnes.dispatcher.policy.evaluate(request, skill=skill, risk_class=risk)
+                decision = self.agnes.dispatcher.policy.evaluate(
+                    request, skill=skill, risk_class=risk
+                )
                 if not decision.allowed:
                     raise RuntimeError(decision.reason)
                 if decision.requires_approval:
@@ -80,7 +82,9 @@ class AutonomousDevController:
                 return status.state
 
             if status.state is PipelineState.APPROVED:
-                ws = await self.workspaces.create(request.baseline_commit or "", request.workspace_id or request.execution_id)
+                ws = await self.workspaces.create(
+                    request.baseline_commit or "", request.workspace_id or request.execution_id
+                )
                 self._workspace_objs[handle.pipeline_id] = ws
                 status.workspace_id = ws.workspace_id
                 self._transition(status, PipelineState.WORKSPACE_CREATED, "workspace_created")
@@ -124,7 +128,13 @@ class AutonomousDevController:
                     {
                         "id": "hands.test",
                         "executor": "sandbox",
-                        "inputs": {"command": list(request.inputs.get("test_command", ["python", "-m", "compileall", "-q", "."]))},
+                        "inputs": {
+                            "command": list(
+                                request.inputs.get(
+                                    "test_command", ["python", "-m", "compileall", "-q", "."]
+                                )
+                            )
+                        },
                         "allowlist_paths": list(request.allowlist_paths),
                         "granted_capabilities": ["test", "shell"],
                         "execution_id": request.execution_id + "-test",
@@ -149,7 +159,13 @@ class AutonomousDevController:
                     {
                         "id": "hands.security_scan",
                         "executor": "sandbox",
-                        "inputs": {"command": list(request.inputs.get("scan_command", ["python", "-c", "print('security-scan:PASS')"]))},
+                        "inputs": {
+                            "command": list(
+                                request.inputs.get(
+                                    "scan_command", ["python", "-c", "print('security-scan:PASS')"]
+                                )
+                            )
+                        },
                         "allowlist_paths": list(request.allowlist_paths),
                         "granted_capabilities": ["security_scan", "shell"],
                         "execution_id": request.execution_id + "-scan",
@@ -207,7 +223,9 @@ class AutonomousDevController:
                 )
                 self._candidates[handle.pipeline_id] = candidate
                 await self.workspaces.mark_candidate(self._workspace_objs[handle.pipeline_id])
-                self._transition(status, PipelineState.CANDIDATE_READY, "candidate_ready_stop_before_merge")
+                self._transition(
+                    status, PipelineState.CANDIDATE_READY, "candidate_ready_stop_before_merge"
+                )
                 return status.state
 
             return status.state
@@ -216,12 +234,22 @@ class AutonomousDevController:
             await self._rollback(handle.pipeline_id, str(exc))
             return self._pipelines[handle.pipeline_id].state
 
-    async def run_to_candidate(self, handle: PipelineHandle, *, max_steps: int = 16) -> PipelineStatus:
+    async def run_to_candidate(
+        self, handle: PipelineHandle, *, max_steps: int = 16
+    ) -> PipelineStatus:
         for _ in range(max_steps):
             state = await self.advance(handle)
-            if state in {PipelineState.CANDIDATE_READY, PipelineState.DISCARDED, PipelineState.ROLLED_BACK, PipelineState.FAILED}:
+            if state in {
+                PipelineState.CANDIDATE_READY,
+                PipelineState.DISCARDED,
+                PipelineState.ROLLED_BACK,
+                PipelineState.FAILED,
+            }:
                 break
-            if state is PipelineState.PENDING_APPROVAL and self._pipelines[handle.pipeline_id].error:
+            if (
+                state is PipelineState.PENDING_APPROVAL
+                and self._pipelines[handle.pipeline_id].error
+            ):
                 break
         return self._require(handle.pipeline_id)
 
@@ -263,7 +291,12 @@ class AutonomousDevController:
 
     def _transition(self, status: PipelineStatus, state: PipelineState, event: str) -> None:
         status.state = state
-        status.error = None if state not in {PipelineState.DISCARDED, PipelineState.ROLLED_BACK, PipelineState.FAILED} else status.error
+        status.error = (
+            None
+            if state
+            not in {PipelineState.DISCARDED, PipelineState.ROLLED_BACK, PipelineState.FAILED}
+            else status.error
+        )
         self._record(status, state, event)
 
     def _require(self, pipeline_id: str) -> PipelineStatus:

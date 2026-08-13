@@ -86,12 +86,16 @@ class _SQLiteRunStore:
 
     def get(self, run_id: str) -> RunResult | None:
         with self._connect() as connection:
-            row = connection.execute("SELECT * FROM creator_runs WHERE id = ?", (run_id,)).fetchone()
+            row = connection.execute(
+                "SELECT * FROM creator_runs WHERE id = ?", (run_id,)
+            ).fetchone()
         return self._from_row(dict(row)) if row else None
 
     def delete_session(self, session_id: str) -> int:
         with self._write_lock, self._connect() as connection:
-            cursor = connection.execute("DELETE FROM creator_runs WHERE session_id = ?", (session_id,))
+            cursor = connection.execute(
+                "DELETE FROM creator_runs WHERE session_id = ?", (session_id,)
+            )
             return cursor.rowcount
 
     def ping(self) -> bool:
@@ -110,11 +114,21 @@ class _SQLiteRunStore:
     def _from_row(row: dict[str, Any]) -> RunResult:
         brief = json.loads(row["brief_json"])
         return RunResult(
-            id=row["id"], session_id=row["session_id"], agent_id=row["agent_id"],
-            agent_name=row["agent_name"], prompt=row["prompt"], audience=brief["audience"],
-            platform=brief["platform"], tone=brief["tone"], language=brief["language"],
-            content=row["content"], model=row["model"], mode=row["mode"], status=row["status"],
-            duration_ms=row["duration_ms"], created_at=row["created_at"],
+            id=row["id"],
+            session_id=row["session_id"],
+            agent_id=row["agent_id"],
+            agent_name=row["agent_name"],
+            prompt=row["prompt"],
+            audience=brief["audience"],
+            platform=brief["platform"],
+            tone=brief["tone"],
+            language=brief["language"],
+            content=row["content"],
+            model=row["model"],
+            mode=row["mode"],
+            status=row["status"],
+            duration_ms=row["duration_ms"],
+            created_at=row["created_at"],
         )
 
 
@@ -128,7 +142,9 @@ class _PostgresRunStore:
             import psycopg
             from psycopg.rows import dict_row
         except ImportError as exc:
-            raise RuntimeError("PostgreSQL storage requires the `email`/production dependencies") from exc
+            raise RuntimeError(
+                "PostgreSQL storage requires the `email`/production dependencies"
+            ) from exc
         return psycopg, dict_row
 
     def _connect(self):
@@ -136,19 +152,27 @@ class _PostgresRunStore:
         return psycopg.connect(self.database_url, autocommit=False, row_factory=dict_row)
 
     def initialize(self) -> None:
-        migration = Path(__file__).resolve().parents[1] / "migrations" / "postgresql" / "002_creator_runs.sql"
+        migration = (
+            Path(__file__).resolve().parents[1]
+            / "migrations"
+            / "postgresql"
+            / "002_creator_runs.sql"
+        )
         sql = migration.read_text(encoding="utf-8")
         with self._connect() as connection, connection.cursor() as cursor:
             cursor.execute(sql)
             connection.commit()
 
     def save(self, run: RunResult) -> None:
-        brief = json.dumps({
-            "audience": run.audience,
-            "platform": run.platform,
-            "tone": run.tone,
-            "language": run.language,
-        }, ensure_ascii=False)
+        brief = json.dumps(
+            {
+                "audience": run.audience,
+                "platform": run.platform,
+                "tone": run.tone,
+                "language": run.language,
+            },
+            ensure_ascii=False,
+        )
         with self._connect() as connection, connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -157,8 +181,20 @@ class _PostgresRunStore:
                     content, model, mode, status, duration_ms, created_at
                 ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 """,
-                (run.id, run.session_id, run.agent_id, run.agent_name, run.prompt, brief,
-                 run.content, run.model, run.mode, run.status, run.duration_ms, run.created_at),
+                (
+                    run.id,
+                    run.session_id,
+                    run.agent_id,
+                    run.agent_name,
+                    run.prompt,
+                    brief,
+                    run.content,
+                    run.model,
+                    run.mode,
+                    run.status,
+                    run.duration_ms,
+                    run.created_at,
+                ),
             )
             connection.commit()
 
@@ -201,22 +237,46 @@ class _PostgresRunStore:
         brief_raw = row["brief_json"]
         brief = brief_raw if isinstance(brief_raw, dict) else json.loads(brief_raw)
         return RunResult(
-            id=row["id"], session_id=row["session_id"], agent_id=row["agent_id"],
-            agent_name=row["agent_name"], prompt=row["prompt"], audience=brief["audience"],
-            platform=brief["platform"], tone=brief["tone"], language=brief["language"],
-            content=row["content"], model=row["model"], mode=row["mode"], status=row["status"],
-            duration_ms=row["duration_ms"], created_at=row["created_at"],
+            id=row["id"],
+            session_id=row["session_id"],
+            agent_id=row["agent_id"],
+            agent_name=row["agent_name"],
+            prompt=row["prompt"],
+            audience=brief["audience"],
+            platform=brief["platform"],
+            tone=brief["tone"],
+            language=brief["language"],
+            content=row["content"],
+            model=row["model"],
+            mode=row["mode"],
+            status=row["status"],
+            duration_ms=row["duration_ms"],
+            created_at=row["created_at"],
         )
 
 
 class RunStore:
     """Creator history store. PostgreSQL is used when database_url is supplied; SQLite is local/test fallback."""
-    def __init__(self, database_path: Path, *, database_url: str = "") -> None:
-        self._impl = _PostgresRunStore(database_url) if database_url else _SQLiteRunStore(database_path)
 
-    def initialize(self) -> None: self._impl.initialize()
-    def save(self, run: RunResult) -> None: self._impl.save(run)
-    def list(self, *, limit: int, session_id: str | None = None) -> list[RunResult]: return self._impl.list(limit=limit, session_id=session_id)
-    def get(self, run_id: str) -> RunResult | None: return self._impl.get(run_id)
-    def delete_session(self, session_id: str) -> int: return self._impl.delete_session(session_id)
-    def ping(self) -> bool: return self._impl.ping()
+    def __init__(self, database_path: Path, *, database_url: str = "") -> None:
+        self._impl = (
+            _PostgresRunStore(database_url) if database_url else _SQLiteRunStore(database_path)
+        )
+
+    def initialize(self) -> None:
+        self._impl.initialize()
+
+    def save(self, run: RunResult) -> None:
+        self._impl.save(run)
+
+    def list(self, *, limit: int, session_id: str | None = None) -> list[RunResult]:
+        return self._impl.list(limit=limit, session_id=session_id)
+
+    def get(self, run_id: str) -> RunResult | None:
+        return self._impl.get(run_id)
+
+    def delete_session(self, session_id: str) -> int:
+        return self._impl.delete_session(session_id)
+
+    def ping(self) -> bool:
+        return self._impl.ping()

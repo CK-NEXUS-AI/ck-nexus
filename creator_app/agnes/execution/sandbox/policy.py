@@ -23,12 +23,15 @@ class SandboxPolicy:
         object.__setattr__(self, "repository_root", self.repository_root.resolve())
         if self.network_mode != "deny":
             raise ValueError("Phase 2 local sandbox only supports network_mode=deny")
-        if min(
-            self.cpu_seconds,
-            self.memory_bytes,
-            self.max_processes,
-            self.max_file_bytes,
-            self.max_open_files,
-            self.max_output_bytes,
-        ) <= 0:
+        if (
+            min(
+                self.cpu_seconds,
+                self.memory_bytes,
+                self.max_processes,
+                self.max_file_bytes,
+                self.max_open_files,
+                self.max_output_bytes,
+            )
+            <= 0
+        ):
             raise ValueError("sandbox resource limits must be positive")

@@ -65,9 +65,7 @@ def required_names(pyproject_path: Path, groups: tuple[str, ...]) -> set[str]:
 def locked_names(lock_path: Path) -> set[str]:
     data = tomllib.loads(lock_path.read_text(encoding="utf-8"))
     return {
-        str(item.get("name", "")).lower()
-        for item in data.get("package", [])
-        if item.get("name")
+        str(item.get("name", "")).lower() for item in data.get("package", []) if item.get("name")
     }
 
 
@@ -89,7 +87,12 @@ def evaluate(pyproject_path: Path, lock_path: Path, groups: tuple[str, ...]) -> 
     missing_lock = sorted(required - locked)
     missing_modules = sorted(name for name, present in module_state.items() if not present)
     registry = registry_status()
-    ready = not missing_lock and not missing_modules and registry.configured and registry.dns_resolves is True
+    ready = (
+        not missing_lock
+        and not missing_modules
+        and registry.configured
+        and registry.dns_resolves is True
+    )
     return {
         "ready": ready,
         "python": sys.version.split()[0],
@@ -132,11 +135,11 @@ def main() -> int:
             f"Runtime: {result['installed_required_count']}/{result['required_count']} required modules present"
         )
         print("Missing lock packages: " + (", ".join(result["missing_lock_packages"]) or "none"))
-        print("Missing runtime modules: " + (", ".join(result["missing_runtime_modules"]) or "none"))
-        registry = result["registry"]
         print(
-            "Registry: configured={configured} dns_resolves={dns_resolves}".format(**registry)
+            "Missing runtime modules: " + (", ".join(result["missing_runtime_modules"]) or "none")
         )
+        registry = result["registry"]
+        print("Registry: configured={configured} dns_resolves={dns_resolves}".format(**registry))
     return 0 if result["ready"] else 1
 
 

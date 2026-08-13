@@ -62,9 +62,7 @@ class EmailGatewayRepository:
     def initialize(self) -> None:
         with self._init_lock:
             self.database_path.parent.mkdir(parents=True, exist_ok=True)
-            migration = (
-                Path(__file__).resolve().parent / "migrations" / "sqlite.sql"
-            )
+            migration = Path(__file__).resolve().parent / "migrations" / "sqlite.sql"
             with self._connect() as connection:
                 connection.executescript(migration.read_text(encoding="utf-8"))
 
@@ -352,8 +350,14 @@ class EmailGatewayRepository:
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    audit_id, email_journal_id, event_type, actor_type, actor_id,
-                    routing_category, action, result,
+                    audit_id,
+                    email_journal_id,
+                    event_type,
+                    actor_type,
+                    actor_id,
+                    routing_category,
+                    action,
+                    result,
                     json.dumps(details or {}, ensure_ascii=False, sort_keys=True),
                     iso(timestamp),
                 ),
@@ -377,20 +381,30 @@ class EmailGatewayRepository:
         timestamp = now or utc_now()
         now_iso = iso(timestamp)
         with self._connect() as connection:
-            journal_total = int(connection.execute("SELECT COUNT(*) FROM email_journal").fetchone()[0])
-            duplicates = int(connection.execute(
-                "SELECT COUNT(*) FROM email_audit_logs WHERE event_type='INGRESS_DUPLICATE'"
-            ).fetchone()[0])
-            outbox_pending = int(connection.execute(
-                "SELECT COUNT(*) FROM email_outbox WHERE status IN ('PENDING','FAILED_RETRYABLE')"
-            ).fetchone()[0])
-            outbox_sending = int(connection.execute(
-                "SELECT COUNT(*) FROM email_outbox WHERE status='SENDING'"
-            ).fetchone()[0])
-            stale_journal = int(connection.execute(
-                "SELECT COUNT(*) FROM email_journal WHERE status='PROCESSING' AND locked_until IS NOT NULL AND locked_until < ?",
-                (now_iso,),
-            ).fetchone()[0])
+            journal_total = int(
+                connection.execute("SELECT COUNT(*) FROM email_journal").fetchone()[0]
+            )
+            duplicates = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM email_audit_logs WHERE event_type='INGRESS_DUPLICATE'"
+                ).fetchone()[0]
+            )
+            outbox_pending = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM email_outbox WHERE status IN ('PENDING','FAILED_RETRYABLE')"
+                ).fetchone()[0]
+            )
+            outbox_sending = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM email_outbox WHERE status='SENDING'"
+                ).fetchone()[0]
+            )
+            stale_journal = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM email_journal WHERE status='PROCESSING' AND locked_until IS NOT NULL AND locked_until < ?",
+                    (now_iso,),
+                ).fetchone()[0]
+            )
         return {
             "journal_total": journal_total,
             "duplicates_total": duplicates,

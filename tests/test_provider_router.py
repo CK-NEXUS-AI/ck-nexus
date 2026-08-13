@@ -66,9 +66,7 @@ async def test_cloud_can_be_disabled_and_capabilities_are_enforced() -> None:
         ProviderKind.CLOUD,
         capabilities=ProviderCapabilities(features=frozenset({"text", "tools"})),
     )
-    router = ProviderRouter(
-        [local, cloud], policy=ProviderRouterPolicy(allow_cloud=False)
-    )
+    router = ProviderRouter([local, cloud], policy=ProviderRouterPolicy(allow_cloud=False))
 
     with pytest.raises(ProviderRouteError) as caught:
         await router.route("needs tools", required_capabilities={"tools"})

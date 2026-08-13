@@ -112,10 +112,7 @@ class SkillDiscoveryPolicy:
 
     def __init__(self, sources: tuple[DiscoverySource, ...] = TRUSTED_DISCOVERY_SOURCES) -> None:
         self.sources = sources
-        self._allowed_hosts = {
-            (urlparse(item.base_url).hostname or "").lower()
-            for item in sources
-        }
+        self._allowed_hosts = {(urlparse(item.base_url).hostname or "").lower() for item in sources}
 
     def review_candidate(
         self,

@@ -209,7 +209,11 @@ class SkillExecutionDispatcher:
                             approval_fingerprint=approval_fingerprint,
                             risk=risk,
                         )
-                    if existing and existing.state is IdempotencyState.SUCCEEDED and existing.result:
+                    if (
+                        existing
+                        and existing.state is IdempotencyState.SUCCEEDED
+                        and existing.result
+                    ):
                         cached = dict(existing.result)
                         cached["policy_decision"] = "idempotent_replay"
                         return SkillExecutionResult(

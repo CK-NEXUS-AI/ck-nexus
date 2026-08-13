@@ -272,9 +272,7 @@ class CredentialBroker:
             persisted = self._persistent_store.get(credential_id)
             if persisted is not None:
                 value, source, ttl_remaining = persisted
-                expires_at = (
-                    monotonic() + ttl_remaining if ttl_remaining is not None else None
-                )
+                expires_at = monotonic() + ttl_remaining if ttl_remaining is not None else None
                 return value, source, expires_at
         value = self._environment.get(credential_id, "").strip()
         if not value:

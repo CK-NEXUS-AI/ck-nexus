@@ -26,9 +26,7 @@ def test_vault_persists_encrypted_secret_across_broker_restart(tmp_path: Path) -
 
     raw = path.read_bytes()
     assert b"refresh-secret-value" not in raw
-    restarted = CredentialBroker(
-        persistent_store=EncryptedCredentialVault(path, key)
-    )
+    restarted = CredentialBroker(persistent_store=EncryptedCredentialVault(path, key))
     lease = restarted.acquire(CredentialId.GMAIL_REFRESH_TOKEN, consumer="gmail.api")
     assert lease.reveal(consumer="gmail.api") == "refresh-secret-value"
     assert "refresh-secret-value" not in repr(restarted)
@@ -67,9 +65,7 @@ def test_vault_master_key_rotation_rewraps_all_records(tmp_path: Path) -> None:
     )
 
     vault.rotate_encryption_key(new_key)
-    reopened = CredentialBroker(
-        persistent_store=EncryptedCredentialVault(path, new_key)
-    )
+    reopened = CredentialBroker(persistent_store=EncryptedCredentialVault(path, new_key))
     lease = reopened.acquire(
         CredentialId.GITHUB_INSTALLATION_TOKEN,
         consumer="github.app",

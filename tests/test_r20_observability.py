@@ -30,7 +30,9 @@ def test_redaction_is_recursive():
 
 def test_structured_logger_never_emits_secret(caplog):
     caplog.set_level(logging.INFO, logger="cknexus.observability")
-    StructuredLogger().emit("test", token="never-print-this", nested={"password": "never-print-this-either"})
+    StructuredLogger().emit(
+        "test", token="never-print-this", nested={"password": "never-print-this-either"}
+    )
     text = caplog.text
     assert "never-print-this" not in text
     assert "[REDACTED]" in text

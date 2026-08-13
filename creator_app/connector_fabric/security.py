@@ -47,7 +47,9 @@ def validate_endpoint(
     if parsed.fragment:
         raise EndpointSecurityError("Connector URL fragments are not allowed.")
     if parsed.query:
-        raise EndpointSecurityError("Connector URL query strings are not allowed; bind credentials through the broker.")
+        raise EndpointSecurityError(
+            "Connector URL query strings are not allowed; bind credentials through the broker."
+        )
     if not parsed.hostname:
         raise EndpointSecurityError("Connector URL must include a hostname.")
     if (
