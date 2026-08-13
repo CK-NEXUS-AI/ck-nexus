@@ -5,8 +5,7 @@ import io
 import json
 import re
 import shutil
-# Subprocess is required only for fixed git archive operations on a locked full SHA.
-import subprocess  # nosec B404
+import subprocess  # nosec B404 - fixed git argv only
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path
