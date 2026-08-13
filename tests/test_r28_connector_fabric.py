@@ -29,19 +29,31 @@ class FakeTransport:
         self.requests = []
 
     def request(self, method, url, *, headers, body, timeout):
-        self.requests.append({"method": method, "url": url, "headers": dict(headers), "body": body, "timeout": timeout})
+        self.requests.append(
+            {
+                "method": method,
+                "url": url,
+                "headers": dict(headers),
+                "body": body,
+                "timeout": timeout,
+            }
+        )
         if not self.responses:
             raise AssertionError("unexpected request")
         return self.responses.pop(0)
 
 
 def rpc_result(request_id: int, result: dict) -> TransportResponse:
-    body = json.dumps({"jsonrpc": "2.0", "id": request_id, "result": {"resultType": "complete", **result}}).encode()
+    body = json.dumps(
+        {"jsonrpc": "2.0", "id": request_id, "result": {"resultType": "complete", **result}}
+    ).encode()
     return TransportResponse(200, {"Content-Type": "application/json"}, body)
 
 
 def rpc_error(request_id: int, code: int) -> TransportResponse:
-    body = json.dumps({"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": "x"}}).encode()
+    body = json.dumps(
+        {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": "x"}}
+    ).encode()
     return TransportResponse(200, {"Content-Type": "application/json"}, body)
 
 
@@ -49,7 +61,9 @@ def test_endpoint_policy_blocks_private_and_query_credentials():
     with pytest.raises(EndpointSecurityError):
         validate_endpoint("http://127.0.0.1/mcp", resolver=lambda host: ["127.0.0.1"])
     with pytest.raises(EndpointSecurityError):
-        validate_endpoint("https://example.com/mcp?token=secret", resolver=lambda host: ["93.184.216.34"])
+        validate_endpoint(
+            "https://example.com/mcp?token=secret", resolver=lambda host: ["93.184.216.34"]
+        )
     assert validate_endpoint(
         "http://127.0.0.1/mcp",
         policy=EndpointPolicy(allow_private_network=True),
@@ -58,10 +72,14 @@ def test_endpoint_policy_blocks_private_and_query_credentials():
 
 
 def test_mcp_2026_discovery_paginates_and_rejects_unsafe_tool(monkeypatch):
-    monkeypatch.setattr("creator_app.connector_fabric.mcp.validate_endpoint", lambda *args, **kwargs: ("127.0.0.1",))
+    monkeypatch.setattr(
+        "creator_app.connector_fabric.mcp.validate_endpoint", lambda *args, **kwargs: ("127.0.0.1",)
+    )
     transport = FakeTransport(
         [
-            rpc_result(1, {"supportedVersions": [MCP_PROTOCOL_VERSION], "capabilities": {"tools": {}}}),
+            rpc_result(
+                1, {"supportedVersions": [MCP_PROTOCOL_VERSION], "capabilities": {"tools": {}}}
+            ),
             rpc_result(
                 2,
                 {
@@ -91,7 +109,9 @@ def test_mcp_2026_discovery_paginates_and_rejects_unsafe_tool(monkeypatch):
                             "name": "unsafe",
                             "inputSchema": {
                                 "type": "object",
-                                "properties": {"x": {"type": "string", "x-mcp-header": "Authorization"}},
+                                "properties": {
+                                    "x": {"type": "string", "x-mcp-header": "Authorization"}
+                                },
                             },
                         },
                     ]
@@ -118,16 +138,23 @@ def test_mcp_2026_discovery_paginates_and_rejects_unsafe_tool(monkeypatch):
     assert transport.requests[0]["headers"]["Mcp-Method"] == "server/discover"
     assert "Mcp-Name" not in transport.requests[1]["headers"]
     first_list = json.loads(transport.requests[1]["body"])
-    assert first_list["params"]["_meta"]["io.modelcontextprotocol/protocolVersion"] == MCP_PROTOCOL_VERSION
+    assert (
+        first_list["params"]["_meta"]["io.modelcontextprotocol/protocolVersion"]
+        == MCP_PROTOCOL_VERSION
+    )
     second_list = json.loads(transport.requests[2]["body"])
     assert second_list["params"]["cursor"] == "p2"
 
 
 def test_connector_fabric_read_only_binding_and_fail_closed_execution(tmp_path, monkeypatch):
-    monkeypatch.setattr("creator_app.connector_fabric.mcp.validate_endpoint", lambda *args, **kwargs: ("127.0.0.1",))
+    monkeypatch.setattr(
+        "creator_app.connector_fabric.mcp.validate_endpoint", lambda *args, **kwargs: ("127.0.0.1",)
+    )
     transport = FakeTransport(
         [
-            rpc_result(1, {"supportedVersions": [MCP_PROTOCOL_VERSION], "capabilities": {"tools": {}}}),
+            rpc_result(
+                1, {"supportedVersions": [MCP_PROTOCOL_VERSION], "capabilities": {"tools": {}}}
+            ),
             rpc_result(
                 2,
                 {
@@ -141,7 +168,10 @@ def test_connector_fabric_read_only_binding_and_fail_closed_execution(tmp_path, 
                         {
                             "name": "send_message",
                             "description": "write",
-                            "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}},
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {"text": {"type": "string"}},
+                            },
                         },
                     ]
                 },
@@ -156,7 +186,9 @@ def test_connector_fabric_read_only_binding_and_fail_closed_execution(tmp_path, 
         mcp_client=MCPClient(transport=transport),
     )
     fabric.register(
-        ConnectorConfig("demo", "http://127.0.0.1/mcp", ConnectorProtocol.MCP, allow_private_network=True)
+        ConnectorConfig(
+            "demo", "http://127.0.0.1/mcp", ConnectorProtocol.MCP, allow_private_network=True
+        )
     )
     record = fabric.discover("demo")
     assert record.state is ConnectorState.SCHEMA_VERIFIED
@@ -175,13 +207,25 @@ class AllowAuthorizer:
 
 
 def test_connector_fabric_can_invoke_verified_mcp_tool_with_authorizer(tmp_path, monkeypatch):
-    monkeypatch.setattr("creator_app.connector_fabric.mcp.validate_endpoint", lambda *args, **kwargs: ("127.0.0.1",))
+    monkeypatch.setattr(
+        "creator_app.connector_fabric.mcp.validate_endpoint", lambda *args, **kwargs: ("127.0.0.1",)
+    )
     transport = FakeTransport(
         [
-            rpc_result(1, {"supportedVersions": [MCP_PROTOCOL_VERSION], "capabilities": {"tools": {}}}),
+            rpc_result(
+                1, {"supportedVersions": [MCP_PROTOCOL_VERSION], "capabilities": {"tools": {}}}
+            ),
             rpc_result(
                 2,
-                {"tools": [{"name": "get_status", "inputSchema": {"type": "object", "properties": {}}, "annotations": {"readOnlyHint": True}}]},
+                {
+                    "tools": [
+                        {
+                            "name": "get_status",
+                            "inputSchema": {"type": "object", "properties": {}},
+                            "annotations": {"readOnlyHint": True},
+                        }
+                    ]
+                },
             ),
             rpc_error(3, -32601),
             rpc_error(4, -32601),
@@ -194,7 +238,9 @@ def test_connector_fabric_can_invoke_verified_mcp_tool_with_authorizer(tmp_path,
         mcp_client=MCPClient(transport=transport),
         authorizer=AllowAuthorizer(),
     )
-    config = ConnectorConfig("demo", "http://127.0.0.1/mcp", ConnectorProtocol.MCP, allow_private_network=True)
+    config = ConnectorConfig(
+        "demo", "http://127.0.0.1/mcp", ConnectorProtocol.MCP, allow_private_network=True
+    )
     fabric.register(config)
     fabric.discover("demo")
     fabric.activate("demo")
@@ -206,7 +252,10 @@ def test_connector_fabric_can_invoke_verified_mcp_tool_with_authorizer(tmp_path,
 
 
 def test_openapi_discovery_normalizes_and_classifies_operations(monkeypatch):
-    monkeypatch.setattr("creator_app.connector_fabric.openapi.validate_endpoint", lambda *args, **kwargs: ("93.184.216.34",))
+    monkeypatch.setattr(
+        "creator_app.connector_fabric.openapi.validate_endpoint",
+        lambda *args, **kwargs: ("93.184.216.34",),
+    )
     spec = {
         "openapi": "3.1.0",
         "info": {"title": "Demo", "version": "1"},
@@ -215,7 +264,12 @@ def test_openapi_discovery_normalizes_and_classifies_operations(monkeypatch):
                 "get": {
                     "operationId": "get_user",
                     "parameters": [
-                        {"name": "id", "in": "path", "required": True, "schema": {"type": "string"}},
+                        {
+                            "name": "id",
+                            "in": "path",
+                            "required": True,
+                            "schema": {"type": "string"},
+                        },
                         {"name": "Authorization", "in": "header", "schema": {"type": "string"}},
                     ],
                 },
@@ -226,15 +280,26 @@ def test_openapi_discovery_normalizes_and_classifies_operations(monkeypatch):
                     "operationId": "send_message",
                     "requestBody": {
                         "required": True,
-                        "content": {"application/json": {"schema": {"type": "object", "properties": {"text": {"type": "string"}}}}},
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {"text": {"type": "string"}},
+                                }
+                            }
+                        },
                     },
                 }
             },
         },
     }
-    transport = FakeTransport([TransportResponse(200, {"Content-Type": "application/json"}, json.dumps(spec).encode())])
+    transport = FakeTransport(
+        [TransportResponse(200, {"Content-Type": "application/json"}, json.dumps(spec).encode())]
+    )
     client = OpenAPIClient(transport=transport)
-    snap = client.discover(ConnectorConfig("api", "https://example.com/openapi.json", ConnectorProtocol.OPENAPI))
+    snap = client.discover(
+        ConnectorConfig("api", "https://example.com/openapi.json", ConnectorProtocol.OPENAPI)
+    )
     by_name = {tool.name: tool for tool in snap.tools}
     assert by_name["get_user"].risk is RiskClass.READ_ONLY
     assert by_name["send_message"].risk is RiskClass.WRITE
@@ -246,7 +311,14 @@ def test_openapi_discovery_normalizes_and_classifies_operations(monkeypatch):
 def test_registry_reloads_only_safe_config_and_requires_rediscovery(tmp_path):
     path = tmp_path / "registry.json"
     registry = ConnectorRegistry(path)
-    registry.register(ConnectorConfig("demo", "https://example.com/mcp", ConnectorProtocol.MCP, credential_ref="github.installation_token"))
+    registry.register(
+        ConnectorConfig(
+            "demo",
+            "https://example.com/mcp",
+            ConnectorProtocol.MCP,
+            credential_ref="github.installation_token",
+        )
+    )
     loaded = ConnectorRegistry(path)
     record = loaded.get("demo")
     assert record.config.url == "https://example.com/mcp"

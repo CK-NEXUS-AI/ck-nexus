@@ -25,7 +25,9 @@ class CgroupV2Manager:
 
     REQUIRED_CONTROLLERS = frozenset({"cpu", "memory", "pids"})
 
-    def __init__(self, root: Path = Path("/sys/fs/cgroup"), group_prefix: str = "cknexus-agnes") -> None:
+    def __init__(
+        self, root: Path = Path("/sys/fs/cgroup"), group_prefix: str = "cknexus-agnes"
+    ) -> None:
         self.root = root
         self.group_prefix = group_prefix
 

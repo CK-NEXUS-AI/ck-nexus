@@ -163,8 +163,12 @@ class AgnesPipelineStartRequest(BaseModel):
     actor_id: str = Field(default="human", min_length=1, max_length=128)
     environment: Literal["development", "test", "staging", "production"] = "development"
     allowlist_paths: list[str] = Field(default_factory=lambda: ["**"], max_length=128)
-    test_command: list[str] = Field(default_factory=lambda: ["python", "-m", "compileall", "-q", "."], max_length=64)
-    scan_command: list[str] = Field(default_factory=lambda: ["python", "-c", "print('security-scan:PASS')"], max_length=64)
+    test_command: list[str] = Field(
+        default_factory=lambda: ["python", "-m", "compileall", "-q", "."], max_length=64
+    )
+    scan_command: list[str] = Field(
+        default_factory=lambda: ["python", "-c", "print('security-scan:PASS')"], max_length=64
+    )
 
 
 class AgnesPipelineDiscardRequest(BaseModel):

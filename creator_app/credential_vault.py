@@ -122,9 +122,7 @@ class EncryptedCredentialVault:
                 plaintext = self._fernet.decrypt(bytes(row["ciphertext"])).decode("utf-8")
             except Exception as exc:
                 raise CredentialVaultError("Credential vault decryption failed safely.") from exc
-            ttl_remaining = (
-                max(0.0, float(expires_at) - now) if expires_at is not None else None
-            )
+            ttl_remaining = max(0.0, float(expires_at) - now) if expires_at is not None else None
             return plaintext, "encrypted-vault", ttl_remaining
 
     def put(
@@ -200,9 +198,7 @@ class EncryptedCredentialVault:
         try:
             from cryptography.fernet import Fernet
 
-            replacement = Fernet(
-                new_key.encode("ascii") if isinstance(new_key, str) else new_key
-            )
+            replacement = Fernet(new_key.encode("ascii") if isinstance(new_key, str) else new_key)
         except (ImportError, ValueError, TypeError) as exc:
             raise CredentialVaultError("Replacement vault key is invalid.") from exc
         now = self._clock()

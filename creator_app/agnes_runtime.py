@@ -101,13 +101,19 @@ class AgnesNervousSystem:
             cgroups = CgroupV2Manager(root=phase3_cgroup_root) if phase3_enabled else None
             if phase3_enabled and normalized_environment in {"staging", "production"}:
                 if not phase3_redis_url:
-                    raise RuntimeError("distributed_idempotency_required: CKNEXUS_AGNES_REDIS_URL is not configured")
+                    raise RuntimeError(
+                        "distributed_idempotency_required: CKNEXUS_AGNES_REDIS_URL is not configured"
+                    )
                 if not phase3_redis_url.startswith(("redis://", "rediss://")):
-                    raise RuntimeError("distributed_idempotency_required: unsupported Redis URL scheme")
+                    raise RuntimeError(
+                        "distributed_idempotency_required: unsupported Redis URL scheme"
+                    )
                 try:
                     from redis.asyncio import Redis
                 except ImportError as exc:
-                    raise RuntimeError("distributed_idempotency_required: redis client is unavailable") from exc
+                    raise RuntimeError(
+                        "distributed_idempotency_required: redis client is unavailable"
+                    ) from exc
                 redis_client = Redis.from_url(
                     phase3_redis_url,
                     decode_responses=False,
@@ -117,7 +123,9 @@ class AgnesNervousSystem:
                 )
                 idempotency = RedisIdempotencyStore(redis_client)
                 if not cgroups or not cgroups.health().get("ready"):
-                    raise RuntimeError("cgroup_v2_enforcement_required: delegated writable cgroup v2 root is unavailable")
+                    raise RuntimeError(
+                        "cgroup_v2_enforcement_required: delegated writable cgroup v2 root is unavailable"
+                    )
             else:
                 idempotency = SQLiteIdempotencyStore(sandbox_root / "idempotency.sqlite3")
             self.dispatcher = SkillExecutionDispatcher(
@@ -165,9 +173,11 @@ class AgnesNervousSystem:
         statuses = self.provider_router.statuses()
         local = next(
             (
-                status for status in statuses
+                status
+                for status in statuses
                 if status.kind in {ProviderKind.LOCAL, ProviderKind.MOCK}
-                and status.available and not status.circuit_open
+                and status.available
+                and not status.circuit_open
             ),
             None,
         )
@@ -192,7 +202,11 @@ class AgnesNervousSystem:
             "workspace_providers": [item.as_dict() for item in self.workspace_broker.providers()],
             "discovery_sources": self.discovery.source_catalog(),
             "execution_kernel": self.dispatcher.status(),
-            "autonomous_dev_pipeline": {"enabled": self.dev_controller is not None, "auto_merge": False, "production_deploy": False},
+            "autonomous_dev_pipeline": {
+                "enabled": self.dev_controller is not None,
+                "auto_merge": False,
+                "production_deploy": False,
+            },
             "production_gate": "NO-GO until R12 staging evidence passes",
         }
 
@@ -252,8 +266,6 @@ class AgnesNervousSystem:
                 "preservation_rule": "append_only_no_historical_delete",
             },
         )
-
-
 
     async def execute_skill(
         self,

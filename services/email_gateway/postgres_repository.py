@@ -37,9 +37,7 @@ class PostgresEmailGatewayRepository:
         return psycopg.connect(self.database_url, row_factory=dict_row)
 
     def initialize(self) -> None:
-        migration = (
-            Path(__file__).resolve().parent / "migrations" / "postgresql.sql"
-        )
+        migration = Path(__file__).resolve().parent / "migrations" / "postgresql.sql"
         with self._connect() as connection:
             with connection.cursor() as cursor:
                 cursor.execute(migration.read_text(encoding="utf-8"))
@@ -79,8 +77,15 @@ class PostgresEmailGatewayRepository:
                     RETURNING id
                     """,
                     (
-                        mailbox.strip(), provider.strip().casefold(), provider_message_id.strip(),
-                        internet_message_id, dedup_key, claimed_by, locked_until, timestamp, timestamp,
+                        mailbox.strip(),
+                        provider.strip().casefold(),
+                        provider_message_id.strip(),
+                        internet_message_id,
+                        dedup_key,
+                        claimed_by,
+                        locked_until,
+                        timestamp,
+                        timestamp,
                     ),
                 )
                 row = cursor.fetchone()
@@ -141,9 +146,14 @@ class PostgresEmailGatewayRepository:
                     RETURNING id
                     """,
                     (
-                        email_journal_id, action_type, destination,
+                        email_journal_id,
+                        action_type,
+                        destination,
                         json.dumps(payload, ensure_ascii=False, sort_keys=True),
-                        deduplication_key, timestamp, timestamp, timestamp,
+                        deduplication_key,
+                        timestamp,
+                        timestamp,
+                        timestamp,
                     ),
                 )
                 row = cursor.fetchone()
@@ -312,9 +322,15 @@ class PostgresEmailGatewayRepository:
                     RETURNING id
                     """,
                     (
-                        email_journal_id, event_type, actor_type, actor_id,
-                        routing_category, action, result,
-                        json.dumps(details or {}, ensure_ascii=False, sort_keys=True), timestamp,
+                        email_journal_id,
+                        event_type,
+                        actor_type,
+                        actor_id,
+                        routing_category,
+                        action,
+                        result,
+                        json.dumps(details or {}, ensure_ascii=False, sort_keys=True),
+                        timestamp,
                     ),
                 )
                 row = cursor.fetchone()

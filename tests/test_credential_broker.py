@@ -34,7 +34,9 @@ def test_ephemeral_secret_overrides_environment_and_can_expire(monkeypatch) -> N
     lease = broker.acquire(CredentialId.GMAIL_ACCESS_TOKEN, consumer="gmail.api")
     assert lease.reveal(consumer="gmail.api") == "runtime-token"
     status = broker.statuses(consumer="gmail.api")
-    assert any(item.ephemeral for item in status if item.credential_id == CredentialId.GMAIL_ACCESS_TOKEN)
+    assert any(
+        item.ephemeral for item in status if item.credential_id == CredentialId.GMAIL_ACCESS_TOKEN
+    )
 
 
 def test_missing_allowed_credential_is_safe() -> None:

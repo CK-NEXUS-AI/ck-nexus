@@ -25,7 +25,18 @@ def redact(value: object) -> object:
         redacted: dict[str, object] = {}
         for key, item in value.items():
             lowered = key.lower()
-            if any(token in lowered for token in ("token", "secret", "password", "api_key", "authorization", "cookie", "credential")):
+            if any(
+                token in lowered
+                for token in (
+                    "token",
+                    "secret",
+                    "password",
+                    "api_key",
+                    "authorization",
+                    "cookie",
+                    "credential",
+                )
+            ):
                 redacted[key] = "[REDACTED]"
             else:
                 redacted[key] = redact(item)
@@ -80,17 +91,25 @@ class MetricsRegistry:
                 "# TYPE ckn_http_requests_total counter",
             ]
             for (method, route, status_class), count in sorted(self._requests.items()):
-                lines.append(f'ckn_http_requests_total{{method="{method}",route="{route}",status_class="{status_class}"}} {count}')
-            lines.extend([
-                "# HELP ckn_http_request_duration_seconds_sum Aggregate request latency.",
-                "# TYPE ckn_http_request_duration_seconds_sum counter",
-            ])
+                lines.append(
+                    f'ckn_http_requests_total{{method="{method}",route="{route}",status_class="{status_class}"}} {count}'
+                )
+            lines.extend(
+                [
+                    "# HELP ckn_http_request_duration_seconds_sum Aggregate request latency.",
+                    "# TYPE ckn_http_request_duration_seconds_sum counter",
+                ]
+            )
             for (method, route), total in sorted(self._latency_sum.items()):
-                lines.append(f'ckn_http_request_duration_seconds_sum{{method="{method}",route="{route}"}} {total:.6f}')
-            lines.extend([
-                "# HELP ckn_http_5xx_total HTTP server errors.",
-                "# TYPE ckn_http_5xx_total counter",
-            ])
+                lines.append(
+                    f'ckn_http_request_duration_seconds_sum{{method="{method}",route="{route}"}} {total:.6f}'
+                )
+            lines.extend(
+                [
+                    "# HELP ckn_http_5xx_total HTTP server errors.",
+                    "# TYPE ckn_http_5xx_total counter",
+                ]
+            )
             for (method, route), count in sorted(self._errors.items()):
                 lines.append(f'ckn_http_5xx_total{{method="{method}",route="{route}"}} {count}')
             return lines

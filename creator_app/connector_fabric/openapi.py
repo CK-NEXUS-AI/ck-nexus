@@ -25,14 +25,18 @@ _SENSITIVE_HEADERS = {"authorization", "cookie", "proxy-authorization", "x-api-k
 
 
 class OpenAPIClient:
-    def __init__(self, *, transport: HttpTransport | None = None, timeout_seconds: float = 8.0) -> None:
+    def __init__(
+        self, *, transport: HttpTransport | None = None, timeout_seconds: float = 8.0
+    ) -> None:
         self.transport = transport or UrllibHttpTransport()
         self.timeout_seconds = timeout_seconds
 
     def discover(self, config: ConnectorConfig) -> DiscoverySnapshot:
         if config.protocol is not ConnectorProtocol.OPENAPI:
             raise ValueError("OpenAPI client received a non-OpenAPI connector")
-        validate_endpoint(config.url, policy=EndpointPolicy(allow_private_network=config.allow_private_network))
+        validate_endpoint(
+            config.url, policy=EndpointPolicy(allow_private_network=config.allow_private_network)
+        )
         response = self.transport.request(
             "GET",
             config.url,
@@ -63,7 +67,9 @@ class OpenAPIClient:
                 name = self._operation_name(method, path, operation, seen)
                 if allowed and name not in allowed:
                     continue
-                tool = self._normalize_operation(config.connector_id, method, path, path_item, operation, name)
+                tool = self._normalize_operation(
+                    config.connector_id, method, path, path_item, operation, name
+                )
                 tools.append(tool)
                 seen.add(name)
         tools.sort(key=lambda item: item.name)
@@ -92,7 +98,9 @@ class OpenAPIClient:
             try:
                 import yaml  # type: ignore
             except ImportError:
-                raise OpenAPIDiscoveryError("YAML OpenAPI requires optional PyYAML support.") from None
+                raise OpenAPIDiscoveryError(
+                    "YAML OpenAPI requires optional PyYAML support."
+                ) from None
             value = yaml.safe_load(text)
         if not isinstance(value, dict):
             raise OpenAPIDiscoveryError("OpenAPI document root must be an object.")
@@ -156,7 +164,9 @@ class OpenAPIClient:
         }
         if required:
             input_schema["required"] = sorted(set(required))
-        description = operation.get("description") or operation.get("summary") or f"{method.upper()} {path}"
+        description = (
+            operation.get("description") or operation.get("summary") or f"{method.upper()} {path}"
+        )
         if not isinstance(description, str):
             description = f"{method.upper()} {path}"
         return NormalizedTool(

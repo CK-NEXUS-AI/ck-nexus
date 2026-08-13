@@ -30,7 +30,9 @@ def locked_names(lock_path: Path) -> set[str]:
     return {str(item.get("name", "")).lower() for item in packages if item.get("name")}
 
 
-def evaluate(pyproject_path: Path, lock_path: Path, groups: tuple[str, ...]) -> tuple[set[str], set[str]]:
+def evaluate(
+    pyproject_path: Path, lock_path: Path, groups: tuple[str, ...]
+) -> tuple[set[str], set[str]]:
     required = required_names(pyproject_path, groups)
     locked = locked_names(lock_path)
     return required, required - locked
@@ -53,7 +55,9 @@ def main() -> int:
 
     if missing:
         print("[FAIL] uv.lock missing required package(s): " + ", ".join(sorted(missing)))
-        print(f"Lock consistency: {len(required) - len(missing)}/{len(required)} required packages present")
+        print(
+            f"Lock consistency: {len(required) - len(missing)}/{len(required)} required packages present"
+        )
         return 1
 
     print(f"[PASS] uv.lock contains all {len(required)} required direct packages")

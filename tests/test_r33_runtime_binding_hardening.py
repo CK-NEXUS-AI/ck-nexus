@@ -50,6 +50,7 @@ async def test_db_pool_acquire_is_bounded():
     class Pool:
         async def acquire(self):
             await asyncio.sleep(1)
+
         async def release(self, conn):
             pass
 

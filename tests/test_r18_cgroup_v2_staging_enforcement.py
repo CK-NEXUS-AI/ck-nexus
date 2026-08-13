@@ -27,15 +27,20 @@ def test_cgroup_health_ready_for_delegated_required_controllers(tmp_path: Path) 
     assert health["missing_controllers"] == []
 
 
-def test_staging_phase3_fails_closed_when_cgroup_not_delegated(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_staging_phase3_fails_closed_when_cgroup_not_delegated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     import sys
     import types
+
     fake_redis = types.ModuleType("redis")
     fake_asyncio = types.ModuleType("redis.asyncio")
+
     class FakeRedisClient:
         @classmethod
         def from_url(cls, *args, **kwargs):
             return object()
+
     fake_asyncio.Redis = FakeRedisClient
     fake_redis.asyncio = fake_asyncio
     monkeypatch.setitem(sys.modules, "redis", fake_redis)
@@ -61,6 +66,7 @@ def test_development_phase3_keeps_truthful_non_production_safe_status(tmp_path: 
     cgroup_root.mkdir()
     from creator_app.agnes.execution.phase3.sandbox import HardenedLinuxNamespaceRunner
     from creator_app.agnes.execution.sandbox import SandboxPolicy
+
     runner = HardenedLinuxNamespaceRunner(
         SandboxPolicy(base_dir=tmp_path / "sandbox", repository_root=ROOT),
         cgroups=CgroupV2Manager(cgroup_root),

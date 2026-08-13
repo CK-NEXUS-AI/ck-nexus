@@ -61,12 +61,19 @@ def test_cgroup_v2_doctor_is_truthful():
 
 
 class FakeRedis:
-    def __init__(self): self.data = {}
+    def __init__(self):
+        self.data = {}
+
     async def set(self, key, value, nx=False, xx=False, ex=None):
-        if nx and key in self.data: return False
-        if xx and key not in self.data: return False
-        self.data[key] = value; return True
-    async def get(self, key): return self.data.get(key)
+        if nx and key in self.data:
+            return False
+        if xx and key not in self.data:
+            return False
+        self.data[key] = value
+        return True
+
+    async def get(self, key):
+        return self.data.get(key)
 
 
 @pytest.mark.asyncio
@@ -97,6 +104,7 @@ async def test_autonomous_pipeline_stops_at_candidate_and_can_discard(tmp_path: 
  ระบบ AI แบบเมนูสำหรับครีเอเตอร์: เลือก Agent, ใส่ Creative Brief สั้น ๆ, สร้างผลงาน และเก็บประวัติไว้ใน SQLite บนเครื่องของผู้ใช้
 """
     from creator_app.agnes.execution.request import ExecutorType, SkillExecutionRequest
+
     request = SkillExecutionRequest(
         execution_id="p3exec",
         correlation_id="p3corr",
@@ -104,7 +112,11 @@ async def test_autonomous_pipeline_stops_at_candidate_and_can_discard(tmp_path: 
         skill_version=agnes.registry.get("hands.code_patch").version,
         executor=ExecutorType.SANDBOX,
         goal="phase3 pipeline",
-        inputs={"patch": patch, "test_command": ["python", "-m", "compileall", "-q", "."], "scan_command": ["python", "-c", "print('security-scan:PASS')"]},
+        inputs={
+            "patch": patch,
+            "test_command": ["python", "-m", "compileall", "-q", "."],
+            "scan_command": ["python", "-c", "print('security-scan:PASS')"],
+        },
         workspace_id="p3ws",
         baseline_commit=BASELINE,
         idempotency_key="p3-idem",
@@ -123,27 +135,48 @@ async def test_autonomous_pipeline_stops_at_candidate_and_can_discard(tmp_path: 
     # Approval ID is part of the immutable request, so create a replacement pipeline
     # whose approval is bound before execution.
     request2 = SkillExecutionRequest(
-        execution_id="p3exec2", correlation_id="p3corr2", skill_id=request.skill_id,
-        skill_version=request.skill_version, executor=request.executor, goal=request.goal,
-        inputs=request.inputs, workspace_id="p3ws2", baseline_commit=BASELINE,
-        approval_id=None, idempotency_key="p3-idem2", allowlist_paths=request.allowlist_paths,
+        execution_id="p3exec2",
+        correlation_id="p3corr2",
+        skill_id=request.skill_id,
+        skill_version=request.skill_version,
+        executor=request.executor,
+        goal=request.goal,
+        inputs=request.inputs,
+        workspace_id="p3ws2",
+        baseline_commit=BASELINE,
+        approval_id=None,
+        idempotency_key="p3-idem2",
+        allowlist_paths=request.allowlist_paths,
         granted_capabilities=request.granted_capabilities,
     )
     handle2 = await agnes.dev_controller.start_pipeline(request2)
     pending2 = await agnes.dev_controller.run_to_candidate(handle2)
-    agnes.approvals.grant(approval_id="p3-approval2", fingerprint=pending2.approval_fingerprint or "", approved_by="human")
+    agnes.approvals.grant(
+        approval_id="p3-approval2",
+        fingerprint=pending2.approval_fingerprint or "",
+        approved_by="human",
+    )
     # Controller request is immutable; bind approval by replacing the stored request with an approved clone.
     request3 = SkillExecutionRequest(
-        execution_id=request2.execution_id, correlation_id=request2.correlation_id,
-        skill_id=request2.skill_id, skill_version=request2.skill_version, executor=request2.executor,
-        goal=request2.goal, inputs=request2.inputs, workspace_id=request2.workspace_id,
-        baseline_commit=request2.baseline_commit, approval_id="p3-approval2",
-        idempotency_key=request2.idempotency_key, allowlist_paths=request2.allowlist_paths,
+        execution_id=request2.execution_id,
+        correlation_id=request2.correlation_id,
+        skill_id=request2.skill_id,
+        skill_version=request2.skill_version,
+        executor=request2.executor,
+        goal=request2.goal,
+        inputs=request2.inputs,
+        workspace_id=request2.workspace_id,
+        baseline_commit=request2.baseline_commit,
+        approval_id="p3-approval2",
+        idempotency_key=request2.idempotency_key,
+        allowlist_paths=request2.allowlist_paths,
         granted_capabilities=request2.granted_capabilities,
     )
     # Fingerprint includes approval-independent immutable work identity, so approved clone matches.
     agnes.dev_controller._requests[handle2.pipeline_id] = request3
-    final = await agnes.dev_controller.run_to_candidate(PipelineHandle(handle2.pipeline_id, request3.execution_id))
+    final = await agnes.dev_controller.run_to_candidate(
+        PipelineHandle(handle2.pipeline_id, request3.execution_id)
+    )
     assert final.state is PipelineState.CANDIDATE_READY
     candidate = await agnes.dev_controller.collect_candidate(handle2.pipeline_id)
     assert candidate.requires_merge_approval is True
@@ -157,27 +190,49 @@ async def test_autonomous_pipeline_stops_at_candidate_and_can_discard(tmp_path: 
 @pytest.mark.asyncio
 async def test_pipeline_failure_rolls_back_workspace(tmp_path: Path):
     agnes = _agnes(tmp_path)
-    patch = "--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-# CK-NEXUS Creator Edition\n+# BROKEN\n"
+    patch = (
+        "--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-# CK-NEXUS Creator Edition\n+# BROKEN\n"
+    )
     from creator_app.agnes.execution.request import ExecutorType, SkillExecutionRequest
+
     req = SkillExecutionRequest(
-        execution_id="fail-exec", correlation_id="fail-corr", skill_id="hands.code_patch",
-        skill_version=agnes.registry.get("hands.code_patch").version, executor=ExecutorType.SANDBOX,
-        goal="failure rollback", inputs={"patch": patch, "test_command": ["python", "-c", "raise SystemExit(7)"]},
-        workspace_id="fail-ws", baseline_commit=BASELINE, idempotency_key="fail-idem",
-        allowlist_paths=("README.md",), granted_capabilities=("code_write", "patch"),
+        execution_id="fail-exec",
+        correlation_id="fail-corr",
+        skill_id="hands.code_patch",
+        skill_version=agnes.registry.get("hands.code_patch").version,
+        executor=ExecutorType.SANDBOX,
+        goal="failure rollback",
+        inputs={"patch": patch, "test_command": ["python", "-c", "raise SystemExit(7)"]},
+        workspace_id="fail-ws",
+        baseline_commit=BASELINE,
+        idempotency_key="fail-idem",
+        allowlist_paths=("README.md",),
+        granted_capabilities=("code_write", "patch"),
     )
     h = await agnes.dev_controller.start_pipeline(req)
     p = await agnes.dev_controller.run_to_candidate(h)
-    agnes.approvals.grant(approval_id="fail-a", fingerprint=p.approval_fingerprint or "", approved_by="human")
+    agnes.approvals.grant(
+        approval_id="fail-a", fingerprint=p.approval_fingerprint or "", approved_by="human"
+    )
     approved = SkillExecutionRequest(
-        execution_id=req.execution_id, correlation_id=req.correlation_id, skill_id=req.skill_id,
-        skill_version=req.skill_version, executor=req.executor, goal=req.goal, inputs=req.inputs,
-        workspace_id=req.workspace_id, baseline_commit=req.baseline_commit, approval_id="fail-a",
-        idempotency_key=req.idempotency_key, allowlist_paths=req.allowlist_paths,
+        execution_id=req.execution_id,
+        correlation_id=req.correlation_id,
+        skill_id=req.skill_id,
+        skill_version=req.skill_version,
+        executor=req.executor,
+        goal=req.goal,
+        inputs=req.inputs,
+        workspace_id=req.workspace_id,
+        baseline_commit=req.baseline_commit,
+        approval_id="fail-a",
+        idempotency_key=req.idempotency_key,
+        allowlist_paths=req.allowlist_paths,
         granted_capabilities=req.granted_capabilities,
     )
     agnes.dev_controller._requests[h.pipeline_id] = approved
-    final = await agnes.dev_controller.run_to_candidate(PipelineHandle(h.pipeline_id, approved.execution_id))
+    final = await agnes.dev_controller.run_to_candidate(
+        PipelineHandle(h.pipeline_id, approved.execution_id)
+    )
     assert final.state is PipelineState.ROLLED_BACK
     assert not (tmp_path / "sandbox" / "workspaces" / "fail-ws").exists()
 
@@ -199,21 +254,25 @@ def test_phase3_api_pending_approval_then_advance_to_candidate(tmp_path: Path):
     )
     patch = """--- a/README.md\n+++ b/README.md\n@@ -1,3 +1,4 @@\n # CK-NEXUS Creator Edition\n+API Phase3 candidate.\n \n ระบบ AI แบบเมนูสำหรับครีเอเตอร์: เลือก Agent, ใส่ Creative Brief สั้น ๆ, สร้างผลงาน และเก็บประวัติไว้ใน SQLite บนเครื่องของผู้ใช้\n"""
     with TestClient(create_app(settings)) as client:
-        start = client.post("/api/agnes/pipeline/start", json={
-            "goal": "phase3 api",
-            "patch": patch,
-            "baseline_commit": BASELINE,
-            "idempotency_key": "api-p3",
-            "allowlist_paths": ["README.md"],
-        })
+        start = client.post(
+            "/api/agnes/pipeline/start",
+            json={
+                "goal": "phase3 api",
+                "patch": patch,
+                "baseline_commit": BASELINE,
+                "idempotency_key": "api-p3",
+                "allowlist_paths": ["README.md"],
+            },
+        )
         assert start.status_code == 200
         body = start.json()
         assert body["state"] == "pending_approval"
         fp = body["approval_fingerprint"]
         pipeline_id = body["pipeline_id"]
-        approved = client.post("/api/agnes/approvals", json={
-            "approval_id": "api-p3-approval", "fingerprint": fp, "approved_by": "human"
-        })
+        approved = client.post(
+            "/api/agnes/approvals",
+            json={"approval_id": "api-p3-approval", "fingerprint": fp, "approved_by": "human"},
+        )
         assert approved.status_code == 200
         advanced = client.post(f"/api/agnes/pipeline/{pipeline_id}/advance")
         assert advanced.status_code == 200

@@ -26,7 +26,9 @@ async def run(redis_url: str, attempts: int, capacity: int) -> dict[str, object]
 
     async def attempt(index: int):
         limiter = limiter_a if index % 2 == 0 else limiter_b
-        return await limiter.consume("tenant-evidence", "actor-evidence", "route-evidence", policy, now_ms=now)
+        return await limiter.consume(
+            "tenant-evidence", "actor-evidence", "route-evidence", policy, now_ms=now
+        )
 
     try:
         decisions = await asyncio.gather(*(attempt(i) for i in range(attempts)))

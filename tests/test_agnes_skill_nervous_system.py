@@ -45,7 +45,10 @@ def test_single_agnes_skill_file_loads_unique_manifest():
 
 def test_registry_selects_model_watch_and_verification():
     registry = AgnesSkillRegistry.load(_skill_file())
-    ids = {skill.id for skill in registry.select("watch latest ai model news and verify source", limit=6)}
+    ids = {
+        skill.id
+        for skill in registry.select("watch latest ai model news and verify source", limit=6)
+    }
     assert "eyes.model_watch_50" in ids
     assert "brain.verify_sources" in ids
 
@@ -88,7 +91,9 @@ def test_agnes_blocks_user_api_key_and_unapproved_high_impact(tmp_path: Path):
     with pytest.raises(AgnesPolicyViolation):
         agnes.authorize_skill(skill, environment="development", approved=False)
     with pytest.raises(AgnesPolicyViolation):
-        agnes.authorize_skill(skill, environment="development", approved=True, uses_user_api_key=True)
+        agnes.authorize_skill(
+            skill, environment="development", approved=True, uses_user_api_key=True
+        )
 
 
 def test_agnes_blocks_production_mutation_even_when_approved(tmp_path: Path):

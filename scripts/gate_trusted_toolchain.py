@@ -69,7 +69,9 @@ def evaluate() -> dict[str, object]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Fail-closed CK-NEXUS trusted toolchain readiness gate.")
+    parser = argparse.ArgumentParser(
+        description="Fail-closed CK-NEXUS trusted toolchain readiness gate."
+    )
     parser.add_argument("--json", action="store_true", dest="as_json")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
@@ -86,7 +88,9 @@ def main() -> int:
         print(f"[{status}] trusted toolchain ready={str(result['ready']).lower()}")
         registry = result["registry"]
         print(
-            "Registry: configured={configured} host={host} dns_resolves={dns_resolves}".format(**registry)
+            "Registry: configured={configured} host={host} dns_resolves={dns_resolves}".format(
+                **registry
+            )
         )
         missing = result["missing_modules"]
         print("Missing modules: " + (", ".join(missing) if missing else "none"))

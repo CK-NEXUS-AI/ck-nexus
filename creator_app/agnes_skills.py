@@ -118,5 +118,9 @@ class AgnesSkillRegistry:
                 scored.append((-score, index, skill))
         selected = [item[2] for item in sorted(scored)[: max(1, limit)]]
         if not selected:
-            selected = [self.get("brain.plan"), self.get("immune.policy_check"), self.get("mouth.report")]
+            selected = [
+                self.get("brain.plan"),
+                self.get("immune.policy_check"),
+                self.get("mouth.report"),
+            ]
         return tuple(selected)

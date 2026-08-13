@@ -171,9 +171,7 @@ class DevTeamRuntime:
             return True
         if self.provider_router is not None:
             return (
-                self.provider_router.preferred_status(
-                    required_capabilities={"agents-sdk"}
-                )
+                self.provider_router.preferred_status(required_capabilities={"agents-sdk"})
                 is not None
             )
         return self.credential_broker.is_configured(
@@ -254,7 +252,9 @@ class DevTeamRuntime:
                 group_id=f"dev-team:{request.session_id}",
             )
         except OpenAIBrainUnavailable as exc:
-            raise ProviderRuntimeError("OpenAI Agents SDK is not installed in this runtime.") from exc
+            raise ProviderRuntimeError(
+                "OpenAI Agents SDK is not installed in this runtime."
+            ) from exc
 
         specialists: dict[str, object] = {}
         for advisor in DEV_ADVISORS.values():
@@ -307,9 +307,7 @@ class DevTeamRuntime:
                 )
             return str(result.final_output)
         except TimeoutError as exc:
-            raise ProviderRuntimeError(
-                "The Development Council request timed out."
-            ) from exc
+            raise ProviderRuntimeError("The Development Council request timed out.") from exc
         except ProviderRuntimeError:
             raise
         except Exception as exc:
@@ -329,9 +327,7 @@ class DevTeamRuntime:
                     ensure_ascii=False,
                 )
             except ImportError as exc:
-                raise ProviderRuntimeError(
-                    "SQLAlchemy session support is unavailable."
-                ) from exc
+                raise ProviderRuntimeError("SQLAlchemy session support is unavailable.") from exc
         return sqlite_session_type(
             f"dev-team:{session_id}",
             db_path=Path(self.settings.database_path),
@@ -366,9 +362,7 @@ class DevTeamRuntime:
             selected = [DEV_ADVISORS[request.consult_mode]]
         else:
             selected = list(DEV_ADVISORS.values())
-        perspectives = "\n".join(
-            f"- **{advisor.name}:** {advisor.role}" for advisor in selected
-        )
+        perspectives = "\n".join(f"- **{advisor.name}:** {advisor.role}" for advisor in selected)
         return (
             "# CK-NEXUS Development Council — Demo\n\n"
             f"**โจทย์:** {request.prompt}\n\n"

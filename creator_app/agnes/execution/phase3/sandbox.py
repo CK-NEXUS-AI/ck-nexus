@@ -7,7 +7,7 @@ from pathlib import Path
 from ..sandbox.runner import LinuxNamespaceRunner
 from .hardening import CgroupLimits, CgroupV2Manager
 
-_SECCOMP_C = r'''
+_SECCOMP_C = r"""
 #define _GNU_SOURCE
 #include <errno.h>
 #include <linux/audit.h>
@@ -91,7 +91,7 @@ int main(int argc, char **argv) {
     perror("execvp");
     return 127;
 }
-'''
+"""
 
 
 class HardenedLinuxNamespaceRunner(LinuxNamespaceRunner):
@@ -124,7 +124,9 @@ class HardenedLinuxNamespaceRunner(LinuxNamespaceRunner):
             capture_output=True,
         )
         if proc.returncode != 0:
-            raise RuntimeError("seccomp_launcher_build_failed:" + proc.stderr.decode(errors="replace")[:1000])
+            raise RuntimeError(
+                "seccomp_launcher_build_failed:" + proc.stderr.decode(errors="replace")[:1000]
+            )
         binary.chmod(0o500)
         return binary
 
