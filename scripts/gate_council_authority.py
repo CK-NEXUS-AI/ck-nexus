@@ -1,5 +1,9 @@
 from __future__ import annotations
-import ast, json, pathlib, sys
+
+import ast
+import json
+import pathlib
+
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 required=[
  'contracts/capability-policy.schema.json','contracts/capability-policy.example.json',

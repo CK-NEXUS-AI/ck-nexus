@@ -61,9 +61,12 @@ class ExecutionPolicyEngine:
         skill: SkillDefinition,
         risk_class: ExecutorRiskClass,
     ) -> PolicyDecision:
-        if request.environment == "production" and risk_class.rank > ExecutorRiskClass.READ_ONLY.rank:
-            if not self.policy.allow_production_mutation:
-                return PolicyDecision(False, "production_mutation_disabled", True)
+        if (
+            request.environment == "production"
+            and risk_class.rank > ExecutorRiskClass.READ_ONLY.rank
+            and not self.policy.allow_production_mutation
+        ):
+            return PolicyDecision(False, "production_mutation_disabled", True)
         requires_approval = (
             request.requires_approval
             or skill.approval_required

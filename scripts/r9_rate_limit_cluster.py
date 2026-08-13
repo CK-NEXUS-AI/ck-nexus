@@ -11,8 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from gateway.config import RateLimitPolicy
-from gateway.rate_limit import RedisTokenBucket
+from gateway.config import RateLimitPolicy  # noqa: E402
+from gateway.rate_limit import RedisTokenBucket  # noqa: E402
 
 
 async def run(redis_url: str, attempts: int, capacity: int) -> dict[str, object]:

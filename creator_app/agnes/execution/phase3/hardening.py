@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -76,7 +77,5 @@ class CgroupV2Manager:
 
     @staticmethod
     def cleanup(path: Path) -> None:
-        try:
+        with contextlib.suppress(OSError):
             path.rmdir()
-        except OSError:
-            pass

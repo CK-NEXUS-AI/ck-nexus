@@ -51,8 +51,7 @@ class SandboxWorkspaceManager:
             archive = subprocess.run(
                 ["git", "-C", str(self.policy.repository_root), "archive", "--format=tar", baseline_commit],
                 check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
             ).stdout
             with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as tf:
                 tf.extractall(path, filter="data")

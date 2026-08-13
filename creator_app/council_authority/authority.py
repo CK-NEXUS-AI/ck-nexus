@@ -1,8 +1,12 @@
 from __future__ import annotations
-import hashlib, hmac, json
+
+import hashlib
+import hmac
+import json
 from pathlib import Path
-from typing import Any
+
 from creator_app.credential_broker import CredentialId
+
 from .storage import AuthorityStore
 
 COST_WEIGHTS={"free":0,"low":1,"medium":5,"high":20}

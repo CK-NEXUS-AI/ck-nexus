@@ -1,11 +1,19 @@
 from __future__ import annotations
-import hashlib, json, tempfile
+
+import hashlib
+import json
+import tempfile
 from pathlib import Path
+
 import pytest
-from creator_app.council_authority.authority import CapabilityAuthority, PolicyDenied, canonical_hash
-from creator_app.council_authority.identity import IdentityVerifier
-from creator_app.council_authority.storage import AuthorityStore
+
 from creator_app.council_authority.arbitration import ArbitrationEngine, Proposal
+from creator_app.council_authority.authority import (
+    CapabilityAuthority,
+    PolicyDenied,
+)
+from creator_app.council_authority.identity import IdentityError, IdentityVerifier
+from creator_app.council_authority.storage import AuthorityStore
 
 CONTRACT=json.loads((Path(__file__).parents[1]/'contracts/capability-policy.example.json').read_text())
 class Broker:
@@ -17,7 +25,7 @@ def make():
 
 def test_identity_is_derived_from_signed_token_and_tamper_fails():
     d,s,ids,a=make(); token=ids.issue(service_id='svc',agent_id='COUNCIL-03'); ident=ids.verify(token); assert ident.agent_id=='COUNCIL-03'
-    with pytest.raises(Exception): ids.verify(token[:-1]+('A' if token[-1]!='A' else 'B')); d.cleanup()
+    with pytest.raises(IdentityError): ids.verify(token[:-1]+('A' if token[-1]!='A' else 'B')); d.cleanup()
 
 def test_missing_or_fake_evidence_is_denied_before_execution():
     d,s,ids,a=make(); ident=ids.verify(ids.issue(service_id='svc',agent_id='COUNCIL-03'))

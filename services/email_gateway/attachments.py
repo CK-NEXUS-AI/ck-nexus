@@ -6,7 +6,6 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-
 BLOCKED_EXTENSIONS = {
     ".exe", ".dll", ".msi", ".bat", ".cmd", ".com", ".scr", ".ps1", ".vbs", ".js", ".jar", ".apk"
 }

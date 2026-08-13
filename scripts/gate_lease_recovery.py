@@ -1,4 +1,6 @@
-import json, os
+import json
+import os
+
 if os.getenv('CKNEXUS_ALLOW_WORKER_SIGKILL_TEST') != 'YES':
     print(json.dumps({'status':'BLOCKED','reason':'Set CKNEXUS_ALLOW_WORKER_SIGKILL_TEST=YES in isolated staging and configure the worker supervisor before destructive worker-kill evidence.'}))
     raise SystemExit(2)

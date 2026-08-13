@@ -1,5 +1,12 @@
 from __future__ import annotations
-import json, os, tempfile, urllib.request, uuid, zipfile
+
+import json
+import os
+import tempfile
+import urllib.request
+import uuid
+import zipfile
+
 
 def upload(url, path, token):
     boundary='----ckn'+uuid.uuid4().hex

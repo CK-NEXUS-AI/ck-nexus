@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 from pathlib import Path
 
 from ..sandbox.runner import LinuxNamespaceRunner
 from .hardening import CgroupLimits, CgroupV2Manager
-
 
 _SECCOMP_C = r'''
 #define _GNU_SOURCE
@@ -121,7 +119,10 @@ class HardenedLinuxNamespaceRunner(LinuxNamespaceRunner):
         gcc = shutil.which("gcc")
         if not gcc:
             raise RuntimeError("gcc_required_to_build_seccomp_launcher")
-        proc = subprocess.run([gcc, "-O2", "-Wall", "-Wextra", str(source), "-o", str(binary)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.run(
+            [gcc, "-O2", "-Wall", "-Wextra", str(source), "-o", str(binary)],
+            capture_output=True,
+        )
         if proc.returncode != 0:
             raise RuntimeError("seccomp_launcher_build_failed:" + proc.stderr.decode(errors="replace")[:1000])
         binary.chmod(0o500)

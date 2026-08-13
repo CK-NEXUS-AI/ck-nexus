@@ -6,11 +6,20 @@ from collections.abc import Callable
 from typing import Any
 
 from creator_app.connector_fabric.evidence import sha256_json
-from creator_app.connector_fabric.models import ConnectorConfig, ConnectorProtocol, DiscoverySnapshot, NormalizedTool
+from creator_app.connector_fabric.models import (
+    ConnectorConfig,
+    ConnectorProtocol,
+    DiscoverySnapshot,
+    NormalizedTool,
+)
 from creator_app.connector_fabric.risk import classify_mcp_tool
-from creator_app.connector_fabric.security import EndpointPolicy, encode_mcp_header_value, validate_endpoint, validate_x_mcp_headers
+from creator_app.connector_fabric.security import (
+    EndpointPolicy,
+    encode_mcp_header_value,
+    validate_endpoint,
+    validate_x_mcp_headers,
+)
 from creator_app.connector_fabric.transport import HttpTransport, UrllibHttpTransport
-
 
 MCP_PROTOCOL_VERSION = "2026-07-28"
 _TOOL_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")

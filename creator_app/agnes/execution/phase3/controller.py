@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from dataclasses import replace
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from creator_app.agnes_ledger import AppendOnlyLedger
 
 from ..approval import StickyApprovalResolver
 from ..request import SkillExecutionRequest
-from dataclasses import replace
 from ..result import ExecutionStatus
 from .models import CandidateArtifact, PipelineHandle, PipelineState, PipelineStatus
 from .workspace import ManagedWorkspace, WorkspaceLifecycleManager
@@ -202,7 +202,7 @@ class AutonomousDevController:
                     security_scan=self._results[handle.pipeline_id]["scan"],
                     evidence_refs=(self._results[handle.pipeline_id]["evidence_ref"]["hash"],),
                     status="candidate",
-                    created_at=datetime.now(timezone.utc).isoformat(),
+                    created_at=datetime.now(UTC).isoformat(),
                     requires_merge_approval=True,
                 )
                 self._candidates[handle.pipeline_id] = candidate
@@ -250,7 +250,7 @@ class AutonomousDevController:
         self._transition(status, PipelineState.ROLLED_BACK, f"rollback:{reason}")
 
     def _record(self, status: PipelineStatus, state: PipelineState, event: str) -> None:
-        ts = datetime.now(timezone.utc).isoformat()
+        ts = datetime.now(UTC).isoformat()
         row = {
             "state": state.value,
             "event": event,

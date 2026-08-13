@@ -1,6 +1,13 @@
 from __future__ import annotations
-import hashlib, json, sqlite3, threading, time, uuid
+
+import hashlib
+import json
+import sqlite3
+import threading
+import time
+import uuid
 from pathlib import Path
+
 
 class AuthorityStore:
     def __init__(self, path: str):

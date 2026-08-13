@@ -1,17 +1,25 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
 from creator_app.connector_fabric.evidence import ConnectorEvidenceLedger
 from creator_app.connector_fabric.fabric import ConnectorFabric, ToolAuthorizationDecision
-from creator_app.connector_fabric.mcp import MCPClient, MCP_PROTOCOL_VERSION
-from creator_app.connector_fabric.models import ConnectorConfig, ConnectorProtocol, ConnectorState, RiskClass
+from creator_app.connector_fabric.mcp import MCP_PROTOCOL_VERSION, MCPClient
+from creator_app.connector_fabric.models import (
+    ConnectorConfig,
+    ConnectorProtocol,
+    ConnectorState,
+    RiskClass,
+)
 from creator_app.connector_fabric.openapi import OpenAPIClient
 from creator_app.connector_fabric.registry import ConnectorRegistry
-from creator_app.connector_fabric.security import EndpointPolicy, EndpointSecurityError, validate_endpoint
+from creator_app.connector_fabric.security import (
+    EndpointPolicy,
+    EndpointSecurityError,
+    validate_endpoint,
+)
 from creator_app.connector_fabric.transport import TransportResponse
 
 

@@ -1,9 +1,12 @@
 from __future__ import annotations
+
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from .arbitration import ArbitrationEngine, Proposal
-from .identity import IdentityError
+
+from .arbitration import Proposal
 from .authority import PolicyDenied
+from .identity import IdentityError
+
 
 class AuthorityHTTPServer(ThreadingHTTPServer):
     def __init__(self, addr, handler, *, authority, identity_verifier, arbiter):
@@ -14,7 +17,7 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self,status,body):
         raw=json.dumps(body,separators=(",",":"),default=str).encode(); self.send_response(status); self.send_header("Content-Type","application/json"); self.send_header("Cache-Control","no-store"); self.send_header("Content-Length",str(len(raw))); self.end_headers(); self.wfile.write(raw)
     def _body(self):
-        n=int(self.headers.get("Content-Length","0"));
+        n=int(self.headers.get("Content-Length","0"))
         if n>1024*1024: raise ValueError("request too large")
         return json.loads(self.rfile.read(n) or b"{}")
     def _identity(self):
@@ -49,7 +52,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.path.startswith("/v1/transcript"):
                 if ident.role!="admin": return self._json(403,{"error":"ADMIN_REQUIRED"})
                 # Deliberately no raw-secret-bearing fields; audit payloads only contain hashes/IDs.
-                import sqlite3, json as _json
+                import json as _json
                 with self.server.authority.store._db() as db:
                     rows=db.execute("SELECT seq,previous_hash,entry_hash,payload,created_at FROM audit ORDER BY seq").fetchall()
                 return self._json(200,{"entries":[{"seq":r[0],"previous_hash":r[1],"entry_hash":r[2],"payload":_json.loads(r[3]),"created_at":r[4]} for r in rows]})

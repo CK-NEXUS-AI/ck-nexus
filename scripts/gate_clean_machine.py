@@ -1,4 +1,6 @@
-import json, os
+import json
+import os
+
 if os.getenv('CKNEXUS_CLEAN_MACHINE') != 'YES':
     print(json.dumps({'status':'BLOCKED','reason':'Run this gate on a fresh VM/host with CKNEXUS_CLEAN_MACHINE=YES; same-host reruns are not clean-machine evidence.'}))
     raise SystemExit(2)

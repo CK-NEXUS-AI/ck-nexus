@@ -1,21 +1,22 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
-from typing import Any, Mapping
 
-from creator_app.agnes_discovery import SkillDiscoveryPolicy
-from creator_app.agnes_ledger import AppendOnlyLedger
-from creator_app.agnes_skills import AgnesSkillRegistry, SkillDefinition, SkillRisk
-from creator_app.agnes_workbench import WorkspaceBroker, WorkspaceKind
-from creator_app.credential_broker import CredentialBroker
+from creator_app.agnes.execution.adapters.linux_namespace_sandbox import (
+    LinuxNamespaceSandboxExecutor,
+)
 from creator_app.agnes.execution.approval import StickyApprovalResolver
-from creator_app.agnes.execution.dispatcher import DispatcherPolicy, SkillExecutionDispatcher, build_phase1_dispatcher
+from creator_app.agnes.execution.dispatcher import (
+    DispatcherPolicy,
+    SkillExecutionDispatcher,
+    build_phase1_dispatcher,
+)
 from creator_app.agnes.execution.guards import ExecutionPolicyEngine
 from creator_app.agnes.execution.idempotency import SQLiteIdempotencyStore
-from creator_app.agnes.execution.adapters.linux_namespace_sandbox import LinuxNamespaceSandboxExecutor
-from creator_app.agnes.execution.sandbox import LinuxNamespaceRunner, SandboxPolicy, SandboxWorkspaceManager
 from creator_app.agnes.execution.phase3 import (
     AutonomousDevController,
     RedisIdempotencyStore,
@@ -25,6 +26,16 @@ from creator_app.agnes.execution.phase3.hardening import CgroupV2Manager
 from creator_app.agnes.execution.phase3.sandbox import HardenedLinuxNamespaceRunner
 from creator_app.agnes.execution.request import ExecutorType, SkillExecutionRequest
 from creator_app.agnes.execution.result import SkillExecutionResult
+from creator_app.agnes.execution.sandbox import (
+    LinuxNamespaceRunner,
+    SandboxPolicy,
+    SandboxWorkspaceManager,
+)
+from creator_app.agnes_discovery import SkillDiscoveryPolicy
+from creator_app.agnes_ledger import AppendOnlyLedger
+from creator_app.agnes_skills import AgnesSkillRegistry, SkillDefinition, SkillRisk
+from creator_app.agnes_workbench import WorkspaceBroker, WorkspaceKind
+from creator_app.credential_broker import CredentialBroker
 from creator_app.provider_router import ProviderKind, ProviderRouter
 
 
@@ -214,9 +225,12 @@ class AgnesNervousSystem:
     ) -> None:
         if uses_user_api_key and not self.policy.allow_user_api_keys:
             raise AgnesPolicyViolation("AGNES is not allowed to consume user API keys.")
-        if environment == "production" and skill.risk is not SkillRisk.READ_ONLY:
-            if not self.policy.allow_production_mutation:
-                raise AgnesPolicyViolation("AGNES production mutation is disabled.")
+        if (
+            environment == "production"
+            and skill.risk is not SkillRisk.READ_ONLY
+            and not self.policy.allow_production_mutation
+        ):
+            raise AgnesPolicyViolation("AGNES production mutation is disabled.")
         if skill.risk in {SkillRisk.EXTERNAL_WRITE, SkillRisk.HIGH_IMPACT} and not approved:
             raise AgnesPolicyViolation("This AGNES skill requires explicit approval.")
 

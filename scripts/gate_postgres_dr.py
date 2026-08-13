@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import json, os, shutil, subprocess, sys, tempfile
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 
