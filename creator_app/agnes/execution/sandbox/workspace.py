@@ -4,7 +4,9 @@ import hashlib
 import io
 import json
 import re
-import subprocess
+import shutil
+# Subprocess is required only for fixed git archive operations on a locked full SHA.
+import subprocess  # nosec B404
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -48,9 +50,13 @@ class SandboxWorkspaceManager:
         path.mkdir(parents=True, exist_ok=False, mode=0o700)
         path.chmod(0o700)
         try:
-            archive = subprocess.run(
+            git = shutil.which("git")
+            if not git:
+                raise RuntimeError("git_required_for_workspace_archive")
+            # git is absolute from shutil.which; baseline_commit is validated as a full hex SHA.
+            archive = subprocess.run(  # nosec B603
                 [
-                    "git",
+                    git,
                     "-C",
                     str(self.policy.repository_root),
                     "archive",
@@ -75,8 +81,6 @@ class SandboxWorkspaceManager:
             )
             return SandboxWorkspace(workspace_id, path, baseline_commit, hashes)
         except Exception:
-            import shutil
-
             shutil.rmtree(path, ignore_errors=True)
             raise
 
