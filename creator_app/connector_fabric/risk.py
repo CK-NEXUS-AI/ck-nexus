@@ -4,7 +4,6 @@ import re
 
 from creator_app.connector_fabric.models import RiskClass
 
-
 _DESTRUCTIVE = re.compile(
     r"(^|[._-])(delete|destroy|drop|purge|erase|wipe|revoke|terminate|remove)([._-]|$)",
     re.IGNORECASE,

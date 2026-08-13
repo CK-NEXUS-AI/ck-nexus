@@ -103,5 +103,7 @@ def test_execution_controller_owns_side_effect_seam_and_audits_pattern_version()
 def test_kill_switch_blocks_execution():
     pattern = PatternRegistry.from_file().get("dataops_release_gate")
     evaluator = GuardrailEvaluator(kill_switch_active=lambda tenant: tenant == "tenant-1")
-    decision = evaluator.evaluate(context(pattern), pattern, ToolRequest("s1", "engineering", "test"))
+    decision = evaluator.evaluate(
+        context(pattern), pattern, ToolRequest("s1", "engineering", "test")
+    )
     assert decision.code == "KILL_SWITCH"

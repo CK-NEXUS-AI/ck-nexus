@@ -116,9 +116,7 @@ class Settings:
         if not database_path.is_absolute():
             database_path = runtime_root / database_path
 
-        vault_database_value = os.getenv(
-            "CKNEXUS_VAULT_PATH", "data/credential-vault.db"
-        ).strip()
+        vault_database_value = os.getenv("CKNEXUS_VAULT_PATH", "data/credential-vault.db").strip()
         credential_vault_path = Path(vault_database_value)
         if not credential_vault_path.is_absolute():
             credential_vault_path = runtime_root / credential_vault_path
@@ -133,9 +131,7 @@ class Settings:
 
         codex_workspace_value = os.getenv("CKNEXUS_CODEX_WORKSPACE", "").strip()
         codex_workspace = (
-            Path(codex_workspace_value).expanduser()
-            if codex_workspace_value
-            else runtime_root
+            Path(codex_workspace_value).expanduser() if codex_workspace_value else runtime_root
         ).resolve()
         codex_home_value = os.getenv("CKNEXUS_CODEX_HOME", "").strip()
         codex_home = Path(codex_home_value).expanduser().resolve() if codex_home_value else None
@@ -146,15 +142,23 @@ class Settings:
         database_url = os.getenv("CKNEXUS_DATABASE_URL", "").strip()
         session_database_url = os.getenv("CKNEXUS_SESSION_DATABASE_URL", "").strip()
         if not session_database_url and database_url.startswith("postgresql://"):
-            session_database_url = "postgresql+asyncpg://" + database_url.removeprefix("postgresql://")
+            session_database_url = "postgresql+asyncpg://" + database_url.removeprefix(
+                "postgresql://"
+            )
         elif not session_database_url and database_url.startswith("postgres://"):
-            session_database_url = "postgresql+asyncpg://" + database_url.removeprefix("postgres://")
+            session_database_url = "postgresql+asyncpg://" + database_url.removeprefix(
+                "postgres://"
+            )
 
-        agnes_ledger_value = os.getenv("CKNEXUS_AGNES_LEDGER_PATH", "data/agnes-ledger.jsonl").strip()
+        agnes_ledger_value = os.getenv(
+            "CKNEXUS_AGNES_LEDGER_PATH", "data/agnes-ledger.jsonl"
+        ).strip()
         agnes_ledger_path = Path(agnes_ledger_value)
         if not agnes_ledger_path.is_absolute():
             agnes_ledger_path = runtime_root / agnes_ledger_path
-        agnes_sandbox_root_value = os.getenv("CKNEXUS_AGNES_SANDBOX_ROOT", "data/agnes-sandbox").strip()
+        agnes_sandbox_root_value = os.getenv(
+            "CKNEXUS_AGNES_SANDBOX_ROOT", "data/agnes-sandbox"
+        ).strip()
         agnes_sandbox_root = Path(agnes_sandbox_root_value)
         if not agnes_sandbox_root.is_absolute():
             agnes_sandbox_root = runtime_root / agnes_sandbox_root
@@ -177,19 +181,14 @@ class Settings:
 
         configured = cls(
             environment=(
-                os.getenv("CKNEXUS_ENVIRONMENT", "development").strip().lower()
-                or "development"
+                os.getenv("CKNEXUS_ENVIRONMENT", "development").strip().lower() or "development"
             ),
             openai_model=os.getenv("OPENAI_MODEL", "gpt-5.6-sol"),
             openai_tracing_enabled=_as_bool(
                 os.getenv("CKNEXUS_OPENAI_TRACING_ENABLED"), default=False
             ),
-            provider_local_first=_as_bool(
-                os.getenv("CKNEXUS_PROVIDER_LOCAL_FIRST"), default=True
-            ),
-            provider_allow_cloud=_as_bool(
-                os.getenv("CKNEXUS_PROVIDER_ALLOW_CLOUD"), default=True
-            ),
+            provider_local_first=_as_bool(os.getenv("CKNEXUS_PROVIDER_LOCAL_FIRST"), default=True),
+            provider_allow_cloud=_as_bool(os.getenv("CKNEXUS_PROVIDER_ALLOW_CLOUD"), default=True),
             provider_max_attempts=_as_int(
                 os.getenv("CKNEXUS_PROVIDER_MAX_ATTEMPTS"),
                 default=3,
@@ -214,13 +213,9 @@ class Settings:
                 minimum=5,
                 maximum=600,
             ),
-            credential_vault_enabled=_as_bool(
-                os.getenv("CKNEXUS_VAULT_ENABLED"), default=False
-            ),
+            credential_vault_enabled=_as_bool(os.getenv("CKNEXUS_VAULT_ENABLED"), default=False),
             credential_vault_path=credential_vault_path,
-            credential_vault_key_configured=_is_runtime_secret(
-                os.getenv("CKNEXUS_VAULT_KEY", "")
-            ),
+            credential_vault_key_configured=_is_runtime_secret(os.getenv("CKNEXUS_VAULT_KEY", "")),
             ollama_enabled=_as_bool(os.getenv("CKNEXUS_OLLAMA_ENABLED"), default=False),
             ollama_base_url=(
                 os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").strip()
@@ -293,27 +288,26 @@ class Settings:
             ),
             github_token=os.getenv("GITHUB_TOKEN", "").strip(),
             github_repo=os.getenv("GITHUB_REPO", "").strip(),
-            github_api_base=os.getenv("GITHUB_API_BASE", "https://api.github.com").strip() or "https://api.github.com",
+            github_api_base=os.getenv("GITHUB_API_BASE", "https://api.github.com").strip()
+            or "https://api.github.com",
             slack_bot_token=os.getenv("SLACK_BOT_TOKEN", "").strip(),
-            slack_api_base=os.getenv("SLACK_API_BASE", "https://slack.com/api").strip() or "https://slack.com/api",
+            slack_api_base=os.getenv("SLACK_API_BASE", "https://slack.com/api").strip()
+            or "https://slack.com/api",
             google_drive_access_token=os.getenv("GOOGLE_DRIVE_ACCESS_TOKEN", "").strip(),
-            google_drive_api_base=os.getenv("GOOGLE_DRIVE_API_BASE", "https://www.googleapis.com/drive/v3").strip() or "https://www.googleapis.com/drive/v3",
+            google_drive_api_base=os.getenv(
+                "GOOGLE_DRIVE_API_BASE", "https://www.googleapis.com/drive/v3"
+            ).strip()
+            or "https://www.googleapis.com/drive/v3",
             integration_timeout_seconds=_as_int(
                 os.getenv("CKNEXUS_INTEGRATION_TIMEOUT_SECONDS"),
                 default=5,
                 minimum=1,
                 maximum=30,
             ),
-            gmail_oauth_enabled=_as_bool(
-                os.getenv("CKNEXUS_GMAIL_OAUTH_ENABLED"), default=False
-            ),
+            gmail_oauth_enabled=_as_bool(os.getenv("CKNEXUS_GMAIL_OAUTH_ENABLED"), default=False),
             gmail_redirect_uri=os.getenv("GMAIL_REDIRECT_URI", "").strip(),
-            gmail_send_enabled=_as_bool(
-                os.getenv("CKNEXUS_GMAIL_SEND_ENABLED"), default=False
-            ),
-            github_app_enabled=_as_bool(
-                os.getenv("CKNEXUS_GITHUB_APP_ENABLED"), default=False
-            ),
+            gmail_send_enabled=_as_bool(os.getenv("CKNEXUS_GMAIL_SEND_ENABLED"), default=False),
+            github_app_enabled=_as_bool(os.getenv("CKNEXUS_GITHUB_APP_ENABLED"), default=False),
             github_api_version=(
                 os.getenv("GITHUB_API_VERSION", "2026-03-10").strip() or "2026-03-10"
             ),
@@ -343,14 +337,13 @@ class Settings:
             agnes_sandbox_enabled=_as_bool(
                 os.getenv("CKNEXUS_AGNES_SANDBOX_ENABLED"), default=False
             ),
-            agnes_phase3_enabled=_as_bool(
-                os.getenv("CKNEXUS_AGNES_PHASE3_ENABLED"), default=False
-            ),
+            agnes_phase3_enabled=_as_bool(os.getenv("CKNEXUS_AGNES_PHASE3_ENABLED"), default=False),
             agnes_redis_url=os.getenv("CKNEXUS_AGNES_REDIS_URL", "").strip(),
             agnes_cgroup_root=Path(
-                os.getenv("CKNEXUS_AGNES_CGROUP_ROOT", "/sys/fs/cgroup").strip()
-                or "/sys/fs/cgroup"
-            ).expanduser().resolve(),
+                os.getenv("CKNEXUS_AGNES_CGROUP_ROOT", "/sys/fs/cgroup").strip() or "/sys/fs/cgroup"
+            )
+            .expanduser()
+            .resolve(),
             agnes_sandbox_root=agnes_sandbox_root,
             agnes_sandbox_repository_root=agnes_sandbox_repository_root,
             connector_fabric_enabled=_as_bool(

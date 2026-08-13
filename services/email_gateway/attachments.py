@@ -6,9 +6,19 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-
 BLOCKED_EXTENSIONS = {
-    ".exe", ".dll", ".msi", ".bat", ".cmd", ".com", ".scr", ".ps1", ".vbs", ".js", ".jar", ".apk"
+    ".exe",
+    ".dll",
+    ".msi",
+    ".bat",
+    ".cmd",
+    ".com",
+    ".scr",
+    ".ps1",
+    ".vbs",
+    ".js",
+    ".jar",
+    ".apk",
 }
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".csv", ".txt", ".png", ".jpg", ".jpeg", ".zip"}
 
@@ -32,7 +42,9 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _zip_policy(path: Path, *, max_entries: int, max_uncompressed_bytes: int, max_ratio: float) -> tuple[bool, str]:
+def _zip_policy(
+    path: Path, *, max_entries: int, max_uncompressed_bytes: int, max_ratio: float
+) -> tuple[bool, str]:
     try:
         with zipfile.ZipFile(path) as archive:
             infos = archive.infolist()
@@ -71,11 +83,17 @@ def scan_attachment(
     detected = mime or "application/octet-stream"
 
     if extension in BLOCKED_EXTENSIONS:
-        return AttachmentScanResult(False, "QUARANTINE", "blocked_extension", digest, size, extension, detected)
+        return AttachmentScanResult(
+            False, "QUARANTINE", "blocked_extension", digest, size, extension, detected
+        )
     if extension not in ALLOWED_EXTENSIONS:
-        return AttachmentScanResult(False, "QUARANTINE", "extension_not_allowlisted", digest, size, extension, detected)
+        return AttachmentScanResult(
+            False, "QUARANTINE", "extension_not_allowlisted", digest, size, extension, detected
+        )
     if size > max_size_bytes:
-        return AttachmentScanResult(False, "QUARANTINE", "file_too_large", digest, size, extension, detected)
+        return AttachmentScanResult(
+            False, "QUARANTINE", "file_too_large", digest, size, extension, detected
+        )
     if extension == ".zip":
         safe, reason = _zip_policy(
             path,
@@ -84,5 +102,7 @@ def scan_attachment(
             max_ratio=max_zip_ratio,
         )
         if not safe:
-            return AttachmentScanResult(False, "QUARANTINE", reason, digest, size, extension, detected)
+            return AttachmentScanResult(
+                False, "QUARANTINE", reason, digest, size, extension, detected
+            )
     return AttachmentScanResult(True, "CLEAN", "allowlisted", digest, size, extension, detected)

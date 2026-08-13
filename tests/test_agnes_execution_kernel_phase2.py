@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import asyncio
-import subprocess
 from pathlib import Path
 
 import pytest
 
 from creator_app.agnes.execution.idempotency import SQLiteIdempotencyStore
-from creator_app.agnes.execution.request import ExecutorType
 from creator_app.agnes.execution.result import ExecutionStatus
-from creator_app.agnes.execution.sandbox import LinuxNamespaceRunner, SandboxPolicy, SandboxViolation
+from creator_app.agnes.execution.sandbox import (
+    LinuxNamespaceRunner,
+    SandboxPolicy,
+    SandboxViolation,
+)
 from creator_app.agnes_runtime import AgnesNervousSystem
-
 
 REPO = Path(__file__).resolve().parents[1]
 SKILL_FILE = REPO / "creator_app" / "skills" / "agnes" / "SKILL.md"
@@ -29,7 +30,13 @@ def _agnes(tmp_path: Path) -> AgnesNervousSystem:
 
 
 def _patch_request(*, approval_id: str | None = None, workspace_id: str = "ws-phase2") -> dict:
-    patch = """--- /dev/null\n+++ b/phase2_sandbox_probe.py\n@@ -0,0 +1,2 @@\n+print(\"phase2-ok\")\n+VALUE = 42\n"""
+    patch = (
+        "--- /dev/null\n"
+        "+++ b/phase2_sandbox_probe.py\n"
+        "@@ -0,0 +1,2 @@\n"
+        '+print("phase2-ok")\n'
+        "+VALUE = 42\n"
+    )
     return {
         "id": "hands.code_patch",
         "executor": "sandbox",
@@ -79,7 +86,8 @@ async def test_timeout_kills_process_group(tmp_path: Path):
     )
     code = (
         "import subprocess,time; "
-        "subprocess.Popen(['python','-c',\"import time,pathlib; time.sleep(2); pathlib.Path('/workspace/child-survived').write_text('bad')\"]); "
+        "subprocess.Popen(['python','-c',\"import time,pathlib; time.sleep(2); "
+        "pathlib.Path('/workspace/child-survived').write_text('bad')\"]); "
         "time.sleep(20)"
     )
     result = await runner.run(
@@ -263,6 +271,7 @@ def test_phase2_status_does_not_claim_production_safe(tmp_path: Path):
     assert status["idempotency"]["production_safe"] is False
     assert "R12" in status["production_execution"]
 
+
 @pytest.mark.asyncio
 async def test_system_mounts_are_read_only_and_output_is_bounded(tmp_path: Path):
     work = tmp_path / "work-ro"
@@ -312,6 +321,7 @@ def test_command_guard_denies_shell_and_network_git():
 @pytest.mark.asyncio
 async def test_api_phase2_approval_then_execute(tmp_path: Path):
     from fastapi.testclient import TestClient
+
     from creator_app.api import create_app
     from creator_app.config import Settings
 
@@ -327,7 +337,9 @@ async def test_api_phase2_approval_then_execute(tmp_path: Path):
         "skill_id": "hands.code_patch",
         "goal": "api sandbox patch",
         "executor": "sandbox",
-        "inputs": {"patch": "--- /dev/null\n+++ b/api_phase2_probe.py\n@@ -0,0 +1 @@\n+print('api-ok')\n"},
+        "inputs": {
+            "patch": "--- /dev/null\n+++ b/api_phase2_probe.py\n@@ -0,0 +1 @@\n+print('api-ok')\n"
+        },
         "correlation_id": "api-corr",
         "workspace_id": "api-ws",
         "baseline_commit": BASELINE,

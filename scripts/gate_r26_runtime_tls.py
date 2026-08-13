@@ -1,13 +1,24 @@
 from __future__ import annotations
 
 from pathlib import Path
-import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 required = {
-    ROOT / "creator_app" / "runtime_binding.py": ("verify_runtime_binding_or_raise", "runtime_binding_status"),
-    ROOT / "deploy" / "Caddyfile": ("Strict-Transport-Security", "reverse_proxy app:8000", "max_size 2MB"),
-    ROOT / "docker-compose.prod.yml": ("CKNEXUS_RUNTIME_BINDING_ENABLED", "DATABASE_URL", "REDIS_URL", "edge:"),
+    ROOT / "creator_app" / "runtime_binding.py": (
+        "verify_runtime_binding_or_raise",
+        "runtime_binding_status",
+    ),
+    ROOT / "deploy" / "Caddyfile": (
+        "Strict-Transport-Security",
+        "reverse_proxy app:8000",
+        "max_size 2MB",
+    ),
+    ROOT / "docker-compose.prod.yml": (
+        "CKNEXUS_RUNTIME_BINDING_ENABLED",
+        "DATABASE_URL",
+        "REDIS_URL",
+        "edge:",
+    ),
 }
 
 errors: list[str] = []
@@ -23,7 +34,7 @@ for path, markers in required.items():
 compose = (ROOT / "docker-compose.prod.yml").read_text(encoding="utf-8")
 if '"80:80"' not in compose or '"443:443"' not in compose:
     errors.append("edge-ports-not-exposed")
-if '127.0.0.1:${CKNEXUS_PORT:-8000}:8000' in compose:
+if "127.0.0.1:${CKNEXUS_PORT:-8000}:8000" in compose:
     errors.append("app-port-still-host-exposed")
 
 if errors:

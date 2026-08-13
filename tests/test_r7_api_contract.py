@@ -36,7 +36,9 @@ def test_provider_and_credential_status_are_redacted(tmp_path: Path, monkeypatch
         assert any(item["id"] == "openai.api_key" and item["configured"] for item in openai)
 
 
-def test_openai_is_preferred_when_mock_and_ollama_are_unavailable(tmp_path: Path, monkeypatch) -> None:
+def test_openai_is_preferred_when_mock_and_ollama_are_unavailable(
+    tmp_path: Path, monkeypatch
+) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "sk-r7-openai")
     settings = make_settings(tmp_path, mock_ai=False, ollama_enabled=False)
     with TestClient(create_app(settings)) as client:

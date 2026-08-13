@@ -49,10 +49,16 @@ class SandboxWorkspaceManager:
         path.chmod(0o700)
         try:
             archive = subprocess.run(
-                ["git", "-C", str(self.policy.repository_root), "archive", "--format=tar", baseline_commit],
+                [
+                    "git",
+                    "-C",
+                    str(self.policy.repository_root),
+                    "archive",
+                    "--format=tar",
+                    baseline_commit,
+                ],
                 check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
             ).stdout
             with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as tf:
                 tf.extractall(path, filter="data")
@@ -78,7 +84,9 @@ class SandboxWorkspaceManager:
     def _reject_symlinks(workspace: Path) -> None:
         for path in workspace.rglob("*"):
             if path.is_symlink():
-                raise SandboxViolation("symlink_in_workspace_denied:" + path.relative_to(workspace).as_posix())
+                raise SandboxViolation(
+                    "symlink_in_workspace_denied:" + path.relative_to(workspace).as_posix()
+                )
 
     @staticmethod
     def hashes(workspace: Path) -> dict[str, str]:
@@ -104,7 +112,9 @@ class SandboxWorkspaceManager:
         modified = tuple(sorted(k for k in set(before) & set(current) if before[k] != current[k]))
         return {"added": added, "modified": modified, "deleted": deleted}
 
-    def validate_diff(self, workspace: SandboxWorkspace, allowlist: tuple[str, ...]) -> dict[str, tuple[str, ...]]:
+    def validate_diff(
+        self, workspace: SandboxWorkspace, allowlist: tuple[str, ...]
+    ) -> dict[str, tuple[str, ...]]:
         self._reject_symlinks(workspace.path)
         diff = self.diff(workspace)
         if diff["deleted"]:

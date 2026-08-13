@@ -130,7 +130,6 @@ class ProviderRouter:
             )
         return tuple(statuses)
 
-
     def preferred_status(
         self,
         *,
@@ -233,7 +232,6 @@ class ProviderRouter:
             attempts=attempts,
         )
 
-
     def report_success(self, provider_name: str) -> None:
         if provider_name not in self._circuits:
             raise ValueError("provider is not registered")
@@ -244,9 +242,7 @@ class ProviderRouter:
             raise ValueError("provider is not registered")
         self._record_failure(provider_name)
 
-    def _ordered_candidates(
-        self, required_capabilities: frozenset[str]
-    ) -> list[ProviderAdapter]:
+    def _ordered_candidates(self, required_capabilities: frozenset[str]) -> list[ProviderAdapter]:
         now = self._clock()
         eligible: list[tuple[int, ProviderAdapter]] = []
         for index, provider in enumerate(self._providers):

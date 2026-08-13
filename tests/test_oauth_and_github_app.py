@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from io import BytesIO
 from urllib.parse import parse_qs, urlparse
 
 import pytest
 
 from creator_app.credential_broker import CredentialBroker, CredentialId
-from creator_app.gmail_oauth import GmailOAuthError, GmailOAuthManager
 from creator_app.github_app import GitHubAppAuth
+from creator_app.gmail_oauth import GmailOAuthError, GmailOAuthManager
 
 
 class FakeResponse:
@@ -100,7 +99,10 @@ def test_gmail_exchange_stores_tokens_only_in_broker(monkeypatch) -> None:
     )
     state = parse_qs(urlparse(manager.authorization_url()).query)["state"][0]
 
-    body = b'{"access_token":"gmail-access-secret","refresh_token":"gmail-refresh-secret","expires_in":3600}'
+    body = (
+        b'{"access_token":"gmail-access-secret",'
+        b'"refresh_token":"gmail-refresh-secret","expires_in":3600}'
+    )
     monkeypatch.setattr(
         gmail_module,
         "open_trusted_request",

@@ -33,7 +33,7 @@ class SkillDefinition:
     tags: tuple[str, ...]
 
     @classmethod
-    def from_mapping(cls, raw: dict[str, object]) -> "SkillDefinition":
+    def from_mapping(cls, raw: dict[str, object]) -> SkillDefinition:
         skill_id = str(raw.get("id") or "").strip()
         version = str(raw.get("version") or "").strip()
         organ = str(raw.get("organ") or "").strip()
@@ -76,7 +76,7 @@ class AgnesSkillManifest:
     skills: tuple[SkillDefinition, ...]
 
     @classmethod
-    def load(cls, path: Path) -> "AgnesSkillManifest":
+    def load(cls, path: Path) -> AgnesSkillManifest:
         text = path.read_text(encoding="utf-8")
         match = _MANIFEST_RE.search(text)
         if match is None:
@@ -97,7 +97,7 @@ class AgnesSkillRegistry:
         self._by_id = {skill.id: skill for skill in manifest.skills}
 
     @classmethod
-    def load(cls, path: Path) -> "AgnesSkillRegistry":
+    def load(cls, path: Path) -> AgnesSkillRegistry:
         return cls(AgnesSkillManifest.load(path))
 
     def get(self, skill_id: str) -> SkillDefinition:
@@ -118,5 +118,9 @@ class AgnesSkillRegistry:
                 scored.append((-score, index, skill))
         selected = [item[2] for item in sorted(scored)[: max(1, limit)]]
         if not selected:
-            selected = [self.get("brain.plan"), self.get("immune.policy_check"), self.get("mouth.report")]
+            selected = [
+                self.get("brain.plan"),
+                self.get("immune.policy_check"),
+                self.get("mouth.report"),
+            ]
         return tuple(selected)

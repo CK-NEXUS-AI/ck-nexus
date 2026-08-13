@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Any
 
 from ..promotion import ArtifactPromotionState, CodePatchState
@@ -20,7 +18,9 @@ class LinuxNamespaceSandboxExecutor:
 
     _skills = {"hands.code_patch", "hands.test", "hands.security_scan"}
 
-    def __init__(self, workspace_manager: SandboxWorkspaceManager, runner: LinuxNamespaceRunner) -> None:
+    def __init__(
+        self, workspace_manager: SandboxWorkspaceManager, runner: LinuxNamespaceRunner
+    ) -> None:
         self.workspaces = workspace_manager
         self.runner = runner
 
@@ -138,7 +138,9 @@ class LinuxNamespaceSandboxExecutor:
             },
         )
 
-    async def _security_scan(self, request: SkillExecutionRequest, workspace) -> SkillExecutionResult:
+    async def _security_scan(
+        self, request: SkillExecutionRequest, workspace
+    ) -> SkillExecutionResult:
         helper = workspace.path / ".agnes" / "phase2_secret_scan.py"
         helper.parent.mkdir(parents=True, exist_ok=True)
         helper.write_text(_SECRET_SCAN_HELPER, encoding="utf-8")
@@ -203,7 +205,11 @@ class LinuxNamespaceSandboxExecutor:
             request.execution_id,
             request.skill_id,
             ExecutionStatus.TIMED_OUT if result.timed_out else ExecutionStatus.FAILED,
-            output={"returncode": result.returncode, "stdout": result.stdout, "stderr": result.stderr},
+            output={
+                "returncode": result.returncode,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+            },
             error=reason,
         )
 
@@ -217,7 +223,7 @@ class LinuxNamespaceSandboxExecutor:
         )
 
 
-_SECRET_SCAN_HELPER = r'''
+_SECRET_SCAN_HELPER = r"""
 from __future__ import annotations
 import pathlib, re, sys
 PATTERNS = {
@@ -241,4 +247,4 @@ if hits:
     print(json.dumps({"status":"FAIL","scanned":scanned,"hits":hits}, sort_keys=True))
     raise SystemExit(1)
 print(json.dumps({"status":"PASS","scanned":scanned,"hits":[]}, sort_keys=True))
-'''.replace("import pathlib, re, sys", "import json, pathlib, re, sys")
+""".replace("import pathlib, re, sys", "import json, pathlib, re, sys")

@@ -30,7 +30,9 @@ def main() -> int:
     if '"status":"ok"' not in health.replace(" ", ""):
         print("P0-OBS-001 FAIL health")
         return 1
-    metrics = fetch(args.base_url.rstrip("/") + "/metrics", token=os.getenv("CKNEXUS_ACCESS_TOKEN", ""))
+    metrics = fetch(
+        args.base_url.rstrip("/") + "/metrics", token=os.getenv("CKNEXUS_ACCESS_TOKEN", "")
+    )
     pending = metric_value(metrics, "ckn_email_outbox_pending")
     stale = metric_value(metrics, "ckn_email_stale_processing_leases")
     if pending > args.max_outbox_pending or stale > 0:

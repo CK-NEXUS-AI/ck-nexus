@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from creator_app.agnes.execution.phase3.hardening import CgroupLimits, CgroupV2Manager
+from creator_app.agnes.execution.phase3.hardening import CgroupLimits, CgroupV2Manager  # noqa: E402
 
 
 def emit(payload: dict[str, object]) -> None:
@@ -20,7 +20,9 @@ def emit(payload: dict[str, object]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="CK-NEXUS delegated cgroup v2 staging enforcement gate")
+    parser = argparse.ArgumentParser(
+        description="CK-NEXUS delegated cgroup v2 staging enforcement gate"
+    )
     parser.add_argument("--root", default=os.getenv("CKNEXUS_AGNES_CGROUP_ROOT", "/sys/fs/cgroup"))
     args = parser.parse_args()
 
@@ -28,7 +30,9 @@ def main() -> int:
         emit({"status": "BLOCKED", "reason": "CKNEXUS_ENVIRONMENT_must_be_staging"})
         return 2
 
-    manager = CgroupV2Manager(Path(args.root).expanduser().resolve(), group_prefix="cknexus-r18-probe")
+    manager = CgroupV2Manager(
+        Path(args.root).expanduser().resolve(), group_prefix="cknexus-r18-probe"
+    )
     health = manager.health()
     if not health.get("ready"):
         emit({"status": "BLOCKED", "reason": "delegated_cgroup_v2_unavailable", "health": health})
@@ -39,7 +43,12 @@ def main() -> int:
     try:
         cgroup = manager.create(
             f"{os.getpid()}-{child.pid}",
-            CgroupLimits(cpu_quota_us=20_000, cpu_period_us=100_000, memory_max_bytes=64 * 1024 * 1024, pids_max=16),
+            CgroupLimits(
+                cpu_quota_us=20_000,
+                cpu_period_us=100_000,
+                memory_max_bytes=64 * 1024 * 1024,
+                pids_max=16,
+            ),
         )
         manager.attach(cgroup, child.pid)
         time.sleep(0.05)

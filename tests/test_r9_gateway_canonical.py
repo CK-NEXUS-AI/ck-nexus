@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from fastapi.testclient import TestClient
 
 from gateway.app import GatewayDependencies, create_app

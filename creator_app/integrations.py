@@ -160,9 +160,7 @@ class GoogleDriveIntegration(_JsonHttpIntegration):
             )
             user = payload.get("user") if isinstance(payload.get("user"), dict) else {}
             quota = (
-                payload.get("storageQuota")
-                if isinstance(payload.get("storageQuota"), dict)
-                else {}
+                payload.get("storageQuota") if isinstance(payload.get("storageQuota"), dict) else {}
             )
             return IntegrationStatus(
                 "google_drive",

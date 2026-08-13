@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import os
 import sys
@@ -12,7 +13,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from creator_app.agnes.execution.phase3 import PostgresIdempotencyStore, RedisIdempotencyStore
+from creator_app.agnes.execution.phase3 import (  # noqa: E402
+    PostgresIdempotencyStore,
+    RedisIdempotencyStore,
+)
 
 
 def _configured(name: str) -> bool:
@@ -41,7 +45,11 @@ async def _redis_gate(url: str) -> dict[str, object]:
             and replay is not None
             and replay.result == {"gate": "pass"}
         )
-        return {"status": "PASS" if passed else "FAIL", "duplicate_blocked": second is False, "replay_verified": bool(replay and replay.result == {"gate": "pass"})}
+        return {
+            "status": "PASS" if passed else "FAIL",
+            "duplicate_blocked": second is False,
+            "replay_verified": bool(replay and replay.result == {"gate": "pass"}),
+        }
     except Exception as exc:
         return {"status": "BLOCKED", "reason": f"redis_unreachable:{type(exc).__name__}"}
     finally:
@@ -79,32 +87,53 @@ async def _postgres_gate(url: str) -> dict[str, object]:
         second, record = await store.claim(key, "gate-manifest")
         await store.complete(key, success=True, result={"gate": "pass"})
         _, replay = await store.claim(key, "gate-manifest")
-        passed = bool(first and not second and record is not None and replay is not None and replay.result == {"gate": "pass"})
-        return {"status": "PASS" if passed else "FAIL", "duplicate_blocked": second is False, "replay_verified": bool(replay and replay.result == {"gate": "pass"})}
+        passed = bool(
+            first
+            and not second
+            and record is not None
+            and replay is not None
+            and replay.result == {"gate": "pass"}
+        )
+        return {
+            "status": "PASS" if passed else "FAIL",
+            "duplicate_blocked": second is False,
+            "replay_verified": bool(replay and replay.result == {"gate": "pass"}),
+        }
     except Exception as exc:
         return {"status": "BLOCKED", "reason": f"postgres_unreachable:{type(exc).__name__}"}
     finally:
         if conn is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await conn.execute("DELETE FROM agnes_idempotency WHERE idem_key=$1", key)
-            except Exception:
-                pass
             await conn.close()
 
 
 async def main_async(require_live: bool) -> int:
     redis_url = os.getenv("CKNEXUS_AGNES_REDIS_URL", "").strip()
-    postgres_url = os.getenv("CKNEXUS_AGNES_POSTGRES_URL", "").strip() or os.getenv("CKNEXUS_DATABASE_URL", "").strip()
+    postgres_url = (
+        os.getenv("CKNEXUS_AGNES_POSTGRES_URL", "").strip()
+        or os.getenv("CKNEXUS_DATABASE_URL", "").strip()
+    )
     result: dict[str, object] = {
         "gate": "distributed_idempotency",
         "secrets_exposed": False,
         "redis_configured": _configured("CKNEXUS_AGNES_REDIS_URL"),
         "postgres_configured": bool(postgres_url),
     }
-    result["redis"] = await _redis_gate(redis_url) if redis_url else {"status": "BLOCKED", "reason": "CKNEXUS_AGNES_REDIS_URL_not_configured"}
-    result["postgres"] = await _postgres_gate(postgres_url) if postgres_url else {"status": "BLOCKED", "reason": "postgres_url_not_configured"}
+    result["redis"] = (
+        await _redis_gate(redis_url)
+        if redis_url
+        else {"status": "BLOCKED", "reason": "CKNEXUS_AGNES_REDIS_URL_not_configured"}
+    )
+    result["postgres"] = (
+        await _postgres_gate(postgres_url)
+        if postgres_url
+        else {"status": "BLOCKED", "reason": "postgres_url_not_configured"}
+    )
     statuses = {result["redis"]["status"], result["postgres"]["status"]}  # type: ignore[index]
-    result["status"] = "PASS" if statuses == {"PASS"} else ("BLOCKED" if "BLOCKED" in statuses else "FAIL")
+    result["status"] = (
+        "PASS" if statuses == {"PASS"} else ("BLOCKED" if "BLOCKED" in statuses else "FAIL")
+    )
     print(json.dumps(result, sort_keys=True))
     if require_live and result["status"] != "PASS":
         return 2

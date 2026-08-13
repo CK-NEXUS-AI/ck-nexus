@@ -29,10 +29,14 @@ class RiskClassifier:
         "knowledge_write": ExecutorRiskClass.MEDIUM,
     }
 
-    def classify(self, skill: SkillDefinition, executor_risk: ExecutorRiskClass | None = None) -> ExecutorRiskClass:
+    def classify(
+        self, skill: SkillDefinition, executor_risk: ExecutorRiskClass | None = None
+    ) -> ExecutorRiskClass:
         candidates = [self._skill_risk[skill.risk]]
         candidates.extend(
-            risk for capability, risk in self._capability_floor.items() if capability in skill.capabilities
+            risk
+            for capability, risk in self._capability_floor.items()
+            if capability in skill.capabilities
         )
         if executor_risk is not None:
             candidates.append(executor_risk)
@@ -61,9 +65,12 @@ class ExecutionPolicyEngine:
         skill: SkillDefinition,
         risk_class: ExecutorRiskClass,
     ) -> PolicyDecision:
-        if request.environment == "production" and risk_class.rank > ExecutorRiskClass.READ_ONLY.rank:
-            if not self.policy.allow_production_mutation:
-                return PolicyDecision(False, "production_mutation_disabled", True)
+        if (
+            request.environment == "production"
+            and risk_class.rank > ExecutorRiskClass.READ_ONLY.rank
+            and not self.policy.allow_production_mutation
+        ):
+            return PolicyDecision(False, "production_mutation_disabled", True)
         requires_approval = (
             request.requires_approval
             or skill.approval_required

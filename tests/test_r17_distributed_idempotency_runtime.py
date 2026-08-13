@@ -50,7 +50,9 @@ def test_settings_reads_agnes_redis_url(monkeypatch: pytest.MonkeyPatch, tmp_pat
     assert settings.agnes_redis_url == "rediss://redis.example.invalid:6380/0"
 
 
-def test_phase3_production_reports_missing_redis_client_without_secret_leak(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_phase3_production_reports_missing_redis_client_without_secret_leak(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setitem(sys.modules, "redis", None)
     monkeypatch.delitem(sys.modules, "redis.asyncio", raising=False)
     secret_url = "rediss://user:super-secret@example.invalid:6380/0"

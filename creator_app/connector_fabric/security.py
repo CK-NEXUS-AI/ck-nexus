@@ -4,8 +4,8 @@ import base64
 import ipaddress
 import re
 import socket
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Callable, Iterable
 from urllib.parse import urlsplit
 
 
@@ -47,12 +47,17 @@ def validate_endpoint(
     if parsed.fragment:
         raise EndpointSecurityError("Connector URL fragments are not allowed.")
     if parsed.query:
-        raise EndpointSecurityError("Connector URL query strings are not allowed; bind credentials through the broker.")
+        raise EndpointSecurityError(
+            "Connector URL query strings are not allowed; bind credentials through the broker."
+        )
     if not parsed.hostname:
         raise EndpointSecurityError("Connector URL must include a hostname.")
-    if policy.require_https and parsed.scheme.lower() != "https":
-        if not (policy.allow_private_network and parsed.scheme.lower() == "http"):
-            raise EndpointSecurityError("Remote connector endpoints must use HTTPS.")
+    if (
+        policy.require_https
+        and parsed.scheme.lower() != "https"
+        and not (policy.allow_private_network and parsed.scheme.lower() == "http")
+    ):
+        raise EndpointSecurityError("Remote connector endpoints must use HTTPS.")
     if parsed.scheme.lower() not in {"https", "http"}:
         raise EndpointSecurityError("Unsupported connector URL scheme.")
 
