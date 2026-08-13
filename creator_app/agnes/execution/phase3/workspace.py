@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import shutil
-# Subprocess is required only for fixed git operations against the locked repository baseline.
 import subprocess  # nosec B404
 from dataclasses import dataclass
 from pathlib import Path
