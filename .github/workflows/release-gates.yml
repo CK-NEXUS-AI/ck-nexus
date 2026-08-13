@@ -150,6 +150,133 @@ jobs:
       - name: Q08 distributed idempotency contract regression
         run: .venv/bin/pytest -q tests/test_r17_distributed_idempotency_runtime.py
 
+      - name: Q08 live Redis and PostgreSQL idempotency
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cknexus
+          REDIS_URL: redis://127.0.0.1:6379/0
+        run: |
+          .venv/bin/python - <<'PY'
+          import asyncio
+          import os
+          import uuid
+
+          import asyncpg
+          import redis.asyncio as redis_async
+
+          from creator_app.agnes.execution.idempotency import IdempotencyState
+          from creator_app.agnes.execution.phase3.idempotency import (
+              PostgresIdempotencyStore,
+              RedisIdempotencyStore,
+          )
+
+
+          async def assert_concurrent_once(store_a, store_b, key: str) -> None:
+              manifest = "manifest-A"
+              claims = await asyncio.gather(
+                  store_a.claim(key, manifest),
+                  store_b.claim(key, manifest),
+              )
+              assert sum(1 for claimed, _ in claims if claimed) == 1, claims
+              await store_a.complete(
+                  key,
+                  success=True,
+                  result={"side_effect_token": "once"},
+              )
+              claimed, replay = await store_b.claim(key, manifest)
+              assert claimed is False
+              assert replay is not None
+              assert replay.manifest_hash == manifest
+              assert replay.state is IdempotencyState.SUCCEEDED
+              assert replay.result == {"side_effect_token": "once"}
+
+
+          async def verify_redis() -> None:
+              url = os.environ["REDIS_URL"]
+              key = "cknexus:q08:" + uuid.uuid4().hex
+              a_client = redis_async.Redis.from_url(url, decode_responses=False)
+              b_client = redis_async.Redis.from_url(url, decode_responses=False)
+              try:
+                  await a_client.delete(key)
+                  await assert_concurrent_once(
+                      RedisIdempotencyStore(a_client, ttl_seconds=300),
+                      RedisIdempotencyStore(b_client, ttl_seconds=300),
+                      key,
+                  )
+              finally:
+                  await a_client.aclose()
+                  await b_client.aclose()
+              restarted = redis_async.Redis.from_url(url, decode_responses=False)
+              try:
+                  claimed, replay = await RedisIdempotencyStore(
+                      restarted, ttl_seconds=300
+                  ).claim(key, "manifest-A")
+                  assert claimed is False
+                  assert replay is not None and replay.state is IdempotencyState.SUCCEEDED
+                  assert replay.result == {"side_effect_token": "once"}
+                  mismatch_claimed, mismatch = await RedisIdempotencyStore(
+                      restarted, ttl_seconds=300
+                  ).claim(key, "manifest-B")
+                  assert mismatch_claimed is False
+                  assert mismatch is not None and mismatch.manifest_hash == "manifest-A"
+                  await restarted.delete(key)
+              finally:
+                  await restarted.aclose()
+              print("Q08 Redis concurrent/replay/restart PASS")
+
+
+          async def verify_postgres() -> None:
+              dsn = os.environ["DATABASE_URL"]
+              key = "cknexus:q08:" + uuid.uuid4().hex
+              pool = await asyncpg.create_pool(dsn, min_size=1, max_size=4, timeout=5)
+              try:
+                  await pool.execute(
+                      """
+                      CREATE TABLE IF NOT EXISTS agnes_idempotency (
+                          idem_key TEXT PRIMARY KEY,
+                          manifest_hash TEXT NOT NULL,
+                          state TEXT NOT NULL,
+                          result_json JSONB
+                      )
+                      """
+                  )
+                  await pool.execute("DELETE FROM agnes_idempotency WHERE idem_key=$1", key)
+                  await assert_concurrent_once(
+                      PostgresIdempotencyStore(pool.execute, pool.fetchrow),
+                      PostgresIdempotencyStore(pool.execute, pool.fetchrow),
+                      key,
+                  )
+              finally:
+                  await pool.close()
+
+              restarted_pool = await asyncpg.create_pool(dsn, min_size=1, max_size=2, timeout=5)
+              try:
+                  restarted = PostgresIdempotencyStore(
+                      restarted_pool.execute, restarted_pool.fetchrow
+                  )
+                  claimed, replay = await restarted.claim(key, "manifest-A")
+                  assert claimed is False
+                  assert replay is not None and replay.state is IdempotencyState.SUCCEEDED
+                  assert replay.result == {"side_effect_token": "once"}
+                  mismatch_claimed, mismatch = await restarted.claim(key, "manifest-B")
+                  assert mismatch_claimed is False
+                  assert mismatch is not None and mismatch.manifest_hash == "manifest-A"
+                  await restarted_pool.execute(
+                      "DELETE FROM agnes_idempotency WHERE idem_key=$1", key
+                  )
+              finally:
+                  await restarted_pool.close()
+              print("Q08 PostgreSQL concurrent/replay/restart PASS")
+
+
+          async def main() -> None:
+              await verify_redis()
+              await verify_postgres()
+              print("Q08 LIVE IDEMPOTENCY PASS")
+
+
+          asyncio.run(main())
+          PY
+
       - name: Upload release diagnostics
         if: always()
         uses: actions/upload-artifact@v4
