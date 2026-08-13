@@ -18,15 +18,69 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-      - name: Install
-        run: python -m pip install --upgrade pip && pip install -e '.[dev,billing,email,github-app]'
+
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+
+      - name: Q04 lock check
+        run: uv lock --check
+
+      - name: Q04 frozen sync
+        run: uv sync --all-extras --dev --frozen
+
+      - name: Q04 runtime import smoke
+        run: .venv/bin/python -c "import aiosqlite, asyncpg, psycopg, redis; print('Q04 runtime imports PASS')"
+
       - name: Compile
-        run: python -m compileall -q main.py creator_app services scripts
+        run: .venv/bin/python -m compileall -q main.py creator_app services scripts
+
       - name: Ruff
-        run: ruff check main.py creator_app services tests scripts
+        id: ruff
+        continue-on-error: true
+        run: .venv/bin/ruff check main.py creator_app services tests scripts --output-format=github
+
       - name: Bandit
-        run: bandit -q -r creator_app services main.py
+        id: bandit
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          .venv/bin/bandit -r creator_app services main.py -f json -o bandit.json
+          rc=$?
+          cat bandit.json
+          exit "$rc"
+
       - name: Secret scan
-        run: python scripts/secret_scan.py
+        id: secret_scan
+        continue-on-error: true
+        run: .venv/bin/python scripts/secret_scan.py
+
       - name: Tests
-        run: pytest -q
+        id: tests
+        continue-on-error: true
+        run: .venv/bin/pytest -q
+
+      - name: Upload Q05 diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: q05-diagnostics
+          path: bandit.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Q05 final gate
+        if: always()
+        shell: bash
+        env:
+          RUFF_OUTCOME: ${{ steps.ruff.outcome }}
+          BANDIT_OUTCOME: ${{ steps.bandit.outcome }}
+          SECRET_OUTCOME: ${{ steps.secret_scan.outcome }}
+          TESTS_OUTCOME: ${{ steps.tests.outcome }}
+        run: |
+          printf 'Ruff=%s\nBandit=%s\nSecretScan=%s\nTests=%s\n' \
+            "$RUFF_OUTCOME" "$BANDIT_OUTCOME" "$SECRET_OUTCOME" "$TESTS_OUTCOME"
+          test "$RUFF_OUTCOME" = success
+          test "$BANDIT_OUTCOME" = success
+          test "$SECRET_OUTCOME" = success
+          test "$TESTS_OUTCOME" = success
