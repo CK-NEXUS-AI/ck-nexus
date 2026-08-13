@@ -2,7 +2,7 @@ name: CK-NEXUS CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, verify/q04-q05-converged]
   pull_request:
   workflow_dispatch:
 
