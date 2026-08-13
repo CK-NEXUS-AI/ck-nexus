@@ -18,15 +18,21 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-      - name: Install
-        run: python -m pip install --upgrade pip && pip install -e '.[dev,billing,email,github-app]'
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+      - name: Q04 lock check
+        run: uv lock --check
+      - name: Q04 frozen sync
+        run: uv sync --all-extras --dev --frozen
+      - name: Q04 runtime import smoke
+        run: .venv/bin/python -c "import aiosqlite, asyncpg, psycopg, redis; print('Q04 runtime imports PASS')"
       - name: Compile
-        run: python -m compileall -q main.py creator_app services scripts
+        run: .venv/bin/python -m compileall -q main.py creator_app services scripts
       - name: Ruff
-        run: ruff check main.py creator_app services tests scripts
+        run: .venv/bin/ruff check main.py creator_app services tests scripts --output-format=github
       - name: Bandit
-        run: bandit -q -r creator_app services main.py
+        run: .venv/bin/bandit -q -r creator_app services main.py
       - name: Secret scan
-        run: python scripts/secret_scan.py
+        run: .venv/bin/python scripts/secret_scan.py
       - name: Tests
-        run: pytest -q
+        run: .venv/bin/pytest -q
