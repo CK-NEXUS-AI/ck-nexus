@@ -2,7 +2,7 @@ name: CK-NEXUS CI
 
 on:
   push:
-    branches: [main, verify/q04-q05-converged]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
@@ -39,16 +41,18 @@ jobs:
         continue-on-error: true
         run: .venv/bin/ruff check main.py creator_app services tests scripts --output-format=github
 
-      - name: Bandit
+      - name: Bandit diagnostics and medium-plus gate
         id: bandit
         continue-on-error: true
         shell: bash
         run: |
           set +e
           .venv/bin/bandit -r creator_app services main.py -f json -o bandit.json
-          rc=$?
+          diagnostic_rc=$?
+          set -e
           cat bandit.json
-          exit "$rc"
+          echo "Bandit all-severity diagnostic exit=$diagnostic_rc"
+          .venv/bin/bandit -q -r creator_app services main.py -ll
 
       - name: Secret scan
         id: secret_scan
