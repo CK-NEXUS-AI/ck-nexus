@@ -102,7 +102,8 @@ class AgnesNervousSystem:
             if phase3_enabled and normalized_environment in {"staging", "production"}:
                 if not phase3_redis_url:
                     raise RuntimeError(
-                        "distributed_idempotency_required: CKNEXUS_AGNES_REDIS_URL is not configured"
+                        "distributed_idempotency_required: "
+                        "CKNEXUS_AGNES_REDIS_URL is not configured"
                     )
                 if not phase3_redis_url.startswith(("redis://", "rediss://")):
                     raise RuntimeError(
@@ -124,7 +125,8 @@ class AgnesNervousSystem:
                 idempotency = RedisIdempotencyStore(redis_client)
                 if not cgroups or not cgroups.health().get("ready"):
                     raise RuntimeError(
-                        "cgroup_v2_enforcement_required: delegated writable cgroup v2 root is unavailable"
+                        "cgroup_v2_enforcement_required: delegated writable cgroup v2 "
+                        "root is unavailable"
                     )
             else:
                 idempotency = SQLiteIdempotencyStore(sandbox_root / "idempotency.sqlite3")

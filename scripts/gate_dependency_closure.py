@@ -129,10 +129,12 @@ def main() -> int:
     elif not args.output:
         print("[PASS] dependency closure" if result["ready"] else "[FAIL] dependency closure")
         print(
-            f"Lock: {result['locked_required_count']}/{result['required_count']} required packages present"
+            f"Lock: {result['locked_required_count']}/{result['required_count']} "
+            "required packages present"
         )
         print(
-            f"Runtime: {result['installed_required_count']}/{result['required_count']} required modules present"
+            f"Runtime: {result['installed_required_count']}/{result['required_count']} "
+            "required modules present"
         )
         print("Missing lock packages: " + (", ".join(result["missing_lock_packages"]) or "none"))
         print(

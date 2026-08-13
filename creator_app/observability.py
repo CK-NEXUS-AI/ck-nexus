@@ -92,7 +92,8 @@ class MetricsRegistry:
             ]
             for (method, route, status_class), count in sorted(self._requests.items()):
                 lines.append(
-                    f'ckn_http_requests_total{{method="{method}",route="{route}",status_class="{status_class}"}} {count}'
+                    f'ckn_http_requests_total{{method="{method}",route="{route}",'
+                    f'status_class="{status_class}"}} {count}'
                 )
             lines.extend(
                 [
@@ -102,7 +103,8 @@ class MetricsRegistry:
             )
             for (method, route), total in sorted(self._latency_sum.items()):
                 lines.append(
-                    f'ckn_http_request_duration_seconds_sum{{method="{method}",route="{route}"}} {total:.6f}'
+                    f'ckn_http_request_duration_seconds_sum{{method="{method}",'
+                    f'route="{route}"}} {total:.6f}'
                 )
             lines.extend(
                 [

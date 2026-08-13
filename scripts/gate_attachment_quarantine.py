@@ -14,7 +14,9 @@ def upload(url, path, token):
     name = path.name
     body = (
         (
-            f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{name}"\r\nContent-Type: application/octet-stream\r\n\r\n'
+            f'--{boundary}\r\n'
+            f'Content-Disposition: form-data; name="file"; filename="{name}"\r\n'
+            f'Content-Type: application/octet-stream\r\n\r\n'
         ).encode()
         + data
         + f"\r\n--{boundary}--\r\n".encode()

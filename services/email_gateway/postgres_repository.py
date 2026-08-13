@@ -351,8 +351,10 @@ class PostgresEmailGatewayRepository:
         with self._connect() as connection, connection.cursor() as cursor:
             queries = {
                 "journal_total": "SELECT COUNT(*) AS n FROM email_journal",
-                "duplicates_total": "SELECT COUNT(*) AS n FROM email_audit_logs WHERE event_type='INGRESS_DUPLICATE'",
-                "outbox_pending": "SELECT COUNT(*) AS n FROM email_outbox WHERE status IN ('PENDING','FAILED_RETRYABLE')",
+                "duplicates_total": "SELECT COUNT(*) AS n FROM email_audit_logs "
+                "WHERE event_type='INGRESS_DUPLICATE'",
+                "outbox_pending": "SELECT COUNT(*) AS n FROM email_outbox "
+                "WHERE status IN ('PENDING','FAILED_RETRYABLE')",
                 "outbox_sending": "SELECT COUNT(*) AS n FROM email_outbox WHERE status='SENDING'",
             }
             output = {}
@@ -360,7 +362,8 @@ class PostgresEmailGatewayRepository:
                 cursor.execute(query)
                 output[key] = int(cursor.fetchone()["n"])
             cursor.execute(
-                "SELECT COUNT(*) AS n FROM email_journal WHERE status='PROCESSING' AND locked_until IS NOT NULL AND locked_until < %s",
+                "SELECT COUNT(*) AS n FROM email_journal WHERE status='PROCESSING' AND "
+                "locked_until IS NOT NULL AND locked_until < %s",
                 (timestamp,),
             )
             output["stale_journal_leases"] = int(cursor.fetchone()["n"])

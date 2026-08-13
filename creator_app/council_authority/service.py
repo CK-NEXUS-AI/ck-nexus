@@ -67,7 +67,8 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 return self._json(200, {"ok": True})
             if self.path == "/v1/budget/top-up":
-                # Administrative mutation is represented as a capability and still passes the same authority.
+                # Administrative mutation is represented as a capability and still passes the
+                # same authority.
                 self.server.authority.enforce(
                     ident,
                     "system.budget.top_up",
@@ -112,7 +113,8 @@ class Handler(BaseHTTPRequestHandler):
 
                 with self.server.authority.store._db() as db:
                     rows = db.execute(
-                        "SELECT seq,previous_hash,entry_hash,payload,created_at FROM audit ORDER BY seq"
+                        "SELECT seq,previous_hash,entry_hash,payload,created_at "
+                        "FROM audit ORDER BY seq"
                     ).fetchall()
                 return self._json(
                     200,

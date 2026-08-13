@@ -391,7 +391,8 @@ class EmailGatewayRepository:
             )
             outbox_pending = int(
                 connection.execute(
-                    "SELECT COUNT(*) FROM email_outbox WHERE status IN ('PENDING','FAILED_RETRYABLE')"
+                    "SELECT COUNT(*) FROM email_outbox "
+                    "WHERE status IN ('PENDING','FAILED_RETRYABLE')"
                 ).fetchone()[0]
             )
             outbox_sending = int(
@@ -401,7 +402,8 @@ class EmailGatewayRepository:
             )
             stale_journal = int(
                 connection.execute(
-                    "SELECT COUNT(*) FROM email_journal WHERE status='PROCESSING' AND locked_until IS NOT NULL AND locked_until < ?",
+                    "SELECT COUNT(*) FROM email_journal WHERE status='PROCESSING' AND "
+                    "locked_until IS NOT NULL AND locked_until < ?",
                     (now_iso,),
                 ).fetchone()[0]
             )

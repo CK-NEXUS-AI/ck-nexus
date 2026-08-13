@@ -95,14 +95,17 @@ async def test_redis_idempotency_coordinates_two_dispatcher_instances():
 async def test_autonomous_pipeline_stops_at_candidate_and_can_discard(tmp_path: Path):
     agnes = _agnes(tmp_path)
     assert agnes.dev_controller is not None
-    patch = """--- a/README.md
-+++ b/README.md
-@@ -1,3 +1,4 @@
- # CK-NEXUS Creator Edition
-+Phase3 candidate test.
-
- ระบบ AI แบบเมนูสำหรับครีเอเตอร์: เลือก Agent, ใส่ Creative Brief สั้น ๆ, สร้างผลงาน และเก็บประวัติไว้ใน SQLite บนเครื่องของผู้ใช้
-"""
+    patch = (
+        "--- a/README.md\n"
+        "+++ b/README.md\n"
+        "@@ -1,3 +1,4 @@\n"
+        " # CK-NEXUS Creator Edition\n"
+        "+Phase3 candidate test.\n"
+        "\n"
+        " ระบบ AI แบบเมนูสำหรับครีเอเตอร์: เลือก Agent, ใส่ Creative Brief "
+        "สั้น ๆ, สร้างผลงาน "
+        "และเก็บประวัติไว้ใน SQLite บนเครื่องของผู้ใช้\n"
+    )
     from creator_app.agnes.execution.request import ExecutorType, SkillExecutionRequest
 
     request = SkillExecutionRequest(
@@ -156,7 +159,8 @@ async def test_autonomous_pipeline_stops_at_candidate_and_can_discard(tmp_path: 
         fingerprint=pending2.approval_fingerprint or "",
         approved_by="human",
     )
-    # Controller request is immutable; bind approval by replacing the stored request with an approved clone.
+    # Controller request is immutable; bind approval by replacing the stored request
+    # with an approved clone.
     request3 = SkillExecutionRequest(
         execution_id=request2.execution_id,
         correlation_id=request2.correlation_id,
@@ -252,7 +256,17 @@ def test_phase3_api_pending_approval_then_advance_to_candidate(tmp_path: Path):
         agnes_sandbox_root=tmp_path / "sandbox",
         agnes_sandbox_repository_root=ROOT,
     )
-    patch = """--- a/README.md\n+++ b/README.md\n@@ -1,3 +1,4 @@\n # CK-NEXUS Creator Edition\n+API Phase3 candidate.\n \n ระบบ AI แบบเมนูสำหรับครีเอเตอร์: เลือก Agent, ใส่ Creative Brief สั้น ๆ, สร้างผลงาน และเก็บประวัติไว้ใน SQLite บนเครื่องของผู้ใช้\n"""
+    patch = (
+        "--- a/README.md\n"
+        "+++ b/README.md\n"
+        "@@ -1,3 +1,4 @@\n"
+        " # CK-NEXUS Creator Edition\n"
+        "+API Phase3 candidate.\n"
+        " \n"
+        " ระบบ AI แบบเมนูสำหรับครีเอเตอร์: เลือก Agent, ใส่ Creative Brief "
+        "สั้น ๆ, สร้างผลงาน "
+        "และเก็บประวัติไว้ใน SQLite บนเครื่องของผู้ใช้\n"
+    )
     with TestClient(create_app(settings)) as client:
         start = client.post(
             "/api/agnes/pipeline/start",

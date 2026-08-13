@@ -256,7 +256,10 @@ class _PostgresRunStore:
 
 
 class RunStore:
-    """Creator history store. PostgreSQL is used when database_url is supplied; SQLite is local/test fallback."""
+    (
+        "Creator history store. PostgreSQL is used when database_url is supplied; "
+        "SQLite is local/test fallback."
+    )
 
     def __init__(self, database_path: Path, *, database_url: str = "") -> None:
         self._impl = (

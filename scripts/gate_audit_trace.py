@@ -6,7 +6,11 @@ if not os.getenv("CKNEXUS_END_TO_END_TRACE_ID"):
         json.dumps(
             {
                 "status": "BLOCKED",
-                "reason": "Set CKNEXUS_END_TO_END_TRACE_ID after driving one real message ingress→CK-NEXUS router→outbox→provider; gate requires complete correlated runtime trace.",
+                "reason": (
+                    "Set CKNEXUS_END_TO_END_TRACE_ID after driving one real message "
+                    "ingress→CK-NEXUS router→outbox→provider; gate requires complete "
+                    "correlated runtime trace."
+                ),
             }
         )
     )
@@ -15,7 +19,10 @@ print(
     json.dumps(
         {
             "status": "BLOCKED",
-            "reason": "A trace ID alone is insufficient; the staging evidence collector must verify all required lifecycle events before PASS.",
+            "reason": (
+                "A trace ID alone is insufficient; the staging evidence collector must verify "
+                "all required lifecycle events before PASS."
+            ),
         }
     )
 )
