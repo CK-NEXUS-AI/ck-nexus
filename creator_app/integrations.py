@@ -37,7 +37,7 @@ class _JsonHttpIntegration:
     def __init__(
         self,
         *,
-        trusted_hosts: Iterable[str] | None = None,
+        trusted_hosts: Iterable[str],
         timeout: int = 5,
     ) -> None:
         if not trusted_hosts:

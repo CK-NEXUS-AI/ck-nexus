@@ -11,13 +11,13 @@ from typing import Protocol
 class CredentialId(StrEnum):
     OPENAI_API_KEY = "openai.api_key"
     GMAIL_CLIENT_ID = "gmail.client_id"
-    GMAIL_CLIENT_SECRET = "gmail.client_secret"
-    GMAIL_ACCESS_TOKEN = "gmail.access_token"
-    GMAIL_REFRESH_TOKEN = "gmail.refresh_token"
+    GMAIL_CLIENT_SECRET = "gmail.client_secret"  # nosec B105 - symbolic ID only
+    GMAIL_ACCESS_TOKEN = "gmail.access_token"  # nosec B105 - symbolic ID only
+    GMAIL_REFRESH_TOKEN = "gmail.refresh_token"  # nosec B105 - symbolic ID only
     GITHUB_APP_ID = "github.app_id"
     GITHUB_APP_PRIVATE_KEY = "github.app_private_key"
     GITHUB_APP_INSTALLATION_ID = "github.app_installation_id"
-    GITHUB_INSTALLATION_TOKEN = "github.installation_token"
+    GITHUB_INSTALLATION_TOKEN = "github.installation_token"  # nosec B105 - symbolic ID only
 
 
 ENV_BINDINGS: Mapping[CredentialId, str] = {

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import shutil
-import subprocess
+import subprocess  # nosec B404
 from pathlib import Path
 
 from ..sandbox.runner import LinuxNamespaceRunner
 from .hardening import CgroupLimits, CgroupV2Manager
+
+# Subprocess is required only for the locally resolved seccomp compiler executable.
 
 _SECCOMP_C = r"""
 #define _GNU_SOURCE
@@ -122,7 +124,8 @@ class HardenedLinuxNamespaceRunner(LinuxNamespaceRunner):
         gcc = shutil.which("gcc")
         if not gcc:
             raise RuntimeError("gcc_required_to_build_seccomp_launcher")
-        proc = subprocess.run(
+        # gcc is an absolute path from shutil.which; argv is fixed/list-based and shell is off.
+        proc = subprocess.run(  # nosec B603
             [gcc, "-O2", "-Wall", "-Wextra", str(source), "-o", str(binary)],
             capture_output=True,
         )
