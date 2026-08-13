@@ -30,7 +30,13 @@ def _agnes(tmp_path: Path) -> AgnesNervousSystem:
 
 
 def _patch_request(*, approval_id: str | None = None, workspace_id: str = "ws-phase2") -> dict:
-    patch = """--- /dev/null\n+++ b/phase2_sandbox_probe.py\n@@ -0,0 +1,2 @@\n+print(\"phase2-ok\")\n+VALUE = 42\n"""
+    patch = (
+        "--- /dev/null\n"
+        "+++ b/phase2_sandbox_probe.py\n"
+        "@@ -0,0 +1,2 @@\n"
+        '+print("phase2-ok")\n'
+        "+VALUE = 42\n"
+    )
     return {
         "id": "hands.code_patch",
         "executor": "sandbox",
@@ -80,7 +86,8 @@ async def test_timeout_kills_process_group(tmp_path: Path):
     )
     code = (
         "import subprocess,time; "
-        "subprocess.Popen(['python','-c',\"import time,pathlib; time.sleep(2); pathlib.Path('/workspace/child-survived').write_text('bad')\"]); "
+        "subprocess.Popen(['python','-c',\"import time,pathlib; time.sleep(2); "
+        "pathlib.Path('/workspace/child-survived').write_text('bad')\"]); "
         "time.sleep(20)"
     )
     result = await runner.run(

@@ -372,7 +372,8 @@ async def run_verification() -> bool:
 
             if conn_result["status"] != "PASS":
                 print(
-                    "  [SKIPPED] APPLICATION_BINDING : connectivity failed/blocked; app-level check not counted"
+                    "  [SKIPPED] APPLICATION_BINDING : connectivity failed/blocked; "
+                    "app-level check not counted"
                 )
                 overall_pass = False
                 continue
@@ -401,7 +402,8 @@ def main() -> int:
     if "--verify" not in sys.argv:
         print("Usage: python runtime_binding.py --verify")
         print(
-            "Or import get_db_pool / get_redis_client / verify_runtime_binding_or_raise in CK-NEXUS app"
+            "Or import get_db_pool / get_redis_client / "
+            "verify_runtime_binding_or_raise in CK-NEXUS app"
         )
         return 2
 

@@ -106,7 +106,8 @@ class CreatorRuntime:
             )
         except CredentialUnavailable as exc:
             raise MissingCredentialError(
-                "Live Mode requires an OpenAI API credential through the CK-NEXUS credential broker."
+                "Live Mode requires an OpenAI API credential through the "
+                "CK-NEXUS credential broker."
             ) from exc
         api_key = lease.reveal(consumer="provider.openai")
 

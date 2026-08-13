@@ -6,7 +6,10 @@ if os.getenv("CKNEXUS_CLEAN_MACHINE") != "YES":
         json.dumps(
             {
                 "status": "BLOCKED",
-                "reason": "Run this gate on a fresh VM/host with CKNEXUS_CLEAN_MACHINE=YES; same-host reruns are not clean-machine evidence.",
+                "reason": (
+                    "Run this gate on a fresh VM/host with CKNEXUS_CLEAN_MACHINE=YES; "
+                    "same-host reruns are not clean-machine evidence."
+                ),
             }
         )
     )
@@ -15,7 +18,10 @@ print(
     json.dumps(
         {
             "status": "BLOCKED",
-            "reason": "Fresh-host installer evidence collector is deployment-specific; record install/start/smoke logs and duration before PASS.",
+            "reason": (
+                "Fresh-host installer evidence collector is deployment-specific; "
+                "record install/start/smoke logs and duration before PASS."
+            ),
         }
     )
 )

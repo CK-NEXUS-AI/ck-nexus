@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "gate": "Q08",
+  "source_subject_manifest_sha256": "62f77fe881a23221f131156c307b87ae2ca1e516ed3130347f89e43710967f3f",
+  "github_run_id": 31746309053,
+  "github_head_sha": "e5a20d05e7b4ac3cbe3010feec52a358d799a593",
+  "result": "PASS",
+  "redis_live": "PASS",
+  "postgresql_live": "PASS",
+  "properties_verified": ["concurrent_single_winner", "replay", "restart_persistence", "manifest_mismatch_detection"],
+  "stale_on_subject_change": true
+}

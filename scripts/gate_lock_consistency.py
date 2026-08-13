@@ -56,7 +56,8 @@ def main() -> int:
     if missing:
         print("[FAIL] uv.lock missing required package(s): " + ", ".join(sorted(missing)))
         print(
-            f"Lock consistency: {len(required) - len(missing)}/{len(required)} required packages present"
+            f"Lock consistency: {len(required) - len(missing)}/{len(required)} "
+            "required packages present"
         )
         return 1
 

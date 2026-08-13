@@ -25,10 +25,24 @@ class AuthorityStore:
         with self._db() as db:
             db.executescript("""
             PRAGMA journal_mode=WAL;
-            CREATE TABLE IF NOT EXISTS budgets(task_id TEXT PRIMARY KEY, remaining INTEGER NOT NULL);
-            CREATE TABLE IF NOT EXISTS evidence(ref TEXT PRIMARY KEY, kind TEXT NOT NULL, digest TEXT NOT NULL, task_id TEXT, verified INTEGER NOT NULL, revoked INTEGER NOT NULL DEFAULT 0, quality REAL NOT NULL, created_at INTEGER NOT NULL);
-            CREATE TABLE IF NOT EXISTS grants(grant_id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, capability_id TEXT NOT NULL, params_hash TEXT NOT NULL, task_id TEXT, expires_at INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0);
-            CREATE TABLE IF NOT EXISTS audit(seq INTEGER PRIMARY KEY AUTOINCREMENT, previous_hash TEXT NOT NULL, entry_hash TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS budgets(
+                task_id TEXT PRIMARY KEY, remaining INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS evidence(
+                ref TEXT PRIMARY KEY, kind TEXT NOT NULL, digest TEXT NOT NULL, task_id TEXT,
+                verified INTEGER NOT NULL, revoked INTEGER NOT NULL DEFAULT 0,
+                quality REAL NOT NULL,
+                created_at INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS grants(
+                grant_id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, capability_id TEXT NOT NULL,
+                params_hash TEXT NOT NULL, task_id TEXT, expires_at INTEGER NOT NULL,
+                used INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS audit(
+                seq INTEGER PRIMARY KEY AUTOINCREMENT, previous_hash TEXT NOT NULL,
+                entry_hash TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL
+            );
             """)
 
     def append_audit(self, payload: dict) -> dict:
@@ -67,7 +81,8 @@ class AuthorityStore:
         q = max(0.0, min(float(quality), 1.0))
         with self._db() as db:
             db.execute(
-                "INSERT OR REPLACE INTO evidence(ref,kind,digest,task_id,verified,revoked,quality,created_at) VALUES(?,?,?,?,?,?,?,?)",
+                "INSERT OR REPLACE INTO evidence(ref,kind,digest,task_id,verified,revoked,quality,"
+                "created_at) VALUES(?,?,?,?,?,?,?,?)",
                 (ref, kind, digest, task_id, 1 if verified else 0, 0, q, int(time.time())),
             )
 
@@ -99,7 +114,8 @@ class AuthorityStore:
                 raise ValueError(f"insufficient budget: needs {weight}, has {remaining}")
             new = remaining - weight
             db.execute(
-                "INSERT INTO budgets(task_id,remaining) VALUES(?,?) ON CONFLICT(task_id) DO UPDATE SET remaining=excluded.remaining",
+                "INSERT INTO budgets(task_id,remaining) VALUES(?,?) ON CONFLICT(task_id) "
+                "DO UPDATE SET remaining=excluded.remaining",
                 (task_id, new),
             )
             db.execute("COMMIT")
@@ -114,7 +130,8 @@ class AuthorityStore:
             remaining = int(row[0]) if row else default_budget
             new = remaining + amount
             db.execute(
-                "INSERT INTO budgets(task_id,remaining) VALUES(?,?) ON CONFLICT(task_id) DO UPDATE SET remaining=excluded.remaining",
+                "INSERT INTO budgets(task_id,remaining) VALUES(?,?) ON CONFLICT(task_id) "
+                "DO UPDATE SET remaining=excluded.remaining",
                 (task_id, new),
             )
             db.execute("COMMIT")
@@ -133,7 +150,9 @@ class AuthorityStore:
         exp = int(time.time()) + ttl_seconds
         with self._db() as db:
             db.execute(
-                "INSERT INTO grants(grant_id,agent_id,capability_id,params_hash,task_id,expires_at) VALUES(?,?,?,?,?,?)",
+                "INSERT INTO grants(grant_id,agent_id,capability_id,params_hash,"
+                "task_id,expires_at) "
+                "VALUES(?,?,?,?,?,?)",
                 (gid, agent_id, capability_id, params_hash, task_id, exp),
             )
         return {

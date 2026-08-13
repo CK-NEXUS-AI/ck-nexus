@@ -8,7 +8,10 @@ if not os.getenv("CKNEXUS_ALERT_RECEIPT_FILE"):
         json.dumps(
             {
                 "status": "BLOCKED",
-                "reason": "Set CKNEXUS_ALERT_RECEIPT_FILE to captured operator alert evidence after failure injection.",
+                "reason": (
+                    "Set CKNEXUS_ALERT_RECEIPT_FILE to captured operator alert evidence "
+                    "after failure injection."
+                ),
             }
         )
     )

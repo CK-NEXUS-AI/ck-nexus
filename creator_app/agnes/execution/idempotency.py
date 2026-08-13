@@ -119,7 +119,8 @@ class SQLiteIdempotencyStore:
             except sqlite3.IntegrityError:
                 con.execute("ROLLBACK")
                 row = con.execute(
-                    "SELECT manifest_hash, state, result_json FROM agnes_idempotency WHERE idem_key=?",
+                    "SELECT manifest_hash, state, result_json FROM agnes_idempotency "
+                    "WHERE idem_key=?",
                     (key,),
                 ).fetchone()
                 if row is None:

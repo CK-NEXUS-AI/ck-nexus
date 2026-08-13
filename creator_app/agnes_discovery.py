@@ -43,7 +43,8 @@ TRUSTED_DISCOVERY_SOURCES: tuple[DiscoverySource, ...] = (
         "open_standard",
         True,
         False,
-        "Portable SKILL.md format; metadata may be discovered automatically, code remains review-gated.",
+        "Portable SKILL.md format; metadata may be discovered automatically, "
+        "code remains review-gated.",
     ),
     DiscoverySource(
         "mcp-registry",
@@ -158,7 +159,8 @@ class SkillDiscoveryPolicy:
                 "classify modality, context, tool support, local/cloud, price/quota metadata",
                 "run compatibility and policy checks",
                 "queue benchmark/eval in isolated workspace",
-                "append verified model record; mark older record superseded rather than deleting it",
+                "append verified model record; mark older record superseded rather than "
+                "deleting it",
             ],
             "auto_promote_to_runtime": False,
             "reason": "new models must pass verification and evals before routing traffic",

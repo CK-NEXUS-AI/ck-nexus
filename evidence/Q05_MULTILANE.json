@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "gate": "Q05",
+  "verification_level": "LOCALLY_VERIFIED_EXACT_TREE",
+  "source_tree": "55ab676c56c6081bf7390cbe220331fb0acf47b8",
+  "subject_manifest_sha256": "62f77fe881a23221f131156c307b87ae2ca1e516ed3130347f89e43710967f3f",
+  "result": "PASS",
+  "tests_passed": 17,
+  "tests_failed": 0,
+  "stale_on_subject_change": true
+}
