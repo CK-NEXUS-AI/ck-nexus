@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import shutil
-# Subprocess is required only for the locally resolved seccomp compiler executable.
 import subprocess  # nosec B404
 from pathlib import Path
 
 from ..sandbox.runner import LinuxNamespaceRunner
 from .hardening import CgroupLimits, CgroupV2Manager
+
+# Subprocess is required only for the locally resolved seccomp compiler executable.
 
 _SECCOMP_C = r"""
 #define _GNU_SOURCE
