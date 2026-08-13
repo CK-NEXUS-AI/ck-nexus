@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import asyncio
-import subprocess
 from pathlib import Path
 
 import pytest
 
 from creator_app.agnes.execution.idempotency import SQLiteIdempotencyStore
-from creator_app.agnes.execution.request import ExecutorType
 from creator_app.agnes.execution.result import ExecutionStatus
-from creator_app.agnes.execution.sandbox import LinuxNamespaceRunner, SandboxPolicy, SandboxViolation
+from creator_app.agnes.execution.sandbox import (
+    LinuxNamespaceRunner,
+    SandboxPolicy,
+    SandboxViolation,
+)
 from creator_app.agnes_runtime import AgnesNervousSystem
-
 
 REPO = Path(__file__).resolve().parents[1]
 SKILL_FILE = REPO / "creator_app" / "skills" / "agnes" / "SKILL.md"
@@ -312,6 +313,7 @@ def test_command_guard_denies_shell_and_network_git():
 @pytest.mark.asyncio
 async def test_api_phase2_approval_then_execute(tmp_path: Path):
     from fastapi.testclient import TestClient
+
     from creator_app.api import create_app
     from creator_app.config import Settings
 

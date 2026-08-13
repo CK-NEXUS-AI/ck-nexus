@@ -3,10 +3,14 @@ from __future__ import annotations
 import json
 import re
 from typing import Any
-from urllib.parse import urljoin
 
 from creator_app.connector_fabric.evidence import sha256_json
-from creator_app.connector_fabric.models import ConnectorConfig, ConnectorProtocol, DiscoverySnapshot, NormalizedTool
+from creator_app.connector_fabric.models import (
+    ConnectorConfig,
+    ConnectorProtocol,
+    DiscoverySnapshot,
+    NormalizedTool,
+)
 from creator_app.connector_fabric.risk import classify_openapi_operation
 from creator_app.connector_fabric.security import EndpointPolicy, validate_endpoint
 from creator_app.connector_fabric.transport import HttpTransport, UrllibHttpTransport

@@ -1,11 +1,19 @@
 from __future__ import annotations
-import hashlib, json, tempfile
+
+import hashlib
+import json
+import tempfile
 from pathlib import Path
+
 import pytest
-from creator_app.council_authority.authority import CapabilityAuthority, PolicyDenied, canonical_hash
+
+from creator_app.council_authority.arbitration import ArbitrationEngine, Proposal
+from creator_app.council_authority.authority import (
+    CapabilityAuthority,
+    PolicyDenied,
+)
 from creator_app.council_authority.identity import IdentityVerifier
 from creator_app.council_authority.storage import AuthorityStore
-from creator_app.council_authority.arbitration import ArbitrationEngine, Proposal
 
 CONTRACT=json.loads((Path(__file__).parents[1]/'contracts/capability-policy.example.json').read_text())
 class Broker:

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
-import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from services.email_gateway.repository import ClaimResult, OutboxItem, build_idempotency_key
 
@@ -322,13 +322,12 @@ class PostgresEmailGatewayRepository:
         return str(row["id"])
 
     def trace_audit(self, journal_id: str) -> list[dict[str, Any]]:
-        with self._connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "SELECT * FROM email_audit_logs WHERE email_journal_id=%s ORDER BY created_at, id",
-                    (journal_id,),
-                )
-                rows = cursor.fetchall()
+        with self._connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT * FROM email_audit_logs WHERE email_journal_id=%s ORDER BY created_at, id",
+                (journal_id,),
+            )
+            rows = cursor.fetchall()
         return [dict(row) for row in rows]
 
     def metrics_snapshot(self, *, now: datetime | None = None) -> dict[str, int]:
@@ -353,25 +352,23 @@ class PostgresEmailGatewayRepository:
         return output
 
     def count_journal(self) -> int:
-        with self._connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT COUNT(*) AS n FROM email_journal")
-                row = cursor.fetchone()
+        with self._connect() as connection, connection.cursor() as cursor:
+            cursor.execute("SELECT COUNT(*) AS n FROM email_journal")
+            row = cursor.fetchone()
         return int(row["n"])
 
     def count_journal_message(
         self, *, mailbox: str, provider: str, provider_message_id: str
     ) -> int:
-        with self._connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    """
+        with self._connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
                     SELECT COUNT(*) AS n FROM email_journal
                     WHERE mailbox=%s AND provider=%s AND provider_message_id=%s
                     """,
-                    (mailbox.strip(), provider.strip().casefold(), provider_message_id.strip()),
-                )
-                row = cursor.fetchone()
+                (mailbox.strip(), provider.strip().casefold(), provider_message_id.strip()),
+            )
+            row = cursor.fetchone()
         return int(row["n"])
 
     def run_outbox_once(

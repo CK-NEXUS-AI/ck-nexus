@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 from pathlib import Path
 
 from ..sandbox.runner import LinuxNamespaceRunner
 from .hardening import CgroupLimits, CgroupV2Manager
-
 
 _SECCOMP_C = r'''
 #define _GNU_SOURCE

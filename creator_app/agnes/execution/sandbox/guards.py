@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import fnmatch
 import re
+from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
-from typing import Iterable
 
 
 class SandboxViolation(PermissionError):

@@ -4,10 +4,21 @@ import hmac
 import os
 import time
 from contextlib import asynccontextmanager
-from uuid import uuid4
 from pathlib import Path as FilePath
+from uuid import uuid4
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Path, Query, Request, UploadFile, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    Header,
+    HTTPException,
+    Path,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -31,26 +42,33 @@ from creator_app.connector_fabric import (
 from creator_app.connector_fabric.security import EndpointSecurityError
 from creator_app.credential_broker import CredentialBroker, CredentialId
 from creator_app.credential_vault import build_credential_vault
-from creator_app.gmail_oauth import GmailOAuthError, GmailOAuthManager
-from creator_app.github_app import GitHubAppAuth, GitHubAppAuthError
-from creator_app.providers import build_provider_router
 from creator_app.dev_team import DevTeamRuntime
+from creator_app.github_app import GitHubAppAuth, GitHubAppAuthError
 from creator_app.github_integration import GitHubIntegration
+from creator_app.gmail_oauth import GmailOAuthError, GmailOAuthManager
 from creator_app.health import DependencyState, DependencyStatus, evaluate_health
-from creator_app.observability import CORRELATION_HEADER, MetricsRegistry, RequestObservation, StructuredLogger, correlation_id
 from creator_app.integrations import GoogleDriveIntegration, SlackIntegration
+from creator_app.observability import (
+    CORRELATION_HEADER,
+    MetricsRegistry,
+    RequestObservation,
+    StructuredLogger,
+    correlation_id,
+)
+from creator_app.providers import build_provider_router
 from creator_app.rate_limit import SlidingWindowRateLimiter
 from creator_app.runtime import CreatorRuntime, MissingCredentialError, ProviderRuntimeError
-from creator_app.runtime_binding import close_all as close_runtime_bindings, runtime_binding_status, verify_runtime_binding_or_raise
+from creator_app.runtime_binding import close_all as close_runtime_bindings
+from creator_app.runtime_binding import runtime_binding_status, verify_runtime_binding_or_raise
 from creator_app.schemas import (
     AgnesApprovalRequest,
-    ConnectorActivateRequest,
-    ConnectorRegisterRequest,
     AgnesExecuteRequest,
-    AgnesPipelineStartRequest,
     AgnesPipelineDiscardRequest,
+    AgnesPipelineStartRequest,
     CodexTaskRequest,
     CodexTaskResult,
+    ConnectorActivateRequest,
+    ConnectorRegisterRequest,
     DevTeamRequest,
     DevTeamResult,
     RunRequest,
@@ -59,7 +77,10 @@ from creator_app.schemas import (
 )
 from creator_app.service import CreatorService
 from creator_app.storage import RunStore
+from services.email_gateway.attachments import scan_attachment
 from services.email_gateway.factory import create_email_repository
+from services.email_gateway.loop_prevention import evaluate_loop_headers
+from services.email_gateway.routing import route_email
 from services.email_gateway.schemas import (
     EmailIngressRequest,
     EmailIngressResult,
@@ -76,9 +97,6 @@ from services.email_gateway.schemas import (
     RoutingRequest,
     RoutingResult,
 )
-from services.email_gateway.attachments import scan_attachment
-from services.email_gateway.loop_prevention import evaluate_loop_headers
-from services.email_gateway.routing import route_email
 
 WEB_DIR = FilePath(__file__).resolve().parent / "web"
 SESSION_ID_PATTERN = r"^[A-Za-z0-9_:-]+$"

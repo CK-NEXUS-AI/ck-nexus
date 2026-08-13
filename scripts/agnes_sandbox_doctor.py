@@ -3,8 +3,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import tempfile
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]

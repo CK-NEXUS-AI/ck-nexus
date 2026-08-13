@@ -38,7 +38,7 @@ class ImmutableExecutionManifest:
         *,
         risk_class: ExecutorRiskClass,
         approval_fingerprint: str,
-    ) -> "ImmutableExecutionManifest":
+    ) -> ImmutableExecutionManifest:
         goal_hash = _sha(request.goal)
         input_hash = _sha(canonical_json(request.inputs))
         plan_hash = _sha(canonical_json(request.plan_step))

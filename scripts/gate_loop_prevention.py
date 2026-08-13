@@ -1,5 +1,9 @@
 from __future__ import annotations
-import json, os, urllib.request
+
+import json
+import os
+import urllib.request
+
 
 def post(url,data):
     req=urllib.request.Request(url,data=json.dumps(data).encode(),headers={"Content-Type":"application/json","X-CK-NEXUS-Webhook-Token":os.environ["CKNEXUS_EMAIL_WEBHOOK_TOKEN"]},method="POST")

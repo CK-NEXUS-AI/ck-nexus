@@ -8,7 +8,13 @@ from fastapi.testclient import TestClient
 
 from creator_app.api import create_app
 from creator_app.config import Settings
-from creator_app.observability import MetricsRegistry, RequestObservation, StructuredLogger, correlation_id, redact
+from creator_app.observability import (
+    MetricsRegistry,
+    RequestObservation,
+    StructuredLogger,
+    correlation_id,
+    redact,
+)
 
 
 def test_correlation_id_preserves_safe_and_replaces_unsafe():

@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from creator_app.agnes_runtime import AgnesNervousSystem
 from creator_app.agnes.execution.phase3 import PipelineHandle, PipelineState, RedisIdempotencyStore
 from creator_app.agnes.execution.phase3.hardening import CgroupV2Manager
 from creator_app.agnes.execution.phase3.sandbox import HardenedLinuxNamespaceRunner
 from creator_app.agnes.execution.sandbox import SandboxPolicy, SandboxWorkspaceManager
+from creator_app.agnes_runtime import AgnesNervousSystem
 
 BASELINE = "dce9e0f30e4e17d43c794c7f8ddb1e7d6e85f17e"
 ROOT = Path(__file__).resolve().parents[1]
@@ -184,6 +184,7 @@ async def test_pipeline_failure_rolls_back_workspace(tmp_path: Path):
 
 def test_phase3_api_pending_approval_then_advance_to_candidate(tmp_path: Path):
     from fastapi.testclient import TestClient
+
     from creator_app.api import create_app
     from creator_app.config import Settings
 

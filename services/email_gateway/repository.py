@@ -4,11 +4,12 @@ import hashlib
 import json
 import sqlite3
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Lock
-from typing import Any, Callable
+from typing import Any
 
 
 @dataclass(frozen=True, slots=True)

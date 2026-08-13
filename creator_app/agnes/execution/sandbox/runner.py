@@ -194,12 +194,12 @@ class LinuxNamespaceRunner:
         timed_out = False
         try:
             await asyncio.wait_for(proc.wait(), timeout=timeout_seconds)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             timed_out = True
             self._kill_group(proc.pid, signal.SIGTERM)
             try:
                 await asyncio.wait_for(proc.wait(), timeout=self.policy.kill_grace_seconds)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._kill_group(proc.pid, signal.SIGKILL)
                 await proc.wait()
         finally:

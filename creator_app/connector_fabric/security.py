@@ -4,8 +4,8 @@ import base64
 import ipaddress
 import re
 import socket
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Callable, Iterable
 from urllib.parse import urlsplit
 
 

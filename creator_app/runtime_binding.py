@@ -16,7 +16,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 try:
     from dotenv import load_dotenv
@@ -51,7 +51,7 @@ class RuntimeBindingConfig:
     fail_fast: bool = True
 
     @classmethod
-    def from_env(cls) -> "RuntimeBindingConfig":
+    def from_env(cls) -> RuntimeBindingConfig:
         database_url = os.environ.get("DATABASE_URL", "").strip()
         redis_url = os.environ.get("REDIS_URL", "").strip()
 
@@ -95,8 +95,8 @@ class RuntimeBindingConfig:
             raise RuntimeError("REDIS_MAX_CONNECTIONS must be >= 1")
 
 
-_db_pool: Optional[Any] = None
-_redis_client: Optional[Any] = None
+_db_pool: Any | None = None
+_redis_client: Any | None = None
 
 
 def _safe_error(exc: BaseException) -> str:
@@ -104,7 +104,7 @@ def _safe_error(exc: BaseException) -> str:
     return f"{type(exc).__name__}: connection/binding operation failed"
 
 
-async def get_db_pool(cfg: Optional[RuntimeBindingConfig] = None):
+async def get_db_pool(cfg: RuntimeBindingConfig | None = None):
     global _db_pool
     if asyncpg is None:
         raise RuntimeError("asyncpg is not installed")
@@ -132,7 +132,7 @@ async def acquire_db_connection(pool: Any, cfg: RuntimeBindingConfig):
         await pool.release(conn)
 
 
-async def get_redis_client(cfg: Optional[RuntimeBindingConfig] = None):
+async def get_redis_client(cfg: RuntimeBindingConfig | None = None):
     global _redis_client
     if redis is None:
         raise RuntimeError("redis package is not installed")
