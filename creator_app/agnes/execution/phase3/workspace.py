@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 import shutil
-import subprocess
+# Subprocess is required only for fixed git operations against the locked repository baseline.
+import subprocess  # nosec B404
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -68,25 +69,31 @@ class WorkspaceLifecycleManager:
         diff = self.manager.diff(workspace.workspace)
         chunks: list[str] = []
         repo = self.manager.policy.repository_root
+        git = shutil.which("git")
+        if not git:
+            raise RuntimeError("git_required_for_workspace_diff")
         for rel in (*diff["modified"], *diff["added"]):
             target = workspace.path / rel
             if rel in diff["added"]:
-                proc = subprocess.run(
-                    ["git", "diff", "--no-index", "--", "/dev/null", str(target)],
+                # git is absolute from shutil.which; argv is list-based and shell is disabled.
+                proc = subprocess.run(  # nosec B603
+                    [git, "diff", "--no-index", "--", "/dev/null", str(target)],
                     capture_output=True,
                     text=True,
                 )
             else:
-                original = subprocess.run(
-                    ["git", "-C", str(repo), "show", f"{workspace.baseline_commit}:{rel}"],
+                # git is absolute from shutil.which; commit/path stay separate argv elements.
+                original = subprocess.run(  # nosec B603
+                    [git, "-C", str(repo), "show", f"{workspace.baseline_commit}:{rel}"],
                     capture_output=True,
                     check=True,
                 ).stdout
                 tmp = workspace.path / ".agnes" / "baseline-diff" / rel
                 tmp.parent.mkdir(parents=True, exist_ok=True)
                 tmp.write_bytes(original)
-                proc = subprocess.run(
-                    ["git", "diff", "--no-index", "--", str(tmp), str(target)],
+                # git is absolute from shutil.which; argv is list-based and shell is disabled.
+                proc = subprocess.run(  # nosec B603
+                    [git, "diff", "--no-index", "--", str(tmp), str(target)],
                     capture_output=True,
                     text=True,
                 )
