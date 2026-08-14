@@ -44,9 +44,14 @@ jobs:
           }
           bad=[]
           for x in r.get('results',[]):
-            if x.get('issue_severity') not in {'MEDIUM','HIGH'}: continue
-            f=(x.get('test_id'),x.get('filename'),x.get('line_number'),hashlib.sha256(x.get('code','').encode()).hexdigest())
-            if f not in ok: bad.append(f)
+            if x.get('issue_severity') not in {'MEDIUM','HIGH'}:
+              continue
+            f=(
+              x.get('test_id'),x.get('filename'),x.get('line_number'),
+              hashlib.sha256(x.get('code','').encode()).hexdigest(),
+            )
+            if f not in ok:
+              bad.append(f)
           print('blocking=',bad)
           sys.exit(bool(bad))
           PY
@@ -63,8 +68,15 @@ jobs:
           m=sys.argv[1]
           q5=json.load(open('evidence/Q05_MULTILANE.json',encoding='utf-8'))
           q8=json.load(open('evidence/Q08_LIVE.json',encoding='utf-8'))
-          assert m==q5['subject_manifest_sha256']==q8['source_subject_manifest_sha256']
-          assert q5['result']=='PASS' and q5['tests_passed']==17 and q5['tests_failed']==0
+          q9=json.load(open('evidence/Q09_GOVERNANCE_BINDING.json',encoding='utf-8'))
+          assert m==q5['subject_manifest_sha256']==q8['source_subject_manifest_sha256']==q9['subject_manifest_sha256']
+          assert q5['result']=='PASS' and q5['tests_passed']>=17 and q5['tests_failed']==0
+          if q5.get('schema_version',1)>=2:
+            assert q5.get('verification_level')=='GITHUB_VERIFIED_CANDIDATE_TREE'
+            assert all(value=='PASS' for value in q5.get('quality_lanes',{}).values())
           assert q8['result']=='PASS' and q8['redis_live']=='PASS' and q8['postgresql_live']=='PASS'
-          print('Q05/Q08 evidence PASS')
+          assert q9['result']=='PASS_CANDIDATE'
+          assert q9['unknown_risk']=='DENY' and q9['trusted_identity_required'] is True
+          assert q9['grant_consumed_before_execution'] is True
+          print('Q05/Q08/Q09 candidate evidence PASS')
           PY

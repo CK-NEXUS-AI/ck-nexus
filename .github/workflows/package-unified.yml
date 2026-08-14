@@ -1,0 +1,47 @@
+name: Package CK-NEXUS Unified
+
+on:
+  push:
+    branches:
+      - agent/unified-control-package
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify unified control syntax
+        run: |
+          set -euo pipefail
+          python -m py_compile creator_app/unified.py creator_app/unified_control.py
+          node --check creator_app/web/control.js
+
+      - name: Build one complete source package
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          package="ck-nexus-unified-${GITHUB_SHA::12}"
+          stage="$(mktemp -d)"
+          mkdir -p "$stage/$package"
+          rsync -a --exclude='.git' --exclude='dist' ./ "$stage/$package/"
+          (cd "$stage" && zip -qr "$GITHUB_WORKSPACE/dist/$package.zip" "$package")
+          sha256sum "dist/$package.zip" > "dist/$package.sha256"
+          ls -lh dist
+
+      - name: Upload complete package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ck-nexus-unified-${{ github.sha }}
+          path: |
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+          retention-days: 30

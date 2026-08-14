@@ -1,13 +1,17 @@
 {
-  "schema_version": 1,
   "gate": "Q08",
-  "source_subject_manifest_sha256": "51718986a19e6d11467a9e9e9ab536392b38c59cd674a5f1a7a656632b4011fe",
-  "verified_source_sha": "86822bd4f3f7aa5dd5b71e4f0a0bc0fadf5fee0c",
-  "github_run_id": 31747653898,
-  "github_head_sha": "e0fd4b50752e537b9e6f89bcd6b861f429ef051c",
-  "result": "PASS",
-  "redis_live": "PASS",
+  "github_head_sha": "cff65b59081036498b15eab837ffb4196c5f4523",
+  "github_run_id": 31815676512,
   "postgresql_live": "PASS",
-  "properties_verified": ["concurrent_single_winner", "replay", "live_backend_round_trip"],
-  "stale_on_subject_change": true
+  "properties_verified": [
+    "concurrent_single_winner",
+    "replay",
+    "live_backend_round_trip"
+  ],
+  "redis_live": "PASS",
+  "result": "PASS",
+  "schema_version": 2,
+  "source_subject_manifest_sha256": "f4282bb352af74c2d7bc0148c3230d51207a4154956a650901403ff17868280c",
+  "stale_on_subject_change": true,
+  "verified_source_sha": "cff65b59081036498b15eab837ffb4196c5f4523"
 }

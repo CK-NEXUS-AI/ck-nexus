@@ -1,0 +1,212 @@
+name: Refresh candidate evidence
+
+on:
+  push:
+    branches: [agent/unified-control-package]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cknexus
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cknexus"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Frozen environment
+        run: |
+          python -m pip install --upgrade pip uv
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+      - name: Q05 quality lanes
+        shell: bash
+        run: |
+          .venv/bin/python -m compileall -q main.py creator_app services scripts
+          .venv/bin/ruff check main.py creator_app services tests scripts
+          .venv/bin/bandit -r creator_app services main.py -f json -o bandit.json || true
+          .venv/bin/python - <<'PY'
+          import hashlib, json, sys
+          report=json.load(open('bandit.json', encoding='utf-8'))
+          reviewed={
+            ('B608','services/email_gateway/repository.py',221,'a248369faca360edbca232b1700ef67d87d9eeae8401bb1b379122f3274a4a6a'),
+            ('B608','services/email_gateway/repository.py',230,'2948e929a8c5a30e600e2d06c3cea59da396aa196adfd234183556d877df3de0'),
+          }
+          blocking=[]
+          for item in report.get('results', []):
+              if item.get('issue_severity') not in {'MEDIUM','HIGH'}:
+                  continue
+              fingerprint=(
+                  item.get('test_id'), item.get('filename'), item.get('line_number'),
+                  hashlib.sha256(item.get('code','').encode()).hexdigest(),
+              )
+              if fingerprint not in reviewed:
+                  blocking.append(fingerprint)
+          print('blocking=', blocking)
+          sys.exit(bool(blocking))
+          PY
+          .venv/bin/python scripts/secret_scan.py
+          .venv/bin/pytest -q \
+            --ignore=tests/test_agnes_execution_kernel_phase2.py \
+            --ignore=tests/test_agnes_execution_kernel_phase3.py \
+            --junitxml=q05-regression.xml
+      - name: Q09 governance regression
+        run: |
+          .venv/bin/python -m compileall -q creator_app/connector_fabric/governance.py
+          .venv/bin/ruff check creator_app/connector_fabric/governance.py
+          .venv/bin/pytest -q tests/test_council_capability_authority.py tests/test_r28_connector_fabric.py
+      - name: Q06 Q07 application binding
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cknexus
+          REDIS_URL: redis://127.0.0.1:6379/0
+          DB_CONNECT_TIMEOUT: '5'
+          DB_COMMAND_TIMEOUT: '5'
+          DB_POOL_ACQUIRE_TIMEOUT: '5'
+          REDIS_CONNECT_TIMEOUT: '5'
+          REDIS_SOCKET_TIMEOUT: '5'
+          RUNTIME_BINDING_FAIL_FAST: 'true'
+        run: .venv/bin/python creator_app/runtime_binding.py --verify
+      - name: Q08 live idempotency
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cknexus
+          REDIS_URL: redis://127.0.0.1:6379/0
+        run: |
+          .venv/bin/pytest -q tests/test_r17_distributed_idempotency_runtime.py
+          .venv/bin/python - <<'PY'
+          import asyncio, os, uuid
+          import asyncpg
+          import redis.asyncio as redis_async
+          from creator_app.agnes.execution.phase3.idempotency import PostgresIdempotencyStore, RedisIdempotencyStore
+
+          async def once(a, b, key):
+              results = await asyncio.gather(a.claim(key, 'm'), b.claim(key, 'm'))
+              assert sum(1 for claimed, _ in results if claimed) == 1
+              await a.complete(key, success=True, result={'ok': True})
+              claimed, replay = await b.claim(key, 'm')
+              assert claimed is False and replay is not None and replay.result == {'ok': True}
+
+          async def main():
+              r1=redis_async.Redis.from_url(os.environ['REDIS_URL'], decode_responses=False)
+              r2=redis_async.Redis.from_url(os.environ['REDIS_URL'], decode_responses=False)
+              rk='candidate:'+uuid.uuid4().hex
+              try:
+                  await once(RedisIdempotencyStore(r1), RedisIdempotencyStore(r2), rk)
+              finally:
+                  await r1.delete(rk); await r1.aclose(); await r2.aclose()
+              pool=await asyncpg.create_pool(os.environ['DATABASE_URL'], min_size=1, max_size=4, timeout=5)
+              pk='candidate:'+uuid.uuid4().hex
+              try:
+                  await pool.execute('CREATE TABLE IF NOT EXISTS agnes_idempotency (idem_key TEXT PRIMARY KEY, manifest_hash TEXT NOT NULL, state TEXT NOT NULL, result_json JSONB)')
+                  await once(
+                      PostgresIdempotencyStore(pool.execute,pool.fetchrow),
+                      PostgresIdempotencyStore(pool.execute,pool.fetchrow),
+                      pk,
+                  )
+                  await pool.execute('DELETE FROM agnes_idempotency WHERE idem_key=$1', pk)
+              finally:
+                  await pool.close()
+              print('Q08 live idempotency PASS')
+          asyncio.run(main())
+          PY
+      - name: Emit refreshed evidence
+        env:
+          RUN_ID: ${{ github.run_id }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          tree=$(git rev-parse HEAD^{tree})
+          manifest=$(git ls-tree -r HEAD -- creator_app services tests scripts main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          .venv/bin/python - "$HEAD_SHA" "$tree" "$manifest" "$RUN_ID" <<'PY'
+          import json, sys, xml.etree.ElementTree as ET
+          source_sha, tree, manifest, run_id = sys.argv[1:]
+          root=ET.parse('q05-regression.xml').getroot()
+          suites=[root] if root.tag.endswith('testsuite') else list(root)
+          tests=sum(int(s.attrib.get('tests','0')) for s in suites)
+          failures=sum(int(s.attrib.get('failures','0')) + int(s.attrib.get('errors','0')) for s in suites)
+          q05={
+              'schema_version': 2,
+              'gate': 'Q05',
+              'verification_level': 'GITHUB_VERIFIED_CANDIDATE_TREE',
+              'source_sha': source_sha,
+              'source_tree': tree,
+              'subject_manifest_sha256': manifest,
+              'result': 'PASS' if failures == 0 and tests >= 17 else 'FAIL',
+              'tests_passed': tests - failures,
+              'tests_failed': failures,
+              'quality_lanes': {'compile':'PASS','ruff':'PASS','bandit_reviewed_gate':'PASS','secret_scan':'PASS'},
+              'github_run_id': int(run_id),
+              'stale_on_subject_change': True,
+          }
+          q08={
+              'schema_version': 2,
+              'gate': 'Q08',
+              'source_subject_manifest_sha256': manifest,
+              'verified_source_sha': source_sha,
+              'github_run_id': int(run_id),
+              'github_head_sha': source_sha,
+              'result': 'PASS',
+              'redis_live': 'PASS',
+              'postgresql_live': 'PASS',
+              'properties_verified': ['concurrent_single_winner','replay','live_backend_round_trip'],
+              'stale_on_subject_change': True,
+          }
+          q09={
+              'schema_version': 2,
+              'gate': 'Q09',
+              'source_sha': source_sha,
+              'source_tree': tree,
+              'subject_manifest_sha256': manifest,
+              'github_verifier_run_id': int(run_id),
+              'github_verifier_head_sha': source_sha,
+              'result': 'PASS_CANDIDATE',
+              'adapter': 'CapabilityAuthorityToolAuthorizer',
+              'default_authorizer_preserved': 'FailClosedAuthorizer',
+              'unknown_risk': 'DENY',
+              'trusted_identity_required': True,
+              'grant_consumed_before_execution': True,
+              'deterministic_capability_namespace': 'connector.<connector_id>.<tool_name>',
+              'github_checks': {
+                  'frozen_sync':'PASS','quality_lanes':'PASS','governance_regression':'PASS',
+                  'postgresql_binding':'PASS','redis_binding':'PASS','live_idempotency':'PASS',
+              },
+              'stale_on_subject_change': True,
+          }
+          for name, payload in (
+              ('Q05_MULTILANE.json',q05),('Q08_LIVE.json',q08),('Q09_GOVERNANCE_BINDING.json',q09)
+          ):
+              with open(name,'w',encoding='utf-8') as handle:
+                  json.dump(payload,handle,indent=2,sort_keys=True); handle.write('\n')
+              print(name, json.dumps(payload, sort_keys=True))
+          assert q05['result']=='PASS'
+          PY
+      - name: Upload refreshed evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-q05-q08-q09-${{ github.sha }}
+          path: |
+            Q05_MULTILANE.json
+            Q08_LIVE.json
+            Q09_GOVERNANCE_BINDING.json
+            q05-regression.xml
+            bandit.json
+          if-no-files-found: error

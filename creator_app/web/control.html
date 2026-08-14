@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="th" data-theme="midnight">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="CK-NEXUS Unified Control Surface" />
+  <title>CK-NEXUS / Control</title>
+  <link rel="stylesheet" href="/static/control.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/control"><strong>CK-NEXUS</strong><span>UNIFIED CONTROL</span></a>
+    <div class="top-actions">
+      <label class="token-field"><span>ACCESS TOKEN</span><input id="access-token" type="password" autocomplete="off" placeholder="optional" /></label>
+      <button id="save-token" type="button">SET</button>
+      <button id="refresh-all" class="primary" type="button">REFRESH ALL</button>
+      <a class="button-link" href="/demo">DEEP DEMO</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <p class="eyebrow">ONE NETWORK / MAIN CONTROLS ONLY</p>
+        <h1>ควบคุมระบบจากหัวข้อหลัก<br><em>ฟังก์ชันย่อยอยู่ภายในแต่ละหมวด</em></h1>
+        <p class="lede">ค้นหา FastAPI routes จริงจาก runtime แล้วจัดกลุ่มอัตโนมัติ โดยไม่ข้าม policy, credential broker, approval หรือ sandbox.</p>
+      </div>
+      <aside class="health-card"><span>SYSTEM</span><strong id="system-state">CHECKING</strong><small id="system-detail">loading control plane</small></aside>
+    </section>
+
+    <section class="summary" aria-label="System summary">
+      <article><span>MAIN GROUPS</span><strong id="group-count">—</strong></article>
+      <article><span>API ROUTES</span><strong id="route-count">—</strong></article>
+      <article><span>DATABASE</span><strong id="db-state">—</strong></article>
+      <article><span>AI RUNTIME</span><strong id="ai-state">—</strong></article>
+    </section>
+
+    <section class="network-head">
+      <div><p class="eyebrow">FUNCTION NETWORK</p><h2>MAIN CONTROL GROUPS</h2></div>
+      <p>เลือกเฉพาะหัวข้อหลัก แล้วขยายเพื่อดู route และ module ย่อยเมื่อจำเป็น</p>
+    </section>
+    <section id="control-grid" class="control-grid"><p class="loading">DISCOVERING SYSTEM…</p></section>
+
+    <section class="panel">
+      <div class="panel-head"><div><p class="eyebrow">LIVE CONTROL STATUS</p><h2>NETWORK SNAPSHOT</h2></div><span id="status-time">—</span></div>
+      <div id="status-grid" class="status-grid"><p class="loading">WAITING FOR STATUS</p></div>
+    </section>
+  </main>
+
+  <template id="group-template">
+    <article class="control-card">
+      <button class="control-toggle" type="button" aria-expanded="false">
+        <span class="index"></span><span class="control-copy"><strong class="title"></strong><small class="summary-copy"></small></span><span class="count"></span>
+      </button>
+      <div class="control-detail" hidden>
+        <div class="detail-actions"><a class="deep-link">OPEN DETAILED CONTROL</a><a href="/docs">API DOCS</a></div>
+        <h3>CONNECTED FUNCTIONS</h3><div class="route-list"></div>
+        <h3>SOURCE MODULES</h3><div class="module-list"></div>
+      </div>
+    </article>
+  </template>
+  <script src="/static/control.js" defer></script>
+</body>
+</html>
