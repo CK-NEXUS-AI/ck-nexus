@@ -1,38 +1,45 @@
-# Release Status — CK-NEXUS R14 Cognitive Brain Runtime
+# Release Status — CK-NEXUS Q10-Q16 Closure
 
-Decision: **DEVELOPMENT CANDIDATE / NO-GO FOR PRODUCTION CLAIMS**
+Decision: **NO-GO FOR PRODUCTION CLAIMS**
 
-Baseline R13 commit: `540590a6174febd10031d7af7f62b1adf5d35276`
-R14 branch: `r14-cognitive-brain-runtime`
+Canonical Q09 baseline: `45fde79c717b09f8675645aa541a5834ebd4f433`
+Closure branch: `release/q10-q16-closure`
+Closure contract: `docs/Q10_Q16_CLOSURE_CONTRACT.md`
 
-## R14 changes
+## Canonical state
 
-- OpenAI Agents SDK credentials are now scoped per run through Credential Broker and `OpenAIProvider`; no process-global OpenAI key mutation remains.
-- OpenAI uses the Responses model path through the current Agents SDK provider contract.
-- Sensitive trace payload capture is disabled; trace export is disabled by default and requires explicit configuration.
-- Default `OPENAI_MODEL` is `gpt-5.6-sol` and remains environment-overridable; live model/account access is still a runtime gate.
-- n8n is retired from active CK-NEXUS runtime, compose, integration status, VPS bring-up and P0 routing/security execution paths.
-- Email routing/outbox APIs remain CK-NEXUS-owned and are validated directly.
+- `main` is merged through Q09 governance binding.
+- Connector Fabric governance remains fail-closed by default; Q09 binds trusted connector execution to one-time CapabilityAuthority grants.
+- Existing Q05/Q08/Q09 evidence remains lineage evidence for the canonical application tree.
+- The separate Unified Control package is not yet part of the production release identity and must be converged only at Q16 after Q10-Q15 pass.
 
-## Current local verification
+## Q10 — Security and dependency assurance
 
-- R14 non-billing regression: **168/168 PASS**.
-- Python compile: **PASS**.
-- JavaScript syntax: **PASS**.
-- Shell syntax: **PASS**.
-- Internal tracked-file secret scan: **PASS**.
-- Full suite in this host: **174 PASS / 3 ERROR**, all three caused by unavailable `aiosqlite` in the host environment.
-- Ruff/Bandit/pip-audit: **BLOCKED** in this host because the binaries/modules are not installed.
+Dependency-audit component: **PASS**.
 
-## Production blockers
+Exact-source verifier details:
 
-Production Ready remains prohibited until the exact R14 release identity has evidence for:
+- source SHA: `45fde79c717b09f8675645aa541a5834ebd4f433`
+- verifier branch: `verify/q10-dependency-audit`
+- verifier workflow head: `f543c967597c8a0e1287b2abed819c54752b8cfd`
+- Dependency Audit run: `31814780486` — success
+- CK-NEXUS CI run: `31814780500` — success
+- install: `uv lock --check` + `uv sync --all-extras --dev --frozen`
+- `pip-audit`: 0 known vulnerabilities in the frozen environment; editable CK-NEXUS project intentionally excluded from PyPI lookup
+- artifact: `q10-dependency-audit-45fde79c717b09f8675645aa541a5834ebd4f433`
+- artifact digest: `sha256:0fd92ad0f01f797f4d6b46731bf808f12d1b7e3adca4f840c96c44a8ea379f41`
 
-1. fully provisioned dependency environment and full test suite;
-2. Ruff, Bandit and dependency audit;
-3. live OpenAI/provider AI001;
-4. live PostgreSQL/Redis distributed idempotency;
-5. delegated cgroup v2 enforcement on staging Linux;
-6. backup/restore, observability and clean-machine deployment gates.
+Q10 gate: **NOT VERIFIED** because the required repository-wide Codex Security Deep Security Scan has not yet completed. Dependency audit alone cannot promote Q10.
 
-Historical R4-R13 documents remain lineage evidence and do not override the R14 architecture.
+## Q11-Q16
+
+- Q11 Live AI/provider P0-AI-001: **NOT VERIFIED**
+- Q12 delegated cgroup v2 staging enforcement: **NOT VERIFIED**
+- Q13 PostgreSQL DR backup/restore: **NOT VERIFIED**
+- Q14 observability/operator alert delivery: **NOT VERIFIED**
+- Q15 clean-machine deployment: **NOT VERIFIED**
+- Q16 final-tree convergence/commercial delivery: **NOT ELIGIBLE** until Q10-Q15 pass
+
+## Production decision
+
+Production Ready remains prohibited. The final release must satisfy every requirement in `docs/Q10_Q16_CLOSURE_CONTRACT.md` on one immutable final release identity, then refresh seller/delivery records and generate the final tagged artifact.
