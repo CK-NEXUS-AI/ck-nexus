@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "vectors": [
+    {
+      "name": "backup digest pass does not prove restore",
+      "backup": {"verification_state": "DIGEST_ONLY"},
+      "expected": {"q14_ready": false}
+    },
+    {
+      "name": "seller master destructive target blocked",
+      "target": {"kind": "seller_master", "environment": "staging"},
+      "expected": {"restore_allowed": false, "reason": "TARGET_NOT_ISOLATED"}
+    },
+    {
+      "name": "missing postgres dump blocks complete recovery claim",
+      "backup": {"objects": ["source"], "blocked_markers": ["POSTGRES_BLOCKED.txt"]},
+      "expected": {"business_verified": false}
+    },
+    {
+      "name": "restore with outbound integrations enabled blocked",
+      "target": {"isolated": true, "outbound_side_effects": "enabled"},
+      "expected": {"restore_allowed": false, "reason": "OUTBOUND_EFFECT_RISK"}
+    },
+    {
+      "name": "measured RTO over target fails objective",
+      "drill": {"rto_target_seconds": 900, "rto_observed_seconds": 1200},
+      "expected": {"rto_objective": "FAIL"}
+    }
+  ]
+}

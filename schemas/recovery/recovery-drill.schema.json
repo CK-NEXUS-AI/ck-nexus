@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/schemas/recovery/recovery-drill.schema.json",
+  "title": "CK-NEXUS Recovery Drill",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["drill_id", "environment", "target_id", "backup_ref", "started_at", "state", "isolation", "validation"],
+  "properties": {
+    "drill_id": {"type": "string", "minLength": 1},
+    "environment": {"type": "string", "enum": ["staging", "recovery"]},
+    "target_id": {"type": "string", "minLength": 1},
+    "backup_ref": {"type": "string", "minLength": 1},
+    "backup_digest": {"type": ["string", "null"]},
+    "source_subject": {"type": ["string", "null"]},
+    "started_at": {"type": "string", "format": "date-time"},
+    "finished_at": {"type": ["string", "null"], "format": "date-time"},
+    "state": {"type": "string", "enum": ["PREPARED", "TARGET_ISOLATED", "BACKUP_SELECTED", "RESTORING", "VALIDATING", "VERIFIED", "FAILED", "BLOCKED", "CLEANUP"]},
+    "rto_target_seconds": {"type": ["integer", "null"], "minimum": 0},
+    "rto_observed_seconds": {"type": ["integer", "null"], "minimum": 0},
+    "rpo_target_seconds": {"type": ["integer", "null"], "minimum": 0},
+    "recovery_point_age_seconds": {"type": ["integer", "null"], "minimum": 0},
+    "isolation": {"type": "object", "required": ["state"], "properties": {"state": {"type": "string", "enum": ["VERIFIED", "FAILED", "UNKNOWN"]}, "evidence_refs": {"type": "array", "items": {"type": "string"}}}, "additionalProperties": false},
+    "validation": {"type": "object", "required": ["state"], "properties": {"state": {"type": "string", "enum": ["PASS", "FAIL", "NOT_RUN", "BLOCKED"]}, "checks": {"type": "array", "items": {"type": "object"}}, "evidence_refs": {"type": "array", "items": {"type": "string"}}}, "additionalProperties": false},
+    "operator_approval_ref": {"type": ["string", "null"]},
+    "incident_ref": {"type": ["string", "null"]},
+    "metadata": {"type": "object"}
+  }
+}
