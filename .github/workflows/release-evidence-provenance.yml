@@ -5,14 +5,14 @@ on:
     branches: [release/q10-q16-closure]
     paths:
       - 'evidence/**'
-      - 'scripts/verify_release_evidence_provenance.py'
+      - '.github/release-tools/verify_release_evidence_provenance.py'
       - '.github/workflows/release-evidence-provenance.yml'
       - '.github/workflows/final-production-package.yml'
   push:
     branches: [release/q10-q16-closure, fix/release-evidence-provenance]
     paths:
       - 'evidence/**'
-      - 'scripts/verify_release_evidence_provenance.py'
+      - '.github/release-tools/verify_release_evidence_provenance.py'
       - '.github/workflows/release-evidence-provenance.yml'
       - '.github/workflows/final-production-package.yml'
   workflow_dispatch:
@@ -36,7 +36,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          python scripts/verify_release_evidence_provenance.py \
+          python .github/release-tools/verify_release_evidence_provenance.py \
             --expected-subject "$EXPECTED_RELEASE_SUBJECT" \
             --output release-evidence-provenance.json
       - name: Upload provenance report
