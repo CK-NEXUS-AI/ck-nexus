@@ -1,0 +1,101 @@
+name: Verify Q12 delegated cgroup v2
+
+on:
+  push:
+    branches: [verify/q12-delegation-v2]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  q12:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Prepare and enter delegated cgroup subtree
+        id: gate
+        shell: bash
+        env:
+          CKNEXUS_ENVIRONMENT: staging
+        run: |
+          set -euo pipefail
+          root="/sys/fs/cgroup/cknexus-q12-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          for controller in cpu memory pids; do
+            grep -qw "$controller" /sys/fs/cgroup/cgroup.controllers
+            if ! grep -qw "$controller" /sys/fs/cgroup/cgroup.subtree_control; then
+              echo "+$controller" | sudo tee /sys/fs/cgroup/cgroup.subtree_control >/dev/null
+            fi
+          done
+          sudo mkdir "$root"
+          sudo chown "$USER:$(id -gn)" "$root"
+          sudo chown "$USER:$(id -gn)" "$root/cgroup.procs" "$root/cgroup.subtree_control" 2>/dev/null || true
+          echo $$ > "$root/cgroup.procs"
+          test "$(cat /proc/self/cgroup | tail -1 | cut -d: -f3)" != "/"
+          set +e
+          CKNEXUS_AGNES_CGROUP_ROOT="$root" \
+            python scripts/agnes_cgroup_v2_staging_gate.py > Q12_CGROUP_RAW.json
+          rc=$?
+          set -e
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          cat Q12_CGROUP_RAW.json
+      - name: Emit exact Q12 evidence
+        env:
+          HEAD_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RC: ${{ steps.gate.outputs.rc }}
+          ROOT: ${{ steps.gate.outputs.root }}
+        run: |
+          tree=$(git rev-parse HEAD^{tree})
+          manifest=$(git ls-tree -r HEAD -- creator_app services tests scripts main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          python - "$HEAD_SHA" "$tree" "$manifest" "$RUN_ID" "$RC" "$ROOT" <<'PY'
+          import json, os, sys
+          sha, tree, manifest, run_id, rc, root = sys.argv[1:]
+          raw=json.load(open('Q12_CGROUP_RAW.json',encoding='utf-8'))
+          passed=int(rc)==0 and raw.get('status')=='PASS'
+          observed=raw.get('observed',{})
+          expected={
+              'cpu.max':'20000 100000',
+              'memory.max':str(64*1024*1024),
+              'pids.max':'16',
+              'pid_attached':True,
+          }
+          passed = passed and observed == expected
+          evidence={
+              'schema_version':3,
+              'gate':'Q12',
+              'source_sha':sha,
+              'source_tree':tree,
+              'subject_manifest_sha256':manifest,
+              'github_run_id':int(run_id),
+              'environment_class':'ephemeral-isolated-staging-linux-ubuntu-24.04',
+              'delegated_root':root,
+              'delegation_method':'non-root gate process entered writable cgroup v2 delegated subtree before child creation',
+              'ran_as_root':os.geteuid()==0,
+              'actual_kernel_enforcement':passed,
+              'observed':observed,
+              'health':raw.get('health',{}),
+              'result':'PASS' if passed else 'FAIL',
+              'production_promotion_allowed':passed,
+          }
+          with open('Q12_CGROUP_V2.json','w',encoding='utf-8') as f:
+              json.dump(evidence,f,indent=2,sort_keys=True); f.write('\n')
+          print(json.dumps(evidence,indent=2,sort_keys=True))
+          assert evidence['ran_as_root'] is False
+          assert passed
+          PY
+      - name: Upload Q12 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: q12-delegation-v2-${{ github.sha }}
+          path: |
+            Q12_CGROUP_V2.json
+            Q12_CGROUP_RAW.json
+          if-no-files-found: error
