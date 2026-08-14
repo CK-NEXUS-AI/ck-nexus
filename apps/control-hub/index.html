@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="th" data-theme="midnight">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="CK-NEXUS Unified Command Center prototype">
+  <title>CK-NEXUS / Command Center</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#workspace">ข้ามไปเนื้อหาหลัก</a>
+
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="เมนูหลัก">
+      <div class="brand-block">
+        <span class="brand-code">CK/NX</span>
+        <div><strong>CK-NEXUS</strong><small>COMMAND CENTER</small></div>
+      </div>
+
+      <nav class="primary-nav" aria-label="ส่วนงาน">
+        <a href="#overview" aria-current="page">Overview</a>
+        <a href="#agents">AI / Agents</a>
+        <a href="#workflows">Workflows</a>
+        <a href="#connections">Connections</a>
+        <a href="#capabilities">Capabilities</a>
+        <a href="#tasks">Tasks / AGNES</a>
+        <a href="#knowledge">Memory / Knowledge</a>
+        <a href="#approvals">Approvals <span class="count-badge" id="nav-approval-count">2</span></a>
+        <a href="#evidence">Evidence</a>
+        <a href="#security">Security</a>
+        <a href="#observability">Observability</a>
+        <a href="#recovery">Recovery</a>
+        <a href="#marketplace">Marketplace</a>
+        <a href="#settings">Settings</a>
+      </nav>
+
+      <div class="sidebar-foot">
+        <span class="muted-label">AUTONOMY</span>
+        <strong>POLICY-BOUND</strong>
+        <small>Production mutation requires owner approval</small>
+      </div>
+    </aside>
+
+    <div class="main-shell">
+      <header class="topbar">
+        <button class="icon-button mobile-only" id="menu-toggle" aria-expanded="false" aria-controls="mobile-nav">Menu</button>
+        <div class="env-cluster" aria-label="สถานะสภาพแวดล้อม">
+          <span class="status-dot status-warn" aria-hidden="true"></span>
+          <div><small>ENVIRONMENT</small><strong>DEVELOPMENT / NO-GO</strong></div>
+        </div>
+        <div class="top-actions">
+          <button class="quiet-button" id="open-command">Command</button>
+          <button class="quiet-button" id="open-approvals">Approvals <span class="count-badge">2</span></button>
+          <button class="user-button" aria-label="บัญชีผู้ใช้">OWNER</button>
+        </div>
+      </header>
+
+      <div class="mobile-nav" id="mobile-nav" hidden>
+        <a href="#overview">Overview</a><a href="#connections">Connections</a><a href="#tasks">Tasks</a><a href="#approvals">Approvals</a><a href="#security">Security</a><a href="#evidence">Evidence</a>
+      </div>
+
+      <main id="workspace" tabindex="-1">
+        <section class="page-head" id="overview">
+          <div>
+            <p class="eyebrow">UNIFIED OPERATIONS / HUMAN-IN-CONTROL</p>
+            <h1>ระบบกำลังทำอะไรอยู่ <em>และอะไรต้องให้คุณตัดสินใจ</em></h1>
+            <p class="lede">มุมมองเดียวสำหรับ health, active work, approvals, connector state, evidence และ release gates.</p>
+          </div>
+          <div class="head-actions">
+            <button class="secondary-button" id="refresh-state">Refresh state</button>
+            <button class="primary-button" id="new-goal">New goal</button>
+          </div>
+        </section>
+
+        <section class="site-alert" role="region" aria-labelledby="release-alert-title">
+          <div><small>RELEASE GOVERNANCE</small><strong id="release-alert-title">Production remains NO-GO</strong></div>
+          <p>Q10 Deep Security is not yet promoted. Architecture/UI work on this branch is prototype-only.</p>
+          <a href="#evidence">View gate evidence</a>
+        </section>
+
+        <section class="metric-grid" aria-label="สถานะระบบหลัก">
+          <article class="metric-card"><span>SYSTEM HEALTH</span><strong id="health-value">CHECKING</strong><small id="health-detail">runtime probe</small></article>
+          <article class="metric-card"><span>ACTIVE TASKS</span><strong>03</strong><small>1 waiting / 2 running</small></article>
+          <article class="metric-card attention"><span>PENDING APPROVALS</span><strong>02</strong><small>external + repository action</small></article>
+          <article class="metric-card"><span>Q01–Q16</span><strong>09 / 16</strong><small>Q10 blocked</small></article>
+        </section>
+
+        <div class="workspace-grid">
+          <section class="panel span-2" id="tasks" aria-labelledby="active-title">
+            <div class="panel-head"><div><small>EXECUTION</small><h2 id="active-title">Active work</h2></div><button class="text-button">View all</button></div>
+            <div class="table-wrap">
+              <table>
+                <caption class="sr-only">งาน AGNES ที่กำลังทำ</caption>
+                <thead><tr><th scope="col">Task</th><th scope="col">Lane</th><th scope="col">Risk</th><th scope="col">State</th><th scope="col">Evidence</th></tr></thead>
+                <tbody>
+                  <tr><th scope="row">Connector inventory refresh</th><td>Discovery</td><td><span class="risk low">LOW</span></td><td><span class="state running">RUNNING</span></td><td>Live probes</td></tr>
+                  <tr><th scope="row">Q10 security handoff</th><td>Security</td><td><span class="risk high">HIGH</span></td><td><span class="state blocked">BLOCKED</span></td><td>Tool capability</td></tr>
+                  <tr><th scope="row">Command Center prototype</th><td>Development</td><td><span class="risk low">LOW</span></td><td><span class="state verified">VERIFIED</span></td><td>Branch CI</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <aside class="panel inspector" aria-labelledby="inspector-title">
+            <div class="panel-head"><div><small>CONTEXT</small><h2 id="inspector-title">Inspector</h2></div></div>
+            <dl class="detail-list">
+              <div><dt>Selected</dt><dd>Command Center prototype</dd></div>
+              <div><dt>Authority</dt><dd>SPEC_ONLY</dd></div>
+              <div><dt>Environment</dt><dd>Branch sandbox</dd></div>
+              <div><dt>Side effects</dt><dd>None on main</dd></div>
+              <div><dt>Evidence</dt><dd>CI + review</dd></div>
+            </dl>
+            <button class="secondary-button full">Open evidence</button>
+          </aside>
+
+          <section class="panel" id="approvals" aria-labelledby="approval-title">
+            <div class="panel-head"><div><small>HUMAN CONTROL</small><h2 id="approval-title">Pending approvals</h2></div><span class="count-badge">2</span></div>
+            <div class="approval-list">
+              <article class="approval-card">
+                <div><strong>Reconnect provider credential</strong><small>Owner OAuth interaction required</small></div>
+                <span class="risk medium">MEDIUM</span>
+                <button class="text-button approval-open" data-approval="credential">Review</button>
+              </article>
+              <article class="approval-card">
+                <div><strong>Repository security settings</strong><small>Would change protected configuration</small></div>
+                <span class="risk high">HIGH</span>
+                <button class="text-button approval-open" data-approval="security">Review</button>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" id="connections" aria-labelledby="connector-title">
+            <div class="panel-head"><div><small>CONNECTION FABRIC</small><h2 id="connector-title">Connections</h2></div><button class="text-button">Open hub</button></div>
+            <ul class="health-list" id="connector-list">
+              <li><span>GitHub</span><strong class="good">HEALTHY</strong></li>
+              <li><span>Gmail</span><strong class="good">HEALTHY</strong></li>
+              <li><span>Outlook</span><strong class="good">HEALTHY</strong></li>
+              <li><span>Wix</span><strong class="good">HEALTHY</strong></li>
+              <li><span>LinkedIn</span><strong class="muted">UNAVAILABLE</strong></li>
+            </ul>
+          </section>
+
+          <section class="panel span-2" id="evidence" aria-labelledby="gate-title">
+            <div class="panel-head"><div><small>EVIDENCE FABRIC</small><h2 id="gate-title">Release gates</h2></div><button class="text-button">Evidence explorer</button></div>
+            <div class="gate-strip" aria-label="Q01 ถึง Q16">
+              <span class="gate pass">Q01</span><span class="gate pass">Q02</span><span class="gate pass">Q03</span><span class="gate pass">Q04</span><span class="gate pass">Q05</span><span class="gate pass">Q06</span><span class="gate pass">Q07</span><span class="gate pass">Q08</span><span class="gate pass">Q09</span><span class="gate block">Q10</span><span class="gate pending">Q11</span><span class="gate pending">Q12</span><span class="gate pending">Q13</span><span class="gate pending">Q14</span><span class="gate pending">Q15</span><span class="gate pending">Q16</span>
+            </div>
+            <div class="evidence-summary"><strong>Q10</strong><p>Deep Security executor evidence is required before later gate promotion.</p><span class="state blocked">BLOCKED</span></div>
+          </section>
+
+          <section class="panel" id="observability" aria-labelledby="event-title">
+            <div class="panel-head"><div><small>EVENT FABRIC</small><h2 id="event-title">Recent events</h2></div></div>
+            <ol class="timeline">
+              <li><time>03:41</time><div><strong>ui.prototype.created</strong><small>branch sandbox</small></div></li>
+              <li><time>03:37</time><div><strong>connector.probe.healthy</strong><small>Outlook Calendar</small></div></li>
+              <li><time>03:31</time><div><strong>gate.q10.blocked</strong><small>tool capability</small></div></li>
+            </ol>
+          </section>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <dialog id="approval-dialog" aria-labelledby="approval-dialog-title">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-head"><div><small>APPROVAL REVIEW</small><h2 id="approval-dialog-title">Review requested action</h2></div><button class="icon-button" value="cancel" aria-label="ปิดหน้าต่าง">Close</button></div>
+      <div class="dialog-body">
+        <dl class="detail-list">
+          <div><dt>Action</dt><dd id="dialog-action">—</dd></div>
+          <div><dt>Risk</dt><dd id="dialog-risk">—</dd></div>
+          <div><dt>Target</dt><dd id="dialog-target">—</dd></div>
+          <div><dt>Reversible</dt><dd id="dialog-reversible">—</dd></div>
+        </dl>
+        <p class="dialog-note">Prototype only. This dialog does not execute or approve a real side effect.</p>
+      </div>
+      <div class="dialog-actions"><button class="secondary-button" value="cancel">Reject / close</button><button class="primary-button" value="cancel">Acknowledge prototype</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="command-dialog" aria-labelledby="command-title">
+    <form method="dialog" class="dialog-card command-card">
+      <div class="dialog-head"><div><small>GOAL INPUT</small><h2 id="command-title">Tell CK-NEXUS the outcome you want</h2></div><button class="icon-button" value="cancel" aria-label="ปิดหน้าต่าง">Close</button></div>
+      <label class="command-input">Goal<textarea rows="5" placeholder="เช่น ตรวจอีเมลวันนี้ สรุปเรื่องสำคัญ และร่างคำตอบ แต่ห้ามส่งเอง"></textarea></label>
+      <div class="policy-preview"><strong>Policy preview</strong><span>Read-only discovery: AUTO</span><span>External side effect: APPROVAL</span></div>
+      <div class="dialog-actions"><button class="secondary-button" value="cancel">Cancel</button><button class="primary-button" value="cancel">Plan only</button></div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="./app.js" defer></script>
+</body>
+</html>
