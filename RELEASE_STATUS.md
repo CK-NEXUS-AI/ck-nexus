@@ -2,44 +2,40 @@
 
 Decision: **NO-GO FOR PRODUCTION CLAIMS**
 
-Canonical Q09 baseline: `45fde79c717b09f8675645aa541a5834ebd4f433`
+Canonical main: `45fde79c717b09f8675645aa541a5834ebd4f433` (Q09)
 Closure branch: `release/q10-q16-closure`
+Frozen runtime/deployment subject: `96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f`
+Verified runtime source SHA: `4cf17cd3befaafeaf64cd4c149739133aa220f73`
 Closure contract: `docs/Q10_Q16_CLOSURE_CONTRACT.md`
 
-## Canonical state
+## Current release candidate
 
-- `main` is merged through Q09 governance binding.
-- Connector Fabric governance remains fail-closed by default; Q09 binds trusted connector execution to one-time CapabilityAuthority grants.
-- Existing Q05/Q08/Q09 evidence remains lineage evidence for the canonical application tree.
-- The separate Unified Control package is not yet part of the production release identity and must be converged only at Q16 after Q10-Q15 pass.
+Unified Control and production hardening are converged on the closure branch but are **not merged to `main`**. The production image uses the exact `uv.lock`, a pinned Python base-image digest, pinned Compose service-image digests, a non-root runtime user, and `python -m creator_app.unified`. AGNES Phase3 defaults fail-closed (`false`) unless a real delegated cgroup v2 environment is explicitly provided.
 
-## Q10 — Security and dependency assurance
+## Gate matrix
 
-Dependency-audit component: **PASS**.
+| Gate | State | Evidence |
+|---|---|---|
+| Q05 quality/regression | PASS_CANDIDATE | 218/218 portable regression + compile/Ruff/Bandit-reviewed/secret scan PASS on the Unified application manifest |
+| Q08 PostgreSQL/Redis live idempotency | PASS_CANDIDATE | live PostgreSQL + Redis PASS |
+| Q09 governance binding | PASS_CANDIDATE | one-time capability grant, trusted identity required, unknown risk DENY |
+| Q10 dependency component | **PASS** | run `31818388818`; `pip-audit` 0 vulnerabilities; artifact `9225932630` |
+| Q10 whole security gate | **NOT VERIFIED / BLOCKER** | mandatory Codex Security Deep Security Scan has not run in the Codex Security workbench |
+| Q11 live provider P0-AI-001 | **BLOCKED** | run `31818698368`; GitHub Actions `OPENAI_API_KEY` not configured; no credential exposed |
+| Q12 delegated cgroup v2 | **BLOCKED** | run `31818756811`; hosted Ubuntu has required controllers but no writable non-root delegation boundary |
+| Q13 PostgreSQL DR | **PASS_CANDIDATE** | run `31818388818`; backup + isolated restore + sentinel round-trip PASS |
+| Q14 observability/operator delivery | **PASS** | run `31818646706`; production rule waited `for: 2m`, Prometheus → Alertmanager → staging operator webhook `firing`, health/metrics PASS |
+| Q15 clean-machine deployment | **PASS_CANDIDATE** | run `31818388818`; fresh Ubuntu 24.04, frozen install, regression + Unified health/control smoke PASS |
+| Q16 production image | **PASS_CANDIDATE** | run `31818388852`; frozen lock, pinned base, dependency check/imports, non-root, health/control PASS |
+| Q16 runtime license inventory | **PASS** | run `31818388980`; 55 runtime distributions, 0 unresolved license-evidence entries |
+| Q16 final merge/tag/package | **NOT ELIGIBLE** | blocked by Q10 whole gate + Q11 + Q12 |
 
-Exact-source verifier details:
+## External blockers required before Production Ready
 
-- source SHA: `45fde79c717b09f8675645aa541a5834ebd4f433`
-- verifier branch: `verify/q10-dependency-audit`
-- verifier workflow head: `f543c967597c8a0e1287b2abed819c54752b8cfd`
-- Dependency Audit run: `31814780486` — success
-- CK-NEXUS CI run: `31814780500` — success
-- install: `uv lock --check` + `uv sync --all-extras --dev --frozen`
-- `pip-audit`: 0 known vulnerabilities in the frozen environment; editable CK-NEXUS project intentionally excluded from PyPI lookup
-- artifact: `q10-dependency-audit-45fde79c717b09f8675645aa541a5834ebd4f433`
-- artifact digest: `sha256:0fd92ad0f01f797f4d6b46731bf808f12d1b7e3adca4f840c96c44a8ea379f41`
+1. Run the repository-wide **Codex Security Deep Security Scan** for runtime subject `96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f` and close/accept all reportable findings according to the security policy. Q10 remains NOT VERIFIED until that workbench evidence exists.
+2. Securely configure an authorized staging `OPENAI_API_KEY` (GitHub Actions secret or equivalent secure runner secret) and rerun `verify/q11-final-subject`. Current evidence is BLOCKED, not FAIL.
+3. Run `scripts/agnes_cgroup_v2_staging_gate.py` on a staging/self-hosted Linux service with explicit non-root writable cgroup v2 delegation for `cpu`, `memory`, and `pids`. GitHub-hosted runners do not provide the required delegation.
 
-Q10 gate: **NOT VERIFIED** because the required repository-wide Codex Security Deep Security Scan has not yet completed. Dependency audit alone cannot promote Q10.
+## Commercial status
 
-## Q11-Q16
-
-- Q11 Live AI/provider P0-AI-001: **NOT VERIFIED**
-- Q12 delegated cgroup v2 staging enforcement: **NOT VERIFIED**
-- Q13 PostgreSQL DR backup/restore: **NOT VERIFIED**
-- Q14 observability/operator alert delivery: **NOT VERIFIED**
-- Q15 clean-machine deployment: **NOT VERIFIED**
-- Q16 final-tree convergence/commercial delivery: **NOT ELIGIBLE** until Q10-Q15 pass
-
-## Production decision
-
-Production Ready remains prohibited. The final release must satisfy every requirement in `docs/Q10_Q16_CLOSURE_CONTRACT.md` on one immutable final release identity, then refresh seller/delivery records and generate the final tagged artifact.
+The repository remains sellable as a **source-code / Release Candidate package without Production Ready claims**. Do not mark the artifact Production Ready, merge PR #14 to `main`, or create a production tag until the three blockers above are PASS and the final production package workflow succeeds.

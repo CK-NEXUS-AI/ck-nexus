@@ -1,0 +1,23 @@
+{
+  "actual_kernel_enforcement": false,
+  "artifact_digest": "sha256:79f26c88f7ca31bfa04e432526ecaba983ab49e7fddbbf6b1523781bc0f7f2d0",
+  "artifact_id": 9226066833,
+  "controllers": ["cpuset", "cpu", "io", "memory", "hugetlb", "pids", "rdma", "misc", "dmem"],
+  "delegated_root": "/sys/fs/cgroup/cknexus-q12-final-31818756811",
+  "delegation_ready": false,
+  "diagnostic": "non-root migration to the candidate delegated cgroup failed with Permission denied",
+  "environment_class": "github-hosted-ubuntu-24.04",
+  "gate": "Q12",
+  "gate_exit_code": null,
+  "github_run_id": 31818756811,
+  "production_promotion_allowed": false,
+  "raw": null,
+  "release_subject_manifest_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f",
+  "required_identity": "non-root CK-NEXUS service identity",
+  "required_next_environment": "staging/self-hosted Linux service with explicit writable cgroup v2 cpu,memory,pids delegation",
+  "result": "BLOCKED",
+  "schema_version": 4,
+  "setup_exit_code": 1,
+  "source_sha": "4cf17cd3befaafeaf64cd4c149739133aa220f73",
+  "source_tree": "dfe3888bb6adc9aebbb0351efe4a06006f4e0a48"
+}

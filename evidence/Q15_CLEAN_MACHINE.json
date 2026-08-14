@@ -1,0 +1,22 @@
+{
+  "artifact_digest": "sha256:8176e96d7fe9a7e9bdd8b95dc7df6fec8927d9c34d93fffc95c2fa6a3d6c684c",
+  "artifact_id": 9225934922,
+  "elapsed_seconds": 18,
+  "gate": "Q15",
+  "github_run_id": 31818388818,
+  "host_class": "fresh-github-hosted-vm",
+  "image_os": "ubuntu24",
+  "image_version": "20260810.271.1",
+  "install": "uv sync --all-extras --dev --frozen",
+  "os": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+  "portable_regression": "PASS",
+  "release_subject_manifest_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f",
+  "result": "PASS_CANDIDATE",
+  "runner_name": "GitHub Actions 1000000179",
+  "schema_version": 2,
+  "source_sha": "4cf17cd3befaafeaf64cd4c149739133aa220f73",
+  "source_tree": "dfe3888bb6adc9aebbb0351efe4a06006f4e0a48",
+  "supported_production_host_verified": "Linux Ubuntu 24.04",
+  "unified_control_smoke": "PASS",
+  "unified_health_smoke": "PASS"
+}

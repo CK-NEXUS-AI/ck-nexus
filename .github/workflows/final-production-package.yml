@@ -1,0 +1,125 @@
+name: Final production package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_RELEASE_SUBJECT: 96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f
+
+jobs:
+  gate_and_package:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Verify immutable runtime subject
+        shell: bash
+        run: |
+          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          test "$subject" = "$EXPECTED_RELEASE_SUBJECT"
+      - name: Enforce all Q10-Q16 production gates
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          subject='96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f'
+          def load(name):
+              return json.loads(Path('evidence',name).read_text(encoding='utf-8'))
+          q10=load('Q10_DEPENDENCY_AUDIT.json')
+          q11=load('Q11_OPENAI_LIVE.json')
+          q12=load('Q12_CGROUP_V2.json')
+          q13=load('Q13_POSTGRES_DR.json')
+          q14=load('Q14_OBSERVABILITY_ALERT.json')
+          q15=load('Q15_CLEAN_MACHINE.json')
+          image=load('Q16_PRODUCTION_IMAGE.json')
+          licenses=load('Q16_RUNTIME_LICENSE_SUMMARY.json')
+          for item in (q10,q11,q12,q13,q14,q15,image,licenses):
+              assert item.get('release_subject_manifest_sha256') == subject, item.get('gate')
+          assert q10.get('gate_result') == 'PASS'
+          assert q10.get('codex_security_deep_scan') == 'PASS'
+          assert q11.get('result') == 'PASS' and q11.get('production_promotion_allowed') is True
+          assert q12.get('result') == 'PASS' and q12.get('actual_kernel_enforcement') is True
+          assert q13.get('status') == 'PASS' and q13.get('sentinel_round_trip') == 'PASS'
+          assert q14.get('result') == 'PASS' and q14.get('production_promotion_allowed') is True
+          assert q15.get('result') in {'PASS','PASS_CANDIDATE'}
+          assert image.get('result') == 'PASS_CANDIDATE' and image.get('production_promotion_allowed') is True
+          assert licenses.get('result') == 'PASS' and not licenses.get('unresolved_license_evidence')
+          assert '[ต้องการข้อมูลเพิ่ม' not in Path('THIRD_PARTY_NOTICES.md').read_text(encoding='utf-8')
+          print('Q10-Q16 FINAL PRODUCTION GATE PASS')
+          PY
+      - name: Re-run frozen release checks
+        run: |
+          python -m pip install --upgrade pip uv
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+          .venv/bin/python -m compileall -q main.py creator_app services gateway orchestration idea_engine scripts
+          .venv/bin/ruff check main.py creator_app services gateway orchestration idea_engine tests scripts
+          .venv/bin/python scripts/secret_scan.py
+          .venv/bin/pytest -q --ignore=tests/test_agnes_execution_kernel_phase2.py --ignore=tests/test_agnes_execution_kernel_phase3.py
+      - name: Build exact production image and export runtime licenses
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build -t cknexus-final:${GITHUB_SHA} .
+          rm -rf package-root
+          mkdir -p package-root/ck-nexus/third_party_runtime
+          git archive HEAD | tar -x -C package-root/ck-nexus
+          docker run --rm -i --user 0:0 \
+            -v "$PWD/package-root/ck-nexus/third_party_runtime:/out" \
+            cknexus-final:${GITHUB_SHA} python - <<'PY'
+          import hashlib, importlib.metadata as md, json, re
+          from pathlib import Path
+          out=Path('/out')
+          inventory=[]
+          for dist in md.distributions():
+              name=(dist.metadata.get('Name') or '').strip()
+              if name.lower()=='ck-nexus-creator':
+                  continue
+              safe=re.sub(r'[^A-Za-z0-9_.-]+','_',f'{name}-{dist.version}')
+              target=out/'licenses'/safe
+              files=[]
+              for i,rel in enumerate(dist.files or []):
+                  base=Path(str(rel)).name
+                  if not any(t in base.lower() for t in ('license','licence','copying','notice')):
+                      continue
+                  try: data=Path(dist.locate_file(rel)).read_bytes()
+                  except OSError: continue
+                  target.mkdir(parents=True,exist_ok=True)
+                  dst=target/f'{i:03d}-{base}'
+                  dst.write_bytes(data)
+                  files.append({'path':str(rel),'exported':str(dst.relative_to(out)),'sha256':hashlib.sha256(data).hexdigest()})
+              inventory.append({
+                  'name':name,
+                  'version':dist.version,
+                  'license_expression':dist.metadata.get('License-Expression'),
+                  'license':dist.metadata.get('License'),
+                  'license_classifiers':[x for x in dist.metadata.get_all('Classifier',[]) if x.startswith('License ::')],
+                  'license_files':files,
+              })
+          inventory.sort(key=lambda x:x['name'].lower())
+          assert len(inventory)==55
+          assert all(x['license_expression'] or x['license'] or x['license_classifiers'] or x['license_files'] for x in inventory)
+          (out/'RUNTIME_LICENSE_INVENTORY.json').write_text(json.dumps(inventory,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          PY
+      - name: Build clean production source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse HEAD)
+          mkdir -p dist
+          tar -czf "dist/CK-NEXUS_PRODUCTION_${sha}.tar.gz" -C package-root ck-nexus
+          (cd dist && sha256sum CK-NEXUS_PRODUCTION_${sha}.tar.gz > SHA256SUMS)
+          sha256sum -c dist/SHA256SUMS
+      - name: Upload production artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ck-nexus-production-${{ github.sha }}
+          path: |
+            dist/CK-NEXUS_PRODUCTION_${{ github.sha }}.tar.gz
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 90

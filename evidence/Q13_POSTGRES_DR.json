@@ -1,0 +1,22 @@
+{
+  "artifact_digest": "sha256:4e8d7551d98fabf301807d8ba08f812f427c108d04f2e1f17526352993cbe10c",
+  "artifact_id": 9225935525,
+  "backup": "completed",
+  "environment_class": "ephemeral-isolated-staging",
+  "gate": "Q13",
+  "github_run_id": 31818388818,
+  "pg_dump_available": true,
+  "pg_restore_available": true,
+  "production_data_used": false,
+  "psql_available": true,
+  "release_subject_manifest_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f",
+  "restore": "completed",
+  "result": "PASS_CANDIDATE",
+  "schema_version": 2,
+  "sentinel_round_trip": "PASS",
+  "source_configured": true,
+  "source_sha": "4cf17cd3befaafeaf64cd4c149739133aa220f73",
+  "source_tree": "dfe3888bb6adc9aebbb0351efe4a06006f4e0a48",
+  "status": "PASS",
+  "target_configured": true
+}
