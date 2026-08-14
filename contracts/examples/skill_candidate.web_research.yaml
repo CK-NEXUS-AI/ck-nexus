@@ -1,5 +1,5 @@
 candidate_id: candidate.example.web-research
- tenant_scope: global-approved
+tenant_scope: global-approved
 name: Grounded Web Research Candidate
 description: Example candidate showing semantic dedupe and provenance requirements
 semantic_capabilities:
