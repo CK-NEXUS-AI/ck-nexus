@@ -1,6 +1,19 @@
 name: Final production package
 
 on:
+  push:
+    branches: [release/q10-q16-closure]
+    paths:
+      - 'evidence/Q10_DEPENDENCY_AUDIT.json'
+      - 'evidence/Q11_OPENAI_LIVE.json'
+      - 'evidence/Q12_CGROUP_V2.json'
+      - 'evidence/Q13_POSTGRES_DR.json'
+      - 'evidence/Q14_OBSERVABILITY_ALERT.json'
+      - 'evidence/Q15_CLEAN_MACHINE.json'
+      - 'evidence/Q16_PRODUCTION_IMAGE.json'
+      - 'evidence/Q16_RUNTIME_LICENSE_SUMMARY.json'
+      - 'THIRD_PARTY_NOTICES.md'
+      - '.github/workflows/final-production-package.yml'
   workflow_dispatch:
 
 permissions:
@@ -10,25 +23,33 @@ env:
   EXPECTED_RELEASE_SUBJECT: 96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f
 
 jobs:
-  gate_and_package:
+  preflight:
     runs-on: ubuntu-24.04
+    outputs:
+      eligible: ${{ steps.gate.outputs.eligible }}
+      reason: ${{ steps.gate.outputs.reason }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: Verify immutable runtime subject
+      - name: Evaluate production eligibility without weakening blockers
+        id: gate
         shell: bash
         run: |
           subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
-          test "$subject" = "$EXPECTED_RELEASE_SUBJECT"
-      - name: Enforce all Q10-Q16 production gates
-        run: |
-          python - <<'PY'
-          import json
+          python - "$subject" "$EXPECTED_RELEASE_SUBJECT" "$GITHUB_OUTPUT" <<'PY'
+          import json,sys
           from pathlib import Path
-          subject='96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f'
+          actual,expected,out=sys.argv[1:]
+          reasons=[]
           def load(name):
-              return json.loads(Path('evidence',name).read_text(encoding='utf-8'))
+              try:
+                  return json.loads(Path('evidence',name).read_text(encoding='utf-8'))
+              except Exception as exc:
+                  reasons.append(f'{name}: {type(exc).__name__}')
+                  return {}
+          if actual != expected:
+              reasons.append(f'runtime subject mismatch: {actual}')
           q10=load('Q10_DEPENDENCY_AUDIT.json')
           q11=load('Q11_OPENAI_LIVE.json')
           q12=load('Q12_CGROUP_V2.json')
@@ -38,18 +59,75 @@ jobs:
           image=load('Q16_PRODUCTION_IMAGE.json')
           licenses=load('Q16_RUNTIME_LICENSE_SUMMARY.json')
           for item in (q10,q11,q12,q13,q14,q15,image,licenses):
-              assert item.get('release_subject_manifest_sha256') == subject, item.get('gate')
-          assert q10.get('gate_result') == 'PASS'
-          assert q10.get('codex_security_deep_scan') == 'PASS'
-          assert q11.get('result') == 'PASS' and q11.get('production_promotion_allowed') is True
-          assert q12.get('result') == 'PASS' and q12.get('actual_kernel_enforcement') is True
-          assert q13.get('status') == 'PASS' and q13.get('sentinel_round_trip') == 'PASS'
-          assert q14.get('result') == 'PASS' and q14.get('production_promotion_allowed') is True
-          assert q15.get('result') in {'PASS','PASS_CANDIDATE'}
-          assert image.get('result') == 'PASS_CANDIDATE' and image.get('production_promotion_allowed') is True
-          assert licenses.get('result') == 'PASS' and not licenses.get('unresolved_license_evidence')
-          assert '[ต้องการข้อมูลเพิ่ม' not in Path('THIRD_PARTY_NOTICES.md').read_text(encoding='utf-8')
-          print('Q10-Q16 FINAL PRODUCTION GATE PASS')
+              if item and item.get('release_subject_manifest_sha256') != expected:
+                  reasons.append(f"{item.get('gate','unknown')}: stale subject")
+          if q10.get('gate_result') != 'PASS' or q10.get('codex_security_deep_scan') != 'PASS':
+              reasons.append('Q10 Deep Security Scan not PASS')
+          if q11.get('result') != 'PASS' or q11.get('production_promotion_allowed') is not True:
+              reasons.append('Q11 live provider not PASS')
+          if q12.get('result') != 'PASS' or q12.get('actual_kernel_enforcement') is not True:
+              reasons.append('Q12 delegated cgroup v2 not PASS')
+          if q13.get('status') != 'PASS' or q13.get('sentinel_round_trip') != 'PASS':
+              reasons.append('Q13 PostgreSQL DR not PASS')
+          if q14.get('result') != 'PASS' or q14.get('production_promotion_allowed') is not True:
+              reasons.append('Q14 observability not PASS')
+          if q15.get('result') not in {'PASS','PASS_CANDIDATE'}:
+              reasons.append('Q15 clean-machine not PASS')
+          if image.get('result') != 'PASS_CANDIDATE' or image.get('production_promotion_allowed') is not True:
+              reasons.append('Q16 production image not PASS')
+          if licenses.get('result') != 'PASS' or licenses.get('unresolved_license_evidence'):
+              reasons.append('Q16 runtime licenses not PASS')
+          try:
+              notices=Path('THIRD_PARTY_NOTICES.md').read_text(encoding='utf-8')
+              if '[ต้องการข้อมูลเพิ่ม' in notices:
+                  reasons.append('third-party notices contain unresolved placeholder')
+          except OSError:
+              reasons.append('THIRD_PARTY_NOTICES.md missing')
+          eligible=not reasons
+          with open(out,'a',encoding='utf-8') as handle:
+              handle.write(f"eligible={'true' if eligible else 'false'}\n")
+              safe='; '.join(reasons).replace('\n',' ')[:3000]
+              handle.write(f"reason={safe if safe else 'all production gates pass'}\n")
+          print('eligible=',eligible)
+          for reason in reasons:
+              print('BLOCKER:',reason)
+          PY
+      - name: Write eligibility summary
+        shell: bash
+        run: |
+          {
+            echo '## Final production eligibility'
+            echo '- Eligible: `${{ steps.gate.outputs.eligible }}`'
+            echo '- Reason: `${{ steps.gate.outputs.reason }}`'
+            echo '- Runtime subject: `'$EXPECTED_RELEASE_SUBJECT'`'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  package:
+    needs: preflight
+    if: needs.preflight.outputs.eligible == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Re-enforce all production evidence
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          subject='96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f'
+          names=['Q10_DEPENDENCY_AUDIT.json','Q11_OPENAI_LIVE.json','Q12_CGROUP_V2.json','Q13_POSTGRES_DR.json','Q14_OBSERVABILITY_ALERT.json','Q15_CLEAN_MACHINE.json','Q16_PRODUCTION_IMAGE.json','Q16_RUNTIME_LICENSE_SUMMARY.json']
+          rows={name:json.loads(Path('evidence',name).read_text(encoding='utf-8')) for name in names}
+          assert all(row.get('release_subject_manifest_sha256')==subject for row in rows.values())
+          assert rows['Q10_DEPENDENCY_AUDIT.json']['gate_result']=='PASS'
+          assert rows['Q10_DEPENDENCY_AUDIT.json']['codex_security_deep_scan']=='PASS'
+          assert rows['Q11_OPENAI_LIVE.json']['result']=='PASS'
+          assert rows['Q12_CGROUP_V2.json']['result']=='PASS' and rows['Q12_CGROUP_V2.json']['actual_kernel_enforcement'] is True
+          assert rows['Q13_POSTGRES_DR.json']['status']=='PASS'
+          assert rows['Q14_OBSERVABILITY_ALERT.json']['result']=='PASS'
+          assert rows['Q15_CLEAN_MACHINE.json']['result'] in {'PASS','PASS_CANDIDATE'}
+          assert rows['Q16_PRODUCTION_IMAGE.json']['result']=='PASS_CANDIDATE'
+          assert rows['Q16_RUNTIME_LICENSE_SUMMARY.json']['result']=='PASS'
           PY
       - name: Re-run frozen release checks
         run: |
@@ -86,34 +164,37 @@ jobs:
                   base=Path(str(rel)).name
                   if not any(t in base.lower() for t in ('license','licence','copying','notice')):
                       continue
-                  try: data=Path(dist.locate_file(rel)).read_bytes()
-                  except OSError: continue
+                  try:
+                      data=Path(dist.locate_file(rel)).read_bytes()
+                  except OSError:
+                      continue
                   target.mkdir(parents=True,exist_ok=True)
                   dst=target/f'{i:03d}-{base}'
                   dst.write_bytes(data)
                   files.append({'path':str(rel),'exported':str(dst.relative_to(out)),'sha256':hashlib.sha256(data).hexdigest()})
-              inventory.append({
-                  'name':name,
-                  'version':dist.version,
-                  'license_expression':dist.metadata.get('License-Expression'),
-                  'license':dist.metadata.get('License'),
-                  'license_classifiers':[x for x in dist.metadata.get_all('Classifier',[]) if x.startswith('License ::')],
-                  'license_files':files,
-              })
+              inventory.append({'name':name,'version':dist.version,'license_expression':dist.metadata.get('License-Expression'),'license':dist.metadata.get('License'),'license_classifiers':[x for x in dist.metadata.get_all('Classifier',[]) if x.startswith('License ::')],'license_files':files})
           inventory.sort(key=lambda x:x['name'].lower())
           assert len(inventory)==55
           assert all(x['license_expression'] or x['license'] or x['license_classifiers'] or x['license_files'] for x in inventory)
           (out/'RUNTIME_LICENSE_INVENTORY.json').write_text(json.dumps(inventory,indent=2,sort_keys=True)+'\n',encoding='utf-8')
           PY
-      - name: Build clean production source archive
+      - name: Build release manifest and clean source archive
         shell: bash
         run: |
           set -euo pipefail
           sha=$(git rev-parse HEAD)
           mkdir -p dist
           tar -czf "dist/CK-NEXUS_PRODUCTION_${sha}.tar.gz" -C package-root ck-nexus
-          (cd dist && sha256sum CK-NEXUS_PRODUCTION_${sha}.tar.gz > SHA256SUMS)
-          sha256sum -c dist/SHA256SUMS
+          archive_sha=$(sha256sum "dist/CK-NEXUS_PRODUCTION_${sha}.tar.gz" | awk '{print $1}')
+          printf '%s  %s\n' "$archive_sha" "CK-NEXUS_PRODUCTION_${sha}.tar.gz" > dist/SHA256SUMS
+          python - "$sha" "$archive_sha" <<'PY'
+          import json,sys
+          sha,archive_sha=sys.argv[1:]
+          manifest={'schema_version':1,'release_commit':sha,'runtime_subject_sha256':'96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f','archive_sha256':archive_sha,'production_gate':'PASS','third_party_runtime_inventory_included':True,'third_party_license_files_included':True}
+          with open('dist/RELEASE_MANIFEST.json','w',encoding='utf-8') as f:
+              json.dump(manifest,f,indent=2,sort_keys=True); f.write('\n')
+          PY
+          (cd dist && sha256sum -c SHA256SUMS)
       - name: Upload production artifact
         uses: actions/upload-artifact@v4
         with:
@@ -121,5 +202,6 @@ jobs:
           path: |
             dist/CK-NEXUS_PRODUCTION_${{ github.sha }}.tar.gz
             dist/SHA256SUMS
+            dist/RELEASE_MANIFEST.json
           if-no-files-found: error
           retention-days: 90
