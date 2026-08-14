@@ -13,15 +13,17 @@ COPY pyproject.toml README.md ./
 COPY app ./app
 COPY creator_app ./creator_app
 COPY services ./services
+COPY gateway ./gateway
+COPY orchestration ./orchestration
+COPY idea_engine ./idea_engine
 COPY migrations ./migrations
 COPY main.py ./main.py
 
-RUN python -m pip install --no-cache-dir ".[email,gateway]" \
+RUN python -m pip install --no-cache-dir ".[email,gateway,billing,github-app]" \
     && mkdir -p /app/data \
     && chown -R cknexus:cknexus /app
 
 USER cknexus
 EXPOSE 8000
 
-CMD ["python", "main.py"]
-
+CMD ["python", "-m", "creator_app.unified"]
