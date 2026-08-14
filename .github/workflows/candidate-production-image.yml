@@ -19,11 +19,17 @@ jobs:
         run: |
           grep -F 'CKNEXUS_AGNES_PHASE3_ENABLED: $' docker-compose.prod.yml >/dev/null
           grep -F '{CKNEXUS_AGNES_PHASE3_ENABLED:-false}' docker-compose.prod.yml >/dev/null
+      - name: Validate frozen production install contract
+        run: |
+          grep -F 'COPY pyproject.toml uv.lock README.md ./' Dockerfile
+          grep -F 'uv lock --check' Dockerfile
+          grep -F 'uv sync --frozen --no-dev --no-editable' Dockerfile
       - name: Build production image
         run: docker build --pull -t cknexus-candidate:${{ github.sha }} .
       - name: Verify packaged runtime modules and optional dependencies
         run: |
-          docker run --rm cknexus-candidate:${{ github.sha }} python - <<'PY'
+          docker run --rm -i cknexus-candidate:${{ github.sha }} python - <<'PY'
+          import importlib.util
           import aiosqlite
           import gateway
           import idea_engine
@@ -34,8 +40,11 @@ jobs:
           import stripe
           from creator_app.unified import app
           assert app is not None
-          print('production image imports PASS')
+          for dev_only in ('pytest','ruff','bandit','pip_audit'):
+              assert importlib.util.find_spec(dev_only) is None, dev_only
+          print('production image imports PASS; dev-only tooling absent')
           PY
+          docker run --rm cknexus-candidate:${{ github.sha }} python -m pip check
       - name: Run production image in safe mock mode
         shell: bash
         run: |
@@ -79,17 +88,21 @@ jobs:
           import json,sys
           sha,tree,subject,run_id=sys.argv[1:]
           e={
-            'schema_version':1,
+            'schema_version':2,
             'gate':'Q16_PRODUCTION_IMAGE',
             'source_sha':sha,
             'source_tree':tree,
             'release_subject_manifest_sha256':subject,
             'github_run_id':int(run_id),
             'base_image':'python:3.12-slim',
+            'dependency_mode':'uv.lock frozen; runtime extras only; no editable install; no dev tooling',
             'runtime_user':'cknexus-non-root',
             'runtime_entrypoint':'python -m creator_app.unified',
             'runtime_extras':['email','gateway','billing','github-app'],
             'phase3_default':'false-fail-closed',
+            'pip_check':'PASS',
+            'runtime_imports':'PASS',
+            'dev_tooling_absent':'PASS',
             'health_smoke':'PASS',
             'unified_control_smoke':'PASS',
             'result':'PASS_CANDIDATE',
