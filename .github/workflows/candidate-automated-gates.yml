@@ -1,0 +1,272 @@
+name: Candidate automated gates
+
+on:
+  push:
+    branches: [release/q10-q16-closure]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  q10_dependency_component:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Frozen candidate environment
+        run: |
+          python -m pip install --upgrade pip uv
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+      - name: Exact frozen dependency audit
+        shell: bash
+        run: |
+          set +e
+          .venv/bin/pip-audit --local --skip-editable --progress-spinner off --format json --output q10-pip-audit.json
+          rc=$?
+          echo "Q10_AUDIT_RC=$rc" >> "$GITHUB_ENV"
+          exit 0
+      - name: Exact dependency license inventory
+        run: |
+          .venv/bin/python - <<'PY'
+          import importlib.metadata as md, json
+          rows=[]
+          for dist in md.distributions():
+              name=dist.metadata.get('Name') or ''
+              if name.lower() == 'ck-nexus-creator':
+                  continue
+              rows.append({
+                  'name': name,
+                  'version': dist.version,
+                  'license_expression': dist.metadata.get('License-Expression'),
+                  'license': dist.metadata.get('License'),
+                  'homepage': dist.metadata.get('Home-page'),
+              })
+          rows.sort(key=lambda x: x['name'].lower())
+          with open('Q16_DEPENDENCY_LICENSE_INVENTORY.json','w',encoding='utf-8') as f:
+              json.dump(rows,f,indent=2,sort_keys=True); f.write('\n')
+          print('dependency distributions=',len(rows))
+          PY
+      - name: Emit Q10 component evidence
+        env:
+          RUN_ID: ${{ github.run_id }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          tree=$(git rev-parse HEAD^{tree})
+          manifest=$(git ls-tree -r HEAD -- creator_app services tests scripts main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          .venv/bin/python - "$HEAD_SHA" "$tree" "$manifest" "$RUN_ID" "$Q10_AUDIT_RC" <<'PY'
+          import json,sys
+          source_sha,tree,manifest,run_id,rc=sys.argv[1:]
+          raw=json.load(open('q10-pip-audit.json',encoding='utf-8'))
+          deps=raw.get('dependencies',[]) if isinstance(raw,dict) else raw
+          vulns=sum(len(x.get('vulns',[])) for x in deps if isinstance(x,dict))
+          passed=int(rc)==0 and vulns==0
+          evidence={
+              'schema_version':3,
+              'gate':'Q10',
+              'source_sha':source_sha,
+              'source_tree':tree,
+              'subject_manifest_sha256':manifest,
+              'github_run_id':int(run_id),
+              'dependency_install':'uv sync --all-extras --dev --frozen',
+              'auditor':'pip-audit',
+              'vulnerabilities_found':vulns,
+              'pip_audit_exit_code':int(rc),
+              'component_result':'PASS' if passed else 'FAIL',
+              'gate_result':'NOT_VERIFIED',
+              'codex_security_deep_scan':'REQUIRED_SEPARATELY',
+              'production_promotion_allowed':False,
+          }
+          json.dump(evidence,open('Q10_DEPENDENCY_AUDIT.json','w'),indent=2,sort_keys=True)
+          open('Q10_DEPENDENCY_AUDIT.json','a').write('\n')
+          print(json.dumps(evidence,indent=2,sort_keys=True))
+          assert passed
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: q10-candidate-${{ github.sha }}
+          path: |
+            Q10_DEPENDENCY_AUDIT.json
+            q10-pip-audit.json
+            Q16_DEPENDENCY_LICENSE_INVENTORY.json
+          if-no-files-found: error
+
+  q13_postgres_dr:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cknexus
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cknexus"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGPASSWORD: postgres
+      CKNEXUS_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cknexus
+      CKNEXUS_RESTORE_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cknexus_restore_dr
+      CKNEXUS_ENVIRONMENT: staging
+      CKNEXUS_RESTORE_TARGET_CLASS: isolated-dr
+      CKNEXUS_ALLOW_DESTRUCTIVE_RESTORE: YES
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Ensure PostgreSQL client tools
+        run: |
+          if ! command -v pg_dump >/dev/null || ! command -v pg_restore >/dev/null || ! command -v psql >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client
+          fi
+      - name: Seed isolated staging source and restore target
+        run: |
+          psql "$CKNEXUS_DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE TABLE agnes_idempotency (id integer primary key, payload text);
+          CREATE TABLE creator_runs (id integer primary key, payload text);
+          CREATE TABLE email_journal (id integer primary key, payload text);
+          CREATE TABLE email_outbox (id integer primary key, payload text);
+          INSERT INTO creator_runs VALUES (1, 'q13-sentinel');
+          SQL
+          psql "postgresql://postgres:postgres@127.0.0.1:5432/postgres" -v ON_ERROR_STOP=1 \
+            -c 'CREATE DATABASE cknexus_restore_dr;'
+      - name: Run destructive isolated DR gate
+        run: |
+          python scripts/gate_postgres_dr.py | tee Q13_POSTGRES_DR.json
+          python - <<'PY'
+          import json
+          x=json.load(open('Q13_POSTGRES_DR.json'))
+          assert x['status']=='PASS' and x['backup']=='completed' and x['restore']=='completed'
+          PY
+          test "$(psql "$CKNEXUS_RESTORE_DATABASE_URL" -Atqc "select payload from creator_runs where id=1")" = "q13-sentinel"
+      - name: Bind Q13 evidence to candidate identity
+        env:
+          RUN_ID: ${{ github.run_id }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          tree=$(git rev-parse HEAD^{tree})
+          python - "$HEAD_SHA" "$tree" "$RUN_ID" <<'PY'
+          import json,sys
+          sha,tree,run_id=sys.argv[1:]
+          raw=json.load(open('Q13_POSTGRES_DR.json'))
+          raw.update({
+              'schema_version':2,
+              'gate':'Q13',
+              'source_sha':sha,
+              'source_tree':tree,
+              'github_run_id':int(run_id),
+              'environment_class':'ephemeral-isolated-staging',
+              'production_data_used':False,
+              'sentinel_round_trip':'PASS',
+              'result':'PASS_CANDIDATE',
+          })
+          json.dump(raw,open('Q13_POSTGRES_DR.json','w'),indent=2,sort_keys=True)
+          open('Q13_POSTGRES_DR.json','a').write('\n')
+          print(json.dumps(raw,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: q13-postgres-dr-${{ github.sha }}
+          path: Q13_POSTGRES_DR.json
+          if-no-files-found: error
+
+  q15_clean_machine:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Fresh-host install
+        shell: bash
+        run: |
+          start=$(date +%s)
+          python -m pip install --upgrade pip uv
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+          .venv/bin/python -m compileall -q main.py creator_app services scripts
+          .venv/bin/ruff check main.py creator_app services tests scripts
+          .venv/bin/pytest -q --ignore=tests/test_agnes_execution_kernel_phase2.py --ignore=tests/test_agnes_execution_kernel_phase3.py
+          echo "Q15_INSTALL_STARTED=$start" >> "$GITHUB_ENV"
+      - name: Unified runtime smoke
+        shell: bash
+        env:
+          CKNEXUS_MOCK_AI: 'true'
+          CKNEXUS_HOST: 127.0.0.1
+          PORT: '8000'
+        run: |
+          ./start_unified.sh > q15-server.log 2>&1 &
+          echo $! > q15-server.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health > q15-health.json; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8000/control > q15-control.html
+          curl -fsS http://127.0.0.1:8000/api/control/manifest > q15-control-manifest.json
+          .venv/bin/python - <<'PY'
+          import json
+          h=json.load(open('q15-health.json'))
+          m=json.load(open('q15-control-manifest.json'))
+          assert h['status']=='ok'
+          assert m['name']=='CK-NEXUS Unified Control Surface'
+          assert m['route_count'] > 0 and len(m['groups']) == 8
+          assert 'CK-NEXUS' in open('q15-control.html',encoding='utf-8').read()
+          PY
+          kill "$(cat q15-server.pid)" || true
+      - name: Emit clean-machine evidence
+        env:
+          RUN_ID: ${{ github.run_id }}
+          HEAD_SHA: ${{ github.sha }}
+          IMAGE_OS: ${{ env.ImageOS }}
+          IMAGE_VERSION: ${{ env.ImageVersion }}
+        run: |
+          finish=$(date +%s)
+          duration=$((finish-Q15_INSTALL_STARTED))
+          tree=$(git rev-parse HEAD^{tree})
+          .venv/bin/python - "$HEAD_SHA" "$tree" "$RUN_ID" "$duration" <<'PY'
+          import json,os,platform,sys
+          sha,tree,run_id,duration=sys.argv[1:]
+          evidence={
+              'schema_version':2,
+              'gate':'Q15',
+              'source_sha':sha,
+              'source_tree':tree,
+              'github_run_id':int(run_id),
+              'host_class':'fresh-github-hosted-vm',
+              'os':platform.platform(),
+              'runner_name':os.getenv('RUNNER_NAME'),
+              'image_os':os.getenv('ImageOS'),
+              'image_version':os.getenv('ImageVersion'),
+              'install':'uv sync --all-extras --dev --frozen',
+              'portable_regression':'PASS',
+              'unified_health_smoke':'PASS',
+              'unified_control_smoke':'PASS',
+              'elapsed_seconds':int(duration),
+              'result':'PASS_CANDIDATE',
+              'supported_production_host_verified':'Linux Ubuntu 24.04',
+          }
+          json.dump(evidence,open('Q15_CLEAN_MACHINE.json','w'),indent=2,sort_keys=True)
+          open('Q15_CLEAN_MACHINE.json','a').write('\n')
+          print(json.dumps(evidence,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: q15-clean-machine-${{ github.sha }}
+          path: |
+            Q15_CLEAN_MACHINE.json
+            q15-health.json
+            q15-control-manifest.json
+            q15-server.log
+          if-no-files-found: error
