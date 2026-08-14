@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/schemas/control/connector-state.schema.json",
+  "title": "CK-NEXUS Connector State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["connector_id", "tenant_id", "lifecycle", "authorization", "health", "observed_at"],
+  "properties": {
+    "connector_id": {"type": "string"},
+    "tenant_id": {"type": "string"},
+    "lifecycle": {"type": "string", "enum": ["DISCOVERED", "CONFIGURED", "CONNECTED", "DEGRADED", "REAUTH_REQUIRED", "DISCONNECTED", "QUARANTINED", "REVOKED", "UNAVAILABLE"]},
+    "authorization": {"type": "string", "enum": ["NOT_CONFIGURED", "CONSENT_REQUIRED", "AUTHORIZED", "SCOPE_INSUFFICIENT", "EXPIRED", "REVOKED", "UNKNOWN"]},
+    "health": {"type": "string", "enum": ["UNKNOWN", "HEALTHY", "DEGRADED", "UNHEALTHY"]},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "fresh_until": {"type": ["string", "null"], "format": "date-time"},
+    "provider_native_scopes": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "verified_capabilities": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "account_ref": {"type": ["string", "null"]},
+    "last_error_class": {"type": ["string", "null"]},
+    "evidence_refs": {"type": "array", "items": {"type": "string"}},
+    "metadata": {"type": "object"}
+  }
+}

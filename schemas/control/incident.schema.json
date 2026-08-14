@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/schemas/control/incident.schema.json",
+  "title": "CK-NEXUS Incident",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["incident_id", "tenant_id", "severity", "state", "title", "opened_at", "affected_objects"],
+  "properties": {
+    "incident_id": {"type": "string"},
+    "tenant_id": {"type": "string"},
+    "severity": {"type": "string", "enum": ["INFO", "MINOR", "MAJOR", "CRITICAL"]},
+    "state": {"type": "string", "enum": ["OPEN", "TRIAGED", "MITIGATING", "MONITORING", "RESOLVED", "CLOSED"]},
+    "title": {"type": "string", "minLength": 1},
+    "opened_at": {"type": "string", "format": "date-time"},
+    "resolved_at": {"type": ["string", "null"], "format": "date-time"},
+    "error_classes": {"type": "array", "items": {"type": "string"}},
+    "affected_objects": {"type": "array", "items": {"type": "object", "required": ["kind", "id"], "properties": {"kind": {"type": "string"}, "id": {"type": "string"}}, "additionalProperties": false},
+    "impact": {"type": ["string", "null"]},
+    "containment": {"type": "array", "items": {"type": "string"}},
+    "recovery_refs": {"type": "array", "items": {"type": "string"}},
+    "evidence_refs": {"type": "array", "items": {"type": "string"}},
+    "metadata": {"type": "object"}
+  }
+}
