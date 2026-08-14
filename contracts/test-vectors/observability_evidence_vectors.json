@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "vectors": [
+    {
+      "name": "no traffic is insufficient data",
+      "slo": {"sample_count": 0, "objective": 0.99},
+      "expected": {"state": "INSUFFICIENT_DATA"}
+    },
+    {
+      "name": "stale telemetry is not healthy",
+      "health": {"state": "HEALTHY", "fresh_until": "2026-01-01T00:00:00Z"},
+      "now": "2026-01-02T00:00:00Z",
+      "expected": {"effective_state": "UNKNOWN"}
+    },
+    {
+      "name": "static alert rule is not Q13 pass",
+      "inputs": {"alert_rule_exists": true, "operator_receipt": false},
+      "expected": {"q13": "INSUFFICIENT_EVIDENCE"}
+    },
+    {
+      "name": "subject mismatch invalidates evidence",
+      "evidence": {"subject_digest": "aaa"},
+      "release": {"subject_digest": "bbb"},
+      "expected": {"freshness_state": "SUBJECT_MISMATCH", "usable": false}
+    },
+    {
+      "name": "quota unknown is not unlimited",
+      "quota": {"remaining": null, "fresh": false},
+      "expected": {"routing_headroom": "UNKNOWN"}
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+id: ck.core.verified-task-success
+version: 1.0.0
+scope:
+  environment: staging
+  tenant: '*'
+sli:
+  type: ratio
+  good: agnes_tasks_verified_success
+  total: agnes_tasks_terminal
+objective: 0.99
+window: 30d
+minimum_samples: 100
+no_data_state: INSUFFICIENT_DATA
+alerts:
+  policy: multi_window_burn
+metadata:
+  release_gate_claim: false
+  q13_requires_live_alert_receipt: true
