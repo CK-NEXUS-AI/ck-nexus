@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/schemas/fabric/external-runtime-observation.schema.json",
+  "title": "CK-NEXUS External Runtime Observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "observation_id",
+    "runtime_id",
+    "runtime_type",
+    "observed_at",
+    "object_type",
+    "object_id",
+    "status",
+    "provenance"
+  ],
+  "properties": {
+    "observation_id": {"type": "string", "minLength": 1},
+    "runtime_id": {"type": "string", "minLength": 1},
+    "runtime_type": {"type": "string", "enum": ["connector_platform", "agent_platform", "provider", "external_runtime"]},
+    "adapter_id": {"type": "string"},
+    "adapter_version": {"type": "string"},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "fresh_until": {"type": ["string", "null"], "format": "date-time"},
+    "object_type": {"type": "string", "enum": ["connector", "capability", "skill", "memory", "provider", "workflow", "health"]},
+    "object_id": {"type": "string", "minLength": 1},
+    "status": {
+      "type": "string",
+      "enum": [
+        "DISCOVERED",
+        "OBSERVED",
+        "VALIDATED",
+        "HEALTHY",
+        "DEGRADED",
+        "REAUTH_REQUIRED",
+        "QUARANTINED",
+        "REVOKED",
+        "UNKNOWN"
+      ]
+    },
+    "provider_native_scopes": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "normalized_capabilities": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "risk_class": {"type": "string", "enum": ["none", "low", "medium", "high", "critical", "unknown"]},
+    "side_effect_class": {"type": "string", "enum": ["none", "read", "write", "external_message", "financial", "security", "production", "unknown"]},
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "state": {"type": "string", "enum": ["unverified", "valid", "invalid", "conflict", "stale"]},
+        "validator_id": {"type": "string"},
+        "contract_hash": {"type": "string"},
+        "errors": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_kind", "source_reference"],
+      "properties": {
+        "source_kind": {"type": "string", "enum": ["live_api", "connector_catalog", "entity_cache", "recorded_fixture", "manual_evidence"]},
+        "source_reference": {"type": "string", "minLength": 1},
+        "source_hash": {"type": ["string", "null"]},
+        "evidence_reference": {"type": ["string", "null"]}
+      }
+    },
+    "metadata": {"type": "object"}
+  }
+}
