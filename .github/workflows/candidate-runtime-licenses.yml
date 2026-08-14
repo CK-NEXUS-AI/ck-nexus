@@ -1,0 +1,118 @@
+name: Candidate runtime licenses
+
+on:
+  push:
+    branches: [release/q10-q16-closure]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime_licenses:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Build exact production image
+        run: docker build -t cknexus-license:${{ github.sha }} .
+      - name: Generate runtime-only license inventory
+        shell: bash
+        run: |
+          docker run --rm cknexus-license:${{ github.sha }} python - <<'PY' > Q16_RUNTIME_LICENSE_INVENTORY.json
+          import hashlib
+          import importlib.metadata as md
+          import json
+          from pathlib import Path
+
+          rows=[]
+          for dist in md.distributions():
+              name=(dist.metadata.get('Name') or '').strip()
+              if name.lower() == 'ck-nexus-creator':
+                  continue
+              classifiers=[x for x in dist.metadata.get_all('Classifier',[]) if x.startswith('License ::')]
+              license_files=[]
+              for rel in dist.files or []:
+                  text=str(rel)
+                  base=Path(text).name.lower()
+                  if any(token in base for token in ('license','licence','copying','notice')):
+                      try:
+                          absolute=dist.locate_file(rel)
+                          data=Path(absolute).read_bytes()
+                          license_files.append({'path':text,'sha256':hashlib.sha256(data).hexdigest()})
+                      except OSError:
+                          license_files.append({'path':text,'sha256':None})
+              project_urls={}
+              for value in dist.metadata.get_all('Project-URL',[]):
+                  if ', ' in value:
+                      key,url=value.split(', ',1)
+                      project_urls[key]=url
+              row={
+                  'name':name,
+                  'version':dist.version,
+                  'license_expression':dist.metadata.get('License-Expression'),
+                  'license':dist.metadata.get('License'),
+                  'license_classifiers':classifiers,
+                  'license_files':license_files,
+                  'home_page':dist.metadata.get('Home-page'),
+                  'project_urls':project_urls,
+              }
+              row['license_evidence_present']=bool(
+                  row['license_expression'] or row['license'] or classifiers or license_files
+              )
+              rows.append(row)
+          rows.sort(key=lambda x:x['name'].lower())
+          print(json.dumps(rows,indent=2,sort_keys=True))
+          PY
+      - name: Enforce license-evidence completeness
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          rows=json.load(open('Q16_RUNTIME_LICENSE_INVENTORY.json',encoding='utf-8'))
+          unresolved=[f"{x['name']}=={x['version']}" for x in rows if not x['license_evidence_present']]
+          print('runtime distributions=',len(rows))
+          print('unresolved license evidence=',unresolved)
+          with open('Q16_RUNTIME_LICENSE_SUMMARY.json','w',encoding='utf-8') as f:
+              json.dump({
+                  'runtime_distribution_count':len(rows),
+                  'unresolved_license_evidence':unresolved,
+                  'result':'PASS' if not unresolved else 'REVIEW_REQUIRED',
+              },f,indent=2,sort_keys=True); f.write('\n')
+          raise SystemExit(1 if unresolved else 0)
+          PY
+      - name: Bind inventory to release subject
+        if: always()
+        env:
+          HEAD_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          python - "$HEAD_SHA" "$subject" "$RUN_ID" <<'PY'
+          import json,sys
+          sha,subject,run_id=sys.argv[1:]
+          p='Q16_RUNTIME_LICENSE_SUMMARY.json'
+          try: x=json.load(open(p,encoding='utf-8'))
+          except FileNotFoundError: x={'result':'FAIL','unresolved_license_evidence':['inventory_generation_failed']}
+          x.update({
+              'schema_version':1,
+              'gate':'Q16_RUNTIME_LICENSES',
+              'source_sha':sha,
+              'release_subject_manifest_sha256':subject,
+              'github_run_id':int(run_id),
+              'scope':'exact installed production Docker runtime; CK-NEXUS proprietary distribution excluded',
+          })
+          with open(p,'w',encoding='utf-8') as f:
+              json.dump(x,f,indent=2,sort_keys=True); f.write('\n')
+          print(json.dumps(x,indent=2,sort_keys=True))
+          PY
+      - name: Upload runtime-license evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: q16-runtime-licenses-${{ github.sha }}
+          path: |
+            Q16_RUNTIME_LICENSE_INVENTORY.json
+            Q16_RUNTIME_LICENSE_SUMMARY.json
+          if-no-files-found: error
