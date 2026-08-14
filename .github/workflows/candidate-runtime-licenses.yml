@@ -20,7 +20,7 @@ jobs:
       - name: Generate runtime-only license inventory
         shell: bash
         run: |
-          docker run --rm cknexus-license:${{ github.sha }} python - <<'PY' > Q16_RUNTIME_LICENSE_INVENTORY.json
+          docker run --rm -i cknexus-license:${{ github.sha }} python - <<'PY' > Q16_RUNTIME_LICENSE_INVENTORY.json
           import hashlib
           import importlib.metadata as md
           import json
