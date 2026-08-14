@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/schemas/evidence/freshness-attestation.schema.json",
+  "title": "CK-NEXUS Evidence Freshness Attestation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["attestation_id", "evidence_ref", "subject_ref", "evaluated_at", "state", "producer"],
+  "properties": {
+    "attestation_id": {"type": "string", "minLength": 1},
+    "evidence_ref": {"type": "string", "minLength": 1},
+    "subject_ref": {"type": "string", "minLength": 1},
+    "subject_digest": {"type": ["string", "null"]},
+    "evaluated_at": {"type": "string", "format": "date-time"},
+    "produced_at": {"type": ["string", "null"], "format": "date-time"},
+    "valid_until": {"type": ["string", "null"], "format": "date-time"},
+    "state": {"type": "string", "enum": ["FRESH", "STALE", "SUBJECT_MISMATCH", "INSUFFICIENT_EVIDENCE", "INVALIDATED"]},
+    "reason_codes": {"type": "array", "items": {"type": "string"}},
+    "producer": {"type": "string", "minLength": 1},
+    "policy_hash": {"type": ["string", "null"]},
+    "parent_evidence_refs": {"type": "array", "items": {"type": "string"}},
+    "metadata": {"type": "object"}
+  }
+}

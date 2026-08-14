@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/schemas/observability/budget-observation.schema.json",
+  "title": "CK-NEXUS Budget and Quota Observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["observation_id", "tenant_id", "kind", "source", "observed_at"],
+  "properties": {
+    "observation_id": {"type": "string", "minLength": 1},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": ["string", "null"]},
+    "provider_ref": {"type": ["string", "null"]},
+    "kind": {"type": "string", "enum": ["PRICE", "USAGE", "QUOTA", "BUDGET", "COST_ESTIMATE"]},
+    "source": {"type": "string", "minLength": 1},
+    "unit": {"type": ["string", "null"]},
+    "currency": {"type": ["string", "null"]},
+    "value": {"type": ["number", "null"]},
+    "remaining": {"type": ["number", "null"]},
+    "limit": {"type": ["number", "null"]},
+    "estimated": {"type": "boolean", "default": false},
+    "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "fresh_until": {"type": ["string", "null"], "format": "date-time"},
+    "metadata": {"type": "object"}
+  }
+}
