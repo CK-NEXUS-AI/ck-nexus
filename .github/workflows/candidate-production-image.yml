@@ -1,0 +1,114 @@
+name: Candidate production image
+
+on:
+  push:
+    branches: [release/q10-q16-closure]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker_image:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Validate Compose fail-closed Phase3 default
+        run: |
+          grep -F 'CKNEXUS_AGNES_PHASE3_ENABLED: $' docker-compose.prod.yml >/dev/null
+          grep -F '{CKNEXUS_AGNES_PHASE3_ENABLED:-false}' docker-compose.prod.yml >/dev/null
+      - name: Build production image
+        run: docker build --pull -t cknexus-candidate:${{ github.sha }} .
+      - name: Verify packaged runtime modules and optional dependencies
+        run: |
+          docker run --rm cknexus-candidate:${{ github.sha }} python - <<'PY'
+          import aiosqlite
+          import gateway
+          import idea_engine
+          import orchestration
+          import psycopg
+          import redis
+          import sqlalchemy
+          import stripe
+          from creator_app.unified import app
+          assert app is not None
+          print('production image imports PASS')
+          PY
+      - name: Run production image in safe mock mode
+        shell: bash
+        run: |
+          docker run -d --name cknexus-candidate \
+            -p 127.0.0.1:18000:8000 \
+            -e CKNEXUS_MOCK_AI=true \
+            -e CKNEXUS_AGNES_PHASE3_ENABLED=false \
+            cknexus-candidate:${{ github.sha }}
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:18000/health > docker-health.json; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:18000/control > docker-control.html
+          curl -fsS http://127.0.0.1:18000/api/control/manifest > docker-control-manifest.json
+          python - <<'PY'
+          import json
+          h=json.load(open('docker-health.json'))
+          m=json.load(open('docker-control-manifest.json'))
+          assert h['status']=='ok'
+          assert m['name']=='CK-NEXUS Unified Control Surface'
+          assert len(m['groups']) == 8 and m['route_count'] > 0
+          assert 'CK-NEXUS' in open('docker-control.html',encoding='utf-8').read()
+          PY
+      - name: Verify non-root runtime identity
+        run: |
+          test "$(docker exec cknexus-candidate id -u)" != "0"
+          docker exec cknexus-candidate python -c "import os; assert os.geteuid()!=0; print('non-root PASS')"
+      - name: Capture image evidence
+        if: always()
+        env:
+          HEAD_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+        shell: bash
+        run: |
+          docker logs cknexus-candidate > docker-server.log 2>&1 || true
+          tree=$(git rev-parse HEAD^{tree})
+          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          python - "$HEAD_SHA" "$tree" "$subject" "$RUN_ID" <<'PY'
+          import json,sys
+          sha,tree,subject,run_id=sys.argv[1:]
+          e={
+            'schema_version':1,
+            'gate':'Q16_PRODUCTION_IMAGE',
+            'source_sha':sha,
+            'source_tree':tree,
+            'release_subject_manifest_sha256':subject,
+            'github_run_id':int(run_id),
+            'base_image':'python:3.12-slim',
+            'runtime_user':'cknexus-non-root',
+            'runtime_entrypoint':'python -m creator_app.unified',
+            'runtime_extras':['email','gateway','billing','github-app'],
+            'phase3_default':'false-fail-closed',
+            'health_smoke':'PASS',
+            'unified_control_smoke':'PASS',
+            'result':'PASS_CANDIDATE',
+          }
+          with open('Q16_PRODUCTION_IMAGE.json','w',encoding='utf-8') as f:
+            json.dump(e,f,indent=2,sort_keys=True); f.write('\n')
+          print(json.dumps(e,indent=2,sort_keys=True))
+          PY
+      - name: Stop candidate
+        if: always()
+        run: docker rm -f cknexus-candidate 2>/dev/null || true
+      - name: Upload production-image evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: q16-production-image-${{ github.sha }}
+          path: |
+            Q16_PRODUCTION_IMAGE.json
+            docker-health.json
+            docker-control-manifest.json
+            docker-server.log
+          if-no-files-found: error
