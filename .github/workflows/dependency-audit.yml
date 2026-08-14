@@ -9,16 +9,78 @@ on:
 permissions:
   contents: read
 
+env:
+  Q10_SOURCE_SHA: 45fde79c717b09f8675645aa541a5834ebd4f433
+
 jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout exact Q09 source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.Q10_SOURCE_SHA }}
+          fetch-depth: 1
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: pip
-      - name: Install project and audit tool
-        run: python -m pip install --upgrade pip && pip install -e '.[billing,email,github-app]' pip-audit
-      - name: Audit installed dependencies
-        run: pip-audit
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+      - name: Frozen all-extras dependency closure
+        run: |
+          test "$(git rev-parse HEAD)" = "$Q10_SOURCE_SHA"
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+      - name: Audit exact frozen environment
+        shell: bash
+        run: |
+          set +e
+          .venv/bin/pip-audit --local --skip-editable --progress-spinner off --format json --output q10-pip-audit.json
+          rc=$?
+          echo "Q10_PIP_AUDIT_RC=$rc" >> "$GITHUB_ENV"
+          exit 0
+      - name: Emit machine-readable Q10 evidence
+        shell: bash
+        run: |
+          tree=$(git rev-parse HEAD^{tree})
+          manifest=$(git ls-tree -r HEAD -- creator_app services gateway orchestration idea_engine tests scripts main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          .venv/bin/python - "$Q10_SOURCE_SHA" "$tree" "$manifest" "$Q10_PIP_AUDIT_RC" <<'PY'
+          import json, sys
+          source_sha, tree, manifest, rc = sys.argv[1:]
+          with open('q10-pip-audit.json', encoding='utf-8') as handle:
+              raw = json.load(handle)
+          deps = raw.get('dependencies', []) if isinstance(raw, dict) else raw
+          vulnerabilities = sum(len(item.get('vulns', [])) for item in deps if isinstance(item, dict))
+          evidence = {
+              'schema_version': 1,
+              'gate': 'Q10',
+              'source_sha': source_sha,
+              'source_tree': tree,
+              'subject_manifest_sha256': manifest,
+              'dependency_install': 'uv sync --all-extras --dev --frozen',
+              'auditor': 'pip-audit',
+              'audit_scope': 'exact frozen local environment; editable project skipped',
+              'vulnerabilities_found': vulnerabilities,
+              'pip_audit_exit_code': int(rc),
+              'result': 'PASS' if int(rc) == 0 and vulnerabilities == 0 else 'FAIL',
+              'codex_security_deep_scan': 'REQUIRED_SEPARATELY',
+          }
+          with open('Q10_DEPENDENCY_AUDIT.json', 'w', encoding='utf-8') as handle:
+              json.dump(evidence, handle, indent=2, sort_keys=True)
+              handle.write('\n')
+          print(json.dumps(evidence, indent=2, sort_keys=True))
+          PY
+      - name: Upload Q10 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: q10-dependency-audit-${{ env.Q10_SOURCE_SHA }}
+          path: |
+            Q10_DEPENDENCY_AUDIT.json
+            q10-pip-audit.json
+          if-no-files-found: error
+      - name: Enforce Q10 dependency-audit half-gate
+        run: |
+          test "$Q10_PIP_AUDIT_RC" -eq 0
+          .venv/bin/python -c "import json; x=json.load(open('Q10_DEPENDENCY_AUDIT.json')); assert x['result']=='PASS' and x['vulnerabilities_found']==0"
