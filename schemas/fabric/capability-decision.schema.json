@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/schemas/fabric/capability-decision.schema.json",
+  "title": "CK-NEXUS Capability Decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision_id", "task_id", "tenant_id", "capability_id", "created_at", "policy_hash", "candidates", "result"],
+  "properties": {
+    "decision_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "capability_id": {"type": "string", "minLength": 3},
+    "created_at": {"type": "string", "format": "date-time"},
+    "policy_hash": {"type": "string", "minLength": 8},
+    "registry_snapshot": {"type": ["string", "null"]},
+    "mode": {"type": "string", "enum": ["single_best", "fallback", "parallel", "council", "shadow", "canary"]},
+    "candidates": {"type": "array", "items": {"$ref": "#/$defs/candidate"}, "minItems": 1},
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state"],
+      "properties": {
+        "state": {"type": "string", "enum": ["SELECTED", "NO_ELIGIBLE_CANDIDATE", "APPROVAL_REQUIRED", "DENIED"]},
+        "selected_id": {"type": ["string", "null"]},
+        "fallback_order": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "approval_ref": {"type": ["string", "null"]}
+      }
+    }
+  },
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["implementation_id", "eligible"],
+      "properties": {
+        "implementation_id": {"type": "string", "minLength": 1},
+        "eligible": {"type": "boolean"},
+        "rejection_reasons": {"type": "array", "items": {"type": "string"}},
+        "score": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "score_breakdown": {"type": "object", "additionalProperties": {"type": "number", "minimum": 0, "maximum": 1}},
+        "health_age_ms": {"type": ["integer", "null"], "minimum": 0},
+        "contract_version": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

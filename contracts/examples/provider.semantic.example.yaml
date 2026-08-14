@@ -1,0 +1,34 @@
+id: example.semantic-provider
+version: 1.0.0
+type: provider
+display_name: Example Semantic Provider
+lifecycle: experimental
+owner: ck-nexus
+capabilities:
+  reasoning.generate:
+    description: Generate a model response under a normalized CK-NEXUS request contract
+    risk: READ_ONLY
+    side_effect: NONE
+    input_schema: schemas/provider/normalized-request.schema.json
+    output_schema: schemas/provider/normalized-response.schema.json
+    idempotent: conditional
+    approval: none
+    evidence:
+      - provider_request_observation
+      - normalized_output_validation
+  research.web.search_grounded:
+    description: Produce grounded research results with source metadata when provider support is verified
+    risk: READ_ONLY
+    side_effect: NONE
+    input_schema: schemas/provider/normalized-request.schema.json
+    output_schema: schemas/provider/normalized-response.schema.json
+    idempotent: true
+    approval: none
+    evidence:
+      - source_metadata
+      - grounding_verification
+metadata:
+  semantic_contract: docs/architecture/PROVIDER_SEMANTIC_CONTRACT.md
+  tool_calls_are_proposals: true
+  retry_safety_default: unknown
+  secret_exposure: forbidden
