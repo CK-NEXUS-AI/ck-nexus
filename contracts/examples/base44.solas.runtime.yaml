@@ -1,0 +1,64 @@
+id: base44.solas.runtime
+version: 0.1.0
+kind: external_runtime
+status: spec_only
+runtime:
+  platform: base44
+  app_id: 6a7f2975e682d5f59c2a182e
+  app_name: Solas
+adapter:
+  mode: federation
+  discovery: read_only
+  execution: agnes_gated
+  credentials: opaque_provider_managed
+capabilities:
+  - runtime.connector.discover
+  - runtime.connector.observe
+  - runtime.connector.health
+  - runtime.entity.read
+  - runtime.capability.candidate
+contracts:
+  observation_schema: schemas/fabric/external-runtime-observation.schema.json
+  capability_manifest_schema: schemas/fabric/capability-manifest.schema.json
+trust:
+  authoritative_for:
+    - live_connector_observation
+  not_authoritative_for:
+    - ck_policy
+    - ck_capability_validation
+    - ck_release_evidence
+    - production_authorization
+    - skill_truth
+    - memory_truth
+credentials:
+  export_tokens: false
+  distribute_tokens: false
+  create_keys_automatically: false
+  quota_evasion_rotation: false
+  oauth_consent_requires_owner: true
+risk:
+  read_discovery: low
+  external_write: high
+  financial_action: critical
+  security_change: critical
+  production_change: critical
+events:
+  produces:
+    - ck.external_runtime.observed
+    - ck.connector.observed
+    - ck.connector.degraded
+    - ck.connector.reauth_required
+    - ck.capability.candidate_discovered
+  consumes:
+    - ck.task.assigned
+    - ck.capability.grant.issued
+    - ck.execution.cancelled
+verification:
+  require_provenance: true
+  require_contract_validation: true
+  conflicting_cache_policy: prefer_higher_precedence_source
+  malformed_record_policy: quarantine
+lifecycle:
+  discovery_to_registry: validation_required
+  write_enablement: q10_and_contract_tests_required
+  production_enablement: q16_required
