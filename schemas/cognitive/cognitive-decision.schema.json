@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/schemas/cognitive/cognitive-decision.schema.json",
+  "title": "CK-NEXUS Cognitive Decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision_id", "task_id", "tenant_id", "mode", "created_at", "workers", "policy_hash"],
+  "properties": {
+    "decision_id": {"type": "string"},
+    "task_id": {"type": "string"},
+    "tenant_id": {"type": "string"},
+    "mode": {"type": "string", "enum": ["SINGLE_BEST", "FALLBACK", "PARALLEL", "COUNCIL", "DEBATE", "SHADOW"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "policy_hash": {"type": "string", "minLength": 8},
+    "budget_ref": {"type": ["string", "null"]},
+    "deadline_ms": {"type": ["integer", "null"], "minimum": 0},
+    "workers": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["role", "implementation_id"], "properties": {"role": {"type": "string"}, "implementation_id": {"type": "string"}, "capability_decision_ref": {"type": ["string", "null"]}, "authoritative": {"type": "boolean"}}, "additionalProperties": false}},
+    "stopping": {"type": "object"},
+    "evidence_refs": {"type": "array", "items": {"type": "string"}},
+    "metadata": {"type": "object"}
+  }
+}

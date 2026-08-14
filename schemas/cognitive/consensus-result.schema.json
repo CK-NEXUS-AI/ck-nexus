@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/schemas/cognitive/consensus-result.schema.json",
+  "title": "CK-NEXUS Consensus Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["consensus_id", "task_id", "state", "method", "candidate_refs", "created_at"],
+  "properties": {
+    "consensus_id": {"type": "string"},
+    "task_id": {"type": "string"},
+    "state": {"type": "string", "enum": ["RESOLVED", "PARTIAL", "CONFLICT", "ABSTAIN", "VETO"]},
+    "method": {"type": "string"},
+    "candidate_refs": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "selected_refs": {"type": "array", "items": {"type": "string"}},
+    "conflicts": {"type": "array", "items": {"type": "object"}},
+    "uncertainty_refs": {"type": "array", "items": {"type": "string"}},
+    "verifier_state": {"type": ["string", "null"], "enum": ["PASS", "FAIL", "VETO", "UNVERIFIED", null]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "evidence_refs": {"type": "array", "items": {"type": "string"}},
+    "metadata": {"type": "object"}
+  }
+}

@@ -1,0 +1,22 @@
+id: ck.cognitive.balanced
+version: 1.0.0
+default_mode: SINGLE_BEST
+mode_rules:
+  high_value_grounded_research:
+    mode: COUNCIL
+    max_workers: 3
+    max_rounds: 1
+  security_review:
+    mode: COUNCIL
+    required_roles:
+      - primary
+      - security_reviewer
+  new_worker:
+    mode: SHADOW
+limits:
+  max_workers: 4
+  max_debate_rounds: 2
+  budget_required_for_parallel: true
+metadata:
+  tool_calls_are_proposals: true
+  side_effect_authority: none
