@@ -1,0 +1,19 @@
+{
+  "artifact_digest": "sha256:53e99b22adae684fb66298cccfcc6d45769d90a58538b5bfe85a0f07ddfcd111",
+  "artifact_id": 9225932630,
+  "auditor": "pip-audit",
+  "codex_security_deep_scan": "REQUIRED_SEPARATELY",
+  "component_result": "PASS",
+  "dependency_install": "uv sync --all-extras --dev --frozen",
+  "gate": "Q10",
+  "gate_result": "NOT_VERIFIED",
+  "github_run_id": 31818388818,
+  "pip_audit_exit_code": 0,
+  "production_promotion_allowed": false,
+  "release_subject_manifest_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f",
+  "schema_version": 4,
+  "source_sha": "4cf17cd3befaafeaf64cd4c149739133aa220f73",
+  "source_tree": "dfe3888bb6adc9aebbb0351efe4a06006f4e0a48",
+  "subject_manifest_sha256": "f4282bb352af74c2d7bc0148c3230d51207a4154956a650901403ff17868280c",
+  "vulnerabilities_found": 0
+}
