@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/schemas/control/control-command.schema.json",
+  "title": "CK-NEXUS Control Command",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["command_id", "tenant_id", "principal_id", "command_type", "target", "created_at", "idempotency_key", "request_hash"],
+  "properties": {
+    "command_id": {"type": "string", "minLength": 1},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "principal_id": {"type": "string", "minLength": 1},
+    "command_type": {"type": "string", "enum": ["SUBMIT_INTENT", "PAUSE_TASK", "RESUME_TASK", "CANCEL_TASK", "APPROVE", "REJECT", "CONNECTOR_RECONNECT", "CONNECTOR_DISCONNECT", "CONNECTOR_PERMISSION_CHANGE", "RECOVERY_REQUEST", "MARKETPLACE_ACTION"]},
+    "target": {"type": "object", "required": ["kind", "id"], "properties": {"kind": {"type": "string"}, "id": {"type": "string"}}, "additionalProperties": true},
+    "created_at": {"type": "string", "format": "date-time"},
+    "idempotency_key": {"type": "string", "minLength": 8},
+    "request_hash": {"type": "string", "minLength": 8},
+    "expected_version": {"type": ["string", "integer", "null"]},
+    "plan_hash": {"type": ["string", "null"]},
+    "approval_ref": {"type": ["string", "null"]},
+    "payload": {"type": "object"},
+    "metadata": {"type": "object"}
+  }
+}
