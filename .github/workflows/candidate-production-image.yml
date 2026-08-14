@@ -21,6 +21,8 @@ jobs:
           grep -F '{CKNEXUS_AGNES_PHASE3_ENABLED:-false}' docker-compose.prod.yml >/dev/null
       - name: Validate frozen production install contract
         run: |
+          grep -F 'FROM python:3.12-slim@sha256:' Dockerfile
+          grep -F 'uv==0.12.4' Dockerfile
           grep -F 'COPY pyproject.toml uv.lock README.md ./' Dockerfile
           grep -F 'uv lock --check' Dockerfile
           grep -F 'uv sync --frozen --no-dev --no-editable' Dockerfile
@@ -44,7 +46,8 @@ jobs:
               assert importlib.util.find_spec(dev_only) is None, dev_only
           print('production image imports PASS; dev-only tooling absent')
           PY
-          docker run --rm cknexus-candidate:${{ github.sha }} python -m pip check
+          docker run --rm cknexus-candidate:${{ github.sha }} uv pip check
+          touch runtime-imports.pass
       - name: Run production image in safe mock mode
         shell: bash
         run: |
@@ -70,10 +73,12 @@ jobs:
           assert len(m['groups']) == 8 and m['route_count'] > 0
           assert 'CK-NEXUS' in open('docker-control.html',encoding='utf-8').read()
           PY
+          touch runtime-smoke.pass
       - name: Verify non-root runtime identity
         run: |
           test "$(docker exec cknexus-candidate id -u)" != "0"
           docker exec cknexus-candidate python -c "import os; assert os.geteuid()!=0; print('non-root PASS')"
+          touch nonroot.pass
       - name: Capture image evidence
         if: always()
         env:
@@ -86,26 +91,35 @@ jobs:
           subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
           python - "$HEAD_SHA" "$tree" "$subject" "$RUN_ID" <<'PY'
           import json,sys
+          from pathlib import Path
           sha,tree,subject,run_id=sys.argv[1:]
+          imports=Path('runtime-imports.pass').exists()
+          smoke=Path('runtime-smoke.pass').exists()
+          nonroot=Path('nonroot.pass').exists()
+          passed=imports and smoke and nonroot
+          status=lambda ok: 'PASS' if ok else 'FAIL'
           e={
-            'schema_version':2,
+            'schema_version':3,
             'gate':'Q16_PRODUCTION_IMAGE',
             'source_sha':sha,
             'source_tree':tree,
             'release_subject_manifest_sha256':subject,
             'github_run_id':int(run_id),
-            'base_image':'python:3.12-slim',
+            'base_image':'python:3.12-slim@sha256:dd29372629eeba2dd003fd9e9d35a5b8236c44727875a0364254b5127af88e65',
+            'uv_version':'0.12.4',
             'dependency_mode':'uv.lock frozen; runtime extras only; no editable install; no dev tooling',
             'runtime_user':'cknexus-non-root',
             'runtime_entrypoint':'python -m creator_app.unified',
             'runtime_extras':['email','gateway','billing','github-app'],
             'phase3_default':'false-fail-closed',
-            'pip_check':'PASS',
-            'runtime_imports':'PASS',
-            'dev_tooling_absent':'PASS',
-            'health_smoke':'PASS',
-            'unified_control_smoke':'PASS',
-            'result':'PASS_CANDIDATE',
+            'dependency_check':status(imports),
+            'runtime_imports':status(imports),
+            'dev_tooling_absent':status(imports),
+            'health_smoke':status(smoke),
+            'unified_control_smoke':status(smoke),
+            'non_root_runtime':status(nonroot),
+            'result':'PASS_CANDIDATE' if passed else 'FAIL',
+            'production_promotion_allowed':passed,
           }
           with open('Q16_PRODUCTION_IMAGE.json','w',encoding='utf-8') as f:
             json.dump(e,f,indent=2,sort_keys=True); f.write('\n')
@@ -125,3 +139,6 @@ jobs:
             docker-control-manifest.json
             docker-server.log
           if-no-files-found: error
+      - name: Enforce production-image gate
+        if: always()
+        run: python -c "import json; x=json.load(open('Q16_PRODUCTION_IMAGE.json')); assert x['result']=='PASS_CANDIDATE' and x['production_promotion_allowed'] is True"
