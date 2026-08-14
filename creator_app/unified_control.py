@@ -14,7 +14,10 @@ CONTROL_GROUPS: tuple[dict[str, Any], ...] = (
     {
         "id": "core",
         "title": "AI & Creator Core",
-        "summary": "Agents, generation runs, provider routing, creator runtime and idea generation.",
+        "summary": (
+            "Agents, generation runs, provider routing, creator runtime "
+            "and idea generation."
+        ),
         "prefixes": ("/api/status", "/api/agents", "/api/runs", "/api/providers"),
         "modules": (
             "creator_app/runtime.py",
@@ -28,7 +31,10 @@ CONTROL_GROUPS: tuple[dict[str, Any], ...] = (
     {
         "id": "skills",
         "title": "AGNES Skills & Automation",
-        "summary": "Skill nervous system, planning, discovery, approvals, sandbox execution and hardened pipelines.",
+        "summary": (
+            "Skill nervous system, planning, discovery, approvals, sandbox execution "
+            "and hardened pipelines."
+        ),
         "prefixes": ("/api/agnes",),
         "modules": (
             "creator_app/skills/agnes/SKILL.md",
@@ -41,7 +47,10 @@ CONTROL_GROUPS: tuple[dict[str, Any], ...] = (
     {
         "id": "development",
         "title": "Development Council & Codex",
-        "summary": "Multi-role development council, advisory orchestration and gated Codex execution.",
+        "summary": (
+            "Multi-role development council, advisory orchestration and gated "
+            "Codex execution."
+        ),
         "prefixes": ("/api/dev-team", "/api/codex"),
         "modules": (
             "creator_app/dev_team.py",
@@ -53,7 +62,10 @@ CONTROL_GROUPS: tuple[dict[str, Any], ...] = (
     {
         "id": "integrations",
         "title": "Integration & Connector Network",
-        "summary": "GitHub, Gmail, Slack, Drive plus dynamic MCP/OpenAPI connector discovery and activation.",
+        "summary": (
+            "GitHub, Gmail, Slack, Drive plus dynamic MCP/OpenAPI connector "
+            "discovery and activation."
+        ),
         "prefixes": ("/api/integrations", "/api/connectors"),
         "modules": (
             "creator_app/connector_fabric/",
@@ -67,7 +79,10 @@ CONTROL_GROUPS: tuple[dict[str, Any], ...] = (
     {
         "id": "communication",
         "title": "Email & Communication",
-        "summary": "Email ingress, routing, attachment quarantine, deduplication, outbox and audit trail.",
+        "summary": (
+            "Email ingress, routing, attachment quarantine, deduplication, outbox "
+            "and audit trail."
+        ),
         "prefixes": ("/api/email",),
         "modules": ("services/email_gateway/",),
         "deep_link": "/demo",
@@ -75,7 +90,10 @@ CONTROL_GROUPS: tuple[dict[str, Any], ...] = (
     {
         "id": "data",
         "title": "Data, Memory & Knowledge",
-        "summary": "Run history, sessions, persistence, migrations, durable state and idea graph data.",
+        "summary": (
+            "Run history, sessions, persistence, migrations, durable state "
+            "and idea graph data."
+        ),
         "prefixes": ("/api/sessions",),
         "modules": (
             "creator_app/storage.py",
@@ -89,7 +107,10 @@ CONTROL_GROUPS: tuple[dict[str, Any], ...] = (
     {
         "id": "governance",
         "title": "Governance & Security",
-        "summary": "Credential broker/vault, council authority, policy, risk, sandbox controls and evidence boundaries.",
+        "summary": (
+            "Credential broker/vault, council authority, policy, risk, sandbox "
+            "controls and evidence boundaries."
+        ),
         "prefixes": ("/api/security",),
         "modules": (
             "creator_app/credential_broker.py",
@@ -104,7 +125,10 @@ CONTROL_GROUPS: tuple[dict[str, Any], ...] = (
     {
         "id": "operations",
         "title": "Operations & Commerce",
-        "summary": "Health, readiness, metrics, observability, release gates, backup/restore and billing services.",
+        "summary": (
+            "Health, readiness, metrics, observability, release gates, backup/restore "
+            "and billing services."
+        ),
         "prefixes": ("/health", "/metrics"),
         "modules": (
             "observability/",
