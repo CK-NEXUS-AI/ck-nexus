@@ -1,0 +1,81 @@
+id: github.connector
+version: 1.0.0
+type: connector
+display_name: GitHub Connector
+description: Repository and collaboration operations through a governed adapter.
+owner: ck-nexus
+lifecycle: candidate
+
+capabilities:
+  repo.read:
+    description: Read repository metadata and files.
+    risk: READ_ONLY
+    side_effect: NONE
+    input_schema: schemas/github/repo-read-input.json
+    output_schema: schemas/github/repo-read-output.json
+    idempotent: true
+    evidence:
+      - request_hash
+      - response_hash
+
+  repo.search:
+    description: Search repository source and metadata.
+    risk: READ_ONLY
+    side_effect: NONE
+    input_schema: schemas/github/repo-search-input.json
+    output_schema: schemas/github/repo-search-output.json
+    idempotent: true
+
+  issue.create:
+    description: Create a GitHub issue.
+    risk: MEDIUM
+    side_effect: EXTERNAL_MUTATION
+    input_schema: schemas/github/issue-create-input.json
+    output_schema: schemas/github/issue-create-output.json
+    idempotent: conditional
+    evidence:
+      - capability_grant
+      - execution_receipt
+      - external_object_readback
+
+  pull_request.create:
+    description: Create a pull request.
+    risk: HIGH
+    side_effect: EXTERNAL_MUTATION
+    input_schema: schemas/github/pr-create-input.json
+    output_schema: schemas/github/pr-create-output.json
+    idempotent: conditional
+    approval: change_control
+    evidence:
+      - capability_grant
+      - execution_receipt
+      - external_object_readback
+
+auth:
+  schemes:
+    - oauth2
+    - github_app
+  secret_exposure: forbidden
+
+risk_defaults:
+  unknown_capability: deny
+
+events:
+  produces:
+    - github.issue.created
+    - github.pr.created
+  consumes:
+    - ck.task.assigned
+
+health:
+  kind: adapter_probe
+  timeout_ms: 5000
+
+trust:
+  credential_lease_required: true
+  tenant_bound: true
+  raw_secret_to_model: forbidden
+
+contracts:
+  manifest_schema: schemas/fabric/capability-manifest.schema.json
+  event_envelope_schema: schemas/fabric/event-envelope.schema.json
