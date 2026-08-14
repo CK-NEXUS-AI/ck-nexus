@@ -1,0 +1,22 @@
+id: ck.staging.core-recovery
+version: 1.0.0
+environment: staging
+isolation_required: true
+outbound_side_effects: blocked
+recovery_tiers:
+  postgres:
+    rpo_seconds: 3600
+    rto_seconds: 1800
+  creator_runtime:
+    rpo_seconds: 3600
+    rto_seconds: 1800
+validation:
+  - database_integrity
+  - schema_compatibility
+  - application_health
+  - tenant_boundary
+  - idempotency
+  - evidence_pipeline
+metadata:
+  example_only: true
+  owner_approval_required_for_destructive_restore: true
