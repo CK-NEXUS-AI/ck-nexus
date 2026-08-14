@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/schemas/fabric/execution-receipt.schema.json",
+  "title": "CK-NEXUS Execution Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["receipt_id", "operation_id", "task_id", "tenant_id", "capability_id", "implementation_id", "started_at", "finished_at", "outcome", "commit_state", "verification"],
+  "properties": {
+    "receipt_id": {"type": "string", "minLength": 1},
+    "operation_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "capability_id": {"type": "string", "minLength": 1},
+    "implementation_id": {"type": "string", "minLength": 1},
+    "started_at": {"type": "string", "format": "date-time"},
+    "finished_at": {"type": "string", "format": "date-time"},
+    "request_hash": {"type": ["string", "null"]},
+    "response_hash": {"type": ["string", "null"]},
+    "idempotency_key_hash": {"type": ["string", "null"]},
+    "provider_request_id": {"type": ["string", "null"]},
+    "outcome": {"type": "string", "enum": ["SUCCESS", "FAILED", "PARTIAL", "CANCELLED", "UNKNOWN"]},
+    "commit_state": {"type": "string", "enum": ["NOT_DISPATCHED", "NO_SIDE_EFFECT", "COMMITTED", "NOT_COMMITTED", "PARTIAL", "UNKNOWN"]},
+    "error_class": {"type": ["string", "null"]},
+    "before_fingerprint": {"type": ["string", "null"]},
+    "after_fingerprint": {"type": ["string", "null"]},
+    "reconciliation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "method": {"type": ["string", "null"]},
+        "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "evidence_refs": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state"],
+      "properties": {
+        "state": {"type": "string", "enum": ["PASS", "FAIL", "VETO", "UNVERIFIED"]},
+        "verifier_ids": {"type": "array", "items": {"type": "string"}},
+        "evidence_refs": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "policy_ref": {"type": ["string", "null"]},
+    "approval_ref": {"type": ["string", "null"]},
+    "journal_range": {"type": ["string", "null"]},
+    "metadata": {"type": "object"}
+  }
+}
