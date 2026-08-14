@@ -1,0 +1,121 @@
+name: Full-system inventory package
+
+on:
+  push:
+    branches: [package/full-system-inventory]
+    paths:
+      - '.github/release-tools/build_full_system_inventory.py'
+      - '.github/workflows/full-system-inventory-package.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FROZEN_RUNTIME_SUBJECT: 96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f
+  PRODUCTION_CLOSURE_BASE_SHA: 512837c8b1a3e6e8e844252a1b0781d8de011b07
+
+jobs:
+  inventory-and-package:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact package branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Generate complete tracked-file and code-symbol inventory
+        run: |
+          set -euo pipefail
+          python .github/release-tools/build_full_system_inventory.py
+
+      - name: Compile tracked Python source
+        run: |
+          set -euo pipefail
+          python -m compileall -q \
+            app creator_app services gateway orchestration idea_engine scripts runbooks \
+            .github/release-tools/build_full_system_inventory.py
+
+      - name: Secret scan
+        run: |
+          set -euo pipefail
+          python scripts/secret_scan.py
+
+      - name: Verify production runtime subject remains unchanged
+        run: |
+          set -euo pipefail
+          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          echo "runtime_subject=$subject"
+          test "$subject" = "$FROZEN_RUNTIME_SUBJECT"
+
+      - name: Build full-system base source package
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_sha=$(git rev-parse HEAD)
+          rm -rf package-root dist
+          mkdir -p package-root/CK-NEXUS/_inventory dist
+          git archive HEAD | tar -x -C package-root/CK-NEXUS
+          cp -a _inventory/. package-root/CK-NEXUS/_inventory/
+
+          python - "$package_sha" "$PRODUCTION_CLOSURE_BASE_SHA" "$FROZEN_RUNTIME_SUBJECT" <<'PY'
+          import json, sys
+          from pathlib import Path
+          package_sha, base_sha, runtime_subject = sys.argv[1:]
+          summary = json.loads(Path('_inventory/INVENTORY_SUMMARY.json').read_text(encoding='utf-8'))
+          manifest = {
+              'schema_version': 1,
+              'package_type': 'CK-NEXUS_FULL_SYSTEM_BASE_SOURCE',
+              'package_commit': package_sha,
+              'production_closure_base_sha': base_sha,
+              'frozen_runtime_subject_sha256': runtime_subject,
+              'tracked_file_count_before_generated_inventory': summary['tracked_file_count'],
+              'code_symbol_count': summary['code_symbol_count'],
+              'api_route_decorator_count': summary['api_route_decorator_count'],
+              'external_8_file_pack_included': False,
+              'external_8_file_pack_source_verified': False,
+              'production_ready': False,
+              'production_ready_reason': 'Production closure still requires Q10/Q11/Q12; externally described eight-file pack was not supplied as source bytes.',
+              'integrity': 'SHA256SUMS included',
+          }
+          target = Path('package-root/CK-NEXUS/_inventory/PACKAGE_MANIFEST.json')
+          target.write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          PY
+
+          archive="CK-NEXUS-FULL-SYSTEM-BASE_${package_sha}.zip"
+          (cd package-root && zip -qr "../dist/$archive" CK-NEXUS)
+          (cd dist && sha256sum "$archive" > SHA256SUMS)
+          cp package-root/CK-NEXUS/_inventory/PACKAGE_MANIFEST.json dist/PACKAGE_MANIFEST.json
+          cp package-root/CK-NEXUS/_inventory/INVENTORY_SUMMARY.json dist/INVENTORY_SUMMARY.json
+          (cd dist && sha256sum -c SHA256SUMS)
+
+          echo "PACKAGE_SHA=$package_sha" >> "$GITHUB_ENV"
+          echo "ARCHIVE=$archive" >> "$GITHUB_ENV"
+
+      - name: Write package summary
+        run: |
+          {
+            echo '## CK-NEXUS Full-System Base Source Package'
+            echo "- Package commit: \`$PACKAGE_SHA\`"
+            echo "- Production closure base: \`$PRODUCTION_CLOSURE_BASE_SHA\`"
+            echo "- Frozen runtime subject: \`$FROZEN_RUNTIME_SUBJECT\`"
+            echo '- Tracked-file inventory: generated'
+            echo '- Function/class/method inventory: generated'
+            echo '- API route inventory: generated'
+            echo '- Secret scan: PASS'
+            echo '- Runtime subject unchanged: PASS'
+            echo '- External eight-file pack: NOT PROVIDED / NOT SOURCE-VERIFIED / NOT INCLUDED'
+            echo '- Production Ready: NO'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload full-system package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ck-nexus-full-system-base-${{ github.sha }}
+          path: |
+            dist/${{ env.ARCHIVE }}
+            dist/SHA256SUMS
+            dist/PACKAGE_MANIFEST.json
+            dist/INVENTORY_SUMMARY.json
+          if-no-files-found: error
+          retention-days: 30
