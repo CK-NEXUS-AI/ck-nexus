@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "vectors": [
+    {
+      "name": "policy deny outranks score",
+      "required_capability": "repo.write",
+      "candidates": [
+        {"id": "a", "score": 0.99, "policy": "DENY", "health": "HEALTHY"},
+        {"id": "b", "score": 0.70, "policy": "ALLOW", "health": "HEALTHY"}
+      ],
+      "expected": {"selected": "b", "rejected": {"a": "POLICY_DENIED"}}
+    },
+    {
+      "name": "stale health candidate is ineligible",
+      "required_capability": "mail.read",
+      "candidates": [
+        {"id": "a", "score": 0.95, "health_age_ms": 900000, "max_health_age_ms": 300000},
+        {"id": "b", "score": 0.80, "health_age_ms": 10000, "max_health_age_ms": 300000}
+      ],
+      "expected": {"selected": "b", "rejected": {"a": "STALE_HEALTH"}}
+    },
+    {
+      "name": "quota exhaustion cannot create unauthorized lane",
+      "required_capability": "reasoning.generate",
+      "candidates": [
+        {"id": "authorized-a", "authorized": true, "quota": "EXHAUSTED"},
+        {"id": "unauthorized-b", "authorized": false, "quota": "AVAILABLE"}
+      ],
+      "expected": {"selected": null, "state": "NO_ELIGIBLE_CANDIDATE"}
+    },
+    {
+      "name": "unknown commit state reconciles before retry",
+      "required_capability": "payments.charge",
+      "previous_attempt": {"commit_state": "UNKNOWN", "retry_safety": "safe_with_idempotency_key"},
+      "expected": {"next_action": "RECONCILE", "retry_allowed_before_reconcile": false}
+    },
+    {
+      "name": "data sovereignty hard filter",
+      "required_capability": "knowledge.process",
+      "task": {"classification": "RESTRICTED", "allowed_regions": ["TH"]},
+      "candidates": [
+        {"id": "external-us", "region": "US", "score": 1.0},
+        {"id": "local-th", "region": "TH", "score": 0.6}
+      ],
+      "expected": {"selected": "local-th", "rejected": {"external-us": "DATA_SOVEREIGNTY"}}
+    }
+  ]
+}
