@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "vectors": [
+    {"name": "model cannot directly send", "proposal": {"source": "model", "capability": "mail.send"}, "expected": {"direct_side_effect": false, "route": "TRUST_AGNES"}},
+    {"name": "blocked evidence is not pass", "evidence": {"state": "BLOCKED"}, "expected": {"gate_pass": false}},
+    {"name": "unknown commit reconciles", "operation": {"commit_state": "UNKNOWN"}, "expected": {"retry_before_reconcile": false}},
+    {"name": "external brain counter not authority", "external": {"total_capabilities": 240}, "validation": {"verified": 0}, "expected": {"authoritative_capabilities": 0}},
+    {"name": "approval bound to target", "approval": {"target": "A"}, "execution": {"target": "B"}, "expected": {"authorized": false}},
+    {"name": "quota fallback cannot create identity", "quota": "EXHAUSTED", "fallback_authorized": false, "expected": {"create_account_or_key": false}},
+    {"name": "restore needs actual drill", "backup_exists": true, "restore_tested": false, "expected": {"q14_ready": false}},
+    {"name": "stale connector health cannot be green", "health": "HEALTHY", "fresh": false, "expected": {"eligible": false}}
+  ]
+}

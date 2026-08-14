@@ -1,0 +1,30 @@
+id: ck-nexus.architecture-package
+version: 1.0.0
+status: SPEC_ONLY
+authority:
+  production_go: false
+  release_gate_source: Q01-Q16
+planes:
+  - cognitive
+  - control
+  - execution
+fabrics:
+  - connection
+  - capability
+  - event
+  - automation
+  - trust
+  - evidence
+core_invariants_ref: docs/architecture/ARCHITECTURE_INVARIANTS.md
+implementation_waves_ref: docs/architecture/IMPLEMENTATION_WAVES_AFTER_Q10.md
+operator_mapping_ref: docs/architecture/COMMAND_CENTER_CONTRACT_MAPPING.md
+external_runtimes:
+  - id: base44.solas
+    role: external_execution_connector_plane
+    authority: observation_only_until_normalized
+release:
+  earliest_incomplete_gate: Q10
+  production_status: NO-GO
+metadata:
+  self_promotion: false
+  credentials_embedded: false
