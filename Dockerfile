@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:dd29372629eeba2dd003fd9e9d35a5b8236c44727875a0364254b5127af88e65
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN addgroup --system cknexus && adduser --system --ingroup cknexus cknexus \
-    && python -m pip install --no-cache-dir uv
+    && python -m pip install --no-cache-dir uv==0.12.4
 
 COPY pyproject.toml uv.lock README.md ./
 COPY app ./app
