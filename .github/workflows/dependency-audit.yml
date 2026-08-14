@@ -52,8 +52,9 @@ jobs:
               raw = json.load(handle)
           deps = raw.get('dependencies', []) if isinstance(raw, dict) else raw
           vulnerabilities = sum(len(item.get('vulns', [])) for item in deps if isinstance(item, dict))
+          component_pass = int(rc) == 0 and vulnerabilities == 0
           evidence = {
-              'schema_version': 1,
+              'schema_version': 2,
               'gate': 'Q10',
               'source_sha': source_sha,
               'source_tree': tree,
@@ -63,8 +64,10 @@ jobs:
               'audit_scope': 'exact frozen local environment; editable project skipped',
               'vulnerabilities_found': vulnerabilities,
               'pip_audit_exit_code': int(rc),
-              'result': 'PASS' if int(rc) == 0 and vulnerabilities == 0 else 'FAIL',
+              'component_result': 'PASS' if component_pass else 'FAIL',
+              'gate_result': 'NOT_VERIFIED',
               'codex_security_deep_scan': 'REQUIRED_SEPARATELY',
+              'production_promotion_allowed': False,
           }
           with open('Q10_DEPENDENCY_AUDIT.json', 'w', encoding='utf-8') as handle:
               json.dump(evidence, handle, indent=2, sort_keys=True)
@@ -80,7 +83,7 @@ jobs:
             Q10_DEPENDENCY_AUDIT.json
             q10-pip-audit.json
           if-no-files-found: error
-      - name: Enforce Q10 dependency-audit half-gate
+      - name: Enforce Q10 dependency-audit component
         run: |
           test "$Q10_PIP_AUDIT_RC" -eq 0
-          .venv/bin/python -c "import json; x=json.load(open('Q10_DEPENDENCY_AUDIT.json')); assert x['result']=='PASS' and x['vulnerabilities_found']==0"
+          .venv/bin/python -c "import json; x=json.load(open('Q10_DEPENDENCY_AUDIT.json')); assert x['component_result']=='PASS' and x['gate_result']=='NOT_VERIFIED' and x['vulnerabilities_found']==0 and not x['production_promotion_allowed']"
