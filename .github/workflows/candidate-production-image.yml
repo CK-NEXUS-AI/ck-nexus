@@ -46,7 +46,10 @@ jobs:
               assert importlib.util.find_spec(dev_only) is None, dev_only
           print('production image imports PASS; dev-only tooling absent')
           PY
-          docker run --rm cknexus-candidate:${{ github.sha }} uv pip check
+          docker run --rm \
+            -e UV_CACHE_DIR=/tmp/uv-cache \
+            cknexus-candidate:${{ github.sha }} \
+            uv pip check --python /app/.venv/bin/python
           touch runtime-imports.pass
       - name: Run production image in safe mock mode
         shell: bash
