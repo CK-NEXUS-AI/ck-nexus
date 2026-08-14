@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/schemas/knowledge/skill-candidate.schema.json",
+  "title": "CK-NEXUS Skill Candidate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["candidate_id", "tenant_scope", "name", "semantic_capabilities", "implementation_ref", "risk", "side_effect", "lifecycle", "provenance", "validation"],
+  "properties": {
+    "candidate_id": {"type": "string", "minLength": 1},
+    "tenant_scope": {"type": "string", "minLength": 1},
+    "name": {"type": "string", "minLength": 1},
+    "description": {"type": "string"},
+    "semantic_capabilities": {"type": "array", "items": {"type": "string", "minLength": 3}, "minItems": 1, "uniqueItems": true},
+    "implementation_ref": {"type": "string", "minLength": 1},
+    "input_schema_ref": {"type": ["string", "null"]},
+    "output_schema_ref": {"type": ["string", "null"]},
+    "risk": {"type": "string", "enum": ["READ_ONLY", "LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+    "side_effect": {"type": "string"},
+    "lifecycle": {"type": "string", "enum": ["QUARANTINED", "CANDIDATE", "CANARY", "STABLE", "REVOKED"]},
+    "dedupe_key": {"type": ["string", "null"]},
+    "provenance": {"$ref": "source-provenance.schema.json"},
+    "validation": {"type": "object", "required": ["state"], "properties": {"state": {"type": "string", "enum": ["UNVERIFIED", "PASS", "FAIL", "CONFLICT"]}, "evidence_refs": {"type": "array", "items": {"type": "string"}}, "scorecard_ref": {"type": ["string", "null"]}}, "additionalProperties": false},
+    "metadata": {"type": "object"}
+  }
+}

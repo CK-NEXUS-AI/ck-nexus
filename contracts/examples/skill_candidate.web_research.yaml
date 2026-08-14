@@ -1,0 +1,33 @@
+candidate_id: candidate.example.web-research
+tenant_scope: global-approved
+name: Grounded Web Research Candidate
+description: Example candidate showing semantic dedupe and provenance requirements
+semantic_capabilities:
+  - research.web.search_grounded
+implementation_ref: provider-or-skill.example
+input_schema_ref: schemas/provider/normalized-request.schema.json
+output_schema_ref: schemas/provider/normalized-response.schema.json
+risk: READ_ONLY
+side_effect: NONE
+lifecycle: QUARANTINED
+dedupe_key: research.web.search_grounded/v1
+provenance:
+  source_kind: public_documentation
+  source_ref: official-provider-doc-reference
+  source_hash: null
+  observed_at: '2026-08-15T00:00:00Z'
+  published_at: null
+  producer: ck-capability-discovery
+  producer_version: 0.1.0
+  transformation_chain:
+    - extract
+    - normalize
+    - semantic-dedupe
+  license_note: Review source terms before promotion
+  evidence_refs: []
+validation:
+  state: UNVERIFIED
+  evidence_refs: []
+  scorecard_ref: null
+metadata:
+  auto_promotion: false
