@@ -1,0 +1,332 @@
+name: Candidate live gates
+
+on:
+  push:
+    branches: [release/q10-q16-closure]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  q11_openai_live:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Frozen environment
+        run: |
+          python -m pip install --upgrade pip uv
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+      - name: Run P0-AI-001 without exposing credential
+        id: live
+        shell: bash
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_SMOKE_MODEL: ${{ vars.OPENAI_SMOKE_MODEL }}
+        run: |
+          set +e
+          .venv/bin/python scripts/test_openai_live.py > q11-output.txt 2>&1
+          rc=$?
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Emit Q11 evidence
+        env:
+          RUN_ID: ${{ github.run_id }}
+          HEAD_SHA: ${{ github.sha }}
+          RC: ${{ steps.live.outputs.rc }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          tree=$(git rev-parse HEAD^{tree})
+          .venv/bin/python - "$HEAD_SHA" "$tree" "$RUN_ID" "$RC" <<'PY'
+          import json, os, sys
+          sha, tree, run_id, rc = sys.argv[1:]
+          rc = int(rc)
+          text = open('q11-output.txt', encoding='utf-8').read().strip()
+          status = 'PASS' if rc == 0 else ('BLOCKED' if rc == 2 else 'FAIL')
+          evidence = {
+              'schema_version': 2,
+              'gate': 'Q11',
+              'source_sha': sha,
+              'source_tree': tree,
+              'github_run_id': int(run_id),
+              'credential_configured': bool(os.getenv('OPENAI_API_KEY','').strip()),
+              'credential_exposed': False,
+              'p0_ai_001_exit_code': rc,
+              'status': status,
+              'result': status,
+              'sentinel_observed': 'CK-NEXUS-P0-SMOKE-PASS' in text,
+              'production_promotion_allowed': rc == 0,
+              'output': text[:1000],
+          }
+          with open('Q11_OPENAI_LIVE.json','w',encoding='utf-8') as f:
+              json.dump(evidence,f,indent=2,sort_keys=True); f.write('\n')
+          print(json.dumps({k:v for k,v in evidence.items() if k != 'output'},indent=2,sort_keys=True))
+          PY
+      - name: Upload Q11 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: q11-openai-live-${{ github.sha }}
+          path: |
+            Q11_OPENAI_LIVE.json
+            q11-output.txt
+          if-no-files-found: error
+      - name: Enforce Q11
+        run: test '${{ steps.live.outputs.rc }}' -eq 0
+
+  q12_cgroup_v2:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Create real delegated cgroup v2 staging subtree
+        shell: bash
+        run: |
+          set -euxo pipefail
+          root="/sys/fs/cgroup/cknexus-q12-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          for controller in cpu memory pids; do
+            grep -qw "$controller" /sys/fs/cgroup/cgroup.controllers
+            if ! grep -qw "$controller" /sys/fs/cgroup/cgroup.subtree_control; then
+              echo "+$controller" | sudo tee /sys/fs/cgroup/cgroup.subtree_control >/dev/null
+            fi
+          done
+          sudo mkdir "$root"
+          sudo chown "$USER:$(id -gn)" "$root"
+          sudo chown "$USER:$(id -gn)" "$root/cgroup.procs" "$root/cgroup.subtree_control" 2>/dev/null || true
+          echo "Q12_CGROUP_ROOT=$root" >> "$GITHUB_ENV"
+          test -w "$root"
+      - name: Run delegated cgroup enforcement as non-root
+        id: gate
+        shell: bash
+        env:
+          CKNEXUS_ENVIRONMENT: staging
+          CKNEXUS_AGNES_CGROUP_ROOT: ${{ env.Q12_CGROUP_ROOT }}
+        run: |
+          set +e
+          python scripts/agnes_cgroup_v2_staging_gate.py > Q12_CGROUP_RAW.json
+          rc=$?
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          cat Q12_CGROUP_RAW.json
+          exit 0
+      - name: Emit Q12 evidence
+        env:
+          RUN_ID: ${{ github.run_id }}
+          HEAD_SHA: ${{ github.sha }}
+          RC: ${{ steps.gate.outputs.rc }}
+        run: |
+          tree=$(git rev-parse HEAD^{tree})
+          python - "$HEAD_SHA" "$tree" "$RUN_ID" "$RC" <<'PY'
+          import json, os, sys
+          sha, tree, run_id, rc = sys.argv[1:]
+          raw=json.load(open('Q12_CGROUP_RAW.json',encoding='utf-8'))
+          passed=int(rc)==0 and raw.get('status')=='PASS'
+          evidence={
+              'schema_version':2,
+              'gate':'Q12',
+              'source_sha':sha,
+              'source_tree':tree,
+              'github_run_id':int(run_id),
+              'environment_class':'ephemeral-isolated-staging-linux',
+              'delegation_method':'writable cgroup v2 subtree delegated to non-root runner',
+              'ran_as_root':os.geteuid()==0,
+              'raw':raw,
+              'result':'PASS' if passed else raw.get('status','FAIL'),
+              'actual_kernel_enforcement':passed,
+              'production_promotion_allowed':passed,
+          }
+          with open('Q12_CGROUP_V2.json','w',encoding='utf-8') as f:
+              json.dump(evidence,f,indent=2,sort_keys=True); f.write('\n')
+          assert evidence['ran_as_root'] is False
+          PY
+      - name: Cleanup delegated subtree
+        if: always()
+        run: sudo rmdir "$Q12_CGROUP_ROOT" 2>/dev/null || true
+      - name: Upload Q12 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: q12-cgroup-v2-${{ github.sha }}
+          path: |
+            Q12_CGROUP_V2.json
+            Q12_CGROUP_RAW.json
+          if-no-files-found: error
+      - name: Enforce Q12
+        run: test '${{ steps.gate.outputs.rc }}' -eq 0
+
+  q14_observability_alert_delivery:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Frozen environment
+        run: |
+          python -m pip install --upgrade pip uv
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+      - name: Configure staging metric injection and operator webhook
+        shell: bash
+        run: |
+          cat > /tmp/q14_metrics.py <<'PY'
+          from http.server import BaseHTTPRequestHandler, HTTPServer
+          class H(BaseHTTPRequestHandler):
+              def do_GET(self):
+                  body=b'# TYPE ckn_email_stale_processing_leases gauge\nckn_email_stale_processing_leases 1\n'
+                  self.send_response(200); self.send_header('Content-Type','text/plain'); self.end_headers(); self.wfile.write(body)
+              def log_message(self,*args): pass
+          HTTPServer(('127.0.0.1',9101),H).serve_forever()
+          PY
+          cat > /tmp/q14_receiver.py <<'PY'
+          from http.server import BaseHTTPRequestHandler, HTTPServer
+          from pathlib import Path
+          class H(BaseHTTPRequestHandler):
+              def do_POST(self):
+                  data=self.rfile.read(int(self.headers.get('Content-Length','0')))
+                  Path('alert-receipt.json').write_bytes(data)
+                  self.send_response(200); self.end_headers(); self.wfile.write(b'ok')
+              def log_message(self,*args): pass
+          HTTPServer(('127.0.0.1',18093),H).serve_forever()
+          PY
+          cat > /tmp/alertmanager.yml <<'YAML'
+          route:
+            receiver: cknexus-staging-operator
+            group_wait: 1s
+            group_interval: 1s
+            repeat_interval: 1h
+          receivers:
+            - name: cknexus-staging-operator
+              webhook_configs:
+                - url: http://127.0.0.1:18093/
+          YAML
+          cat > /tmp/prometheus.yml <<'YAML'
+          global:
+            scrape_interval: 1s
+            evaluation_interval: 1s
+          alerting:
+            alertmanagers:
+              - static_configs:
+                  - targets: ['127.0.0.1:9093']
+          rule_files:
+            - /etc/prometheus/alert_rules.yaml
+          scrape_configs:
+            - job_name: q14-failure-injection
+              static_configs:
+                - targets: ['127.0.0.1:9101']
+          YAML
+          python /tmp/q14_metrics.py > /tmp/q14-metrics.log 2>&1 & echo $! > /tmp/q14-metrics.pid
+          python /tmp/q14_receiver.py > /tmp/q14-receiver.log 2>&1 & echo $! > /tmp/q14-receiver.pid
+          docker run -d --name q14-alertmanager --network host \
+            -v /tmp/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro \
+            prom/alertmanager:v0.28.1 >/tmp/q14-alertmanager.cid
+          docker run -d --name q14-prometheus --network host \
+            -v /tmp/prometheus.yml:/etc/prometheus/prometheus.yml:ro \
+            -v "$PWD/observability/alert_rules.yaml:/etc/prometheus/alert_rules.yaml:ro" \
+            prom/prometheus:v2.55.1 >/tmp/q14-prometheus.cid
+      - name: Wait for exact production alert rule to reach operator webhook
+        shell: bash
+        run: |
+          for i in $(seq 1 170); do
+            if test -s alert-receipt.json && python - <<'PY'
+          import json,sys
+          try: x=json.load(open('alert-receipt.json'))
+          except Exception: raise SystemExit(1)
+          alerts=x.get('alerts',[])
+          ok=any(a.get('status')=='firing' and a.get('labels',{}).get('alertname')=='CKNexusEmailStaleLeases' for a in alerts)
+          raise SystemExit(0 if ok else 1)
+          PY
+            then
+              echo 'Q14 operator webhook received CKNexusEmailStaleLeases'
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs q14-prometheus || true
+          docker logs q14-alertmanager || true
+          exit 1
+      - name: Validate receipt and healthy CK-NEXUS observability surface
+        shell: bash
+        env:
+          CKNEXUS_MOCK_AI: 'true'
+          CKNEXUS_EMAIL_GATEWAY_ENABLED: 'true'
+          CKNEXUS_EMAIL_WEBHOOK_TOKEN: q14-staging-only
+          CKNEXUS_HOST: 127.0.0.1
+          PORT: '8000'
+        run: |
+          python - <<'PY'
+          import json
+          x=json.load(open('alert-receipt.json'))
+          alerts=x.get('alerts',[])
+          assert any(a.get('status')=='firing' and a.get('labels',{}).get('alertname')=='CKNexusEmailStaleLeases' for a in alerts)
+          PY
+          ./start_unified.sh > q14-server.log 2>&1 & echo $! > q14-server.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null; then break; fi
+            sleep 1
+          done
+          CKNEXUS_ALERT_RECEIPT_FILE="$PWD/alert-receipt.json" \
+            .venv/bin/python scripts/gate_observability.py | tee q14-observability-check.txt
+      - name: Emit Q14 evidence
+        env:
+          RUN_ID: ${{ github.run_id }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          tree=$(git rev-parse HEAD^{tree})
+          .venv/bin/python - "$HEAD_SHA" "$tree" "$RUN_ID" <<'PY'
+          import hashlib,json,sys
+          sha,tree,run_id=sys.argv[1:]
+          data=open('alert-receipt.json','rb').read()
+          receipt=json.loads(data)
+          alerts=receipt.get('alerts',[])
+          matched=[a for a in alerts if a.get('status')=='firing' and a.get('labels',{}).get('alertname')=='CKNexusEmailStaleLeases']
+          evidence={
+              'schema_version':2,
+              'gate':'Q14',
+              'source_sha':sha,
+              'source_tree':tree,
+              'github_run_id':int(run_id),
+              'failure_injection':'ckn_email_stale_processing_leases=1',
+              'production_rule_file':'observability/alert_rules.yaml',
+              'alertname':'CKNexusEmailStaleLeases',
+              'operator_receiver_class':'staging-webhook-receiver',
+              'alert_receipt_sha256':hashlib.sha256(data).hexdigest(),
+              'alert_delivery':'PASS' if matched else 'FAIL',
+              'health_metrics_check':'PASS',
+              'result':'PASS' if matched else 'FAIL',
+              'production_promotion_allowed':bool(matched),
+          }
+          with open('Q14_OBSERVABILITY_ALERT.json','w',encoding='utf-8') as f:
+              json.dump(evidence,f,indent=2,sort_keys=True); f.write('\n')
+          assert matched
+          PY
+      - name: Cleanup Q14 services
+        if: always()
+        shell: bash
+        run: |
+          test -f q14-server.pid && kill "$(cat q14-server.pid)" 2>/dev/null || true
+          docker rm -f q14-prometheus q14-alertmanager 2>/dev/null || true
+          test -f /tmp/q14-metrics.pid && kill "$(cat /tmp/q14-metrics.pid)" 2>/dev/null || true
+          test -f /tmp/q14-receiver.pid && kill "$(cat /tmp/q14-receiver.pid)" 2>/dev/null || true
+      - name: Upload Q14 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: q14-observability-${{ github.sha }}
+          path: |
+            Q14_OBSERVABILITY_ALERT.json
+            alert-receipt.json
+            q14-observability-check.txt
+            q14-server.log
+          if-no-files-found: warn
