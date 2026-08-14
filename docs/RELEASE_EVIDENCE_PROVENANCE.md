@@ -2,7 +2,7 @@
 
 CK-NEXUS release evidence is fail-closed on both gate semantics and GitHub Actions artifact provenance.
 
-The verifier `scripts/verify_release_evidence_provenance.py` checks the committed Q10-Q16 evidence against the GitHub Actions API and requires:
+The verifier `.github/release-tools/verify_release_evidence_provenance.py` checks the committed Q10-Q16 evidence against the GitHub Actions API and requires:
 
 - the exact frozen release-subject manifest SHA-256;
 - a concrete GitHub Actions `artifact_id`, `artifact_digest`, and `github_run_id`;
