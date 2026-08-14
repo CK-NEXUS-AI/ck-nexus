@@ -33,7 +33,9 @@ services:
       CKNEXUS_EMAIL_DATABASE_URL: postgresql://cknexus:${CKNEXUS_DB_PASSWORD}@db:5432/cknexus
       CKNEXUS_EMAIL_GATEWAY_ENABLED: "true"
       CKNEXUS_AGNES_SANDBOX_ENABLED: "true"
-      CKNEXUS_AGNES_PHASE3_ENABLED: "true"
+      # Phase3 requires a genuinely delegated writable cgroup v2 subtree.
+      # Standard Docker Compose does not provide that guarantee, so stay fail-closed by default.
+      CKNEXUS_AGNES_PHASE3_ENABLED: ${CKNEXUS_AGNES_PHASE3_ENABLED:-false}
       CKNEXUS_AGNES_REDIS_URL: redis://redis:6379/0
       REDIS_URL: redis://redis:6379/0
       CKNEXUS_RUNTIME_BINDING_ENABLED: "true"
