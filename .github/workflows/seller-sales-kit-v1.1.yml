@@ -1,0 +1,75 @@
+name: CK-NEXUS Seller Sales Kit v1.1
+
+on:
+  pull_request:
+    paths:
+      - 'sales_kit/v1.1/**'
+      - 'seller_tools/build_seller_sales_kit_v1_1.py'
+      - '.github/workflows/seller-sales-kit-v1.1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-seller-kit:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Build seller sales kit
+        run: python seller_tools/build_seller_sales_kit_v1_1.py "$RUNNER_TEMP/seller-kit"
+
+      - name: Verify archive checksum and structure
+        run: |
+          cd "$RUNNER_TEMP/seller-kit"
+          sha256sum -c CK-NEXUS-Seller-Sales-Kit-v1.1.zip.sha256
+          python - <<'PY'
+          import json, zipfile
+          from pathlib import Path
+          z = Path('CK-NEXUS-Seller-Sales-Kit-v1.1.zip')
+          prefix = 'CK-NEXUS-Seller-Sales-Kit-v1.1/'
+          required = {
+              prefix + 'README.md',
+              prefix + '02_LISTING_TH.md',
+              prefix + '04_PRICE_AND_NEGOTIATION_INTERNAL.md',
+              prefix + '05_QUOTATION_TEMPLATE_TH.md',
+              prefix + '06_DEMO_SCRIPT_10_MIN_TH.md',
+              prefix + '07_BUYER_FAQ.md',
+              prefix + '10_CLAIMS_GUARDRAILS.md',
+              prefix + 'SALES_KIT_IDENTITY.json',
+              prefix + 'BUILD_INFO.json',
+              prefix + 'SHA256SUMS.txt',
+          }
+          with zipfile.ZipFile(z) as archive:
+              names = set(archive.namelist())
+              identity = json.loads(archive.read(prefix + 'SALES_KIT_IDENTITY.json'))
+              build = json.loads(archive.read(prefix + 'BUILD_INFO.json'))
+          missing = sorted(required - names)
+          if missing:
+              raise SystemExit(f'missing entries: {missing}')
+          if identity['production_ready'] is not False or identity['asking_price_thb'] != 149000:
+              raise SystemExit('sales identity guard failed')
+          if build['seller_kit_head'] != '${{ github.event.pull_request.head.sha }}':
+              raise SystemExit('seller kit not bound to exact PR head')
+          print('seller sales kit: PASS')
+          PY
+
+      - name: Upload seller artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ck-nexus-seller-sales-kit-v1.1
+          path: |
+            ${{ runner.temp }}/seller-kit/CK-NEXUS-Seller-Sales-Kit-v1.1.zip
+            ${{ runner.temp }}/seller-kit/CK-NEXUS-Seller-Sales-Kit-v1.1.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
