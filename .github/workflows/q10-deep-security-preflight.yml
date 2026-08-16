@@ -1,0 +1,40 @@
+name: CK-NEXUS Q10 Deep Security Preflight
+
+on:
+  pull_request:
+    paths:
+      - "evidence/q10/**"
+      - "docs/security/Q10_DEEP_SECURITY_HANDOFF.md"
+      - "scripts/q10_verify_scan_request.py"
+      - ".github/workflows/q10-deep-security-preflight.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-q10-handoff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Verify frozen Q10 request
+        run: python scripts/q10_verify_scan_request.py
+
+      - name: Assert fail-closed status
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '"status": "PREPARED_NOT_EXECUTED"' evidence/q10/Q10_SCAN_REQUEST.json
+          grep -q '"production_status": "NO-GO"' evidence/q10/Q10_SCAN_REQUEST.json
+          ! grep -Eq '"status": "PASS"|Production Ready|PRODUCTION_GO' evidence/q10/Q10_SCAN_REQUEST.json docs/security/Q10_DEEP_SECURITY_HANDOFF.md
+          echo "Q10 remains blocked until native Deep Security completion evidence exists."
