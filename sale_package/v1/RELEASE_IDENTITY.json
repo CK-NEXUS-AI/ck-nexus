@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "package_name": "CK-NEXUS Creator Source Edition Sale Package v1",
+  "edition": "Creator Source Edition - Beta",
+  "sale_classification": "SELLABLE_SOURCE_BETA",
+  "production_ready": false,
+  "canonical_repository": "spinlnw10-art/ck-nexus",
+  "runtime_base_commit": "45fde79c717b09f8675645aa541a5834ebd4f433",
+  "runtime_base_tree": "8bb93b75237ac9891a6c60854f705459dc263921",
+  "runtime_subject_paths": [
+    "creator_app",
+    "services",
+    "tests",
+    "scripts",
+    "main.py",
+    "pyproject.toml",
+    "uv.lock"
+  ],
+  "expected_runtime_subject_manifest_sha256": "51718986a19e6d11467a9e9e9ab536392b38c59cd674a5f1a7a656632b4011fe",
+  "release_gates": {
+    "Q01_Q08": "PRIOR_EVIDENCE_PRESENT",
+    "Q09": "MERGED_GOVERNANCE_BINDING_PASS_CANDIDATE",
+    "Q10": "INCOMPLETE_DEEP_SECURITY",
+    "Q11_Q16": "NOT_PROMOTED"
+  },
+  "production_status": "NO-GO",
+  "credentials_included": false,
+  "third_party_accounts_included": false,
+  "artifact_digest_required_at_delivery": true,
+  "claims_policy": "Do not represent as Production Ready, Enterprise Production Ready, security-certified, or Q01-Q16 complete."
+}
