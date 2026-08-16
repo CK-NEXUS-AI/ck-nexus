@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CK-NEXUS Handover Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["transaction_id", "buyer", "product", "package_sha256", "classification", "payment_verified", "delivered_at", "acceptance_state"],
+  "properties": {
+    "transaction_id": {"type": "string", "minLength": 1},
+    "buyer": {"type": "string", "minLength": 1},
+    "product": {"const": "CK-NEXUS Creator Source Edition — Beta"},
+    "package_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "classification": {"const": "SELLABLE_SOURCE_BETA"},
+    "production_ready": {"const": false},
+    "payment_verified": {"const": true},
+    "payment_reference": {"type": "string"},
+    "delivered_at": {"type": "string", "format": "date-time"},
+    "delivery_channel": {"type": "string"},
+    "agreement_reference": {"type": "string"},
+    "acceptance_state": {"enum": ["PENDING", "ACCEPTED", "REJECTED_WITH_REASON"]},
+    "accepted_at": {"type": ["string", "null"], "format": "date-time"},
+    "notes": {"type": "string"}
+  }
+}

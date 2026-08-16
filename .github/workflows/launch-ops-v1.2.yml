@@ -1,0 +1,45 @@
+name: CK-NEXUS Launch Operations v1.2
+on:
+  pull_request:
+    paths:
+      - 'launch_ops/v1.2/**'
+      - 'seller_tools/build_launch_ops_v1_2.py'
+      - '.github/workflows/launch-ops-v1.2.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-launch-ops:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Build launch operations package
+        run: python seller_tools/build_launch_ops_v1_2.py "$RUNNER_TEMP/launch-ops"
+      - name: Verify checksum and required entries
+        run: |
+          cd "$RUNNER_TEMP/launch-ops"
+          sha256sum -c CK-NEXUS-Launch-Operations-v1.2.zip.sha256
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          z=Path('CK-NEXUS-Launch-Operations-v1.2.zip')
+          required={'CK-NEXUS-Launch-Operations-v1.2/README.md','CK-NEXUS-Launch-Operations-v1.2/BUYER_INTAKE.md','CK-NEXUS-Launch-Operations-v1.2/PAYMENT_TO_DELIVERY.md','CK-NEXUS-Launch-Operations-v1.2/HANDOVER_RECORD.schema.json','CK-NEXUS-Launch-Operations-v1.2/BUILD_INFO.json'}
+          with zipfile.ZipFile(z) as a: names=set(a.namelist())
+          missing=required-names
+          if missing: raise SystemExit(sorted(missing))
+          print('launch ops structure: PASS')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ck-nexus-launch-operations-v1.2
+          path: |
+            ${{ runner.temp }}/launch-ops/CK-NEXUS-Launch-Operations-v1.2.zip
+            ${{ runner.temp }}/launch-ops/CK-NEXUS-Launch-Operations-v1.2.zip.sha256
+          retention-days: 30
