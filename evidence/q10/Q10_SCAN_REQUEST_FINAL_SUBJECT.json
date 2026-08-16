@@ -1,0 +1,51 @@
+{
+  "schema_version": 2,
+  "gate": "Q10",
+  "status": "PREPARED_NOT_EXECUTED",
+  "required_executor": "Codex Security Deep Security Scan",
+  "repository": "spinlnw10-art/ck-nexus",
+  "target_sha": "512837c8b1a3e6e8e844252a1b0781d8de011b07",
+  "target_tree_sha": "43f9cb9691a0d028a1ef396a0a475c5cd80c4a99",
+  "frozen_runtime_source_sha": "4cf17cd3befaafeaf64cd4c149739133aa220f73",
+  "frozen_runtime_source_tree_sha": "dfe3888bb6adc9aebbb0351efe4a06006f4e0a48",
+  "release_subject_manifest_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f",
+  "target_scope": ".",
+  "scan_mode": "deep",
+  "minimum_required_phases": [
+    "preflight",
+    "repeated_discovery",
+    "canonical_validation",
+    "attack_path_analysis",
+    "canonical_draft",
+    "completion_with_generated_report"
+  ],
+  "acceptance": {
+    "must_use_native_codex_security_deep_scan": true,
+    "must_scan_exact_target_sha": true,
+    "must_preserve_scope": true,
+    "must_complete_validation": true,
+    "must_complete_attack_path_analysis": true,
+    "must_generate_report_md": true,
+    "must_record_coverage": true,
+    "must_not_claim_no_findings_when_discovery_count_is_zero": true,
+    "runtime_subject_must_remain_frozen": true,
+    "valid_runtime_finding_fix_requires_subject_rebaseline": true
+  },
+  "required_q10_pass_fields": [
+    "gate_result=PASS",
+    "codex_security_deep_scan=PASS",
+    "production_promotion_allowed=true",
+    "codex_security_scan_id",
+    "codex_security_report_sha256",
+    "codex_security_completed_at"
+  ],
+  "prohibited_substitutions": [
+    "bandit-only",
+    "secret-scan-only",
+    "dependency-audit-only",
+    "manual-review-only",
+    "ordinary-ci-only"
+  ],
+  "promotion_rule": "Q10 remains NOT_VERIFIED until native Codex Security Deep Security Scan completion evidence is sealed, reportable findings are resolved according to release policy, and the scan is bound to this exact closure target and frozen runtime subject.",
+  "production_status": "NO-GO"
+}
