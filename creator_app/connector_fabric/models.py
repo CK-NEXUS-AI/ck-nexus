@@ -107,7 +107,6 @@ class DiscoverySnapshot:
     def as_dict(self) -> dict[str, Any]:
         return {
             "connectorId": self.connector_id,
-            "url": self.url,
             "protocol": self.protocol.value,
             "protocolVersion": self.protocol_version,
             "schemaHash": self.schema_hash,
