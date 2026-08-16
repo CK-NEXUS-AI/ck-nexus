@@ -1,19 +1,22 @@
 {
+  "artifact_digest": "sha256:9db32baa1a50cd7cca43a85ba915986d34fe850dd12fb325c36b5732bd7b7ee3",
+  "artifact_id": 9264564659,
   "gate": "Q05",
-  "github_run_id": 31815676512,
+  "github_run_id": 31950721216,
   "quality_lanes": {
     "bandit_reviewed_gate": "PASS",
     "compile": "PASS",
     "ruff": "PASS",
     "secret_scan": "PASS"
   },
+  "release_subject_manifest_sha256": "89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52",
   "result": "PASS",
-  "schema_version": 2,
-  "source_sha": "cff65b59081036498b15eab837ffb4196c5f4523",
-  "source_tree": "5384506c020b83530c24255b9bf38cb00a7f683c",
+  "schema_version": 3,
+  "source_sha": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+  "source_tree": "0525195934f703a8becf8a39f6397b2411e0bb2e",
   "stale_on_subject_change": true,
-  "subject_manifest_sha256": "f4282bb352af74c2d7bc0148c3230d51207a4154956a650901403ff17868280c",
+  "subject_manifest_sha256": "dff89dc7fa9cd6e40480c3344f688a75383ec798929efe23f3a29c79d1186cec",
   "tests_failed": 0,
-  "tests_passed": 218,
-  "verification_level": "GITHUB_VERIFIED_CANDIDATE_TREE"
+  "tests_passed": 220,
+  "verification_level": "GITHUB_VERIFIED_EXACT_ROTATED_SUBJECT"
 }
