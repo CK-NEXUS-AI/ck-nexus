@@ -1,100 +1,45 @@
-CK-NEXUS Creator Edition v0.2.0 — R7 Credential Broker & Provider Cutover
+CK-NEXUS Creator Source Edition — Sale Package v1
 
-Release classification:
-- Development Candidate / Release Candidate
-- NO-GO for Production claims until required P0 runtime gates pass
+Classification:
+- SELLABLE SOURCE/BETA
+- NOT PRODUCTION READY
+- Production remains NO-GO pending Q10-Q16
 
-Baseline lineage:
-- R5 Development Council: dca89ffed25e421030ae3fb88717a80b39bb8141
-- R6 Autonomy Hardening: 4603d45acdbde13491582c7a6f85570372035c86
-- R7 continues from R6 on branch r7-credential-broker
+Canonical runtime identity:
+- repository: spinlnw10-art/ck-nexus
+- main commit: 45fde79c717b09f8675645aa541a5834ebd4f433
+- main tree: 8bb93b75237ac9891a6c60854f705459dc263921
+- expected frozen runtime-subject manifest SHA-256: 51718986a19e6d11467a9e9e9ab536392b38c59cd674a5f1a7a656632b4011fe
 
-R7 Credential Broker:
-- creator_app/credential_broker.py
-- explicit consumer-to-secret allowlists
-- consumer-bound secret leases
-- redacted status / repr
-- environment bootstrap + ephemeral runtime secret storage
-- no bulk secret-export API
+Included product scope:
+- CK-NEXUS Creator Edition web application
+- Creator Agent catalog and OpenAI Agents SDK / Demo Mode runtime
+- SQLite local history/session memory
+- Development Council
+- Integration/status surfaces already present in the canonical source
+- Credential Broker / provider-routing foundations
+- AGNES bounded development/runtime foundations already present in source
+- tests, build scripts, Dockerfile and technical documentation
+- buyer quick-start, limitations, security and acceptance documents from Sale Package v1
 
-R7 Provider cutover:
-- creator_app/providers.py
-- creator_app/provider_router.py
-- Mock / loopback-only Ollama / broker-backed OpenAI adapters
-- CreatorRuntime selects eligible text provider through Provider Router
-- Development Council requires agents-sdk capability and fails closed otherwise
-- OpenAI success/failure feeds R6 circuit breaker
-- OpenAI Agents SDK sensitive trace payload capture disabled for CreatorRuntime/Council
+Excluded from transfer unless separately written into the commercial schedule:
+- seller or buyer API keys, OAuth tokens, passwords or private keys
+- cloud/provider accounts, API credits, subscriptions, domains or hosting
+- production databases, personal customer data or user content
+- third-party intellectual property beyond the rights granted by its upstream license
+- production readiness certification or Q10-Q16 completion
+- future architecture branches/draft PRs that are not explicitly listed in the executed delivery identity
 
-R7 Gmail OAuth:
-- creator_app/gmail_oauth.py
-- one-time OAuth state
-- server-side authorization-code exchange
-- gmail.readonly default; gmail.send optional
-- access/refresh token values remain broker-only
-- production durable encrypted token vault still required
+Credential rule:
+The buyer provisions its own runtime credentials after delivery. No real secret is part of the source-sale archive.
 
-R7 GitHub App:
-- creator_app/github_app.py
-- RS256 JWT signer seam
-- short-lived installation-token minting
-- exact api.github.com credential destination + redirect blocking
-- installation token remains broker-only
-- optional PyJWT[crypto] package extra
+Acceptance identity:
+The final delivered ZIP must have its own SHA-256 sidecar and internal SHA256SUMS file. The executed commercial schedule should record the exact artifact digest.
 
-R7 APIs:
-- GET /api/providers/status
-- GET /api/security/credentials/status
-- GET /api/integrations/gmail/status
-- GET /api/integrations/gmail/oauth/start
-- GET /api/integrations/gmail/oauth/callback
-- GET /api/integrations/github-app/status
-- POST /api/integrations/github-app/token
+Authoritative sale-status documents:
+- RELEASE_STATUS.md
+- sale_package/v1/RELEASE_IDENTITY.json
+- sale_package/v1/buyer/KNOWN_LIMITATIONS.md
+- sale_package/v1/buyer/ACCEPTANCE_CHECKLIST.md
 
-Validation evidence:
-- docs/R7_CREDENTIAL_BROKER_PROVIDER_CUTOVER.md
-- docs/R7_VALIDATION_REPORT.md
-- tests/test_credential_broker.py
-- tests/test_provider_adapters.py
-- tests/test_oauth_and_github_app.py
-- tests/test_r7_api_contract.py
-- Non-billing regression: 89/89 PASS in the local build environment
-- Full pytest: 95 PASS / 3 billing errors blocked by missing aiosqlite
-- whole-worktree secret-pattern scan: PASS before release lock
-
-R6/R5/R4 foundations retained:
-- Development Council and five advisory specialists
-- Local/mock-first provider policy + bounded fallback/circuit breaker
-- production fail-closed startup invariants
-- /health/live and /health/ready
-- repair/canary/rollback state machine
-- GitHub / Slack / Drive credential-bearing URL hardening
-- Integration Hub / Email Gateway / P0 runbooks
-
-Commercial boundary:
-- Seller transaction documents, legal identity, pricing, support/refund terms, and final IP transfer documents are intentionally outside this source repository.
-- Third-party accounts, credentials, API credits, hosting, domains, and external service subscriptions are not transferred by this source package unless separately agreed.
-
-Excluded from delivery/runtime evidence:
-- real .env files and all secrets
-- data/*.db, *.db-shm, *.db-wal, user content
-- .venv, caches, logs, build output
-- OAuth client-secret files / GitHub App private-key files
-- staging/private P0 evidence containing secrets
-
-R14 Cognitive Brain Runtime (current development lineage):
-- branch: r14-cognitive-brain-runtime
-- baseline: 540590a6174febd10031d7af7f62b1adf5d35276
-- per-run OpenAIProvider / Responses path; no process-global OpenAI key mutation
-- n8n retired from active runtime and deployment paths
-- current status remains Development Candidate / NO-GO until production gates pass
-contracts/capability-policy.schema.json
-contracts/capability-policy.example.json
-creator_app/council_authority/authority.py
-creator_app/council_authority/identity.py
-creator_app/council_authority/storage.py
-creator_app/council_authority/arbitration.py
-creator_app/council_authority/service.py
-council-runtime/node/capability-client.js
-docs/R24_COUNCIL_CAPABILITY_AUTHORITY.md
-R24_COUNCIL_CAPABILITY_AUTHORITY_VALIDATION.md
+Historical release documents remain lineage evidence only and do not override this sale identity.

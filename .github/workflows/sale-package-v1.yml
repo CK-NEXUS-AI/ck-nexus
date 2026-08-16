@@ -1,0 +1,94 @@
+name: CK-NEXUS Sale Package v1
+
+on:
+  pull_request:
+    paths:
+      - 'sale_package/v1/**'
+      - 'seller_tools/**'
+      - 'RELEASE_STATUS.md'
+      - 'DELIVERY_MANIFEST.txt'
+      - '.github/workflows/sale-package-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-sale-package:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+
+      - name: Frozen dependency sync
+        run: |
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+
+      - name: Build integrity-bound sale package
+        run: |
+          .venv/bin/python seller_tools/build_sale_package_v1.py "$RUNNER_TEMP/sale-build"
+          cd "$RUNNER_TEMP/sale-build"
+          sha256sum -c CK-NEXUS-Creator-Source-Sale-Package-v1.zip.sha256
+
+      - name: Inspect sale archive and provenance
+        env:
+          EXPECTED_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import zipfile
+          from pathlib import Path
+
+          root = Path('${{ runner.temp }}') / 'sale-build'
+          z = root / 'CK-NEXUS-Creator-Source-Sale-Package-v1.zip'
+          prefix = 'CK-NEXUS-Creator-Source-Sale-Package-v1/'
+          required = {
+              prefix + 'SOURCE/CK-NEXUS-Creator-Edition-v0.2.0.zip',
+              prefix + 'BUYER/00_READ_ME_FIRST.md',
+              prefix + 'BUYER/KNOWN_LIMITATIONS.md',
+              prefix + 'BUYER/ACCEPTANCE_CHECKLIST.md',
+              prefix + 'TRANSACTION/COMMERCIAL_SCHEDULE_TEMPLATE.md',
+              prefix + 'PROVENANCE/RELEASE_IDENTITY.json',
+              prefix + 'PROVENANCE/PACKAGE_BUILD_INFO.json',
+              prefix + 'SHA256SUMS.txt',
+          }
+          with zipfile.ZipFile(z) as archive:
+              names = set(archive.namelist())
+              missing = sorted(required - names)
+              if missing:
+                  raise SystemExit(f'missing sale-package entries: {missing}')
+              info = json.loads(archive.read(prefix + 'PROVENANCE/PACKAGE_BUILD_INFO.json'))
+          expected = os.environ['EXPECTED_HEAD']
+          if info.get('sale_branch_head') != expected:
+              raise SystemExit(
+                  f"provenance head mismatch expected={expected} actual={info.get('sale_branch_head')}"
+              )
+          if info.get('runtime_subject_manifest_sha256') != '51718986a19e6d11467a9e9e9ab536392b38c59cd674a5f1a7a656632b4011fe':
+              raise SystemExit('runtime subject manifest mismatch')
+          if info.get('production_ready') is not False or info.get('production_status') != 'NO-GO':
+              raise SystemExit('sale classification mismatch')
+          print('sale archive structure/provenance: PASS')
+          PY
+
+      - name: Upload sale artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ck-nexus-sale-package-v1
+          path: |
+            ${{ runner.temp }}/sale-build/CK-NEXUS-Creator-Source-Sale-Package-v1.zip
+            ${{ runner.temp }}/sale-build/CK-NEXUS-Creator-Source-Sale-Package-v1.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
