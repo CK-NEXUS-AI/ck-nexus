@@ -5,7 +5,7 @@ on:
     paths:
       - "evidence/q10/**"
       - "docs/security/Q10_DEEP_SECURITY_HANDOFF.md"
-      - "scripts/q10_verify_scan_request.py"
+      - "q10_tools/q10_verify_scan_request.py"
       - ".github/workflows/q10-deep-security-preflight.yml"
   workflow_dispatch:
 
@@ -28,7 +28,7 @@ jobs:
           python-version: "3.12"
 
       - name: Verify frozen Q10 request
-        run: python scripts/q10_verify_scan_request.py
+        run: python q10_tools/q10_verify_scan_request.py
 
       - name: Assert fail-closed status
         shell: bash
