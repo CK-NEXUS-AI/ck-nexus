@@ -1,0 +1,185 @@
+name: Verify Q14 final release subject
+
+on:
+  push:
+    branches: [verify/q14-final-subject]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  Q14_SOURCE_SHA: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
+  Q14_SOURCE_TREE: 0525195934f703a8becf8a39f6397b2411e0bb2e
+  Q14_RELEASE_SUBJECT: 89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52
+
+jobs:
+  q14:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact frozen candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.Q14_SOURCE_SHA }}
+          fetch-depth: 1
+      - name: Set up pinned Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Verify immutable release subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$Q14_SOURCE_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$Q14_SOURCE_TREE"
+          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          test "$subject" = "$Q14_RELEASE_SUBJECT"
+      - name: Frozen verifier environment
+        run: |
+          python -m pip install "uv==0.12.4"
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+      - name: Configure failure injection and staging operator receiver
+        shell: bash
+        run: |
+          cat > /tmp/q14_metrics.py <<'PY'
+          from http.server import BaseHTTPRequestHandler, HTTPServer
+          class H(BaseHTTPRequestHandler):
+              def do_GET(self):
+                  body=b'# TYPE ckn_email_stale_processing_leases gauge\nckn_email_stale_processing_leases 1\n'
+                  self.send_response(200)
+                  self.send_header('Content-Type','text/plain')
+                  self.end_headers()
+                  self.wfile.write(body)
+              def log_message(self,*args): pass
+          HTTPServer(('127.0.0.1',9101),H).serve_forever()
+          PY
+          cat > /tmp/q14_receiver.py <<'PY'
+          from http.server import BaseHTTPRequestHandler, HTTPServer
+          from pathlib import Path
+          class H(BaseHTTPRequestHandler):
+              def do_POST(self):
+                  data=self.rfile.read(int(self.headers.get('Content-Length','0')))
+                  Path('alert-receipt.json').write_bytes(data)
+                  self.send_response(200)
+                  self.end_headers()
+                  self.wfile.write(b'ok')
+              def log_message(self,*args): pass
+          HTTPServer(('127.0.0.1',18093),H).serve_forever()
+          PY
+          cat > /tmp/alertmanager.yml <<'YAML'
+          route:
+            receiver: cknexus-staging-operator
+            group_wait: 1s
+            group_interval: 1s
+            repeat_interval: 1h
+          receivers:
+            - name: cknexus-staging-operator
+              webhook_configs:
+                - url: http://127.0.0.1:18093/
+          YAML
+          cat > /tmp/prometheus.yml <<'YAML'
+          global:
+            scrape_interval: 1s
+            evaluation_interval: 1s
+          alerting:
+            alertmanagers:
+              - static_configs:
+                  - targets: ['127.0.0.1:9093']
+          rule_files:
+            - /etc/prometheus/alert_rules.yaml
+          scrape_configs:
+            - job_name: q14-failure-injection
+              static_configs:
+                - targets: ['127.0.0.1:9101']
+          YAML
+          python /tmp/q14_metrics.py >/tmp/q14-metrics.log 2>&1 & echo $! >/tmp/q14-metrics.pid
+          python /tmp/q14_receiver.py >/tmp/q14-receiver.log 2>&1 & echo $! >/tmp/q14-receiver.pid
+          docker run -d --name q14-alertmanager --network host \
+            -v /tmp/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro \
+            prom/alertmanager:v0.28.1 >/tmp/q14-alertmanager.cid
+          docker run -d --name q14-prometheus --network host \
+            -v /tmp/prometheus.yml:/etc/prometheus/prometheus.yml:ro \
+            -v "$PWD/observability/alert_rules.yaml:/etc/prometheus/alert_rules.yaml:ro" \
+            prom/prometheus:v2.55.1 >/tmp/q14-prometheus.cid
+      - name: Wait through production for-duration for operator delivery
+        shell: bash
+        run: |
+          for i in $(seq 1 180); do
+            if test -s alert-receipt.json && python - <<'PY'
+          import json
+          x=json.load(open('alert-receipt.json',encoding='utf-8'))
+          ok=any(a.get('status')=='firing' and a.get('labels',{}).get('alertname')=='CKNexusEmailStaleLeases' for a in x.get('alerts',[]))
+          raise SystemExit(0 if ok else 1)
+          PY
+            then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs q14-prometheus || true
+          docker logs q14-alertmanager || true
+          exit 1
+      - name: Verify CK-NEXUS health metrics and receipt
+        shell: bash
+        env:
+          CKNEXUS_MOCK_AI: 'true'
+          CKNEXUS_EMAIL_GATEWAY_ENABLED: 'true'
+          CKNEXUS_EMAIL_WEBHOOK_TOKEN: q14-staging-only
+          CKNEXUS_HOST: 127.0.0.1
+          PORT: '8000'
+        run: |
+          ./start_unified.sh >q14-server.log 2>&1 & echo $! >q14-server.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null; then break; fi
+            sleep 1
+          done
+          CKNEXUS_ALERT_RECEIPT_FILE="$PWD/alert-receipt.json" \
+            .venv/bin/python scripts/gate_observability.py | tee q14-observability-check.txt
+      - name: Emit exact Q14 evidence
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          .venv/bin/python - "$Q14_SOURCE_SHA" "$Q14_SOURCE_TREE" "$Q14_RELEASE_SUBJECT" "$RUN_ID" <<'PY'
+          import hashlib,json,subprocess,sys
+          sha,tree,subject,run_id=sys.argv[1:]
+          data=open('alert-receipt.json','rb').read()
+          receipt=json.loads(data)
+          matched=[a for a in receipt.get('alerts',[]) if a.get('status')=='firing' and a.get('labels',{}).get('alertname')=='CKNexusEmailStaleLeases']
+          prom_id=subprocess.check_output(['docker','inspect','q14-prometheus','--format','{{.Image}}'],text=True).strip()
+          am_id=subprocess.check_output(['docker','inspect','q14-alertmanager','--format','{{.Image}}'],text=True).strip()
+          evidence={
+              'schema_version':4,'gate':'Q14','source_sha':sha,'source_tree':tree,
+              'release_subject_manifest_sha256':subject,'github_run_id':int(run_id),
+              'failure_injection':'ckn_email_stale_processing_leases=1',
+              'production_rule_file':'observability/alert_rules.yaml','alertname':'CKNexusEmailStaleLeases',
+              'production_for_duration':'2m','operator_receiver_class':'staging-webhook-receiver',
+              'alert_receipt_sha256':hashlib.sha256(data).hexdigest(),
+              'prometheus_image_id':prom_id,'alertmanager_image_id':am_id,
+              'alert_delivery':'PASS' if matched else 'FAIL','health_metrics_check':'PASS',
+              'result':'PASS' if matched else 'FAIL','production_promotion_allowed':bool(matched),
+          }
+          with open('Q14_OBSERVABILITY_ALERT.json','w',encoding='utf-8') as f:
+              json.dump(evidence,f,indent=2,sort_keys=True); f.write('\n')
+          print(json.dumps(evidence,indent=2,sort_keys=True))
+          assert matched
+          PY
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: |
+          test -f q14-server.pid && kill "$(cat q14-server.pid)" 2>/dev/null || true
+          docker rm -f q14-prometheus q14-alertmanager 2>/dev/null || true
+          test -f /tmp/q14-metrics.pid && kill "$(cat /tmp/q14-metrics.pid)" 2>/dev/null || true
+          test -f /tmp/q14-receiver.pid && kill "$(cat /tmp/q14-receiver.pid)" 2>/dev/null || true
+      - name: Upload Q14 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: q14-final-${{ env.Q14_SOURCE_SHA }}
+          path: |
+            Q14_OBSERVABILITY_ALERT.json
+            alert-receipt.json
+            q14-observability-check.txt
+            q14-server.log
+          if-no-files-found: error
