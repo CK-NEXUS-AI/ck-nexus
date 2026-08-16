@@ -1,20 +1,19 @@
-# TEMPLATE ONLY.
-# Install this as `.github/workflows/verify-q12-final-subject.yml` on
-# branch `verify/q12-final-subject` only after the dedicated self-hosted
-# runner is online and labeled `cknexus-q12`.
+# REFERENCE EXAMPLE.
+# The active verifier lives on branch `verify/q12-final-subject` as
+# `.github/workflows/verify-q12-final-subject.yml` and is manual-dispatch only.
 
 name: Verify Q12 final release subject on delegated self-hosted Linux
 
 on:
-  push:
-    branches: [verify/q12-final-subject]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 env:
-  Q12_SOURCE_SHA: 4cf17cd3befaafeaf64cd4c149739133aa220f73
-  Q12_RELEASE_SUBJECT: 96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f
+  Q12_SOURCE_SHA: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
+  Q12_SOURCE_TREE: 0525195934f703a8becf8a39f6397b2411e0bb2e
+  Q12_RELEASE_SUBJECT: 89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52
   CKNEXUS_ENVIRONMENT: staging
   CKNEXUS_AGNES_CGROUP_ROOT: ${{ vars.CKNEXUS_AGNES_CGROUP_ROOT }}
 
@@ -41,6 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$Q12_SOURCE_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$Q12_SOURCE_TREE"
           subject=$(git ls-tree -r HEAD -- \
             app creator_app services gateway orchestration idea_engine migrations deploy observability \
             Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
@@ -48,7 +48,6 @@ jobs:
           python3 --version
 
       - name: Verify true delegated cgroup v2 boundary
-        id: delegation
         shell: bash
         run: |
           set -euo pipefail
@@ -83,9 +82,7 @@ jobs:
           GATE_RC: ${{ steps.gate.outputs.rc }}
         shell: bash
         run: |
-          set -euo pipefail
-          tree=$(git rev-parse HEAD^{tree})
-          python3 - "$Q12_SOURCE_SHA" "$tree" "$Q12_RELEASE_SUBJECT" "$RUN_ID" <<'PY'
+          python3 - "$Q12_SOURCE_SHA" "$Q12_SOURCE_TREE" "$Q12_RELEASE_SUBJECT" "$RUN_ID" <<'PY'
           import json, os, sys
           sha, tree, subject, run_id = sys.argv[1:]
           gate_rc = int(os.getenv('GATE_RC', '1'))
@@ -100,9 +97,8 @@ jobs:
               diagnostic = open('q12-gate-error.txt', encoding='utf-8').read()
           except FileNotFoundError:
               pass
-          root = os.environ['CKNEXUS_AGNES_CGROUP_ROOT']
           evidence = {
-              'schema_version': 5,
+              'schema_version': 6,
               'gate': 'Q12',
               'source_sha': sha,
               'source_tree': tree,
@@ -114,7 +110,7 @@ jobs:
               'runner_arch': os.getenv('RUNNER_ARCH_VALUE'),
               'required_identity': 'non-root CK-NEXUS service identity',
               'runner_user': open('q12-runner-user.txt', encoding='utf-8').read().strip(),
-              'delegated_root': root,
+              'delegated_root': os.environ['CKNEXUS_AGNES_CGROUP_ROOT'],
               'controllers': open('q12-controllers.txt', encoding='utf-8').read().split(),
               'delegation_ready': True,
               'gate_exit_code': gate_rc,
@@ -145,4 +141,4 @@ jobs:
           if-no-files-found: error
 
       - name: Enforce Q12
-        run: python3 -c "import json; x=json.load(open('Q12_CGROUP_V2.json')); assert x['result']=='PASS' and x['production_promotion_allowed'] is True"
+        run: python3 -c "import json; x=json.load(open('Q12_CGROUP_V2.json')); assert x['result']=='PASS' and x['actual_kernel_enforcement'] is True and x['production_promotion_allowed'] is True"
