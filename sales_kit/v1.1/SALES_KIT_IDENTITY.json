@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "product": "CK-NEXUS Creator Source Edition — Beta",
+  "sales_kit": "CK-NEXUS Seller Sales Kit v1.1",
+  "classification": "SELLABLE_SOURCE_BETA",
+  "asking_price_thb": 149000,
+  "buyer_package": "CK-NEXUS-Creator-Source-Sale-Package-v1.zip",
+  "buyer_package_sha256": "92b9c8dba6b12a3b2588a89031f523caee49101b2fd154f907ca8a4c677d2cfa",
+  "buyer_package_source_head": "bacd5b40f577fd5b13322c0c11cfe9f82326fb5f",
+  "runtime_base_commit": "45fde79c717b09f8675645aa541a5834ebd4f433",
+  "runtime_subject_manifest_sha256": "51718986a19e6d11467a9e9e9ab536392b38c59cd674a5f1a7a656632b4011fe",
+  "production_ready": false,
+  "earliest_incomplete_production_gate": "Q10",
+  "internal_only": true
+}
