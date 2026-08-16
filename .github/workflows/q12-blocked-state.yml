@@ -1,0 +1,66 @@
+name: Record Q12 blocked state for rotated subject
+
+on:
+  push:
+    branches: [verify/q12-final-subject]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  Q12_SOURCE_SHA: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
+  Q12_SOURCE_TREE: 0525195934f703a8becf8a39f6397b2411e0bb2e
+  Q12_RELEASE_SUBJECT: 89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52
+
+jobs:
+  blocked-state:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact frozen candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ env.Q12_SOURCE_SHA }}
+          fetch-depth: 1
+      - name: Verify exact rotated subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$Q12_SOURCE_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$Q12_SOURCE_TREE"
+          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          test "$subject" = "$Q12_RELEASE_SUBJECT"
+      - name: Emit fail-closed Q12 blocked evidence
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          python3 - "$Q12_SOURCE_SHA" "$Q12_SOURCE_TREE" "$Q12_RELEASE_SUBJECT" "$RUN_ID" <<'PY'
+          import json,sys
+          sha,tree,subject,run_id=sys.argv[1:]
+          evidence={
+            'schema_version':6,
+            'gate':'Q12',
+            'source_sha':sha,
+            'source_tree':tree,
+            'release_subject_manifest_sha256':subject,
+            'github_run_id':int(run_id),
+            'environment_class':'not_executed_self_hosted_requirement',
+            'required_identity':'non-root CK-NEXUS service identity',
+            'delegation_ready':False,
+            'actual_kernel_enforcement':False,
+            'result':'BLOCKED',
+            'production_promotion_allowed':False,
+            'diagnostic':'Q12 BLOCKED: dedicated self-hosted Linux runner labeled cknexus-q12 with writable non-root delegated cgroup v2 cpu,memory,pids boundary has not executed the enforcement workflow for this subject.',
+            'required_next_environment':'self-hosted Linux runner label cknexus-q12 with CKNEXUS_AGNES_CGROUP_ROOT configured to a writable delegated cgroup v2 boundary',
+            'enforcement_workflow':'.github/workflows/verify-q12-final-subject.yml',
+          }
+          with open('Q12_CGROUP_V2.json','w',encoding='utf-8') as f:
+              json.dump(evidence,f,indent=2,sort_keys=True); f.write('\n')
+          print(json.dumps({k:v for k,v in evidence.items() if k!='diagnostic'},indent=2,sort_keys=True))
+          PY
+      - name: Upload Q12 blocked evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: q12-blocked-${{ env.Q12_SOURCE_SHA }}
+          path: Q12_CGROUP_V2.json
+          if-no-files-found: error
