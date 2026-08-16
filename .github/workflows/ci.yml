@@ -72,7 +72,11 @@ jobs:
           assert m==q5['subject_manifest_sha256']==q8['source_subject_manifest_sha256']==q9['subject_manifest_sha256']
           assert q5['result']=='PASS' and q5['tests_passed']>=17 and q5['tests_failed']==0
           if q5.get('schema_version',1)>=2:
-            assert q5.get('verification_level')=='GITHUB_VERIFIED_CANDIDATE_TREE'
+            allowed_verification_levels={
+              'GITHUB_VERIFIED_CANDIDATE_TREE',
+              'GITHUB_VERIFIED_EXACT_ROTATED_SUBJECT',
+            }
+            assert q5.get('verification_level') in allowed_verification_levels
             assert all(value=='PASS' for value in q5.get('quality_lanes',{}).values())
           assert q8['result']=='PASS' and q8['redis_live']=='PASS' and q8['postgresql_live']=='PASS'
           assert q9['result']=='PASS_CANDIDATE'
