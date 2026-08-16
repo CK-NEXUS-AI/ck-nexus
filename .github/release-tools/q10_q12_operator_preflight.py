@@ -6,11 +6,11 @@ import sys
 from pathlib import Path
 
 REPOSITORY = "spinlnw10-art/ck-nexus"
-CLOSURE_SHA = "512837c8b1a3e6e8e844252a1b0781d8de011b07"
-CLOSURE_TREE = "43f9cb9691a0d028a1ef396a0a475c5cd80c4a99"
-RUNTIME_SOURCE_SHA = "4cf17cd3befaafeaf64cd4c149739133aa220f73"
-RUNTIME_SOURCE_TREE = "dfe3888bb6adc9aebbb0351efe4a06006f4e0a48"
-RUNTIME_SUBJECT = "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f"
+CLOSURE_SHA = "39f5c1adb9d761ab418cf088ff1f051b1ca731d1"
+CLOSURE_TREE = "0525195934f703a8becf8a39f6397b2411e0bb2e"
+RUNTIME_SOURCE_SHA = "39f5c1adb9d761ab418cf088ff1f051b1ca731d1"
+RUNTIME_SOURCE_TREE = "0525195934f703a8becf8a39f6397b2411e0bb2e"
+RUNTIME_SUBJECT = "89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52"
 RUNTIME_PATHS = (
     "app",
     "creator_app",
@@ -36,7 +36,7 @@ def git(*args: str) -> str:
 def load(path: str) -> dict[str, object]:
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(data, dict):
-        raise TypeError(f"{path} must be a JSON object")
+        raise TypeError(f"{path} must contain a JSON object")
     return data
 
 
@@ -100,7 +100,7 @@ def main() -> int:
         failures.append(f"q12_evidence_unavailable:{type(exc).__name__}")
 
     report = {
-        "schema_version": 1,
+        "schema_version": 2,
         "repository": REPOSITORY,
         "closure_sha": CLOSURE_SHA,
         "runtime_source_sha": RUNTIME_SOURCE_SHA,

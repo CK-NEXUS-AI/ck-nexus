@@ -1,17 +1,17 @@
 {
-  "artifact_digest": "sha256:6132311b1176ced1534e46928af6df5e3018dc6cd83fff212ffb22d7d6fcd7a5",
-  "artifact_id": 9226045803,
+  "artifact_digest": "sha256:df723b9fb341b4f7a560e830f8adcaa779e8c5f4b4b44d14248c1eab99495285",
+  "artifact_id": 9264576887,
   "credential_configured": false,
   "credential_exposed": false,
   "diagnostic": "P0-AI-001 BLOCKED: OPENAI_API_KEY is not configured",
   "gate": "Q11",
-  "github_run_id": 31818698368,
+  "github_run_id": 31950795711,
   "p0_ai_001_exit_code": 2,
   "production_promotion_allowed": false,
-  "release_subject_manifest_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f",
+  "release_subject_manifest_sha256": "89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52",
   "result": "BLOCKED",
-  "schema_version": 3,
+  "schema_version": 4,
   "sentinel_observed": false,
-  "source_sha": "4cf17cd3befaafeaf64cd4c149739133aa220f73",
-  "source_tree": "dfe3888bb6adc9aebbb0351efe4a06006f4e0a48"
+  "source_sha": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+  "source_tree": "0525195934f703a8becf8a39f6397b2411e0bb2e"
 }

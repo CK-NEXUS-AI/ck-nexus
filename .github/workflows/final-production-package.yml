@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 env:
-  EXPECTED_RELEASE_SUBJECT: 96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f
+  EXPECTED_RELEASE_SUBJECT: 89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52
 
 jobs:
   preflight:
@@ -134,7 +134,7 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          subject='96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f'
+          subject='89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52'
           names=['Q10_DEPENDENCY_AUDIT.json','Q11_OPENAI_LIVE.json','Q12_CGROUP_V2.json','Q13_POSTGRES_DR.json','Q14_OBSERVABILITY_ALERT.json','Q15_CLEAN_MACHINE.json','Q16_PRODUCTION_IMAGE.json','Q16_RUNTIME_LICENSE_SUMMARY.json']
           rows={name:json.loads(Path('evidence',name).read_text(encoding='utf-8')) for name in names}
           assert all(row.get('release_subject_manifest_sha256')==subject for row in rows.values())
@@ -213,7 +213,7 @@ jobs:
           python - "$sha" "$archive_sha" <<'PY'
           import json,sys
           sha,archive_sha=sys.argv[1:]
-          manifest={'schema_version':1,'release_commit':sha,'runtime_subject_sha256':'96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f','archive_sha256':archive_sha,'production_gate':'PASS','third_party_runtime_inventory_included':True,'third_party_license_files_included':True,'release_evidence_provenance':'PASS'}
+          manifest={'schema_version':1,'release_commit':sha,'runtime_subject_sha256':'89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52','archive_sha256':archive_sha,'production_gate':'PASS','third_party_runtime_inventory_included':True,'third_party_license_files_included':True,'release_evidence_provenance':'PASS'}
           with open('dist/RELEASE_MANIFEST.json','w',encoding='utf-8') as f:
               json.dump(manifest,f,indent=2,sort_keys=True); f.write('\n')
           PY
