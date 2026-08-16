@@ -21,6 +21,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -41,29 +42,45 @@ jobs:
           cd "$RUNNER_TEMP/sale-build"
           sha256sum -c CK-NEXUS-Creator-Source-Sale-Package-v1.zip.sha256
 
-      - name: Inspect sale archive
+      - name: Inspect sale archive and provenance
+        env:
+          EXPECTED_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: |
           python - <<'PY'
+          import json
+          import os
           import zipfile
           from pathlib import Path
+
           root = Path('${{ runner.temp }}') / 'sale-build'
           z = root / 'CK-NEXUS-Creator-Source-Sale-Package-v1.zip'
+          prefix = 'CK-NEXUS-Creator-Source-Sale-Package-v1/'
           required = {
-              'CK-NEXUS-Creator-Source-Sale-Package-v1/SOURCE/CK-NEXUS-Creator-Edition-v0.2.0.zip',
-              'CK-NEXUS-Creator-Source-Sale-Package-v1/BUYER/00_READ_ME_FIRST.md',
-              'CK-NEXUS-Creator-Source-Sale-Package-v1/BUYER/KNOWN_LIMITATIONS.md',
-              'CK-NEXUS-Creator-Source-Sale-Package-v1/BUYER/ACCEPTANCE_CHECKLIST.md',
-              'CK-NEXUS-Creator-Source-Sale-Package-v1/TRANSACTION/COMMERCIAL_SCHEDULE_TEMPLATE.md',
-              'CK-NEXUS-Creator-Source-Sale-Package-v1/PROVENANCE/RELEASE_IDENTITY.json',
-              'CK-NEXUS-Creator-Source-Sale-Package-v1/PROVENANCE/PACKAGE_BUILD_INFO.json',
-              'CK-NEXUS-Creator-Source-Sale-Package-v1/SHA256SUMS.txt',
+              prefix + 'SOURCE/CK-NEXUS-Creator-Edition-v0.2.0.zip',
+              prefix + 'BUYER/00_READ_ME_FIRST.md',
+              prefix + 'BUYER/KNOWN_LIMITATIONS.md',
+              prefix + 'BUYER/ACCEPTANCE_CHECKLIST.md',
+              prefix + 'TRANSACTION/COMMERCIAL_SCHEDULE_TEMPLATE.md',
+              prefix + 'PROVENANCE/RELEASE_IDENTITY.json',
+              prefix + 'PROVENANCE/PACKAGE_BUILD_INFO.json',
+              prefix + 'SHA256SUMS.txt',
           }
           with zipfile.ZipFile(z) as archive:
               names = set(archive.namelist())
-          missing = sorted(required - names)
-          if missing:
-              raise SystemExit(f'missing sale-package entries: {missing}')
-          print('sale archive structure: PASS')
+              missing = sorted(required - names)
+              if missing:
+                  raise SystemExit(f'missing sale-package entries: {missing}')
+              info = json.loads(archive.read(prefix + 'PROVENANCE/PACKAGE_BUILD_INFO.json'))
+          expected = os.environ['EXPECTED_HEAD']
+          if info.get('sale_branch_head') != expected:
+              raise SystemExit(
+                  f"provenance head mismatch expected={expected} actual={info.get('sale_branch_head')}"
+              )
+          if info.get('runtime_subject_manifest_sha256') != '51718986a19e6d11467a9e9e9ab536392b38c59cd674a5f1a7a656632b4011fe':
+              raise SystemExit('runtime subject manifest mismatch')
+          if info.get('production_ready') is not False or info.get('production_status') != 'NO-GO':
+              raise SystemExit('sale classification mismatch')
+          print('sale archive structure/provenance: PASS')
           PY
 
       - name: Upload sale artifact
