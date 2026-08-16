@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 env:
-  EXPECTED_RELEASE_SUBJECT: 96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f
+  EXPECTED_RELEASE_SUBJECT: 89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52
 
 jobs:
   provenance:
