@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CK-NEXUS Gen4 Fusion v0.2</title>
+<style>
+:root{font-family:Inter,system-ui,sans-serif;color:#edf2f7;background:#0b0e12}*{box-sizing:border-box}body{margin:0;background:#0b0e12}.wrap{width:min(1180px,calc(100% - 32px));margin:auto;padding:28px 0 60px}.top{display:flex;justify-content:space-between;gap:16px;align-items:center}.pill{border:1px solid #354150;border-radius:999px;padding:7px 11px;font-size:12px;color:#aeb9c5}.hero{padding:50px 0 26px}h1{font-size:clamp(38px,7vw,78px);line-height:.95;letter-spacing:-.055em;margin:0}.lead{color:#aeb9c5;max-width:780px;font-size:18px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.card{border:1px solid #26313d;border-radius:16px;background:#111720;padding:18px}.k{font-size:11px;color:#8492a2;text-transform:uppercase;letter-spacing:.08em}.v{font-size:23px;font-weight:750;margin-top:8px}.ok{color:#77d59a}.warn{color:#e3bd6a}.bad{color:#f08a8a}.section{margin-top:28px}.section h2{font-size:20px}.flow{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}.node{padding:13px 8px;text-align:center;border:1px solid #2e3a48;border-radius:12px;background:#10151d;font-size:12px}.table{width:100%;border-collapse:collapse}.table td,.table th{padding:12px;border-bottom:1px solid #26313d;text-align:left;font-size:13px}.muted{color:#8d9aa8}.banner{margin-top:28px;padding:18px;border:1px solid #5d4931;border-radius:14px;background:#1c1710;color:#e5c48c}@media(max-width:850px){.grid{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}@media(max-width:520px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body><main class="wrap">
+<header class="top"><strong>CK-NEXUS</strong><span class="pill">GEN4 FUSION v0.2 · DEMO / NON-PRODUCTION</span></header>
+<section class="hero"><p class="muted">TRUST-CONTROLLED AUTONOMOUS EXECUTION</p><h1>Intelligence proposes.<br>Authority verifies.</h1><p class="lead">Evidence-native control plane: Identity → Capability → Policy → Approval → Execution → Independent Verification → Evidence.</p></section>
+<section class="grid">
+<div class="card"><div class="k">Production</div><div class="v bad" id="prod">NO_GO</div><div class="muted">Fail-closed default</div></div>
+<div class="card"><div class="k">Claims</div><div class="v warn" id="claims">Restricted</div><div class="muted">Evidence compiled</div></div>
+<div class="card"><div class="k">Connector Writes</div><div class="v">Approval</div><div class="muted">Explicit lease + approval</div></div>
+<div class="card"><div class="k">Authority</div><div class="v ok">Separated</div><div class="muted">Model cannot self-authorize</div></div>
+</section>
+<section class="section"><h2>Canonical action path</h2><div class="flow"><div class="node">UNDERSTAND</div><div class="node">PLAN</div><div class="node">AUTHORIZE</div><div class="node">EXECUTE</div><div class="node">VERIFY</div><div class="node">EVIDENCE</div><div class="node">LEARN</div></div></section>
+<section class="section"><h2>Connector lifecycle</h2><table class="table"><tr><th>State</th><th>Meaning</th><th>Write authority</th></tr><tr><td>DISCOVERED</td><td>Known capability only</td><td class="bad">NO</td></tr><tr><td>PENDING_AUTH</td><td>Provider consent/evidence required</td><td class="bad">NO</td></tr><tr><td>ACTIVE_READONLY</td><td>Credential + provider evidence bound</td><td class="bad">NO</td></tr><tr><td>ACTIVE_READWRITE</td><td>Credential + evidence + explicit approval</td><td class="warn">BOUNDED</td></tr></table></section>
+<section class="section"><h2>Release truth</h2><table class="table"><tr><th>Invariant</th><th>Result</th></tr><tr><td>LOCAL PASS → STAGING PASS by relabel</td><td class="bad">DENIED</td></tr><tr><td>STAGING PASS → PRODUCTION PASS by relabel</td><td class="bad">DENIED</td></tr><tr><td>Static config → runtime verified</td><td class="bad">DENIED</td></tr><tr><td>Connected → write authorized</td><td class="bad">DENIED</td></tr><tr><td>All gates + package + checksum</td><td class="ok">Required for READY</td></tr></table></section>
+<div class="banner">This UI is intentionally unable to claim Production Ready by itself. When served with the local API it may read `/api/claims/public`; otherwise it remains fail-closed.</div>
+<script>
+(async()=>{try{const r=await fetch('/api/claims/public',{cache:'no-store'});if(!r.ok)return;const x=await r.json();document.getElementById('prod').textContent=x.production_classification;document.getElementById('claims').textContent=x.blocked_claims?.length?'Restricted':'Open';}catch(_){/* standalone file: fail closed */}})();
+</script>
+</main></body></html>
