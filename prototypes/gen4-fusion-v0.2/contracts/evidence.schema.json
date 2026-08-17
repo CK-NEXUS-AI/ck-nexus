@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CK-NEXUS EvidenceRecord",
+  "type": "object",
+  "required": ["evidence_id","subject","source_commit","tree_sha","environment","verification_level","control_id","status","observed_at"],
+  "properties": {
+    "evidence_id": {"type":"string"},
+    "subject": {"type":"string"},
+    "source_commit": {"type":"string"},
+    "tree_sha": {"type":"string"},
+    "environment": {"type":"string"},
+    "verification_level": {"enum":["LOCAL","STAGING","PRODUCTION","SPEC_ONLY"]},
+    "control_id": {"type":"string"},
+    "test_id": {"type":["string","null"]},
+    "run_id": {"type":["string","null"]},
+    "artifact_digest": {"type":["string","null"]},
+    "status": {"enum":["PASS","FAIL","BLOCKED","NOT_VERIFIED","EXPIRED"]},
+    "observed_at": {"type":"string","format":"date-time"},
+    "stale_after": {"type":["string","null"],"format":"date-time"},
+    "supersedes": {"type":["string","null"]}
+  },
+  "additionalProperties": false
+}
