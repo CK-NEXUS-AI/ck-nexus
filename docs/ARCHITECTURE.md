@@ -1,5 +1,7 @@
 # Architecture
 
+See also: [CK-NEXUS Unified Runtime Blueprint](./UNIFIED_RUNTIME_BLUEPRINT.md)
+
 ## Runtime flow
 
 ```text
