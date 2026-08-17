@@ -1,7 +1,5 @@
 """Adaptive quality selection driven by resource evidence."""
 
-from __future__ import annotations
-
 from .models import ResourceSnapshot, RuntimeDecision
 
 
