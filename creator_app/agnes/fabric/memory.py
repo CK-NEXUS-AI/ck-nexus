@@ -2,7 +2,6 @@
 
 from .models import ResourceSnapshot
 
-
 TIERS = ("HOT", "WARM", "COOL", "COLD")
 
 
