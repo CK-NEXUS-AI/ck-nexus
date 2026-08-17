@@ -4,14 +4,12 @@ The fabric is intentionally dependency-light. External engines are described as
 optional capabilities and are never imported merely because they are catalogued.
 """
 
-from __future__ import annotations
-
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Iterable
+from enum import StrEnum
 
 
-class ModuleKind(str, Enum):
+class ModuleKind(StrEnum):
     COGNITIVE = "COGNITIVE"
     RESEARCH = "RESEARCH"
     PROTOCOL = "PROTOCOL"
@@ -33,7 +31,7 @@ class ModuleKind(str, Enum):
     SELF_IMPROVEMENT = "SELF_IMPROVEMENT"
 
 
-class RiskClass(str, Enum):
+class RiskClass(StrEnum):
     R0_READ = "R0_READ"
     R1_TEMPORARY = "R1_TEMPORARY"
     R2_REVERSIBLE_WRITE = "R2_REVERSIBLE_WRITE"
@@ -41,13 +39,13 @@ class RiskClass(str, Enum):
     R4_CRITICAL = "R4_CRITICAL"
 
 
-class ActivationMode(str, Enum):
+class ActivationMode(StrEnum):
     DISABLED = "DISABLED"
     READ_ONLY = "READ_ONLY"
     BOUNDED_WRITE = "BOUNDED_WRITE"
 
 
-class ModuleStage(str, Enum):
+class ModuleStage(StrEnum):
     DISCOVERED = "DISCOVERED"
     INSPECTED = "INSPECTED"
     SCANNED = "SCANNED"
