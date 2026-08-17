@@ -5,7 +5,6 @@ import shutil
 
 from .models import CapabilityModule, DependencyStatus, ModuleProbe
 
-
 _IMPORT_NAMES = {
     "nats-py": "nats",
     "qdrant-client": "qdrant_client",
