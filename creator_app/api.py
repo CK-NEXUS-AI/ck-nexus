@@ -49,6 +49,7 @@ from creator_app.github_integration import GitHubIntegration
 from creator_app.gmail_oauth import GmailOAuthError, GmailOAuthManager
 from creator_app.health import DependencyState, DependencyStatus, evaluate_health
 from creator_app.integrations import GoogleDriveIntegration, SlackIntegration
+from creator_app.llm_keypool import LlmKeyPool
 from creator_app.observability import (
     CORRELATION_HEADER,
     MetricsRegistry,
@@ -147,10 +148,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     provider_router = build_provider_router(resolved_settings, credential_broker)
     store = RunStore(resolved_settings.database_path, database_url=resolved_settings.database_url)
+    key_pool = LlmKeyPool.from_environment()
     runtime = CreatorRuntime(
         resolved_settings,
         provider_router=provider_router,
         credential_broker=credential_broker,
+        key_pool=key_pool,
     )
     codex_bridge = CodexBridge(resolved_settings)
     service = CreatorService(resolved_settings, runtime, store)
@@ -158,6 +161,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         resolved_settings,
         provider_router=provider_router,
         credential_broker=credential_broker,
+        key_pool=key_pool,
     )
     agnes_skill_file = FilePath(__file__).resolve().parent / "skills" / "agnes" / "SKILL.md"
     agnes = AgnesNervousSystem(

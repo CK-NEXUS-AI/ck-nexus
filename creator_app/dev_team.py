@@ -8,7 +8,8 @@ from time import perf_counter
 from uuid import uuid4
 
 from creator_app.config import Settings
-from creator_app.credential_broker import CredentialBroker, CredentialId, CredentialUnavailable
+from creator_app.credential_broker import CredentialBroker, CredentialId
+from creator_app.llm_keypool import LlmKeyPool, acquire_openai_credential
 from creator_app.openai_brain import OpenAIBrainUnavailable, build_openai_agents_run_config
 from creator_app.provider_router import ProviderRouter
 from creator_app.runtime import MissingCredentialError, ProviderRuntimeError
@@ -190,16 +191,20 @@ class DevTeamRuntime:
         *,
         provider_router: ProviderRouter | None = None,
         credential_broker: CredentialBroker | None = None,
+        key_pool: LlmKeyPool | None = None,
     ) -> None:
         self.settings = settings
         self.provider_router = provider_router
         self.credential_broker = credential_broker or CredentialBroker.from_environment()
+        self.key_pool = key_pool
 
     @property
     def ready(self) -> bool:
         if not self.settings.dev_team_enabled:
             return False
         if self.settings.mock_ai:
+            return True
+        if self.key_pool is not None and not self.key_pool.free_fallback:
             return True
         if self.provider_router is not None:
             return (
@@ -258,16 +263,19 @@ class DevTeamRuntime:
         )
 
     async def _run_live(self, request: DevTeamRequest) -> str:
-        try:
-            lease = self.credential_broker.acquire(
-                CredentialId.OPENAI_API_KEY, consumer="council.openai"
-            )
-        except CredentialUnavailable as exc:
+        credential = acquire_openai_credential(
+            self.credential_broker,
+            self.key_pool,
+            consumer="council.openai",
+            default_model=self.settings.openai_model,
+        )
+        if credential is None:
             raise MissingCredentialError(
-                "Development Council Live Mode requires an OpenAI API credential through the "
-                "credential broker."
-            ) from exc
-        api_key = lease.reveal(consumer="council.openai")
+                "Development Council Live Mode requires an OpenAI-compatible credential. "
+                "Configure a key pool (CKNEXUS_LLM_KEYS) or OPENAI_API_KEY."
+            )
+        api_key = credential.api_key
+        model = credential.model or self.settings.openai_model
 
         try:
             from agents import Agent, WebSearchTool
@@ -279,10 +287,11 @@ class DevTeamRuntime:
         try:
             brain = build_openai_agents_run_config(
                 api_key=api_key,
-                model=self.settings.openai_model,
+                model=model,
                 workflow_name="CK-NEXUS Development Council",
                 tracing_enabled=self.settings.openai_tracing_enabled,
                 group_id=f"dev-team:{request.session_id}",
+                base_url=credential.base_url,
             )
         except OpenAIBrainUnavailable as exc:
             raise ProviderRuntimeError(
@@ -298,7 +307,7 @@ class DevTeamRuntime:
                 name=advisor.name,
                 handoff_description=advisor.role,
                 instructions=f"{TEAM_BASE_INSTRUCTIONS}\n\nSPECIALIST ROLE\n{advisor.instructions}",
-                model=self._model_for(advisor.id),
+                model=model if self.key_pool is not None else self._model_for(advisor.id),
                 tools=tools,
             )
 
@@ -320,7 +329,7 @@ class DevTeamRuntime:
         orchestrator = Agent(
             name="CK-NEXUS Lead Orchestrator",
             instructions=f"{TEAM_BASE_INSTRUCTIONS}\n\n{ORCHESTRATOR_INSTRUCTIONS}",
-            model=self.settings.openai_model,
+            model=model,
             tools=orchestrator_tools,
         )
         return await self._run_agent(orchestrator, request, brain.run_config)

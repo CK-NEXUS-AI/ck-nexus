@@ -28,6 +28,7 @@ def build_openai_agents_run_config(
     workflow_name: str,
     tracing_enabled: bool = False,
     group_id: str | None = None,
+    base_url: str | None = None,
 ) -> OpenAIBrainRunConfig:
     if not api_key:
         raise ValueError("api_key is required")
@@ -41,7 +42,10 @@ def build_openai_agents_run_config(
     except ImportError as exc:  # pragma: no cover - exercised by runtime integration
         raise OpenAIBrainUnavailable("OpenAI Agents SDK is not installed.") from exc
 
-    provider = OpenAIProvider(api_key=api_key, use_responses=True)
+    provider_kwargs: dict[str, Any] = {"api_key": api_key, "use_responses": True}
+    if base_url:
+        provider_kwargs["base_url"] = base_url
+    provider = OpenAIProvider(**provider_kwargs)
     kwargs: dict[str, Any] = {
         "model": model.strip(),
         "model_provider": provider,

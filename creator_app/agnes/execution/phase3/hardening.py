@@ -33,12 +33,17 @@ class CgroupV2Manager:
 
     def health(self) -> dict[str, object]:
         controllers_file = self.root / "cgroup.controllers"
-        unified = controllers_file.exists()
+        try:
+            unified = controllers_file.exists()
+        except PermissionError:
+            unified = True
+        except OSError:
+            unified = False
         controllers: set[str] = set()
         if unified:
             try:
                 controllers = set(controllers_file.read_text(encoding="utf-8").split())
-            except OSError:
+            except (OSError, PermissionError):
                 controllers = set()
         writable = self.root.is_dir() and os.access(self.root, os.W_OK)
         missing = sorted(self.REQUIRED_CONTROLLERS - controllers)

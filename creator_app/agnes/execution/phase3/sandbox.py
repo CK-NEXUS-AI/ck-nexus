@@ -28,9 +28,6 @@ int main(int argc, char **argv) {
     if (argc < 2) return 64;
     if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) { perror("no_new_privs"); return 65; }
     struct sock_filter filter[] = {
-        BPF_STMT(BPF_LD+BPF_W+BPF_ABS, offsetof(struct seccomp_data, arch)),
-        BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, AUDIT_ARCH_X86_64, 1, 0),
-        BPF_STMT(BPF_RET+BPF_K, SECCOMP_RET_KILL_PROCESS),
         BPF_STMT(BPF_LD+BPF_W+BPF_ABS, offsetof(struct seccomp_data, nr)),
 #ifdef __NR_mount
         DENY_NR(__NR_mount),
