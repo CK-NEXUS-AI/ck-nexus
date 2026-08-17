@@ -62,6 +62,9 @@ Initial skill set:
 - `mouth.report`
 - `upgrade.self_improve`
 
+For a practical runtime-oriented view of tools, skills, concepts, and capability
+boundaries, see `docs/AGNES_CAPABILITY_MAP.md`.
+
 ## 5. No-user-key execution strategy
 
 A skill gives AGNES procedural knowledge. It cannot replace inference compute or a provider's authentication requirement. The correct architecture is:
