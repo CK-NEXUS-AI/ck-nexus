@@ -1,0 +1,35 @@
+{
+  "artifact": "CK-NEXUS Gen4 Fusion Prototype v0.2",
+  "classification": "LOCAL_DEMO_NON_PRODUCTION",
+  "created_at": "2026-08-17T15:25:56.547367+00:00",
+  "python": "3.13.5",
+  "tree_digest_sha256": "3d15ff829b2384e505cddac27a108c5010f0dfb03fcd6a304b6e13d7de807748",
+  "tests": {
+    "pytest": "12 passed",
+    "compileall": "PASS",
+    "loopback_api_smoke": "PASS",
+    "secret_pattern_scan": "PASS"
+  },
+  "production_claim": "NO_GO",
+  "q10_q11_q12_evidence": false,
+  "files": [
+    {"path":"MIGRATION_PLAN.md","sha256":"4af6db61980da60e1acada33178e08ecd255237d9ef7e4266d9a9beaf0b392c0","size":1416},
+    {"path":"README.md","sha256":"de335b54b9a3d75e770438dc39d778ab8015368aea676dd9266f834e07201fe9","size":1324},
+    {"path":"SECURITY_NOTES.md","sha256":"544f6d78a5740815a767ced72eb7d4b81ccb089e5b463ad8995b2d4de9c2dcf9","size":1078},
+    {"path":"backend/__init__.py","sha256":"7f489f075dc63eae8c6a5e5a43189c928b4173dfbf9e8e3c5a497c54fdc8be74","size":52},
+    {"path":"backend/app.py","sha256":"61a8ebd9d8a3a6671317f65761c1beb96904da50a374396189b6fc01aba6a518","size":1198},
+    {"path":"backend/claims.py","sha256":"30c4eaa1b9d17e21e267620c6e76862abd241387c6a107a69a3fe443a1689d3d","size":1213},
+    {"path":"backend/connectors.py","sha256":"7032ace9a5e24503c542719159bcf47f7888cf44b5020733b9553546174947cd","size":2734},
+    {"path":"backend/evidence.py","sha256":"0d5b505d4a539b6ab459f9761afa07aa49f381bc23df3338950c72455ceca689","size":1814},
+    {"path":"backend/execution.py","sha256":"934aeeea628356614a50ec020dd3f4ee2fd3c141cca818b3f2956328d3cd57ae","size":885},
+    {"path":"backend/models.py","sha256":"9bf4e34f4a948e44ed84986eac18e00f73281e06d8af76e5c1fb4bcf35789366","size":4135},
+    {"path":"backend/policy.py","sha256":"a287228e31c26a4ff38e6fafc6904183f39e15025c872c029862122492247c43","size":1155},
+    {"path":"backend/verifier.py","sha256":"567e71f36d50b6b3cf6d3eade171ed3ede4c6824388fd9f10a1ffa74e5baead8","size":566},
+    {"path":"contracts/capability_lease.schema.json","sha256":"afc0abeb474035dac9f9dec95cfb25cfbb008bd52edee64f330519f26eb399f0","size":1039},
+    {"path":"contracts/connector.schema.json","sha256":"f31c1c8437e3de2b05fe77db227b82be9c51af72e27b721a7bb175c3138361ca","size":808},
+    {"path":"contracts/evidence.schema.json","sha256":"c877cba9bb2aa5272fea0125c1dd3a7e4abcd4e2d603789d422aa4e03a680306","size":1003},
+    {"path":"index.html","sha256":"013e274f44226871f4f00dedacd804a6a89032d808fc50f67215413f55af9cec","size":4785},
+    {"path":"tests/test_api.py","sha256":"9f2db847c53590c1c2f4114f352e5490e6b24bd8e82c3e24d851f54527ea67f3","size":479},
+    {"path":"tests/test_core.py","sha256":"7a905e6abb177f029013fc933416c1d11438d2e9f1832bc1fafbd2329abfa6bd","size":5342}
+  ]
+}
