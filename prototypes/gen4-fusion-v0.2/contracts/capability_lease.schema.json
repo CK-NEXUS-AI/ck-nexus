@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CK-NEXUS CapabilityLease",
+  "type": "object",
+  "required": ["lease_id","subject_agent","tenant","allowed_actions","resource_scope","issued_at","expires_at"],
+  "properties": {
+    "lease_id": {"type":"string"},
+    "subject_agent": {"type":"string"},
+    "delegated_by": {"type":["string","null"]},
+    "tenant": {"type":"string"},
+    "allowed_tools": {"type":"array","items":{"type":"string"}},
+    "allowed_actions": {"type":"array","items":{"type":"string"}},
+    "resource_scope": {"type":"array","items":{"type":"string"}},
+    "max_calls": {"type":["integer","null"],"minimum":0},
+    "max_cost": {"type":["number","null"],"minimum":0},
+    "max_mutations": {"type":["integer","null"],"minimum":0},
+    "can_delegate": {"type":"boolean","default":false},
+    "issued_at": {"type":"string","format":"date-time"},
+    "expires_at": {"type":"string","format":"date-time"},
+    "policy_hash": {"type":["string","null"]}
+  },
+  "additionalProperties": false
+}
