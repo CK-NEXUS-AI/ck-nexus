@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CK-NEXUS ConnectorRecord",
+  "type": "object",
+  "required": ["connector_id","protocol","state","activation"],
+  "properties": {
+    "connector_id": {"type":"string"},
+    "protocol": {"enum":["MCP","A2A","REST","OAUTH2","WEBHOOK","NATIVE"]},
+    "state": {"enum":["UNKNOWN","DISCOVERED","INSPECTED","SCANNED","PENDING_AUTH","ACTIVE_READONLY","ACTIVE_READWRITE","BLOCKED","DISCONNECTED","ERROR","REVOKED"]},
+    "activation": {"enum":["NONE","READ_ONLY","READ_WRITE"]},
+    "scopes": {"type":"array","items":{"type":"string"}},
+    "credential_ref": {"type":["string","null"]},
+    "connected_at": {"type":["string","null"],"format":"date-time"},
+    "evidence_ref": {"type":["string","null"]}
+  },
+  "additionalProperties": false
+}
