@@ -652,8 +652,9 @@ If someone is joining the repo for the first time, read in this order:
 2. `docs/ARCHITECTURE.md`
 3. `docs/DEVELOPMENT_COUNCIL.md`
 4. `docs/R28_UNIVERSAL_AUTO_CONNECTOR_FABRIC.md`
-5. `docs/BUILD_BRIEF.md`
-6. the relevant implementation modules
+5. `docs/PROTOTYPE_TO_AUTHORITY_ROADMAP.md`
+6. `docs/BUILD_BRIEF.md`
+7. the relevant implementation modules
 
 ---
 
