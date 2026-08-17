@@ -1,0 +1,186 @@
+"""Canonical AGNES module catalogue.
+
+Catalogue membership means the module contract is installed in CK-NEXUS. It does
+not imply an external engine is installed, authenticated, approved, or production
+verified.
+"""
+
+from __future__ import annotations
+
+from .models import ActivationMode, CapabilityModule, ModuleKind, RiskClass
+
+
+def _m(
+    module_id: str,
+    name: str,
+    kind: ModuleKind,
+    description: str,
+    *,
+    risk: RiskClass = RiskClass.R0_READ,
+    mode: ActivationMode = ActivationMode.READ_ONLY,
+    network: bool = False,
+    write: bool = False,
+    packages: tuple[str, ...] = (),
+    binaries: tuple[str, ...] = (),
+    protocols: tuple[str, ...] = (),
+    depends_on: tuple[str, ...] = (),
+    tags: tuple[str, ...] = (),
+) -> CapabilityModule:
+    return CapabilityModule(
+        module_id=module_id,
+        name=name,
+        kind=kind,
+        description=description,
+        risk=risk,
+        default_mode=mode,
+        network_required=network,
+        write_capable=write,
+        optional_packages=packages,
+        optional_binaries=binaries,
+        protocols=protocols,
+        depends_on=depends_on,
+        tags=tags,
+    )
+
+
+MODULES: tuple[CapabilityModule, ...] = (
+    _m("cognitive.governor", "Cognitive Governor", ModuleKind.COGNITIVE,
+       "Plan, risk-score and route work without granting itself authority."),
+    _m("research.intelligence", "Research Intelligence", ModuleKind.RESEARCH,
+       "Multi-source search, freshness, contradiction and citation planning.",
+       network=True, tags=("primary-sources", "citations")),
+    _m("capability.discovery", "Capability Discovery", ModuleKind.COGNITIVE,
+       "Discover tools, agents and skills without auto-installing or auto-trusting them."),
+    _m("tool.fabric", "Tool Fabric", ModuleKind.PROTOCOL,
+       "Permission-aware tool registry with lazy adapter loading."),
+    _m("protocol.mcp", "MCP Gateway", ModuleKind.PROTOCOL,
+       "MCP compatibility and authorization boundary.", protocols=("MCP",), network=True),
+    _m("protocol.a2a", "A2A Federation", ModuleKind.PROTOCOL,
+       "Agent-to-agent discovery, handoff and task artifact boundary.",
+       protocols=("A2A",), network=True),
+    _m("protocol.rest", "REST/OpenAPI Gateway", ModuleKind.PROTOCOL,
+       "Provider-neutral HTTP capability adapter.", protocols=("REST", "OpenAPI"),
+       network=True),
+    _m("workflow.durable", "Durable Workflow", ModuleKind.WORKFLOW,
+       "Checkpoint, retry, compensation and resumable execution.",
+       packages=("temporalio",), network=True),
+    _m("event.fabric", "Durable Event Fabric", ModuleKind.WORKFLOW,
+       "Ack/replay capable event transport; events are never durable truth by themselves.",
+       packages=("nats-py", "redis"), network=True),
+    _m("identity.agent", "Agent Identity", ModuleKind.IDENTITY,
+       "Principal, sponsor, tenant and delegation-chain identity contracts."),
+    _m("identity.workload", "Workload Identity", ModuleKind.IDENTITY,
+       "Provider-neutral workload identity with optional SPIFFE integration.",
+       binaries=("spire-agent",), network=True),
+    _m("policy.authorization", "Authorization Policy", ModuleKind.SECURITY,
+       "Context-aware policy decision contract; enforcement remains outside the model.",
+       binaries=("opa",)),
+    _m("capability.lease", "Capability Lease", ModuleKind.SECURITY,
+       "TTL, resource scope, budget and mutation-ceiling grants.",
+       risk=RiskClass.R2_REVERSIBLE_WRITE, write=True),
+    _m("sandbox.selector", "Sandbox Ladder", ModuleKind.SECURITY,
+       "Choose pure/WASI/container/gVisor/microVM boundary by risk.",
+       binaries=("wasmtime", "docker", "runsc", "firecracker")),
+    _m("document.intelligence", "Document Intelligence", ModuleKind.DOCUMENT,
+       "Layout, OCR, tables, semantic chunking and provenance-aware ingestion.",
+       packages=("docling",)),
+    _m("data.intelligence", "Data Intelligence", ModuleKind.DATA,
+       "Read-first SQL, Parquet and analytics adapter with lineage.",
+       packages=("duckdb", "pyarrow")),
+    _m("memory.agent", "Agent Memory Fabric", ModuleKind.MEMORY,
+       "Working, session, episodic, semantic, procedural, governance and archive memory."),
+    _m("memory.vector", "Vector Memory Optimizer", ModuleKind.MEMORY,
+       "Quantization, mmap and hot/warm/cool/cold vector placement.",
+       packages=("qdrant-client", "pgvector")),
+    _m("memory.graph", "Knowledge Graph", ModuleKind.MEMORY,
+       "Entity, temporal relation and provenance graph adapter.", packages=("neo4j",)),
+    _m("resource.ram", "RAM/PSI Governor", ModuleKind.RESOURCE,
+       "RAM budgets, Linux PSI and pressure-aware load shedding."),
+    _m("resource.zram", "Swap/ZRAM Advisor", ModuleKind.RESOURCE,
+       "Observe swap/zram capability without assuming permission to mutate host memory policy."),
+    _m("resource.compute", "Compute Scheduler", ModuleKind.RESOURCE,
+       "CPU/GPU/NPU/remote accelerator routing under resource and policy budgets."),
+    _m("resource.thermal", "Thermal/Power Governor", ModuleKind.RESOURCE,
+       "Thermal and battery-aware concurrency and quality adaptation."),
+    _m("resource.storage", "Storage/IO Governor", ModuleKind.RESOURCE,
+       "Cache, artifact lifecycle and IO-budget controls."),
+    _m("resource.network", "Network Quality Governor", ModuleKind.RESOURCE,
+       "Bandwidth, latency and egress-aware workload adaptation.", network=True),
+    _m("quality.color", "Color Fidelity Engine", ModuleKind.QUALITY,
+       "Color space, ICC, HDR/SDR, gamut and tone mapping.", binaries=("ffmpeg",)),
+    _m("quality.sharpness", "Sharpness/Restoration Engine", ModuleKind.QUALITY,
+       "Denoise, deblur, deblock, dering and optional AI restoration.",
+       packages=("torch",), binaries=("ffmpeg",)),
+    _m("quality.resolution", "Resolution Engine", ModuleKind.QUALITY,
+       "Adaptive resize, tiled processing and provenance-tagged super resolution.",
+       binaries=("ffmpeg",)),
+    _m("quality.visual_verify", "Visual Quality Verifier", ModuleKind.QUALITY,
+       "Objective/perceptual quality gates; candidate output cannot self-verify.",
+       binaries=("ffmpeg", "vmaf")),
+    _m("quality.display", "Display Profile Manager", ModuleKind.QUALITY,
+       "sRGB/P3/HDR/display capability profiles and accessible presentation constraints."),
+    _m("quality.evidence", "Evidence Quality Ledger", ModuleKind.EVIDENCE,
+       "Content-addressed transformation receipts and before/after provenance."),
+    _m("edge.runtime", "Edge AI Router", ModuleKind.EDGE,
+       "Android/local CPU/GPU/NPU versus remote provider routing.",
+       packages=("onnxruntime", "executorch")),
+    _m("edge.personalization", "Bounded Personalization", ModuleKind.EDGE,
+       "Local preference/ranking adaptation; never modifies governance authority.",
+       packages=("onnxruntime",), risk=RiskClass.R1_TEMPORARY),
+    _m("observability.otel", "OpenTelemetry", ModuleKind.OBSERVABILITY,
+       "Agent/tool/policy/resource traces, metrics and structured events.",
+       packages=("opentelemetry-api", "opentelemetry-sdk")),
+    _m("evaluation.runtime", "Evaluation OS", ModuleKind.EVALUATION,
+       "Baseline/candidate functional, security, latency, cost and policy regression gates."),
+    _m("supply.sbom", "Skill SBOM", ModuleKind.SUPPLY_CHAIN,
+       "Dependency and transitive-risk inventory for skills and adapters.",
+       binaries=("syft", "grype")),
+    _m("supply.provenance", "Build Provenance", ModuleKind.SUPPLY_CHAIN,
+       "Source/build/artifact provenance and verification contract."),
+    _m("supply.signing", "Artifact Signing", ModuleKind.SUPPLY_CHAIN,
+       "Optional cryptographic signing and verification for artifacts and SBOMs.",
+       binaries=("cosign",)),
+    _m("privacy.gateway", "Privacy Lattice", ModuleKind.PRIVACY,
+       "Data classification, minimization and provider-routing constraints."),
+    _m("economics.router", "Economic Router", ModuleKind.ECONOMICS,
+       "Cost, latency, quality, service tier, privacy and sovereignty-aware routing."),
+    _m("evidence.graph", "Evidence Graph", ModuleKind.EVIDENCE,
+       "Who/why/what/policy/tool/effect/proof/time relationship ledger."),
+    _m("claims.compiler", "Truthful Claims Compiler", ModuleKind.EVIDENCE,
+       "Generate allowed product/release claims only from current verified evidence."),
+    _m("execution.receipt", "Execution Receipt", ModuleKind.EVIDENCE,
+       "Before/after, actor, policy, approval, resource and verifier receipt."),
+    _m("simulation.digital_twin", "Digital Twin Execution", ModuleKind.SECURITY,
+       "Preview high-risk effects against clone/mock state before real mutation.",
+       risk=RiskClass.R2_REVERSIBLE_WRITE),
+    _m("verification.shadow", "Shadow Verifier", ModuleKind.EVALUATION,
+       "Independent verifier path that does not inherit planner authority."),
+    _m("council.dissent", "Dissent Council", ModuleKind.EVALUATION,
+       "Deliberately search for reasons a high-risk plan should be blocked."),
+    _m("autonomy.adaptive", "Adaptive Autonomy", ModuleKind.SECURITY,
+       "Reduce autonomy as uncertainty, risk, security or resource pressure rises."),
+    _m("budget.operating_system", "Budget OS", ModuleKind.RESOURCE,
+       "Unified token, time, RAM, VRAM, network, cost and mutation budgets."),
+    _m("self_improvement.lab", "Bounded Self-Improvement Lab", ModuleKind.SELF_IMPROVEMENT,
+       "Propose, sandbox, scan, evaluate and canary improvements without self-authorizing.",
+       risk=RiskClass.R4_CRITICAL, mode=ActivationMode.DISABLED, write=True),
+)
+
+
+class ModuleCatalog:
+    def __init__(self, modules: tuple[CapabilityModule, ...] = MODULES) -> None:
+        self._modules = {module.module_id: module for module in modules}
+        if len(self._modules) != len(modules):
+            raise ValueError("duplicate AGNES module_id")
+
+    def all(self) -> tuple[CapabilityModule, ...]:
+        return tuple(self._modules.values())
+
+    def get(self, module_id: str) -> CapabilityModule:
+        return self._modules[module_id]
+
+    def by_kind(self, kind: ModuleKind) -> tuple[CapabilityModule, ...]:
+        return tuple(module for module in self._modules.values() if module.kind is kind)
+
+    def write_capable(self) -> tuple[CapabilityModule, ...]:
+        return tuple(module for module in self._modules.values() if module.write_capable)
