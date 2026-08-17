@@ -5,7 +5,6 @@ from typing import Self
 
 from .models import ModuleStage, RiskClass
 
-
 _ALLOWED: dict[ModuleStage, set[ModuleStage]] = {
     ModuleStage.DISCOVERED: {ModuleStage.INSPECTED, ModuleStage.REVOKED},
     ModuleStage.INSPECTED: {ModuleStage.SCANNED, ModuleStage.REVOKED},
