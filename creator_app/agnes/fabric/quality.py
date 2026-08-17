@@ -2,7 +2,6 @@
 
 from .models import ResourceSnapshot, RuntimeDecision
 
-
 PROFILES = ("ECO", "BALANCED", "QUALITY", "STUDIO", "SOVEREIGN")
 
 
