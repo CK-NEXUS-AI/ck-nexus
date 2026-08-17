@@ -1,7 +1,5 @@
 """Memory tier placement policy."""
 
-from __future__ import annotations
-
 from .models import ResourceSnapshot
 
 
