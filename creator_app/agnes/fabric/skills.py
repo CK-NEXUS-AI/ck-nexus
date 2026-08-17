@@ -1,8 +1,7 @@
 """Fail-closed skill lifecycle and supply-chain contract."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
+from typing import Self
 
 from .models import ModuleStage, RiskClass
 
@@ -44,7 +43,7 @@ class SkillState:
     manifest: SkillManifest
     stage: ModuleStage = ModuleStage.DISCOVERED
 
-    def transition(self, target: ModuleStage) -> "SkillState":
+    def transition(self, target: ModuleStage) -> Self:
         if target not in _ALLOWED[self.stage]:
             raise ValueError(f"invalid skill transition: {self.stage} -> {target}")
         return SkillState(self.manifest, target)
