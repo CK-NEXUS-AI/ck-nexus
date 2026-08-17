@@ -1,7 +1,5 @@
 """Non-mutating dependency and host-capability probes."""
 
-from __future__ import annotations
-
 import importlib.util
 import shutil
 
