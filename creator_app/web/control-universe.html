@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="th" data-theme="nexus-dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="CK-NEXUS Cognitive Control Universe — evidence-driven runtime digital twin"
+    />
+    <title>CK-NEXUS — Cognitive Control Universe</title>
+    <link rel="stylesheet" href="/static/control-universe.css" />
+  </head>
+  <body>
+    <svg class="svg-defs" aria-hidden="true">
+      <defs>
+        <symbol id="i-system" viewBox="0 0 24 24">
+          <path d="M12 2 20 6v12l-8 4-8-4V6l8-4Z" />
+          <path d="m8 9 4-2 4 2v6l-4 2-4-2V9Z" />
+        </symbol>
+        <symbol id="i-agent" viewBox="0 0 24 24">
+          <path d="m12 2 8 4.5v9L12 20l-8-4.5v-9L12 2Z" />
+          <circle cx="12" cy="10" r="2.5" />
+          <path d="M8.5 15c1.2-2 5.8-2 7 0" />
+        </symbol>
+        <symbol id="i-model" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="8" />
+          <path d="M8 12h8M12 8v8" />
+        </symbol>
+        <symbol id="i-tool" viewBox="0 0 24 24">
+          <rect x="4" y="4" width="16" height="16" rx="2" />
+          <path d="M8 12h8M12 8v8" />
+        </symbol>
+        <symbol id="i-decision" viewBox="0 0 24 24">
+          <path d="m12 3 9 9-9 9-9-9 9-9Z" />
+          <path d="M8 12h8" />
+        </symbol>
+        <symbol id="i-verify" viewBox="0 0 24 24">
+          <path d="M12 2 20 5v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5l8-3Z" />
+          <path d="m8.5 12 2.2 2.2 4.8-5" />
+        </symbol>
+        <symbol id="i-evidence" viewBox="0 0 24 24">
+          <path d="M7 3h10l3 3v15H4V3h3Z" />
+          <path d="M8 9h8M8 13h8M8 17h5" />
+        </symbol>
+        <symbol id="i-pulse" viewBox="0 0 24 24">
+          <path d="M2 12h5l2-6 4 12 2-6h7" />
+        </symbol>
+        <symbol id="i-graph" viewBox="0 0 24 24">
+          <circle cx="5" cy="12" r="2" />
+          <circle cx="12" cy="5" r="2" />
+          <circle cx="19" cy="12" r="2" />
+          <circle cx="12" cy="19" r="2" />
+          <path d="m6.5 10.5 4-4m3 0 4 4m0 3-4 4m-3 0-4-4" />
+        </symbol>
+        <symbol id="i-terminal" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <path d="m7 9 3 3-3 3m6 0h4" />
+        </symbol>
+        <symbol id="i-chat" viewBox="0 0 24 24">
+          <path d="M4 5h16v11H9l-5 4V5Z" />
+        </symbol>
+        <symbol id="i-office" viewBox="0 0 24 24">
+          <path d="M3 20V8l9-5 9 5v12H3Z" />
+          <path d="M8 20v-7h8v7M8 9h2m4 0h2" />
+        </symbol>
+        <symbol id="i-refresh" viewBox="0 0 24 24">
+          <path d="M20 7v5h-5M4 17v-5h5" />
+          <path d="M6.5 8A7 7 0 0 1 19 11m-1.5 5A7 7 0 0 1 5 13" />
+        </symbol>
+        <symbol id="i-lock" viewBox="0 0 24 24">
+          <rect x="5" y="10" width="14" height="11" rx="2" />
+          <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+        </symbol>
+      </defs>
+    </svg>
+
+    <div class="ambient" aria-hidden="true">
+      <span class="ambient-orb orb-cyan"></span>
+      <span class="ambient-orb orb-violet"></span>
+      <span class="ambient-orb orb-gold"></span>
+      <span class="grid-plane"></span>
+    </div>
+
+    <header class="topbar">
+      <a class="brand" href="/control-universe" aria-label="CK-NEXUS Cognitive Control Universe">
+        <span class="brand-mark"><svg><use href="#i-system"></use></svg></span>
+        <span class="brand-copy">
+          <strong>CK-NEXUS</strong>
+          <small>จักรวาลควบคุมปัญญาประดิษฐ์ / COGNITIVE CONTROL UNIVERSE</small>
+        </span>
+      </a>
+
+      <section class="task-strip" aria-label="สถานะ Runtime">
+        <div>
+          <span class="label">แหล่งซอร์ส / SOURCE</span>
+          <strong id="source-sha">UNKNOWN</strong>
+        </div>
+        <div>
+          <span class="label">สภาพแวดล้อม / ENV</span>
+          <strong id="environment-name">UNKNOWN</strong>
+        </div>
+        <div>
+          <span class="label">สถานะระบบ / RELEASE</span>
+          <strong class="status-no-go" id="production-status">NO-GO</strong>
+        </div>
+        <div>
+          <span class="label">หลักฐาน / LEDGER</span>
+          <strong id="ledger-status">CHECKING</strong>
+        </div>
+      </section>
+
+      <div class="top-actions">
+        <button class="icon-button" id="refresh-button" type="button" title="รีเฟรชข้อมูลจริง">
+          <svg><use href="#i-refresh"></use></svg>
+        </button>
+        <button class="command-button" id="command-open" type="button">
+          คำสั่งด่วน <kbd>CTRL K</kbd>
+        </button>
+      </div>
+    </header>
+
+    <div class="app-shell">
+      <aside class="left-rail" aria-label="เมนูหลัก">
+        <div class="rail-heading">
+          <span>ระบบ</span>
+          <small>CONTROL NAVIGATION</small>
+        </div>
+        <nav class="view-nav">
+          <button class="view-button active" data-view="workspace" type="button">
+            <svg><use href="#i-pulse"></use></svg>
+            <span>พื้นที่ทำงานสด<small>LIVE WORKSPACE</small></span>
+          </button>
+          <button class="view-button" data-view="chat" type="button">
+            <svg><use href="#i-chat"></use></svg>
+            <span>แชท<small>CHAT</small></span>
+          </button>
+          <button class="view-button" data-view="office" type="button">
+            <svg><use href="#i-office"></use></svg>
+            <span>สำนักงาน AI<small>AI OFFICE 2.5D</small></span>
+          </button>
+          <button class="view-button" data-view="graph" type="button">
+            <svg><use href="#i-graph"></use></svg>
+            <span>กราฟงาน<small>TASK GRAPH</small></span>
+          </button>
+          <button class="view-button" data-view="console" type="button">
+            <svg><use href="#i-terminal"></use></svg>
+            <span>คอนโซลสด<small>LIVE CONSOLE</small></span>
+          </button>
+          <button class="view-button" data-view="evidence" type="button">
+            <svg><use href="#i-evidence"></use></svg>
+            <span>บัญชีหลักฐาน<small>EVIDENCE LEDGER</small></span>
+          </button>
+        </nav>
+
+        <section class="rail-card">
+          <span class="label">ความพร้อมจริง / RUNTIME</span>
+          <dl class="mini-status">
+            <div><dt>Database</dt><dd id="db-state">CHECKING</dd></div>
+            <div><dt>PostgreSQL Binding</dt><dd id="pg-state">CHECKING</dd></div>
+            <div><dt>Redis Binding</dt><dd id="redis-state">CHECKING</dd></div>
+            <div><dt>Evidence</dt><dd id="evidence-state">CHECKING</dd></div>
+          </dl>
+        </section>
+
+        <a class="creator-link" href="/">
+          เปิด Creator Workspace
+          <small>EXISTING APPLICATION</small>
+        </a>
+      </aside>
+
+      <main class="main-stage">
+        <section class="view active" id="view-workspace" data-view-panel="workspace">
+          <header class="view-title">
+            <div>
+              <span class="eyebrow">ภาพสะท้อน Runtime จริง / RUNTIME DIGITAL TWIN</span>
+              <h1>จักรวาลควบคุมปัญญาประดิษฐ์</h1>
+              <p>
+                ทุกสถานะในหน้านี้มาจาก Backend, Provider Status, Runtime Binding
+                หรือ Append-only Ledger หากไม่มีข้อมูล ระบบจะแสดง UNKNOWN หรือ NOT COLLECTED
+                แทนการสร้างค่าแสดงผลขึ้นเอง
+              </p>
+            </div>
+            <div class="mode-badge">
+              <svg><use href="#i-verify"></use></svg>
+              <span>GOVERNED<br /><strong>FAIL CLOSED</strong></span>
+            </div>
+          </header>
+
+          <section class="universe-canvas" id="universe-canvas" aria-label="Cognitive Control Universe">
+            <div class="core-halo halo-outer"></div>
+            <div class="core-halo halo-inner"></div>
+
+            <article class="agnes-core" data-scale="10">
+              <span class="node-kind">ศูนย์ควบคุม / ORCHESTRATOR</span>
+              <div class="core-symbol"><svg><use href="#i-system"></use></svg></div>
+              <h2>AGNES CORE</h2>
+              <p>ควบคุมแผนงาน นโยบาย ความสามารถ และการส่งต่อ Agent</p>
+              <span class="runtime-chip" id="agnes-runtime-state">CHECKING</span>
+            </article>
+
+            <div class="orbit orbit-a" aria-hidden="true"></div>
+            <div class="orbit orbit-b" aria-hidden="true"></div>
+            <div class="orbit orbit-c" aria-hidden="true"></div>
+
+            <article class="universe-node node-research" data-scale="6" data-agent-index="0">
+              <svg><use href="#i-agent"></use></svg>
+              <span>เอเจนต์ 01</span>
+              <strong>RESEARCH</strong>
+              <small>สถานะจาก Runtime</small>
+            </article>
+            <article class="universe-node node-analysis" data-scale="6" data-agent-index="1">
+              <svg><use href="#i-agent"></use></svg>
+              <span>เอเจนต์ 02</span>
+              <strong>ANALYSIS</strong>
+              <small>สถานะจาก Runtime</small>
+            </article>
+            <article class="universe-node node-builder" data-scale="6" data-agent-index="2">
+              <svg><use href="#i-agent"></use></svg>
+              <span>เอเจนต์ 03</span>
+              <strong>BUILDER</strong>
+              <small>สถานะจาก Runtime</small>
+            </article>
+            <article class="universe-node node-model" data-scale="5">
+              <svg><use href="#i-model"></use></svg>
+              <span>ชั้นโมเดล</span>
+              <strong>MODEL</strong>
+              <small id="model-summary">CHECKING</small>
+            </article>
+            <article class="universe-node node-tool" data-scale="4">
+              <svg><use href="#i-tool"></use></svg>
+              <span>เครื่องมือ</span>
+              <strong>TOOL FABRIC</strong>
+              <small>ผ่าน Gateway เท่านั้น</small>
+            </article>
+            <article class="universe-node node-verify" data-scale="2">
+              <svg><use href="#i-verify"></use></svg>
+              <span>การตรวจสอบ</span>
+              <strong>VERIFY</strong>
+              <small>Policy / Integrity</small>
+            </article>
+            <article class="universe-node node-evidence" data-scale="1">
+              <svg><use href="#i-evidence"></use></svg>
+              <span>หลักฐาน</span>
+              <strong>EVIDENCE</strong>
+              <small id="evidence-count">0 RECORDS</small>
+            </article>
+
+            <svg class="flow-lines" viewBox="0 0 1000 650" preserveAspectRatio="none" aria-hidden="true">
+              <path class="flow-line active-line" d="M500 320 C360 270 250 210 160 125" />
+              <path class="flow-line active-line" d="M500 320 C500 220 500 150 500 90" />
+              <path class="flow-line" d="M500 320 C640 270 750 210 840 125" />
+              <path class="flow-line model-line" d="M500 320 C650 330 760 350 875 385" />
+              <path class="flow-line tool-line" d="M500 320 C350 340 250 385 130 440" />
+              <path class="flow-line verify-line" d="M500 320 C500 430 500 500 500 555" />
+              <path class="flow-line evidence-line" d="M500 555 C645 555 745 560 860 565" />
+            </svg>
+          </section>
+
+          <section class="workspace-footer-grid">
+            <article class="info-panel">
+              <header><span>ผู้ให้บริการโมเดล</span><small>MODEL PROVIDERS</small></header>
+              <div id="provider-list" class="provider-list"></div>
+            </article>
+            <article class="info-panel">
+              <header><span>การวัดผลที่เก็บจริง</span><small>MEASURED TELEMETRY</small></header>
+              <div id="telemetry-grid" class="telemetry-grid"></div>
+            </article>
+            <article class="info-panel warning-panel">
+              <header><span>ขอบเขตควบคุม</span><small>CONTROL CAPABILITIES</small></header>
+              <p id="control-capability-copy">กำลังตรวจสอบความสามารถ Runtime...</p>
+            </article>
+          </section>
+        </section>
+
+        <section class="view" id="view-chat" data-view-panel="chat">
+          <header class="view-title compact">
+            <div>
+              <span class="eyebrow">ช่องทางสนทนา / CHAT</span>
+              <h1>สั่งงานผ่าน Creator Runtime จริง</h1>
+              <p>คำสั่งนี้ใช้ API /api/runs ของระบบเดิม ไม่จำลองผลลัพธ์ใน Browser</p>
+            </div>
+          </header>
+          <div class="chat-layout">
+            <aside class="chat-agent-panel">
+              <span class="label">เลือกผู้เชี่ยวชาญ / AGENT</span>
+              <div id="chat-agent-list" class="chat-agent-list"></div>
+            </aside>
+            <section class="chat-thread" id="chat-thread" aria-live="polite">
+              <div class="chat-empty">
+                <svg><use href="#i-chat"></use></svg>
+                <strong>ยังไม่มีข้อความในหน้าต่างนี้</strong>
+                <span>เลือก Agent แล้วส่งคำสั่ง ระบบจะแสดงผลจาก Runtime จริง</span>
+              </div>
+            </section>
+          </div>
+          <form class="command-dock" id="chat-form">
+            <textarea id="chat-prompt" rows="2" maxlength="8000" placeholder="สั่งงาน AGNES / Agent ที่เลือก..."></textarea>
+            <button id="chat-send" type="submit">ส่งคำสั่ง</button>
+          </form>
+        </section>
+
+        <section class="view" id="view-office" data-view-panel="office">
+          <header class="view-title compact">
+            <div>
+              <span class="eyebrow">สำนักงานดิจิทัลทวิน / AI OFFICE 2.5D</span>
+              <h1>พื้นที่ทำงานที่ขับด้วย Event</h1>
+              <p>แสงและสถานะเปลี่ยนจาก Ledger/Event Stream เท่านั้น ไม่เดินหรือกระพริบแบบสุ่ม</p>
+            </div>
+          </header>
+          <section class="office-stage" id="office-stage">
+            <div class="office-floor"></div>
+            <article class="office-room research-room" data-office="research">
+              <span>ห้องวิจัย</span><small>RESEARCH LAB</small>
+              <div class="workstation"><i></i><i></i><i></i></div>
+            </article>
+            <article class="office-room analysis-room" data-office="analysis">
+              <span>ห้องวิเคราะห์</span><small>ANALYSIS LAB</small>
+              <div class="workstation"><i></i><i></i><i></i></div>
+            </article>
+            <article class="office-room core-room" data-office="core">
+              <span>ศูนย์ AGNES</span><small>AGNES CORE</small>
+              <div class="core-pylon"><svg><use href="#i-system"></use></svg></div>
+            </article>
+            <article class="office-room tool-room" data-office="tool">
+              <span>ประตูเครื่องมือ</span><small>TOOL GATEWAY</small>
+              <div class="gateway-bars"><i></i><i></i><i></i><i></i></div>
+            </article>
+            <article class="office-room builder-room" data-office="builder">
+              <span>สตูดิโอสร้างผลลัพธ์</span><small>BUILDER STUDIO</small>
+              <div class="workstation"><i></i><i></i><i></i></div>
+            </article>
+            <article class="office-room verify-room" data-office="verify">
+              <span>ห้องตรวจสอบ</span><small>VERIFICATION LAB</small>
+              <div class="verify-emblem"><svg><use href="#i-verify"></use></svg></div>
+            </article>
+            <article class="office-room evidence-room" data-office="evidence">
+              <span>คลังหลักฐาน</span><small>EVIDENCE VAULT</small>
+              <div class="evidence-columns"><i></i><i></i><i></i><i></i><i></i></div>
+            </article>
+            <div class="data-conduit conduit-a"></div>
+            <div class="data-conduit conduit-b"></div>
+            <div class="data-conduit conduit-c"></div>
+          </section>
+          <div class="office-event-copy" id="office-event-copy">รอ Event จริงจาก Ledger...</div>
+        </section>
+
+        <section class="view" id="view-graph" data-view-panel="graph">
+          <header class="view-title compact">
+            <div>
+              <span class="eyebrow">กราฟความสามารถ Runtime / TASK GRAPH</span>
+              <h1>เส้นทางการควบคุมและหลักฐาน</h1>
+              <p>หากยังไม่มี Task Graph authority ระบบจะแสดง Capability Projection พร้อมป้ายกำกับชัดเจน</p>
+            </div>
+          </header>
+          <section class="graph-stage">
+            <div class="graph-banner" id="graph-kind">CHECKING GRAPH KIND</div>
+            <div class="graph-chain" id="graph-chain"></div>
+          </section>
+        </section>
+
+        <section class="view" id="view-console" data-view-panel="console">
+          <header class="view-title compact">
+            <div>
+              <span class="eyebrow">เหตุการณ์ที่ตรวจสอบย้อนกลับได้ / LIVE CONSOLE</span>
+              <h1>Event Stream จาก Append-only Ledger</h1>
+              <p>Console นี้ไม่แสดง private chain-of-thought และไม่สร้าง log จำลอง</p>
+            </div>
+            <div class="console-state" id="stream-state">DISCONNECTED</div>
+          </header>
+          <div class="console-toolbar">
+            <button class="console-filter active" data-filter="ALL" type="button">ทั้งหมด</button>
+            <button class="console-filter" data-filter="execution" type="button">Execution</button>
+            <button class="console-filter" data-filter="approval" type="button">Approval</button>
+            <button class="console-filter" data-filter="evidence" type="button">Evidence</button>
+            <span id="event-cursor">SEQ 0</span>
+          </div>
+          <pre class="console-output" id="console-output">กำลังเชื่อมต่อ Event Stream...</pre>
+        </section>
+
+        <section class="view" id="view-evidence" data-view-panel="evidence">
+          <header class="view-title compact">
+            <div>
+              <span class="eyebrow">หลักฐานเป็นวัตถุระดับแรก / EVIDENCE LEDGER</span>
+              <h1>Hash-chained Append-only Evidence</h1>
+              <p>
+                ระบบเรียก Ledger ว่า Hash-chained เท่านั้น และไม่อ้าง Immutable Storage
+                จนกว่าจะมี storage/signature mechanism ที่พิสูจน์ได้
+              </p>
+            </div>
+          </header>
+          <section class="evidence-layout">
+            <div class="evidence-chain" id="evidence-chain"></div>
+            <aside class="evidence-inspector" id="evidence-inspector">
+              <span class="label">รายละเอียดหลักฐาน / RECORD INSPECTOR</span>
+              <p>เลือก Record เพื่อดู hash, previous hash, timestamp และ payload</p>
+            </aside>
+          </section>
+        </section>
+      </main>
+
+      <aside class="scale-rail" aria-label="Cognitive Scale Navigator">
+        <header>
+          <span>ตัวนำทางระดับ</span>
+          <small>COGNITIVE SCALE</small>
+        </header>
+        <div class="scale-list" id="scale-list">
+          <button data-scale="12"><b>12</b><span>ระบบ<small>SYSTEM</small></span></button>
+          <button data-scale="11"><b>11</b><span>เวิร์กสเปซ<small>WORKSPACE</small></span></button>
+          <button data-scale="10"><b>10</b><span>ภารกิจ<small>MISSION</small></span></button>
+          <button data-scale="9"><b>09</b><span>งาน<small>TASK</small></span></button>
+          <button data-scale="8"><b>08</b><span>เวิร์กโฟลว์<small>WORKFLOW</small></span></button>
+          <button data-scale="7"><b>07</b><span>สภาเอเจนต์<small>COUNCIL</small></span></button>
+          <button data-scale="6"><b>06</b><span>เอเจนต์<small>AGENT</small></span></button>
+          <button data-scale="5"><b>05</b><span>โมเดล<small>MODEL</small></span></button>
+          <button data-scale="4"><b>04</b><span>เครื่องมือ<small>TOOL</small></span></button>
+          <button data-scale="3"><b>03</b><span>โหนด<small>NODE</small></span></button>
+          <button data-scale="2"><b>02</b><span>การตรวจสอบ<small>VERIFY</small></span></button>
+          <button data-scale="1"><b>01</b><span>หลักฐาน<small>EVIDENCE</small></span></button>
+        </div>
+        <section class="scale-inspector" id="scale-inspector">
+          <span class="label">ระดับที่เลือก / SELECTED SCALE</span>
+          <strong>12 / SYSTEM</strong>
+          <p>ภาพรวมระบบและความพร้อมที่ Backend รายงาน</p>
+        </section>
+      </aside>
+    </div>
+
+    <footer class="bottom-strip">
+      <div class="live-summary">
+        <span><b id="metric-memory">—</b><small>MAX RSS</small></span>
+        <span><b id="metric-providers">0</b><small>PROVIDERS</small></span>
+        <span><b id="metric-agents">0</b><small>AGENTS</small></span>
+        <span><b id="metric-events">0</b><small>EVENTS</small></span>
+      </div>
+      <div class="truth-rule">
+        <svg><use href="#i-lock"></use></svg>
+        <span>Frontend เป็น Projection เท่านั้น — Runtime และ Evidence เป็น Authority</span>
+      </div>
+    </footer>
+
+    <dialog class="command-palette" id="command-palette">
+      <form method="dialog" class="palette-shell">
+        <header>
+          <span>ค้นหาและนำทาง</span>
+          <small>COMMAND PALETTE</small>
+        </header>
+        <input id="command-input" autocomplete="off" placeholder="พิมพ์: งาน, Agent, Tool, Evidence..." />
+        <div id="command-results" class="command-results"></div>
+        <button class="palette-close" value="cancel">ปิด</button>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="/static/control-universe.js" defer></script>
+  </body>
+</html>
