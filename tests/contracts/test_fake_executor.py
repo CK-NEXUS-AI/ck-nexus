@@ -2,9 +2,10 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
+from runtime.executor.fake import FakeExecutor
+
 from contracts.execution.sandbox import ExecutionSpec, ResourceLimits
 from contracts.governance.capability_lease import Budget, CapabilityLease
-from runtime.executor.fake import FakeExecutor
 
 
 DIGEST = "sha256:" + "b" * 64
