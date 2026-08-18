@@ -20,7 +20,7 @@ class EvidenceEvent(BaseModel):
         "budget_denied", "error"
     ]
     content_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    redacted_metadata: dict[str, str] = {}
+    redacted_metadata: dict[str, str] = Field(default_factory=dict)
     occurred_at: datetime
 
 
