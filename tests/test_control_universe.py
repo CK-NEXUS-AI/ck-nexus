@@ -21,6 +21,14 @@ def auth_headers():
     return {"Authorization": "Bearer test-token"}
 
 
+def test_control_universe_page_is_available_without_runtime_data(tmp_path):
+    with build_client(tmp_path) as client:
+        response = client.get("/control-universe")
+        assert response.status_code == 200
+        assert "CK-NEXUS" in response.text
+        assert "Cognitive Control Universe" in response.text
+
+
 def test_control_universe_requires_access_for_runtime_data(tmp_path):
     with build_client(tmp_path) as client:
         response = client.get("/api/control-universe/overview")
@@ -64,6 +72,40 @@ def test_control_universe_projects_real_ledger_records(tmp_path):
         assert event["run_id"] == "RUN-1"
         assert event["governance"]["decision"] == "ALLOW"
         assert event["evidence_ref"] == record["hash"]
+
+
+def test_control_universe_redacts_sensitive_ledger_fields(tmp_path):
+    with build_client(tmp_path) as client:
+        app = client.app
+        app.state.agnes.ledger.append(
+            "connector_result",
+            {
+                "task_id": "TASK-SECRET",
+                "authorization": "Bearer must-not-leak",
+                "nested": {
+                    "api_key": "sk-must-not-leak",
+                    "safe_value": "visible",
+                },
+            },
+        )
+
+        event_response = client.get(
+            "/api/control-universe/events?after_seq=0",
+            headers=auth_headers(),
+        )
+        event_payload = event_response.json()["events"][0]["payload"]
+        assert event_payload["authorization"] == "[REDACTED]"
+        assert event_payload["nested"]["api_key"] == "[REDACTED]"
+        assert event_payload["nested"]["safe_value"] == "visible"
+
+        evidence_response = client.get(
+            "/api/control-universe/evidence?after_seq=0",
+            headers=auth_headers(),
+        )
+        evidence_payload = evidence_response.json()["records"][0]["payload"]
+        assert evidence_payload["authorization"] == "[REDACTED]"
+        assert evidence_payload["nested"]["api_key"] == "[REDACTED]"
+        assert "must-not-leak" not in evidence_response.text
 
 
 def test_control_universe_mutations_fail_closed_without_adapter(tmp_path):
