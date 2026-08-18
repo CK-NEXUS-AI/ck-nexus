@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -62,9 +61,15 @@ class CapabilityLease(BaseModel):
             return False
         return now >= self.issued_at
 
-    def within_budget(self, *, calls: int = 0, mutations: int = 0,
-                      cost_usd: Decimal = Decimal("0"), cpu_ms: int = 0,
-                      memory_mb: int = 0) -> bool:
+    def within_budget(
+        self,
+        *,
+        calls: int = 0,
+        mutations: int = 0,
+        cost_usd: Decimal = Decimal("0"),
+        cpu_ms: int = 0,
+        memory_mb: int = 0,
+    ) -> bool:
         c = self.consumption
         b = self.budgets
         return (
