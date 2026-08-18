@@ -34,7 +34,8 @@ jobs:
       - name: Bandit exact reviewed gate
         shell: bash
         run: |
-          .venv/bin/bandit -r creator_app services main.py -f json -o bandit.json || true
+          .venv/bin/bandit -r creator_app services main.py scripts/agnes_module_bootstrap.py \
+            -f json -o bandit.json || true
           .venv/bin/python - <<'PY'
           import hashlib,json,sys
           r=json.load(open('bandit.json',encoding='utf-8'))
@@ -55,6 +56,12 @@ jobs:
       - name: Portable regression
         run: .venv/bin/pytest -q --ignore=tests/test_agnes_execution_kernel_phase2.py --ignore=tests/test_agnes_execution_kernel_phase3.py
       - name: Exact-tree external evidence
+        if: >-
+          github.event_name == 'push' ||
+          (github.event_name == 'pull_request' &&
+            (github.base_ref == 'main' || startsWith(github.base_ref, 'release/'))) ||
+          (github.event_name == 'workflow_dispatch' &&
+            (github.ref_name == 'main' || startsWith(github.ref_name, 'release/')))
         shell: bash
         run: |
           m=$(git ls-tree -r HEAD -- creator_app services tests scripts main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
@@ -68,3 +75,14 @@ jobs:
           assert q8['result']=='PASS' and q8['redis_live']=='PASS' and q8['postgresql_live']=='PASS'
           print('Q05/Q08 evidence PASS')
           PY
+      - name: Exact-tree external evidence (post-P0 not applicable)
+        if: >-
+          (github.event_name == 'pull_request' &&
+            github.base_ref != 'main' &&
+            !startsWith(github.base_ref, 'release/')) ||
+          (github.event_name == 'workflow_dispatch' &&
+            github.ref_name != 'main' &&
+            !startsWith(github.ref_name, 'release/'))
+        run: |
+          echo "NOT_APPLICABLE: post-P0/spec/prototype changes do not inherit Q05/Q08 exact-tree evidence."
+          echo "Production/release evidence remains fail-closed on main and release/* lineages."
