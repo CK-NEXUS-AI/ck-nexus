@@ -1389,4 +1389,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def api_providers_validate_all():
         return validate_all_providers()
 
+
+    # ── Assistant Registry Routes ──
+    from creator_app.assistant_registry import list_assistants, scan_assistants, get_assistant_by_category, get_categories
+
+    @app.get("/assistants")
+    async def assistants_page() -> FileResponse:
+        return FileResponse(WEB_DIR / "assistants.html")
+
+    @app.get("/api/assistants")
+    async def api_assistants(category: str | None = None):
+        return list_assistants(category)
+
+    @app.get("/api/assistants/scan")
+    async def api_assistants_scan():
+        return scan_assistants()
+
+    @app.get("/api/assistants/categories")
+    async def api_assistant_categories():
+        return get_categories()
+
+    @app.get("/api/assistants/{category}")
+    async def api_assistants_by_category(category: str):
+        return get_assistant_by_category(category)
+
     return app
