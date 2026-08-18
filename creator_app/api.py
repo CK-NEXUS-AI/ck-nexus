@@ -1363,4 +1363,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def index() -> FileResponse:
         return FileResponse(WEB_DIR / "index.html")
 
+
+    # ── Provider Hub Routes ──
+    from creator_app.provider_hub import (
+        get_providers_list, scan_all, validate_provider, validate_all as validate_all_providers,
+    )
+
+    @app.get("/signup", include_in_schema=False)
+    async def signup_page() -> FileResponse:
+        return FileResponse(WEB_DIR / "signup.html")
+
+    @app.get("/api/providers/list")
+    async def api_providers_list():
+        return get_providers_list()
+
+    @app.get("/api/providers/scan")
+    async def api_providers_scan():
+        return scan_all()
+
+    @app.get("/api/providers/{slug}/validate")
+    async def api_provider_validate(slug: str):
+        return validate_provider(slug)
+
+    @app.get("/api/providers/validate-all")
+    async def api_providers_validate_all():
+        return validate_all_providers()
+
     return app
