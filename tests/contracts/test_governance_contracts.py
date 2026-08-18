@@ -2,8 +2,8 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
 from pydantic import ValidationError
+import pytest
 
 from contracts.execution.sandbox import ExecutionSpec, ResourceLimits
 from contracts.evidence.evidence_event import EvidenceEvent
