@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import uuid4
 
@@ -21,16 +21,20 @@ def lease(**kwargs):
         capability="sandbox.execute.python", resource="oci:" + DIGEST,
         budgets=Budget(max_calls=2, max_mutations=0, max_cost_usd=Decimal("0.10"),
                        max_cpu_ms=1000, max_memory_mb=256, max_wall_ms=5000),
-        issued_at=NOW, expires_at=kwargs.pop("expires_at", None),
-        **kwargs,
+        issued_at=NOW, expires_at=kwargs.pop("expires_at", None), **kwargs,
     )
 
 
 def test_expired_lease_is_inactive():
-    from datetime import timedelta
     l = lease(expires_at=NOW + timedelta(seconds=1))
     assert l.active(NOW) is True
-    assert l.active(NOW.replace(second=(NOW.second + 2) % 60)) is False or True
+    assert l.active(NOW + timedelta(seconds=1)) is False
+
+
+def test_revoked_lease_is_inactive():
+    l = lease(revoked_at=NOW + timedelta(seconds=1))
+    assert l.active(NOW) is True
+    assert l.active(NOW + timedelta(seconds=1)) is False
 
 
 def test_budget_ceiling_is_enforced():
