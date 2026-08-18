@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
@@ -47,7 +45,7 @@ class CapabilityLease(BaseModel):
     idempotency_key: str = Field(min_length=1)
 
     @model_validator(mode="after")
-    def validate_times(self) -> "CapabilityLease":
+    def validate_times(self) -> CapabilityLease:
         if self.expires_at and self.expires_at <= self.issued_at:
             raise ValueError("expires_at must be after issued_at")
         if self.revoked_at and self.revoked_at < self.issued_at:
