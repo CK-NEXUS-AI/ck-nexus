@@ -49,6 +49,18 @@ def _source_identity() -> dict[str, str]:
     }
 
 
+def _production_status(gate: object) -> dict[str, str]:
+    reason = str(gate or "Production gate status is unavailable.")
+    upper = reason.upper()
+    if "NO-GO" in upper or "BLOCKED" in upper:
+        current = "NO-GO"
+    elif "PRODUCTION_READY" in upper or "PRODUCTION READY" in upper:
+        current = "READY_CLAIM_REQUIRES_EVIDENCE"
+    else:
+        current = "UNKNOWN"
+    return {"status": current, "reason": reason}
+
+
 def _provider_projection(app: FastAPI) -> list[dict[str, Any]]:
     providers: list[dict[str, Any]] = []
     for item in app.state.provider_router.statuses():
@@ -70,9 +82,9 @@ def _agent_projection() -> list[dict[str, Any]]:
     for item in list_agent_cards():
         agents.append(
             {
-                "id": item["id"],
-                "name": item["name"],
-                "description": item["description"],
+                "id": item.id,
+                "name": item.name,
+                "description": item.description,
                 "runtime_state": "UNKNOWN",
                 "progress": {"mode": "indeterminate"},
             }
@@ -171,19 +183,20 @@ def install_control_universe(app: FastAPI) -> None:
                 "environment": settings.environment,
             },
             "source_identity": _source_identity(),
-            "production": {
-                "status": "NO-GO",
-                "reason": str(agnes.get("production_gate") or "Production gate not satisfied."),
-            },
+            "production": _production_status(agnes.get("production_gate")),
             "runtime": {
                 "database": "READY" if database_ready else "UNAVAILABLE",
                 "postgres_binding": (
-                    "READY" if binding.get("postgres") else "UNAVAILABLE"
+                    "READY"
+                    if binding.get("postgres")
+                    else "UNAVAILABLE"
                     if app.state.runtime_binding_required
                     else "NOT_REQUIRED"
                 ),
                 "redis_binding": (
-                    "READY" if binding.get("redis") else "UNAVAILABLE"
+                    "READY"
+                    if binding.get("redis")
+                    else "UNAVAILABLE"
                     if app.state.runtime_binding_required
                     else "NOT_REQUIRED"
                 ),
@@ -312,12 +325,12 @@ def install_control_universe(app: FastAPI) -> None:
         dependencies=[Depends(require_access)],
     )
     async def control_universe_agent_inspect(agent_id: str) -> dict[str, Any]:
-        cards = {item["id"]: item for item in list_agent_cards()}
+        cards = {item.id: item for item in list_agent_cards()}
         card = cards.get(agent_id)
         if card is None:
             raise HTTPException(status_code=404, detail={"error": "AGENT_NOT_FOUND"})
         return {
-            "agent": card,
+            "agent": card.model_dump(),
             "runtime_state": "UNKNOWN",
             "current_node": None,
             "current_tool": None,
