@@ -12,8 +12,6 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from creator_app.agnes.fabric import AGNESCapabilityFabric
-
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -22,6 +20,8 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    from creator_app.agnes.fabric import AGNESCapabilityFabric
+
     args = _parser().parse_args()
     plan = AGNESCapabilityFabric().external_dependency_plan()
     if args.json:

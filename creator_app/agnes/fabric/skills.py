@@ -81,9 +81,10 @@ def _validate_receipt(
         raise ValueError("transition receipt requires a sha256 evidence digest")
     if not receipt.actor_id.strip():
         raise ValueError("transition receipt requires an actor_id")
-    if target in {ModuleStage.APPROVED, ModuleStage.APPROVED_READWRITE}:
-        if not _is_sha256(receipt.policy_digest):
-            raise ValueError("approval transition requires a sha256 policy digest")
+    if target in {ModuleStage.APPROVED, ModuleStage.APPROVED_READWRITE} and not _is_sha256(
+        receipt.policy_digest
+    ):
+        raise ValueError("approval transition requires a sha256 policy digest")
     if target is ModuleStage.APPROVED_READWRITE:
         if not manifest.write_capable:
             raise ValueError("read/write approval requires a write-capable manifest")
