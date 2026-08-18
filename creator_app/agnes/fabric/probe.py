@@ -1,24 +1,17 @@
 """Non-mutating dependency and host-capability probes."""
 
-import importlib.util
 import shutil
+from importlib import metadata
 
 from .models import CapabilityModule, DependencyStatus, ModuleProbe
 
-_IMPORT_NAMES = {
-    "nats-py": "nats",
-    "qdrant-client": "qdrant_client",
-    "opentelemetry-api": "opentelemetry",
-    "opentelemetry-sdk": "opentelemetry.sdk",
-}
-
 
 def _package_available(distribution_name: str) -> bool:
-    import_name = _IMPORT_NAMES.get(distribution_name, distribution_name.replace("-", "_"))
     try:
-        return importlib.util.find_spec(import_name) is not None
-    except (ImportError, ModuleNotFoundError, ValueError):
+        metadata.distribution(distribution_name)
+    except (metadata.PackageNotFoundError, ValueError):
         return False
+    return True
 
 
 def probe_module(module: CapabilityModule) -> ModuleProbe:

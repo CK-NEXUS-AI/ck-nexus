@@ -34,7 +34,7 @@ jobs:
       - name: Bandit exact reviewed gate
         shell: bash
         run: |
-          .venv/bin/bandit -r creator_app services main.py -f json -o bandit.json || true
+          .venv/bin/bandit -r creator_app services scripts main.py -f json -o bandit.json || true
           .venv/bin/python - <<'PY'
           import hashlib,json,sys
           r=json.load(open('bandit.json',encoding='utf-8'))
@@ -76,9 +76,12 @@ jobs:
           PY
       - name: Exact-tree external evidence (post-P0 not applicable)
         if: >-
-          github.event_name == 'pull_request' &&
-          github.base_ref != 'main' &&
-          !startsWith(github.base_ref, 'release/')
+          (github.event_name == 'pull_request' &&
+            github.base_ref != 'main' &&
+            !startsWith(github.base_ref, 'release/')) ||
+          (github.event_name == 'workflow_dispatch' &&
+            github.ref_name != 'main' &&
+            !startsWith(github.ref_name, 'release/'))
         run: |
           echo "NOT_APPLICABLE: post-P0/spec/prototype changes do not inherit Q05/Q08 exact-tree evidence."
           echo "Production/release evidence remains fail-closed on main and release/* lineages."

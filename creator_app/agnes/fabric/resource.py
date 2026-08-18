@@ -12,8 +12,12 @@ def _meminfo() -> tuple[int | None, int | None]:
     path = Path("/proc/meminfo")
     if not path.exists():
         return None, None
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None, None
     values: dict[str, int] = {}
-    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+    for line in lines:
         key, _, raw = line.partition(":")
         if not raw:
             continue
@@ -27,7 +31,11 @@ def _psi(resource: str) -> float | None:
     path = Path("/proc/pressure") / resource
     if not path.exists():
         return None
-    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None
+    for line in lines:
         if not line.startswith("some "):
             continue
         fields = dict(item.split("=", 1) for item in line.split()[1:] if "=" in item)
@@ -51,12 +59,15 @@ def _thermal() -> float | None:
 
 
 def _zram_present() -> bool:
-    return any(Path("/sys/block").glob("zram*"))
+    try:
+        return any(Path("/sys/block").glob("zram*"))
+    except OSError:
+        return False
 
 
-def _writable_cgroup_v2() -> bool:
+def _cgroup_v2_present() -> bool:
     root = Path("/sys/fs/cgroup")
-    return (root / "cgroup.controllers").exists() and os.access(root, os.W_OK)
+    return (root / "cgroup.controllers").exists()
 
 
 def snapshot() -> ResourceSnapshot:
@@ -74,5 +85,8 @@ def snapshot() -> ResourceSnapshot:
         io_psi_avg10=_psi("io"),
         thermal_celsius=_thermal(),
         zram_present=_zram_present(),
-        writable_cgroup_v2=_writable_cgroup_v2(),
+        # A read-only probe cannot prove delegated controller enforcement.
+        # Q12 must create a bounded child cgroup and verify actual limits/readback.
+        writable_cgroup_v2=False,
+        cgroup_v2_present=_cgroup_v2_present(),
     )

@@ -24,6 +24,10 @@ and bounded self-improvement.
 CK-NEXUS source tree and importable by AGNES. External engines are intentionally
 optional and are only **probed**, never auto-installed or auto-enabled.
 
+`scripts/agnes_module_bootstrap.py` is plan-only. It has no package-install or
+host-mutation mode. A future installer must be a separate governed workflow with
+pinned versions, hashes, isolation, SBOM/license checks and explicit approval.
+
 Examples of optional engines include Docling, DuckDB/Arrow, Qdrant/pgvector,
 Neo4j, Temporal, NATS/Redis, OPA, Wasmtime, Docker, gVisor, Firecracker, FFmpeg,
 VMAF, ONNX Runtime/ExecuTorch, OpenTelemetry SDK, Syft/Grype and Cosign.
@@ -41,16 +45,19 @@ This distinction is a security boundary:
 ## Safe defaults
 
 The capability catalogue is read-first. Critical bounded self-improvement is
-`DISABLED` by default. Skill lifecycle cannot skip inspection, scanning and
-evaluation. Resource telemetry reads host capability without assuming permission
-to modify cgroup, zram, thermal or Android policies.
+`DISABLED` by default. Privilege-increasing skill transitions require ordered,
+digest-bound evidence receipts; cryptographic signature and policy verification
+remain external runtime responsibilities. Missing resource telemetry selects the
+lowest-concurrency profile instead of assuming a healthy host. Read-only cgroup
+detection records presence only and never claims delegated enforcement.
 
 ## Host rollout
 
 A future operator workflow may consume `AGNESCapabilityFabric.external_dependency_plan()`
-and install the selected optional engines for a specific Termux/VPS/container
-profile after policy review. That rollout must record exact versions, package
-hashes, SBOM, license evidence, host identity and test evidence.
+and propose selected optional engines for a specific Termux/VPS/container
+profile. Installation must occur outside this fabric after policy review and must
+record exact versions, package hashes, SBOM, license evidence, host identity and
+test evidence.
 
 Do not use this Post-P0 branch as Q10/Q11/Q12 evidence and do not merge it into
 the frozen production-closure line while that closure remains active.

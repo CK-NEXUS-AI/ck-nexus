@@ -105,6 +105,7 @@ class ResourceSnapshot:
     thermal_celsius: float | None
     zram_present: bool
     writable_cgroup_v2: bool
+    cgroup_v2_present: bool = False
 
 
 @dataclass(frozen=True)

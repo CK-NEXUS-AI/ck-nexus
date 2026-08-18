@@ -15,15 +15,25 @@ def select_runtime_decision(
     if sovereign:
         return RuntimeDecision("SOVEREIGN", "COOL", 1, ("SOVEREIGN_POLICY",))
 
-    pressure = resource.memory_psi_avg10 or 0.0
+    missing = []
+    if resource.memory_psi_avg10 is None:
+        missing.append("MISSING_MEMORY_PSI")
+    if resource.available_ram_bytes is None:
+        missing.append("MISSING_AVAILABLE_RAM")
+    if resource.thermal_celsius is None:
+        missing.append("MISSING_THERMAL")
+    if missing:
+        return RuntimeDecision("ECO", "COLD", 1, tuple(missing))
+
+    pressure = resource.memory_psi_avg10
     thermal = resource.thermal_celsius
     available = resource.available_ram_bytes
 
     if pressure >= 20.0:
         reasons.append("HIGH_MEMORY_PSI")
-    if thermal is not None and thermal >= 70.0:
+    if thermal >= 70.0:
         reasons.append("HIGH_THERMAL")
-    if available is not None and available < 1_500_000_000:
+    if available < 1_500_000_000:
         reasons.append("LOW_AVAILABLE_RAM")
 
     if reasons:
@@ -34,6 +44,6 @@ def select_runtime_decision(
         tier = "WARM" if requested_quality in {"QUALITY", "STUDIO"} else "HOT"
         return RuntimeDecision(requested_quality, tier, concurrency, ("EXPLICIT_REQUEST",))
 
-    if available is not None and available >= 8_000_000_000 and pressure < 1.0:
+    if available >= 8_000_000_000 and pressure < 1.0:
         return RuntimeDecision("QUALITY", "WARM", 3, ("RESOURCE_HEADROOM",))
     return RuntimeDecision("BALANCED", "HOT", 2, ("DEFAULT_AUTO",))

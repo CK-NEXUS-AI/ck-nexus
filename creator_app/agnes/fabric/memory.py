@@ -6,12 +6,12 @@ TIERS = ("HOT", "WARM", "COOL", "COLD")
 
 
 def choose_memory_tier(resource: ResourceSnapshot, item_size_bytes: int) -> str:
-    available = resource.available_ram_bytes
-    if available is None:
-        return "COOL"
     if item_size_bytes <= 0:
-        return "HOT"
-    pressure = resource.memory_psi_avg10 or 0.0
+        raise ValueError("item_size_bytes must be positive")
+    available = resource.available_ram_bytes
+    pressure = resource.memory_psi_avg10
+    if available is None or pressure is None:
+        return "COLD"
     ratio = item_size_bytes / max(available, 1)
     if pressure >= 20.0 or ratio >= 0.50:
         return "COLD"
