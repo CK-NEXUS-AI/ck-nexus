@@ -16,6 +16,16 @@ from creator_app.catalog import list_agent_cards
 from creator_app.runtime_binding import runtime_binding_status
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
+SENSITIVE_MARKERS = (
+    "authorization",
+    "cookie",
+    "credential",
+    "password",
+    "secret",
+    "token",
+    "api_key",
+    "apikey",
+)
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -34,6 +44,23 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     except (OSError, json.JSONDecodeError):
         return []
     return records
+
+
+def _redact(value: Any) -> Any:
+    if isinstance(value, dict):
+        redacted: dict[str, Any] = {}
+        for key, item in value.items():
+            normalized = str(key).lower()
+            if any(marker in normalized for marker in SENSITIVE_MARKERS):
+                redacted[str(key)] = "[REDACTED]"
+            else:
+                redacted[str(key)] = _redact(item)
+        return redacted
+    if isinstance(value, list):
+        return [_redact(item) for item in value]
+    if isinstance(value, tuple):
+        return [_redact(item) for item in value]
+    return value
 
 
 def _source_identity() -> dict[str, str]:
@@ -111,7 +138,8 @@ def _process_telemetry() -> dict[str, Any]:
 
 
 def _event_from_ledger(record: dict[str, Any]) -> dict[str, Any]:
-    payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
+    raw_payload = record.get("payload") if isinstance(record.get("payload"), dict) else {}
+    payload = _redact(raw_payload)
     sequence = int(record.get("sequence") or 0)
     task_id = str(payload.get("task_id") or payload.get("taskId") or "GLOBAL")
     run_id = str(
@@ -309,7 +337,7 @@ def install_control_universe(app: FastAPI) -> None:
     ) -> dict[str, Any]:
         verification = app.state.agnes.ledger.verify()
         records = [
-            item
+            _redact(item)
             for item in _read_jsonl(app.state.agnes.ledger.path)
             if int(item.get("sequence") or 0) > after_seq
         ]
