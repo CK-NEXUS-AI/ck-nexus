@@ -3,6 +3,8 @@ name: Verify Control Universe Evidence
 on:
   push:
     branches: [feat/cognitive-control-universe-v1]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
