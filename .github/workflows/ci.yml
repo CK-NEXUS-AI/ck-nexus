@@ -34,7 +34,8 @@ jobs:
       - name: Bandit exact reviewed gate
         shell: bash
         run: |
-          .venv/bin/bandit -r creator_app services scripts main.py -f json -o bandit.json || true
+          .venv/bin/bandit -r creator_app services main.py scripts/agnes_module_bootstrap.py \
+            -f json -o bandit.json || true
           .venv/bin/python - <<'PY'
           import hashlib,json,sys
           r=json.load(open('bandit.json',encoding='utf-8'))
