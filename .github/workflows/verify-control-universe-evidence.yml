@@ -1,0 +1,233 @@
+name: Verify Control Universe Evidence
+
+on:
+  push:
+    branches: [feat/cognitive-control-universe-v1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cknexus
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cknexus"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Frozen environment
+        run: |
+          python -m pip install --upgrade pip uv
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+          .venv/bin/python -c "import aiosqlite,asyncpg,psycopg,redis; print('Q04 PASS')"
+
+      - name: Q05 compile and Ruff
+        run: |
+          .venv/bin/python -m compileall -q main.py creator_app services scripts
+          .venv/bin/ruff check main.py creator_app services tests scripts --output-format=github
+
+      - name: Q05 Bandit reviewed gate
+        shell: bash
+        run: |
+          .venv/bin/bandit -r creator_app services main.py -f json -o bandit.json || true
+          .venv/bin/python - <<'PY'
+          import hashlib, json, sys
+          report = json.load(open('bandit.json', encoding='utf-8'))
+          allowlisted = {
+              ('B608', 'services/email_gateway/repository.py', 221, 'a248369faca360edbca232b1700ef67d87d9eeae8401bb1b379122f3274a4a6a'),
+              ('B608', 'services/email_gateway/repository.py', 230, '2948e929a8c5a30e600e2d06c3cea59da396aa196adfd234183556d877df3de0'),
+          }
+          blocking = []
+          for finding in report.get('results', []):
+              if finding.get('issue_severity') not in {'MEDIUM', 'HIGH'}:
+                  continue
+              fingerprint = (
+                  finding.get('test_id'),
+                  finding.get('filename'),
+                  finding.get('line_number'),
+                  hashlib.sha256(finding.get('code', '').encode()).hexdigest(),
+              )
+              if fingerprint not in allowlisted:
+                  blocking.append(fingerprint)
+          print('blocking=', blocking)
+          sys.exit(bool(blocking))
+          PY
+
+      - name: Q05 secret scan
+        run: .venv/bin/python scripts/secret_scan.py
+
+      - name: Q05 portable regression
+        run: |
+          .venv/bin/pytest -q \
+            --ignore=tests/test_agnes_execution_kernel_phase2.py \
+            --ignore=tests/test_agnes_execution_kernel_phase3.py \
+            --junitxml=q05-junit.xml
+
+      - name: Q06 Q07 application binding
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cknexus
+          REDIS_URL: redis://127.0.0.1:6379/0
+          DB_CONNECT_TIMEOUT: '5'
+          DB_COMMAND_TIMEOUT: '5'
+          DB_POOL_ACQUIRE_TIMEOUT: '5'
+          REDIS_CONNECT_TIMEOUT: '5'
+          REDIS_SOCKET_TIMEOUT: '5'
+          RUNTIME_BINDING_FAIL_FAST: 'true'
+        run: .venv/bin/python creator_app/runtime_binding.py --verify
+
+      - name: Q08 live idempotency regression
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cknexus
+          REDIS_URL: redis://127.0.0.1:6379/0
+        run: |
+          .venv/bin/pytest -q tests/test_r17_distributed_idempotency_runtime.py
+          .venv/bin/python - <<'PY'
+          import asyncio, os, uuid
+          import asyncpg
+          import redis.asyncio as redis_async
+          from creator_app.agnes.execution.phase3.idempotency import PostgresIdempotencyStore, RedisIdempotencyStore
+
+          async def once(a, b, key):
+              results = await asyncio.gather(a.claim(key, 'm'), b.claim(key, 'm'))
+              assert sum(1 for claimed, _ in results if claimed) == 1
+              await a.complete(key, success=True, result={'ok': True})
+              claimed, replay = await b.claim(key, 'm')
+              assert claimed is False and replay is not None and replay.result == {'ok': True}
+
+          async def main():
+              r1 = redis_async.Redis.from_url(os.environ['REDIS_URL'], decode_responses=False)
+              r2 = redis_async.Redis.from_url(os.environ['REDIS_URL'], decode_responses=False)
+              redis_key = 'q08:' + uuid.uuid4().hex
+              try:
+                  await once(RedisIdempotencyStore(r1), RedisIdempotencyStore(r2), redis_key)
+              finally:
+                  await r1.delete(redis_key)
+                  await r1.aclose()
+                  await r2.aclose()
+
+              pool = await asyncpg.create_pool(
+                  os.environ['DATABASE_URL'], min_size=1, max_size=4, timeout=5
+              )
+              pg_key = 'q08:' + uuid.uuid4().hex
+              try:
+                  await pool.execute(
+                      'CREATE TABLE IF NOT EXISTS agnes_idempotency '
+                      '(idem_key TEXT PRIMARY KEY, manifest_hash TEXT NOT NULL, '
+                      'state TEXT NOT NULL, result_json JSONB)'
+                  )
+                  await once(
+                      PostgresIdempotencyStore(pool.execute, pool.fetchrow),
+                      PostgresIdempotencyStore(pool.execute, pool.fetchrow),
+                      pg_key,
+                  )
+                  await pool.execute('DELETE FROM agnes_idempotency WHERE idem_key=$1', pg_key)
+              finally:
+                  await pool.close()
+              print('Q08 live idempotency PASS')
+
+          asyncio.run(main())
+          PY
+
+      - name: Build exact-tree evidence artifact
+        shell: bash
+        run: |
+          mkdir -p verified-evidence
+          manifest=$(git ls-tree -r HEAD -- creator_app services tests scripts main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          tree=$(git rev-parse 'HEAD^{tree}')
+          .venv/bin/python - "$manifest" "$tree" <<'PY'
+          import json, os, sys, xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          manifest, tree = sys.argv[1:3]
+          root = ET.parse('q05-junit.xml').getroot()
+          tests = int(root.attrib.get('tests', '0'))
+          failures = int(root.attrib.get('failures', '0'))
+          errors = int(root.attrib.get('errors', '0'))
+          skipped = int(root.attrib.get('skipped', '0'))
+          failed = failures + errors
+          passed = tests - failed - skipped
+          if failed or passed <= 0:
+              raise SystemExit('Q05 evidence generation refused: regression is not clean')
+
+          sha = os.environ['GITHUB_SHA']
+          run_id = int(os.environ['GITHUB_RUN_ID'])
+          q05 = {
+              'schema_version': 2,
+              'gate': 'Q05',
+              'verification_level': 'GITHUB_VERIFIED_EXACT_TREE',
+              'source_sha': sha,
+              'source_tree': tree,
+              'subject_manifest_sha256': manifest,
+              'github_run_id': run_id,
+              'result': 'PASS',
+              'tests_passed': passed,
+              'tests_failed': failed,
+              'tests_skipped': skipped,
+              'lanes': {
+                  'compile': 'PASS',
+                  'ruff': 'PASS',
+                  'bandit_reviewed_gate': 'PASS',
+                  'secret_scan': 'PASS',
+                  'portable_regression': 'PASS',
+              },
+              'stale_on_subject_change': True,
+          }
+          q08 = {
+              'schema_version': 2,
+              'gate': 'Q08',
+              'source_subject_manifest_sha256': manifest,
+              'verified_source_sha': sha,
+              'github_run_id': run_id,
+              'github_head_sha': sha,
+              'result': 'PASS',
+              'redis_live': 'PASS',
+              'postgresql_live': 'PASS',
+              'properties_verified': [
+                  'concurrent_single_winner',
+                  'replay',
+                  'live_backend_round_trip',
+                  'application_runtime_binding',
+              ],
+              'stale_on_subject_change': True,
+          }
+          Path('verified-evidence/Q05_MULTILANE.json').write_text(
+              json.dumps(q05, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          Path('verified-evidence/Q08_LIVE.json').write_text(
+              json.dumps(q08, indent=2, sort_keys=True) + '\n', encoding='utf-8'
+          )
+          print(json.dumps({'manifest': manifest, 'q05_passed': passed, 'run_id': run_id}))
+          PY
+
+      - name: Upload verified evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: control-universe-evidence-${{ github.sha }}
+          path: verified-evidence/
+          if-no-files-found: error
+          retention-days: 14
