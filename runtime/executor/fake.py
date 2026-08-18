@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from contracts.execution.sandbox import ExecutionResult, ExecutionSpec
 from contracts.governance.capability_lease import CapabilityLease
@@ -17,7 +17,7 @@ class FakeExecutor:
     runner_version = "fake-0.1"
 
     def execute(self, spec: ExecutionSpec, lease: CapabilityLease) -> ExecutionResult:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if not lease.active(now):
             return ExecutionResult(
                 status="policy_denied",
