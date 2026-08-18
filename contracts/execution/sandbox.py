@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -57,8 +55,14 @@ class ExecutionSpec(BaseModel):
 
 
 ExecutionStatus = Literal[
-    "success", "compile_error", "runtime_error", "timeout", "oom",
-    "output_limit", "policy_denied", "infrastructure_error"
+    "success",
+    "compile_error",
+    "runtime_error",
+    "timeout",
+    "oom",
+    "output_limit",
+    "policy_denied",
+    "infrastructure_error",
 ]
 
 
