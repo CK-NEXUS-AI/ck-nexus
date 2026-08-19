@@ -5,12 +5,12 @@ on:
   pull_request:
     paths:
       - '.github/release-tools/closure_master.py'
+      - '.github/release-tools/cknexus_gpt_parallel_contract_sim.py'
       - '.github/workflows/closure-master-preflight-v2.yml'
       - 'evidence/closure/**'
       - 'evidence/q10/**'
       - 'evidence/q11/**'
       - 'evidence/q12/**'
-      - 'scripts/cknexus_gpt_parallel_contract_sim.py'
       - 'docs/PRODUCTION_CLOSURE_MASTER_V2.md'
 
 permissions:
@@ -27,7 +27,7 @@ jobs:
       - name: Compile closure tooling
         run: |
           python -m py_compile .github/release-tools/closure_master.py
-          python -m py_compile scripts/cknexus_gpt_parallel_contract_sim.py
+          python -m py_compile .github/release-tools/cknexus_gpt_parallel_contract_sim.py
       - name: Validate closure manifest remains fail-closed
         run: |
           python - <<'PY'
@@ -44,7 +44,7 @@ jobs:
           PY
       - name: Run 25-case architecture contract simulation
         run: |
-          python scripts/cknexus_gpt_parallel_contract_sim.py > cknexus-gpt-parallel-contract-sim.json
+          python .github/release-tools/cknexus_gpt_parallel_contract_sim.py > cknexus-gpt-parallel-contract-sim.json
       - name: Confirm templates do not claim PASS
         run: |
           python - <<'PY'
