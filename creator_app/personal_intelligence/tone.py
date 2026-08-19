@@ -31,9 +31,12 @@ def estimate_tone(text: str) -> ToneEstimate:
     matched_positive = tuple(term for term in _POSITIVE if term in lowered)
 
     if matched_concern:
-        return ToneEstimate("concerned", min(0.65, 0.45 + 0.05 * len(matched_concern)), matched_concern)
+        confidence = min(0.65, 0.45 + 0.05 * len(matched_concern))
+        return ToneEstimate("concerned", confidence, matched_concern)
     if matched_urgent:
-        return ToneEstimate("urgent", min(0.65, 0.45 + 0.05 * len(matched_urgent)), matched_urgent)
+        confidence = min(0.65, 0.45 + 0.05 * len(matched_urgent))
+        return ToneEstimate("urgent", confidence, matched_urgent)
     if matched_positive:
-        return ToneEstimate("positive", min(0.65, 0.45 + 0.05 * len(matched_positive)), matched_positive)
+        confidence = min(0.65, 0.45 + 0.05 * len(matched_positive))
+        return ToneEstimate("positive", confidence, matched_positive)
     return ToneEstimate("neutral", 0.35, ())
