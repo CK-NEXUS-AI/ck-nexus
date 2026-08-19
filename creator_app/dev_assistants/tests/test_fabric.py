@@ -29,7 +29,7 @@ def test_retired_and_reference_projects_are_not_active() -> None:
 def test_discovery_reports_only_command_names_not_paths() -> None:
     available = {"opencode", "aider"}
     fabric = DevAssistantFabric(
-        path_lookup=lambda command: f"/tmp/{command}" if command in available else None
+        path_lookup=lambda command: f"found:{command}" if command in available else None
     )
     rows = fabric.discover()
     by_id = {row["assistant_id"]: row for row in rows}
