@@ -1,332 +1,167 @@
-"""MCP Server — เชื่อม AnyClaw ↔ ChatGPT.
+"""CK-NEXUS Universal development MCP server.
 
-รัน: python -m creator_app.agnes.mcp_server
-พอร์ต: http://localhost:8765
+This module exposes a real Model Context Protocol Streamable HTTP endpoint at
+``/mcp``. It is intentionally Post-P0/development-only and binds to loopback;
+a remote ChatGPT connection must be provided by a separately authenticated
+HTTPS/Secure MCP boundary rather than exposing this port directly.
 
-ใน ChatGPT → Settings → Beta features → Custom GPTs → Actions
-ใส่: http://localhost:8765/openapi.json
+Run locally::
+
+    python -m creator_app.agnes.mcp_server
+
+Defaults:
+- host: 127.0.0.1
+- port: 8765
+- MCP endpoint: http://127.0.0.1:8765/mcp
 """
 
 from __future__ import annotations
 
-import json
-import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import os
 from typing import Any
-from urllib.parse import urlparse
+
+from mcp.server.fastmcp import FastMCP
 
 from creator_app.ai_team.universal_system import UniversalSystem
-from creator_app.core.self_capability_manager import SelfCapabilityManager
+from creator_app.core.self_capability_manager import (
+    CORE_CAPABILITIES,
+    LEARNING_SOURCES,
+    SelfCapabilityManager,
+)
 
-# สร้าง instances
-_system: UniversalSystem | None = None
-_capability_manager: SelfCapabilityManager | None = None
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+_DEFAULT_PORT = 8765
+
+
+def _configured_host() -> str:
+    host = os.getenv("CKNEXUS_UNIVERSAL_MCP_HOST", "127.0.0.1").strip().lower()
+    if host not in _LOOPBACK_HOSTS:
+        raise RuntimeError(
+            "CK-NEXUS Universal MCP is loopback-only. "
+            "Use an authenticated HTTPS/Secure MCP boundary for remote access."
+        )
+    return host
+
+
+def _configured_port() -> int:
+    raw = os.getenv("CKNEXUS_UNIVERSAL_MCP_PORT", str(_DEFAULT_PORT)).strip()
+    try:
+        port = int(raw)
+    except ValueError as exc:
+        raise RuntimeError("CKNEXUS_UNIVERSAL_MCP_PORT must be an integer") from exc
+    if not 1 <= port <= 65535:
+        raise RuntimeError("CKNEXUS_UNIVERSAL_MCP_PORT must be between 1 and 65535")
+    return port
+
+
+_SYSTEM: UniversalSystem | None = None
+_CAPABILITY_MANAGER: SelfCapabilityManager | None = None
 
 
 def get_system() -> UniversalSystem:
-    global _system
-    if _system is None:
-        _system = UniversalSystem()
-    return _system
+    """Return the lazily-created Universal System development runtime."""
+    global _SYSTEM
+    if _SYSTEM is None:
+        _SYSTEM = UniversalSystem()
+    return _SYSTEM
 
 
 def get_capability_manager() -> SelfCapabilityManager:
-    global _capability_manager
-    if _capability_manager is None:
-        _capability_manager = SelfCapabilityManager()
-    return _capability_manager
+    """Return the lazily-created self-capability inventory."""
+    global _CAPABILITY_MANAGER
+    if _CAPABILITY_MANAGER is None:
+        _CAPABILITY_MANAGER = SelfCapabilityManager()
+    return _CAPABILITY_MANAGER
 
 
-OPENAPI_SCHEMA = {
-    "openapi": "3.0.0",
-    "info": {
-        "title": "AnyClaw / CK-NEXUS MCP Server",
-        "description": "เชื่อมต่อ ChatGPT กับ AnyClaw — สั่งงานจากแชท",
-        "version": "1.0.0",
-    },
-    "servers": [{"url": "http://localhost:8765"}],
-    "paths": {
-        "/api/process": {
-            "post": {
-                "operationId": "processRequest",
-                "summary": "ส่งคำขอให้ AnyClaw ประมวลผล",
-                "description": "รับคำขอจาก ChatGPT → ประมวลผลผ่าน Universal System → ส่งผลลัพธ์กลับ",
-                "requestBody": {
-                    "required": True,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "properties": {
-                                    "request": {
-                                        "type": "string",
-                                        "description": "คำขอที่ต้องการให้ประมวลผล",
-                                    },
-                                    "priority": {
-                                        "type": "integer",
-                                        "description": "ลำดับความสำคัญ (1=LOW, 2=NORMAL, 3=HIGH)",
-                                        "default": 2,
-                                    },
-                                },
-                                "required": ["request"],
-                            }
-                        }
-                    },
-                },
-                "responses": {
-                    "200": {
-                        "description": "ผลลัพธ์จากการประมวลผล",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "status": {"type": "string"},
-                                        "result": {"type": "string"},
-                                        "duration": {"type": "number"},
-                                    },
-                                }
-                            }
-                        },
-                    }
-                },
-            }
-        },
-        "/api/capabilities": {
-            "get": {
-                "operationId": "getCapabilities",
-                "summary": "ดูความสามารถทั้งหมดของ AnyClaw",
-                "description": "แสดงรายการความสามารถทั้งหมดที่ AnyClaw ทำได้",
-                "responses": {
-                    "200": {
-                        "description": "รายการความสามารถ",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "status": {"type": "string"},
-                                        "capabilities": {"type": "object"},
-                                    },
-                                }
-                            }
-                        },
-                    }
-                },
-            }
-        },
-        "/api/status": {
-            "get": {
-                "operationId": "getStatus",
-                "summary": "ตรวจสอบสถานะระบบ AnyClaw",
-                "description": "ดูสถานะของทุก subsystem",
-                "responses": {
-                    "200": {
-                        "description": "สถานะระบบ",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "status": {"type": "string"},
-                                        "system": {"type": "object"},
-                                        "uptime": {"type": "number"},
-                                    },
-                                }
-                            }
-                        },
-                    }
-                },
-            }
-        },
-        "/api/team": {
-            "get": {
-                "operationId": "getTeam",
-                "summary": "ดูทีม AI ผู้เชี่ยวชาญ",
-                "description": "แสดงรายชื่อและสถานะของ AI team members",
-                "responses": {
-                    "200": {
-                        "description": "ข้อมูลทีม",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "status": {"type": "string"},
-                                        "team": {"type": "object"},
-                                    },
-                                }
-                            }
-                        },
-                    }
-                },
-            }
-        },
-        "/api/discover": {
-            "post": {
-                "operationId": "discoverCapabilities",
-                "summary": "ค้นหาความสามารถใหม่",
-                "description": "ค้นหาความสามารถใหม่จากแหล่งต่างๆ ทั่วโลก",
-                "responses": {
-                    "200": {
-                        "description": "ผลลัพธ์การค้นหา",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "status": {"type": "string"},
-                                        "discovery": {"type": "object"},
-                                    },
-                                }
-                            }
-                        },
-                    }
-                },
-            }
-        },
-    },
-}
+mcp = FastMCP(
+    "CK-NEXUS Universal Development",
+    instructions=(
+        "Post-P0 development tools only. CK-NEXUS remains authority. "
+        "Results do not promote Q10/Q11/Q12, do not constitute release evidence, "
+        "and do not authorize production mutation or merging PR #14."
+    ),
+    host=_configured_host(),
+    port=_configured_port(),
+    stateless_http=True,
+    json_response=True,
+)
 
 
-class MCPHandler(BaseHTTPRequestHandler):
-    """HTTPRequest handler สำหรับ MCP Server."""
-
-    start_time = time.time()
-
-    def do_GET(self) -> None:
-        parsed = urlparse(self.path)
-        path = parsed.path
-
-        if path == "/openapi.json":
-            self._json_response(200, OPENAPI_SCHEMA)
-
-        elif path == "/api/status":
-            system = get_system()
-            self._json_response(
-                200,
-                {
-                    "status": "running",
-                    "system": system.status(),
-                    "uptime": time.time() - self.start_time,
-                    "timestamp": time.time(),
-                },
-            )
-
-        elif path == "/api/capabilities":
-            manager = get_capability_manager()
-            self._json_response(
-                200,
-                {
-                    "status": "ok",
-                    "capabilities": manager._capabilities,
-                    "total": len(manager._capabilities),
-                },
-            )
-
-        elif path == "/api/team":
-            system = get_system()
-            self._json_response(
-                200,
-                {
-                    "status": "ok",
-                    "team": system.team.list_team(),
-                },
-            )
-
-        elif path == "/":
-            self._json_response(
-                200,
-                {
-                    "name": "AnyClaw MCP Server",
-                    "version": "1.0.0",
-                    "status": "running",
-                    "endpoints": [
-                        "POST /api/process — ส่งคำขอประมวลผล",
-                        "GET /api/capabilities — ดูความสามารถ",
-                        "GET /api/status — สถานะระบบ",
-                        "GET /api/team — ทีม AI",
-                        "POST /api/discover — ค้นหาความสามารถใหม่",
-                        "GET /openapi.json — OpenAPI Schema สำหรับ ChatGPT",
-                    ],
-                },
-            )
-
-        else:
-            self._json_response(404, {"error": "Not found"})
-
-    def do_POST(self) -> None:
-        parsed = urlparse(self.path)
-        path = parsed.path
-        content_length = int(self.headers.get("Content-Length", 0))
-        body = json.loads(self.rfile.read(content_length)) if content_length > 0 else {}
-
-        if path == "/api/process":
-            request_text = body.get("request", "")
-            priority = body.get("priority", 2)
-            start = time.time()
-
-            system = get_system()
-            result = system.process(request_text, priority=priority)
-
-            self._json_response(
-                200,
-                {
-                    "status": "completed",
-                    "result": result,
-                    "duration": time.time() - start,
-                },
-            )
-
-        elif path == "/api/discover":
-            manager = get_capability_manager()
-            discovery = manager.discover_new_capabilities()
-            self._json_response(
-                200,
-                {
-                    "status": "ok",
-                    "discovery": discovery,
-                },
-            )
-
-        else:
-            self._json_response(404, {"error": "Not found"})
-
-    def _json_response(self, code: int, data: dict) -> None:
-        response = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(response)))
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.end_headers()
-        self.wfile.write(response)
-
-    def log_message(self, format: str, *args: Any) -> None:
-        """Custom log format."""
-        timestamp = time.strftime("%H:%M:%S")
-        print(f"[{timestamp}] {args[0]}" if args else "")
+@mcp.tool()
+def cknexus_status() -> dict[str, Any]:
+    """Return a redacted development status snapshot for the Universal System."""
+    return {
+        "status": "development",
+        "production_status": "NO-GO",
+        "authority": "CK-NEXUS",
+        "runtime": get_system().status(),
+        "release_evidence": False,
+    }
 
 
-def run_server(host: str = "0.0.0.0", port: int = 8765) -> None:
-    """รัน MCP Server."""
-    server = HTTPServer((host, port), MCPHandler)
-    print(f"🚀 AnyClaw MCP Server running on http://{host}:{port}")
-    print(f"📡 OpenAPI Schema: http://localhost:{port}/openapi.json")
-    print(f"🔧 ChatGPT Actions URL: http://localhost:{port}/openapi.json")
-    print("")
-    print("วิธีเชื่อม ChatGPT:")
-    print("  1. ไปที่ ChatGPT → Settings → Beta features → Custom GPTs → Actions")
-    print("  2. กด Create new action → Import from URL")
-    print(f"  3. ใส่: http://localhost:{port}/openapi.json")
-    print("  4. Authentication: Bearer Token")
-    print("  5. กด Save → เรียกใช้จากแชทได้เลย!")
-    print("")
-    print("📡 กด Ctrl+C เพื่อหยุด")
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\n🛑 Server stopped")
-        server.server_close()
+@mcp.tool()
+def cknexus_capabilities() -> dict[str, Any]:
+    """List declared capabilities without exposing credentials or local secrets."""
+    manager = get_capability_manager()
+    return {
+        "production_status": "NO-GO",
+        "release_evidence": False,
+        "universal": get_system().list_capabilities(),
+        "declared_self_capabilities": CORE_CAPABILITIES,
+        "limitations": manager.get_limitations_and_workarounds()["cannot_do"],
+    }
+
+
+@mcp.tool()
+def cknexus_team() -> dict[str, Any]:
+    """Return the seven-role AI-team development registry and current status."""
+    system = get_system()
+    return {
+        "production_status": "NO-GO",
+        "release_evidence": False,
+        "team": system.team.list_team(),
+        "status": system.team.team_status(),
+    }
+
+
+@mcp.tool()
+def cknexus_plan(request: str, priority: int = 2) -> dict[str, Any]:
+    """Run the Universal System planning/simulation path for a development request.
+
+    This tool does not grant external mutation authority. Provider/tool execution
+    still requires the independent CK-NEXUS policy, credential, and approval path.
+    """
+    request = request.strip()
+    if not request:
+        raise ValueError("request must not be empty")
+    if priority not in {1, 2, 3}:
+        raise ValueError("priority must be 1, 2, or 3")
+    result = get_system().process(request, priority=priority)
+    return {
+        "status": "planned",
+        "result": result,
+        "production_status": "NO-GO",
+        "release_evidence": False,
+        "external_mutation_authorized": False,
+    }
+
+
+@mcp.tool()
+def cknexus_discovery_catalog() -> dict[str, Any]:
+    """Return configured learning-source metadata without performing network discovery."""
+    return {
+        "status": "catalog-only",
+        "sources": LEARNING_SOURCES,
+        "network_scan_executed": False,
+        "production_status": "NO-GO",
+        "release_evidence": False,
+    }
+
+
+def run_server() -> None:
+    """Run the loopback Streamable HTTP MCP server until interrupted."""
+    mcp.run(transport="streamable-http")
 
 
 if __name__ == "__main__":
