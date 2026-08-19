@@ -1,145 +1,52 @@
 #!/usr/bin/env python3
-"""Gmail OAuth2 Refresh Token Helper.
+"""Safe Gmail OAuth setup helper for CK-NEXUS.
 
-This script guides you through obtaining a Gmail Refresh Token step by step,
-without sending your credentials to anyone.
+This helper deliberately does **not** exchange authorization codes, print
+access/refresh tokens, or write credential values into ``.env``. CK-NEXUS
+already has a server-side OAuth flow backed by the Credential Broker.
 
-Usage:
-  python creator_app/credentials/scripts/get_gmail_token.py
-
-The script will:
-1. Display the Google OAuth consent URL
-2. You open it in a browser and grant access
-3. You paste the authorization code back
-4. Script exchanges it for tokens (client-side only)
-5. Outputs GOOGLE_REFRESH_TOKEN for your .env file
-
-No credentials are stored or transmitted to any third party.
+Use the canonical application endpoints instead:
+- GET /api/integrations/gmail/status
+- GET /api/integrations/gmail/oauth/start
+- GET /api/integrations/gmail/oauth/callback
+- POST /api/integrations/gmail/revoke-local
 """
 
 from __future__ import annotations
 
-import json
 import os
-import urllib.parse
-import urllib.request
-from pathlib import Path
 
-GOOGLE_AUTH_BASE = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+_REQUIRED_ENV_NAMES = (
+    "CKNEXUS_GMAIL_OAUTH_ENABLED",
+    "GMAIL_CLIENT_ID",
+    "GMAIL_CLIENT_SECRET",
+    "GMAIL_REDIRECT_URI",
+)
 
-SCOPES = [
-    "https://www.googleapis.com/auth/gmail.readonly",
-    "https://www.googleapis.com/auth/gmail.send",
-    "https://www.googleapis.com/auth/userinfo.email",
-    "https://www.googleapis.com/auth/userinfo.profile",
-]
 
-CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
-CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+def _configured(name: str) -> bool:
+    return bool(os.getenv(name, "").strip())
 
 
 def main() -> int:
-    if not CLIENT_ID or not CLIENT_SECRET:
-        print("ERROR: Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables first.")
-        print()
-        print("Get them from: https://console.cloud.google.com/apis/credentials")
-        return 1
+    """Print redacted setup state and the governed OAuth route to use."""
+    configured = {name: _configured(name) for name in _REQUIRED_ENV_NAMES}
 
-    redirect_uri = "urn:ietf:wg:oauth:2.0:oob"
-    params = {
-        "client_id": CLIENT_ID,
-        "redirect_uri": redirect_uri,
-        "scope": " ".join(SCOPES),
-        "access_type": "offline",
-        "prompt": "consent",
-        "response_type": "code",
-    }
-
-    auth_url = f"{GOOGLE_AUTH_BASE}?{urllib.parse.urlencode(params)}"
-
-    print("=" * 60)
-    print("📧 Gmail OAuth2 — Get Refresh Token")
-    print("=" * 60)
-    print()
-    print("Step 1: Open this URL in your browser:")
-    print()
-    print(f"   {auth_url}")
-    print()
-    print("Step 2: Sign in with your Gmail account (spinlnw10@gmail.com)")
-    print("        and grant the requested permissions.")
-    print()
-    print("Step 3: Copy the authorization code and paste it below.")
-    print()
-
-    code = input("Authorization code: ").strip()
-    if not code:
-        print("❌ No code entered. Exiting.")
-        return 1
+    print("CK-NEXUS Gmail OAuth setup")
+    print("============================")
+    for name, present in configured.items():
+        print(f"{name}: {'configured' if present else 'missing'}")
 
     print()
-    print("Step 4: Exchanging code for tokens...")
-    print()
+    print("No token or secret value is displayed by this helper.")
+    print("Start CK-NEXUS, authenticate to its local API, then call:")
+    print("  GET /api/integrations/gmail/oauth/start")
+    print("Open the returned Google authorization URL in your browser.")
+    print("Google redirects to the configured GMAIL_REDIRECT_URI; CK-NEXUS")
+    print("exchanges the one-time code server-side and stores tokens through")
+    print("the Credential Broker / encrypted vault when configured.")
 
-    data = urllib.parse.urlencode(
-        {
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
-            "code": code,
-            "grant_type": "authorization_code",
-            "redirect_uri": redirect_uri,
-        }
-    ).encode("utf-8")
-
-    request = urllib.request.Request(
-        GOOGLE_TOKEN_URL,
-        data=data,
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-    )
-
-    try:
-        with urllib.request.urlopen(request, timeout=15) as response:
-            token_data = json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        error_body = exc.read().decode("utf-8")
-        print(f"❌ Token exchange failed: HTTP {exc.code}")
-        print(f"   Response: {error_body}")
-        return 1
-
-    refresh_token = token_data.get("refresh_token", "")
-    if not refresh_token:
-        print("❌ No refresh token returned. Try granting consent again.")
-        if "warning" in token_data:
-            print(f"   Warning: {token_data['warning']}")
-        return 1
-
-    access_token = token_data.get("access_token", "")
-    expires_in = token_data.get("expires_in", 3600)
-
-    print("✅ Success! Tokens obtained.")
-    print()
-    print("Add these to your .env file:")
-    print()
-    print(f"   GOOGLE_REFRESH_TOKEN={refresh_token}")
-    print()
-    print(f"   Access token (short-lived, {expires_in}s):")
-    print(f"   {access_token}")
-    print()
-    print("ℹ️  The refresh token is what you need. The access token expires and")
-    print("   will be refreshed automatically by the Gmail connector.")
-    print()
-
-    env_path = Path(".env")
-    if env_path.exists():
-        existing = env_path.read_text(encoding="utf-8")
-        if "GOOGLE_REFRESH_TOKEN=" not in existing:
-            with env_path.open("a", encoding="utf-8") as f:
-                f.write(f"\nGOOGLE_REFRESH_TOKEN={refresh_token}\n")
-            print(f"✅ Added GOOGLE_REFRESH_TOKEN to {env_path}")
-        else:
-            print(f"⚠️  {env_path} already has GOOGLE_REFRESH_TOKEN. Update manually if needed.")
-
-    return 0
+    return 0 if all(configured.values()) else 1
 
 
 if __name__ == "__main__":
