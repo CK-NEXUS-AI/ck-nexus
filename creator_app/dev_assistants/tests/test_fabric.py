@@ -28,7 +28,9 @@ def test_retired_and_reference_projects_are_not_active() -> None:
 
 def test_discovery_reports_only_command_names_not_paths() -> None:
     available = {"opencode", "aider"}
-    fabric = DevAssistantFabric(path_lookup=lambda command: f"/tmp/{command}" if command in available else None)
+    fabric = DevAssistantFabric(
+        path_lookup=lambda command: f"/tmp/{command}" if command in available else None
+    )
     rows = fabric.discover()
     by_id = {row["assistant_id"]: row for row in rows}
     assert by_id["opencode"]["available"] is True
@@ -39,7 +41,9 @@ def test_discovery_reports_only_command_names_not_paths() -> None:
 
 
 def test_selection_prefers_capability_match_and_available_tool() -> None:
-    fabric = DevAssistantFabric(path_lookup=lambda command: command if command == "aider" else None)
+    fabric = DevAssistantFabric(
+        path_lookup=lambda command: command if command == "aider" else None
+    )
     rows = fabric.select({"code_edit", "test_fix"}, limit=2)
     assert rows
     assert rows[0]["assistant_id"] == "aider"
@@ -69,7 +73,10 @@ def test_parallel_plan_is_non_executing_and_non_release_evidence() -> None:
     assert plan["production_status"] == "NO-GO"
     assert plan["release_evidence"] is False
     assert plan["external_mutation_authorized"] is False
-    assert all(stream["execution_state"] == "PLANNED_NOT_EXECUTED" for stream in plan["workstreams"])
+    assert all(
+        stream["execution_state"] == "PLANNED_NOT_EXECUTED"
+        for stream in plan["workstreams"]
+    )
 
 
 def test_all_entries_have_upstream_and_license_metadata() -> None:
