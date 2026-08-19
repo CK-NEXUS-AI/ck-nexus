@@ -5,6 +5,7 @@ import pytest
 from creator_app.connector_fabric.security import EndpointPolicy, EndpointSecurityError
 from creator_app.connector_fabric.transport import (
     UrllibHttpTransport,
+    _PinnedHTTPConnection,
     _validate_connected_peer,
 )
 
@@ -73,17 +74,20 @@ def test_credentials_are_not_written_before_peer_binding_passes() -> None:
         assert timeout == 1.0
         return socket_record
 
-    transport = UrllibHttpTransport(
-        resolver=lambda _host: ("93.184.216.34",),
+    connection = _PinnedHTTPConnection(
+        "example.com",
+        80,
+        connect_ip="93.184.216.34",
+        allowed_addresses=("93.184.216.34",),
+        policy=EndpointPolicy(),
+        timeout=1.0,
         connection_factory=connection_factory,  # type: ignore[arg-type]
     )
     with pytest.raises(EndpointSecurityError, match="did not match"):
-        transport.request(
+        connection.request(
             "GET",
-            "http://example.com/mcp",
+            "/mcp",
             headers={"Authorization": "Bearer must-not-leak"},
-            body=None,
-            timeout=1.0,
         )
 
     assert socket_record.sent == []
