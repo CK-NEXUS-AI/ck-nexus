@@ -1,0 +1,41 @@
+#!/bin/sh
+set -eu
+
+if [ "${CKNEXUS_VERIFY_PROFILE:-}" != "python_quality" ]; then
+  echo "unsupported verifier profile" >&2
+  exit 64
+fi
+
+if [ ! -d /workspace ]; then
+  echo "workspace is missing" >&2
+  exit 65
+fi
+
+cd /workspace
+
+if [ ! -e pyproject.toml ] || [ ! -e uv.lock ]; then
+  echo "workspace is not a CK-NEXUS checkout" >&2
+  exit 66
+fi
+
+# V1 intentionally verifies code-only patches. Dependency or workflow changes require
+# a separately reviewed verifier profile because they can alter the verifier itself.
+changed="$(git diff --name-only HEAD -- 2>/dev/null || true)"
+if printf '%s\n' "$changed" | grep -Eq '^(pyproject\.toml|uv\.lock|\.github/|evidence/closure/|evidence/release/)'; then
+  echo "patch changes verifier-sensitive dependency/workflow/evidence paths" >&2
+  exit 67
+fi
+
+python -m compileall -q main.py creator_app services scripts
+ruff check main.py creator_app services tests scripts --output-format=concise
+
+# These tests intentionally exercise host-only execution assumptions (an executable
+# fake Codex CLI under pytest tmp, host gcc/seccomp launcher, or delegated cgroup
+# behavior). They remain covered by their dedicated host/staging workflows and are
+# not weakened here merely to make a network-denied verifier container pass.
+pytest -q \
+  --ignore=tests/test_agnes_execution_kernel_phase2.py \
+  --ignore=tests/test_agnes_execution_kernel_phase3.py \
+  --ignore=tests/test_codex_bridge.py \
+  --ignore=tests/test_r17_distributed_idempotency_runtime.py \
+  --ignore=tests/test_r18_cgroup_v2_staging_enforcement.py
