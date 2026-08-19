@@ -3,28 +3,14 @@
 Extends the original build_provider_router to include all free providers
 from provider_hub + provider_registry, with automatic fallback.
 """
+
 from __future__ import annotations
 
-import os
 from creator_app.config import Settings
-from creator_app.credential_broker import (
-    CredentialBroker,
-    CredentialId,
-)
-from creator_app.provider_router import (
-    ProviderRouter,
-    ProviderRouterPolicy,
-)
-from creator_app.providers import (
-    MockProviderAdapter,
-    OllamaProviderAdapter,
-    OpenAIProviderAdapter,
-    build_provider_router,
-)
-from creator_app.free_providers import (
-    QuotaTracker,
-    build_free_adapters,
-)
+from creator_app.credential_broker import CredentialBroker
+from creator_app.free_providers import QuotaTracker, build_free_adapters
+from creator_app.provider_router import ProviderRouter, ProviderRouterPolicy
+from creator_app.providers import build_provider_router
 
 
 def build_full_provider_router(
@@ -62,12 +48,16 @@ def build_full_provider_router(
         for adapter in reversed(free_adapters):
             providers.insert(insert_at, adapter)
 
+    max_attempts = settings.provider_max_attempts
+    if include_free:
+        max_attempts += len(free_adapters)
+
     return ProviderRouter(
         providers,
         policy=ProviderRouterPolicy(
             local_first=settings.provider_local_first,
             allow_cloud=settings.provider_allow_cloud,
-            max_attempts=settings.provider_max_attempts + len(free_adapters) if include_free else settings.provider_max_attempts,
+            max_attempts=max_attempts,
             failure_threshold=settings.provider_failure_threshold,
             circuit_cooldown_seconds=settings.provider_circuit_cooldown_seconds,
         ),

@@ -1,0 +1,33 @@
+name: OpenCode Control Bridge CI
+
+on:
+  pull_request:
+    paths:
+      - 'integrations/opencode-control-bridge/**'
+      - '.github/workflows/opencode-control-bridge-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: integrations/opencode-control-bridge
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: integrations/opencode-control-bridge/package.json
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Verify no local secrets/state are tracked
+        run: |
+          test ! -f .env
+          test ! -f .opencode-bridge-state.json
