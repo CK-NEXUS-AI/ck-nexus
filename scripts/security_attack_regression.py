@@ -19,7 +19,10 @@ from creator_app.credential_broker import (
     CredentialBroker,
     CredentialId,
 )
-from creator_app.gmail_governance.attachments import evaluate_attachment
+from creator_app.gmail_governance.attachments import (
+    evaluate_attachment,
+    verify_attachment_digest,
+)
 from creator_app.gmail_oauth import GmailOAuthError, OAuthStateStore
 
 BASE_URL = os.getenv("CKNEXUS_SECURITY_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
@@ -192,7 +195,27 @@ def main() -> int:
 
     executable = evaluate_attachment("invoice.exe", size_bytes=128)
     traversal = evaluate_attachment("../invoice.pdf", size_bytes=128)
-    normal_pdf = evaluate_attachment("invoice.pdf", size_bytes=128)
+    missing_content = evaluate_attachment("invoice.pdf", size_bytes=128)
+    pdf_content = b"%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF\n"
+    normal_pdf = evaluate_attachment(
+        "invoice.pdf",
+        size_bytes=len(pdf_content),
+        declared_mime="application/pdf",
+        content=pdf_content,
+    )
+    renamed_executable = b"MZ" + (b"x" * 30)
+    disguised_pdf = evaluate_attachment(
+        "invoice.pdf",
+        size_bytes=len(renamed_executable),
+        declared_mime="application/pdf",
+        content=renamed_executable,
+    )
+    wrong_mime = evaluate_attachment(
+        "invoice.pdf",
+        size_bytes=len(pdf_content),
+        declared_mime="text/plain",
+        content=pdf_content,
+    )
     results.append(
         check(
             "attachment_executable_blocked",
@@ -207,10 +230,37 @@ def main() -> int:
     )
     results.append(
         check(
-            "attachment_allowed_file_still_quarantined",
+            "attachment_requires_content_validation",
+            not missing_content.allowed_for_parser_sandbox
+            and missing_content.reason == "content_validation_required",
+        )
+    )
+    results.append(
+        check(
+            "attachment_renamed_executable_magic_blocked",
+            not disguised_pdf.allowed_for_parser_sandbox,
+        )
+    )
+    results.append(
+        check(
+            "attachment_declared_mime_mismatch_blocked",
+            not wrong_mime.allowed_for_parser_sandbox,
+        )
+    )
+    results.append(
+        check(
+            "attachment_verified_file_still_quarantined",
             normal_pdf.allowed_for_parser_sandbox
             and normal_pdf.quarantine_required
             and not normal_pdf.execute_on_host,
+        )
+    )
+    results.append(
+        check(
+            "attachment_digest_binding_rejects_mutation",
+            normal_pdf.sha256 is not None
+            and verify_attachment_digest(pdf_content, normal_pdf.sha256)
+            and not verify_attachment_digest(pdf_content + b"mutation", normal_pdf.sha256),
         )
     )
 
@@ -223,7 +273,7 @@ def main() -> int:
         {
             "issue": 66,
             "title": "Attachment content/magic validation",
-            "status": "OPEN_HARDENING_REQUIRED",
+            "status": "REMEDIATION_CANDIDATE_NOT_MERGED",
         },
     ]
 
