@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 from creator_app.privacy_firewall import DataClassification
 
-from .contracts import MemoryAuthority, MemoryRecord, MemoryStatus
+from .contracts import MemoryRecord, MemoryStatus
 
 
 class MemoryPolicyError(PermissionError):
@@ -22,8 +22,13 @@ class UnifiedMemoryStore:
         self._records: dict[str, MemoryRecord] = {}
 
     def add(self, record: MemoryRecord) -> MemoryRecord:
-        if record.classification in {DataClassification.SECRET, DataClassification.REGULATED}:
-            raise MemoryPolicyError("secret or regulated content is not eligible for semantic memory")
+        if record.classification in {
+            DataClassification.SECRET,
+            DataClassification.REGULATED,
+        }:
+            raise MemoryPolicyError(
+                "secret or regulated content is not eligible for semantic memory"
+            )
         if record.memory_id in self._records:
             raise ValueError("memory_id already exists")
 
@@ -72,20 +77,27 @@ class UnifiedMemoryStore:
             return False
         if record.tenant_id != tenant_id or record.user_id != user_id:
             return False
-        self._records[memory_id] = replace(record, status=MemoryStatus.DELETED, statement="<deleted>")
+        self._records[memory_id] = replace(
+            record,
+            status=MemoryStatus.DELETED,
+            statement="<deleted>",
+        )
         return True
 
     def delete_all(self, *, tenant_id: str, user_id: str) -> int:
         deleted = 0
         for memory_id, record in tuple(self._records.items()):
-            if record.tenant_id == tenant_id and record.user_id == user_id:
-                if record.status != MemoryStatus.DELETED:
-                    self._records[memory_id] = replace(
-                        record,
-                        status=MemoryStatus.DELETED,
-                        statement="<deleted>",
-                    )
-                    deleted += 1
+            if (
+                record.tenant_id == tenant_id
+                and record.user_id == user_id
+                and record.status != MemoryStatus.DELETED
+            ):
+                self._records[memory_id] = replace(
+                    record,
+                    status=MemoryStatus.DELETED,
+                    statement="<deleted>",
+                )
+                deleted += 1
         return deleted
 
     def export(self, *, tenant_id: str, user_id: str) -> tuple[dict[str, object], ...]:
