@@ -28,6 +28,7 @@ from creator_app.core.self_capability_manager import (
     LEARNING_SOURCES,
     SelfCapabilityManager,
 )
+from creator_app.dev_assistants import DevAssistantFabric
 
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 _DEFAULT_PORT = 8765
@@ -56,6 +57,7 @@ def _configured_port() -> int:
 
 _SYSTEM: UniversalSystem | None = None
 _CAPABILITY_MANAGER: SelfCapabilityManager | None = None
+_DEV_ASSISTANT_FABRIC: DevAssistantFabric | None = None
 
 
 def get_system() -> UniversalSystem:
@@ -72,6 +74,14 @@ def get_capability_manager() -> SelfCapabilityManager:
     if _CAPABILITY_MANAGER is None:
         _CAPABILITY_MANAGER = SelfCapabilityManager()
     return _CAPABILITY_MANAGER
+
+
+def get_dev_assistant_fabric() -> DevAssistantFabric:
+    """Return the fail-closed development-assistant discovery fabric."""
+    global _DEV_ASSISTANT_FABRIC
+    if _DEV_ASSISTANT_FABRIC is None:
+        _DEV_ASSISTANT_FABRIC = DevAssistantFabric()
+    return _DEV_ASSISTANT_FABRIC
 
 
 mcp = FastMCP(
@@ -156,6 +166,20 @@ def cknexus_discovery_catalog() -> dict[str, Any]:
         "network_scan_executed": False,
         "production_status": "NO-GO",
         "release_evidence": False,
+    }
+
+
+@mcp.tool()
+def cknexus_dev_assistants() -> dict[str, Any]:
+    """Discover approved local developer assistants without installing or executing them."""
+    fabric = get_dev_assistant_fabric()
+    return {
+        "status": "discovery-only",
+        "authority": "CK-NEXUS",
+        "production_status": "NO-GO",
+        "release_evidence": False,
+        "external_mutation_authorized": False,
+        "assistants": fabric.discover(),
     }
 
 
