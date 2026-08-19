@@ -87,13 +87,19 @@ def evaluate_disclosure(
         if not policy.external_allowed:
             allowed = False
             reason = "external_processing_not_authorized"
-        elif classification == DataClassification.REGULATED and not policy.regulated_external_consent:
+        elif (
+            classification == DataClassification.REGULATED
+            and not policy.regulated_external_consent
+        ):
             allowed = False
             reason = "regulated_external_consent_required"
         elif classification == DataClassification.SECRET:
             allowed = False
             reason = "secret_material_never_disclosed"
-        elif classification == DataClassification.SENSITIVE and not policy.sensitive_external_consent:
+        elif (
+            classification == DataClassification.SENSITIVE
+            and not policy.sensitive_external_consent
+        ):
             allowed = False
             reason = "sensitive_external_consent_required"
         elif classification == DataClassification.PERSONAL and not policy.personal_external_consent:
