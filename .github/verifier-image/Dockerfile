@@ -10,7 +10,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
-    && python -m pip install --no-cache-dir "uv==${UV_VERSION}"
+    && python -m pip install --no-cache-dir "uv==${UV_VERSION}" \
+    && groupadd --gid 65532 verifier \
+    && useradd --uid 65532 --gid 65532 --no-create-home --home-dir /nonexistent \
+       --shell /usr/sbin/nologin verifier
 
 WORKDIR /build
 COPY pyproject.toml uv.lock ./
@@ -22,4 +25,5 @@ RUN chmod 0555 /cknexus/verify \
     && chmod 0777 /workspace
 
 WORKDIR /workspace
+USER 65532:65532
 ENTRYPOINT ["/cknexus/verify"]
