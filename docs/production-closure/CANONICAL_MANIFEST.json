@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "status": "NO-GO",
+  "classification": "PASS_CANDIDATE_OPERATOR_PACK",
+  "repository": "spinlnw10-art/ck-nexus",
+  "repository_id": 1333067619,
+  "closure_pr": 14,
+  "closure_head_at_pack_base": "a55a8d36b0a1b61b426c5d59ab44ebd841eb8d53",
+  "runtime_source_sha": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+  "runtime_source_tree": "0525195934f703a8becf8a39f6397b2411e0bb2e",
+  "frozen_runtime_subject": "89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52",
+  "application_subject": "dff89dc7fa9cd6e40480c3344f688a75383ec798929efe23f3a29c79d1186cec",
+  "release_order": ["Q10", "Q11", "Q12", "PROVENANCE", "FINAL_PACKAGE"],
+  "gates": {
+    "Q10": {
+      "status": "NOT_VERIFIED",
+      "dependency_component": "PASS",
+      "required_executor": "native Codex Security Deep Security Scan"
+    },
+    "Q11": {
+      "status": "BLOCKED",
+      "required_verifier_branch": "verify/q11-final-subject"
+    },
+    "Q12": {
+      "status": "BLOCKED",
+      "required_verifier_branch": "verify/q12-final-subject",
+      "required_runner_labels": ["self-hosted", "linux", "cknexus-q12"]
+    },
+    "PROVENANCE": {
+      "status": "PASS_CANDIDATE",
+      "latest_known_reconciled": "8/8"
+    },
+    "FINAL_PACKAGE": {
+      "status": "BLOCKED",
+      "latest_known_package_job": "SKIPPED"
+    }
+  },
+  "operator_pack": {
+    "branch": "prep/closure-operator-pack-v1",
+    "runtime_mutation": false,
+    "files": [
+      ".github/release-tools/validate_q10_deep_scan.py",
+      ".github/release-tools/closure_readiness.py",
+      ".github/release-tools/subject_rotation_plan.py",
+      "evidence/templates/Q10_DEEP_SCAN_PASS.template.json",
+      "evidence/templates/Q11_OPENAI_LIVE_PASS.template.json",
+      "evidence/templates/Q12_CGROUP_V2_PASS.template.json",
+      "docs/production-closure/OPERATOR_RUNBOOK.md",
+      "docs/production-closure/Q12_SELF_HOSTED_RUNNER.md",
+      "docs/production-closure/CANONICAL_MANIFEST.json"
+    ]
+  },
+  "production_ready": false,
+  "production_ready_rule": "Q10 PASS and Q11 PASS and Q12 PASS and provenance PASS and final package SUCCESS with verified checksum"
+}
