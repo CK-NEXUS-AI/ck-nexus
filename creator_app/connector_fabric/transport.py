@@ -66,7 +66,9 @@ def _validate_connected_peer(
         peer = _normalize_ip(peer_ip)
         allowed = {_normalize_ip(raw) for raw in allowed_addresses}
     except ValueError as exc:
-        raise EndpointSecurityError("Connector transport reported an invalid peer address.") from exc
+        raise EndpointSecurityError(
+            "Connector transport reported an invalid peer address."
+        ) from exc
 
     if peer not in allowed:
         raise EndpointSecurityError(
