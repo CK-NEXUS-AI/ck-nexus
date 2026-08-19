@@ -58,7 +58,7 @@ class WorkflowPattern:
     output_schema: str | None = None
 
     @classmethod
-    def from_mapping(cls, raw: dict[str, Any]) -> "WorkflowPattern":
+    def from_mapping(cls, raw: dict[str, Any]) -> WorkflowPattern:
         required = {
             "id", "version", "intent_tags", "agents", "allowed_tools", "forbidden_tools",
             "approval_policy", "side_effect_policy", "max_steps", "timeout_seconds",

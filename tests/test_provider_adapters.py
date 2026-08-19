@@ -3,8 +3,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
 from creator_app.credential_broker import CredentialBroker, CredentialId
+
 from creator_app.providers import (
     OllamaProviderAdapter,
     OpenAIProviderAdapter,

@@ -18,7 +18,7 @@ class GatewayAuditEvent:
     occurred_at: str
 
     @classmethod
-    def create(cls, **kwargs: object) -> "GatewayAuditEvent":
+    def create(cls, **kwargs: object) -> GatewayAuditEvent:
         return cls(occurred_at=datetime.now(UTC).isoformat(), **kwargs)
 
     def as_dict(self) -> dict[str, object]:
