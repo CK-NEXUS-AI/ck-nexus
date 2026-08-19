@@ -3,12 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from creator_app.credential_broker import CredentialBroker, CredentialId, CredentialUnavailable
 from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 
 from creator_app.api import create_app
 from creator_app.config import Settings
+from creator_app.credential_broker import CredentialBroker, CredentialId, CredentialUnavailable
 from creator_app.credential_vault import CredentialVaultError, EncryptedCredentialVault
 
 
