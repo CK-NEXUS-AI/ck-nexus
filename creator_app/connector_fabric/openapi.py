@@ -34,15 +34,15 @@ class OpenAPIClient:
     def discover(self, config: ConnectorConfig) -> DiscoverySnapshot:
         if config.protocol is not ConnectorProtocol.OPENAPI:
             raise ValueError("OpenAPI client received a non-OpenAPI connector")
-        validate_endpoint(
-            config.url, policy=EndpointPolicy(allow_private_network=config.allow_private_network)
-        )
+        endpoint_policy = EndpointPolicy(allow_private_network=config.allow_private_network)
+        validate_endpoint(config.url, policy=endpoint_policy)
         response = self.transport.request(
             "GET",
             config.url,
             headers={"Accept": "application/json, application/yaml, text/yaml"},
             body=None,
             timeout=self.timeout_seconds,
+            endpoint_policy=endpoint_policy,
         )
         if not 200 <= response.status < 300:
             raise OpenAPIDiscoveryError(f"OpenAPI document returned HTTP {response.status}.")
