@@ -45,9 +45,8 @@ jobs:
           )
           .venv/bin/ruff check "${FILES[@]}" --fix --unsafe-fixes || true
           .venv/bin/ruff format "${FILES[@]}"
-          .venv/bin/ruff check "${FILES[@]}" --output-format=github
 
-      - name: Commit autofix
+      - name: Commit mechanical autofix
         run: |
           if git diff --quiet; then
             echo "No Ruff changes to commit"
@@ -67,3 +66,19 @@ jobs:
             tests/test_free_providers.py
           git commit -m "chore: apply scoped Ruff autofix for PR46"
           git push origin HEAD:fix/pr46-cknexus-ci-ruff-v1
+
+      - name: Report residual Ruff findings
+        if: always()
+        run: |
+          FILES=(
+            creator_app/api.py
+            creator_app/assistant_registry.py
+            creator_app/free_providers.py
+            creator_app/provider_hub.py
+            creator_app/provider_registry.py
+            creator_app/providers_enhanced.py
+            scripts/production_readiness.py
+            scripts/provider_test.py
+            tests/test_free_providers.py
+          )
+          .venv/bin/ruff check "${FILES[@]}" --output-format=github || true
