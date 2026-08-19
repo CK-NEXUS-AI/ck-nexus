@@ -96,10 +96,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(docker image inspect --format='{{.Config.User}}' cknexus-verifier:test)" != 'root' || true
+          test "$(docker image inspect --format='{{.Config.User}}' cknexus-verifier:test)" = '65532:65532'
           ! docker history --no-trunc cknexus-verifier:test | grep -Ei 'API[_-]?KEY|AUTHORIZATION: BEARER|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY'
           docker run --rm --entrypoint /bin/sh cknexus-verifier:test -c \
-            'test -x /cknexus/verify && test -x /opt/cknexus-venv/bin/ruff && test -x /opt/cknexus-venv/bin/pytest'
+            'test "$(id -u)" -ne 0 && test -x /cknexus/verify && test -x /opt/cknexus-venv/bin/ruff && test -x /opt/cknexus-venv/bin/pytest'
 
       - name: Publish exact commit image to GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -147,6 +147,7 @@ jobs:
               "uv_lock_sha256": os.environ["lock_sha"],
               "runtime_network": "deny",
               "credential_forwarding": False,
+              "default_uid": 65532,
               "profile": "python_quality",
               "release_evidence": False,
               "production_status": "NO-GO",
