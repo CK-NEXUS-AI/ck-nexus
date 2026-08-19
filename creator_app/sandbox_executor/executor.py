@@ -173,6 +173,10 @@ class SandboxExecutor:
             raise SandboxBlocked("plan must be in PLANNED_NOT_EXECUTED state")
         if plan.get("authority") != "CK-NEXUS":
             raise SandboxBlocked("plan authority must be CK-NEXUS")
+        if plan.get("executor") != "cknexus_sandbox_executor":
+            raise SandboxBlocked("plan executor identity is invalid")
+        if plan.get("task_transport") != "brokered_input":
+            raise SandboxBlocked("plan task transport is invalid")
         if plan.get("release_evidence") is not False:
             raise SandboxBlocked("development plan cannot be release evidence")
         if plan.get("production_status") != "NO-GO":
@@ -181,10 +185,19 @@ class SandboxExecutor:
             raise SandboxBlocked("V1 executor requires disposable_container isolation")
         if policy.get("network") != "deny":
             raise SandboxBlocked("V1 executor supports network=deny only")
+        if policy.get("patch_only_output") is not True:
+            raise SandboxBlocked("V1 executor requires patch_only_output=true")
         if policy.get("external_mutation_authorized") is not False:
             raise SandboxBlocked("external mutation authority must remain false")
         if plan.get("credential_refs"):
             raise SandboxBlocked("V1 executor does not resolve or forward credentials")
+
+        planned_timeout = int(policy.get("timeout_seconds", 0))
+        planned_output = int(policy.get("max_output_bytes", 0))
+        if request.limits.timeout_seconds > planned_timeout:
+            raise SandboxBlocked("executor timeout exceeds approved plan ceiling")
+        if request.limits.max_patch_bytes > planned_output:
+            raise SandboxBlocked("executor patch limit exceeds approved plan ceiling")
 
         digest = _plan_request_digest(plan)
         if plan.get("request_digest") != digest:
@@ -292,13 +305,15 @@ class SandboxExecutor:
 
     @staticmethod
     def _remove_worktree(repo: Path, worktree: Path, limits: SandboxLimits) -> None:
-        subprocess.run(
+        result = subprocess.run(
             ["git", "-C", str(repo), "worktree", "remove", "--force", str(worktree)],
             check=False,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             timeout=min(limits.timeout_seconds, 120),
         )
+        if result.returncode != 0:
+            raise SandboxBlocked("failed to remove disposable Git worktree")
 
 
 def _container_command(
