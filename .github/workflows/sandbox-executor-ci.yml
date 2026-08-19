@@ -72,17 +72,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ! grep -R --line-number -E 'shell=True|os\.system\(|--privileged|docker\.sock' \
-            creator_app/sandbox_executor
-          grep -q -- '"--pull=never"' creator_app/sandbox_executor/executor.py
-          grep -q -- '"--network=none"' creator_app/sandbox_executor/executor.py
-          grep -q -- '"--read-only"' creator_app/sandbox_executor/executor.py
-          grep -q -- '"--cap-drop=ALL"' creator_app/sandbox_executor/executor.py
-          grep -q -- '"--security-opt=no-new-privileges"' \
-            creator_app/sandbox_executor/executor.py
-          grep -q -- 'refuses to run as root' creator_app/sandbox_executor/executor.py
-          grep -q -- 'does not resolve or forward credentials' \
-            creator_app/sandbox_executor/executor.py
+          kernel=creator_app/sandbox_executor/executor.py
+          ! grep --line-number -E 'shell=True|os\.system\(|--privileged|docker\.sock' "$kernel"
+          grep -q -- '"--pull=never"' "$kernel"
+          grep -q -- '"--network=none"' "$kernel"
+          grep -q -- '"--read-only"' "$kernel"
+          grep -q -- '"--cap-drop=ALL"' "$kernel"
+          grep -q -- '"--security-opt=no-new-privileges"' "$kernel"
+          grep -q -- 'refuses to run as root' "$kernel"
+          grep -q -- 'does not resolve or forward credentials' "$kernel"
       - name: Production boundary
         run: |
           echo 'Sandbox Executor V1 is Post-P0 development infrastructure only.'
