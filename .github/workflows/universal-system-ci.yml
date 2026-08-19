@@ -1,0 +1,116 @@
+name: Universal System Post-P0 CI
+
+on:
+  pull_request:
+    paths:
+      - 'creator_app/ai_team/**'
+      - 'creator_app/core/**'
+      - 'creator_app/agnes/mcp_server.py'
+      - 'creator_app/credentials/**'
+      - 'ai_provider_manager.py'
+      - 'run_anyclaw.py'
+      - '.github/workflows/universal-system-ci.yml'
+      - 'pyproject.toml'
+      - 'uv.lock'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  universal-system:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+      - name: Frozen dependency sync
+        run: |
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+      - name: Verify exactly 45 AI Team tests are collected
+        shell: bash
+        run: |
+          set -euo pipefail
+          .venv/bin/pytest --collect-only -q creator_app/ai_team/tests | tee /tmp/universal-collect.txt
+          count=$(grep -c '::' /tmp/universal-collect.txt || true)
+          echo "collected_test_nodes=$count"
+          test "$count" -eq 45
+      - name: Run 45 AI Team and Universal System tests
+        run: .venv/bin/pytest -q creator_app/ai_team/tests
+      - name: Ruff scoped development files
+        run: >-
+          .venv/bin/ruff check
+          creator_app/ai_team
+          creator_app/core
+          creator_app/agnes/mcp_server.py
+          creator_app/credentials
+          ai_provider_manager.py
+          run_anyclaw.py
+          --output-format=github
+      - name: Bandit scoped development files
+        run: >-
+          .venv/bin/bandit -q -r
+          creator_app/ai_team
+          creator_app/core
+          creator_app/agnes/mcp_server.py
+          creator_app/credentials
+      - name: Secret scan
+        run: .venv/bin/python scripts/secret_scan.py
+      - name: Real MCP Streamable HTTP smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CKNEXUS_UNIVERSAL_MCP_HOST=127.0.0.1
+          export CKNEXUS_UNIVERSAL_MCP_PORT=8765
+          .venv/bin/python -m creator_app.agnes.mcp_server >/tmp/cknexus-universal-mcp.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          .venv/bin/python - <<'PY'
+          import asyncio
+
+          from mcp import ClientSession
+          from mcp.client.streamable_http import streamablehttp_client
+
+          EXPECTED = {
+              "cknexus_status",
+              "cknexus_capabilities",
+              "cknexus_team",
+              "cknexus_plan",
+              "cknexus_discovery_catalog",
+          }
+
+          async def verify() -> None:
+              last_error = None
+              for _ in range(30):
+                  try:
+                      async with streamablehttp_client(
+                          "http://127.0.0.1:8765/mcp"
+                      ) as (read_stream, write_stream, _):
+                          async with ClientSession(read_stream, write_stream) as session:
+                              await session.initialize()
+                              tools = await session.list_tools()
+                              names = {tool.name for tool in tools.tools}
+                              missing = EXPECTED - names
+                              if missing:
+                                  raise AssertionError(f"missing MCP tools: {sorted(missing)}")
+                              result = await session.call_tool("cknexus_status", {})
+                              if result.isError:
+                                  raise AssertionError("cknexus_status returned an MCP error")
+                              print("MCP tools verified:", sorted(names))
+                              return
+                  except Exception as exc:
+                      last_error = exc
+                      await asyncio.sleep(0.5)
+              raise RuntimeError(f"MCP smoke failed: {last_error}")
+
+          asyncio.run(verify())
+          PY
+      - name: Development boundary
+        run: |
+          echo 'Universal System evidence is Post-P0 development evidence only.'
+          echo 'It does not promote Q10/Q11/Q12 and does not authorize PR #14 merge.'
