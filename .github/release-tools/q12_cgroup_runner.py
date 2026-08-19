@@ -8,10 +8,18 @@ import subprocess
 from pathlib import Path
 
 EXPECTED_SUBJECT = "89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52"
+EXPECTED_OBSERVED = {
+    "cpu.max": "20000 100000",
+    "memory.max": "67108864",
+    "pids.max": "16",
+    "pid_attached": True,
+}
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run fail-closed Q12 delegated cgroup v2 verification")
+    parser = argparse.ArgumentParser(
+        description="Run fail-closed Q12 delegated cgroup v2 verification"
+    )
     parser.add_argument("--gate-script", default="scripts/agnes_cgroup_v2_staging_gate.py")
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
@@ -28,6 +36,8 @@ def main() -> int:
     }
     if os.geteuid() == 0:
         result["errors"].append("Q12 must run as a non-root service identity")
+    elif os.environ.get("CKNEXUS_ENVIRONMENT", "").lower() != "staging":
+        result["errors"].append("CKNEXUS_ENVIRONMENT must be staging")
     elif not root:
         result["errors"].append("CKNEXUS_AGNES_CGROUP_ROOT is not configured")
     else:
@@ -39,14 +49,13 @@ def main() -> int:
             result["errors"].append("cgroup.controllers is missing")
         else:
             available = set(controllers.read_text(encoding="utf-8").split())
-            required = {"cpu", "memory", "pids"}
-            if not required.issubset(available):
+            if not {"cpu", "memory", "pids"}.issubset(available):
                 result["errors"].append("required cpu/memory/pids controllers are unavailable")
             else:
                 result["delegated"] = True
                 try:
                     proc = subprocess.run(
-                        ["python3", args.gate_script],
+                        ["python3", args.gate_script, "--root", root],
                         check=False,
                         capture_output=True,
                         text=True,
@@ -54,21 +63,26 @@ def main() -> int:
                         timeout=120,
                     )
                     payload = json.loads(proc.stdout)
-                    expected = {
-                        "cpu_max": "20000 100000",
-                        "memory_max": "67108864",
-                        "pids_max": "16",
-                    }
-                    for key, value in expected.items():
-                        if payload.get(key) != value:
-                            result["errors"].append(f"{key} mismatch")
-                    if payload.get("escape_attempt_blocked") is not True:
-                        result["errors"].append("escape attempt was not proven blocked")
+                    observed = payload.get("observed", {})
+                    if payload.get("status") != "PASS":
+                        result["errors"].append(
+                            f"gate status was {payload.get('status', 'UNKNOWN')}"
+                        )
+                    if observed != EXPECTED_OBSERVED:
+                        result["errors"].append("observed cgroup enforcement did not match contract")
                     if proc.returncode == 0 and not result["errors"]:
-                        result.update(payload)
-                        result["result"] = "PASS"
-                        result["production_promotion_allowed"] = True
-                except (OSError, ValueError, subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
+                        result.update(
+                            {
+                                "result": "PASS",
+                                "production_promotion_allowed": True,
+                                "cpu_max": observed["cpu.max"],
+                                "memory_max": observed["memory.max"],
+                                "pids_max": observed["pids.max"],
+                                "pid_attached": observed["pid_attached"],
+                                "health": payload.get("health", {}),
+                            }
+                        )
+                except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
                     result["errors"].append(str(exc))
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
