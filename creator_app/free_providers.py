@@ -68,13 +68,11 @@ class QuotaTracker:
     def is_rate_limited(self, provider: str) -> bool:
         window = self._data[provider]
         now = time.monotonic()
-        if (
-            window.last_error
+        return (
+            bool(window.last_error)
             and "429" in window.last_error
             and now - window.last_error_time < 30
-        ):
-            return True
-        return False
+        )
 
     def stats(self, provider: str) -> dict[str, Any]:
         window = self._data[provider]
