@@ -38,8 +38,10 @@ _ALLOWED_DOCUMENT_SUFFIXES = frozenset(
 
 
 def evaluate_attachment(filename: str, *, size_bytes: int) -> AttachmentDecision:
+    if not filename or "\x00" in filename or "/" in filename or "\\" in filename:
+        return AttachmentDecision(filename, False, "unsafe_filename")
     name = PurePosixPath(filename).name
-    if not name or name != filename.replace("\\", "/").split("/")[-1]:
+    if not name or name in {".", ".."} or name != filename:
         return AttachmentDecision(filename, False, "unsafe_filename")
     if size_bytes < 0 or size_bytes > 25 * 1024 * 1024:
         return AttachmentDecision(filename, False, "size_limit_exceeded")
