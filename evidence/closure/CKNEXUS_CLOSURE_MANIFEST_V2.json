@@ -1,0 +1,40 @@
+{
+  "schema_version": "2.0",
+  "status": "PREPARED_NOT_VERIFIED",
+  "production_status": "NO-GO",
+  "repository": "spinlnw10-art/ck-nexus",
+  "closure_branch": "release/q10-q16-closure",
+  "closure_head": "a55a8d36b0a1b61b426c5d59ab44ebd841eb8d53",
+  "runtime_source": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+  "runtime_source_tree": "0525195934f703a8becf8a39f6397b2411e0bb2e",
+  "runtime_subject": "89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52",
+  "application_subject": "dff89dc7fa9cd6e40480c3344f688a75383ec798929efe23f3a29c79d1186cec",
+  "authority_order": ["LIVE_GITHUB", "CLOSURE_EVIDENCE", "RELEASE_ARTIFACTS", "HISTORICAL_CHAT"],
+  "dna": ["USER", "ACCESS", "CK-NEXUS_COGNITIVE_GOVERNOR", "TASK_GRAPH", "AGNES_AGENTS", "MODEL_TOOL", "SANDBOX", "VERIFICATION", "EVIDENCE_VAULT", "RESULT"],
+  "principles": [
+    "AUTHORITY_SEPARATION",
+    "EVIDENCE_FIRST_EXECUTION",
+    "EXACT_SUBJECT_VERIFICATION",
+    "CREDENTIAL_ISOLATION",
+    "CAPABILITY_BASED_ACCESS",
+    "FAIL_CLOSED_GOVERNANCE",
+    "PROVIDER_INDEPENDENCE",
+    "AGENT_SPECIALIZATION_AND_COUNCIL",
+    "UI_REFLECTS_RUNTIME_TRUTH"
+  ],
+  "gates": {
+    "Q10": {"state": "NOT_VERIFIED", "requires": ["codex_security_scan_id", "codex_security_report_sha256", "codex_security_completed_at", "target_sha", "target_tree_sha", "runtime_subject", "sealed_report"]},
+    "Q11": {"state": "BLOCKED", "requires": ["authorized_live_provider_credential", "credential_exposed=false", "live_smoke_pass", "artifact_id", "artifact_digest", "runtime_subject"]},
+    "Q12": {"state": "BLOCKED", "requires": ["non_root_identity", "delegated_cgroup_v2", "cpu_limit_pass", "memory_limit_pass", "pids_limit_pass", "escape_attempt_blocked", "artifact_id", "artifact_digest", "runtime_subject"]},
+    "PROVENANCE": {"state": "REVERIFY_REQUIRED_AFTER_Q10_Q11_Q12", "minimum_records": 8},
+    "FINAL_PACKAGE": {"state": "BLOCKED", "requires": ["Q10=PASS", "Q11=PASS", "Q12=PASS", "PROVENANCE=PASS", "checksummed_artifact"]}
+  },
+  "forbidden_promotions": [
+    "manual status edits without source evidence",
+    "substituting Bandit/pip-audit/secret scan for native Codex Security Deep Security Scan",
+    "using development-main evidence as production closure evidence",
+    "merging PR #14 before all gates and final package pass",
+    "exposing raw provider credentials",
+    "using sudo/root to fake Q12 delegated non-root enforcement"
+  ]
+}
