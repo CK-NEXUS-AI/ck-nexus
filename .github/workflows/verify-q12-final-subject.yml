@@ -1,6 +1,8 @@
 name: Verify Q12 final release subject on delegated self-hosted Linux
 
 on:
+  push:
+    branches: [verify/q12-final-subject]
   workflow_dispatch:
 
 permissions:
