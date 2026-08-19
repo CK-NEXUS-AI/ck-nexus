@@ -3,8 +3,8 @@ from __future__ import annotations
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-from creator_app.credential_broker import CredentialBroker, CredentialId
 
+from creator_app.credential_broker import CredentialBroker, CredentialId
 from creator_app.github_app import GitHubAppAuth
 from creator_app.gmail_oauth import GmailOAuthError, GmailOAuthManager
 
