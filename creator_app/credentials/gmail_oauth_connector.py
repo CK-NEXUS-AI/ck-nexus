@@ -8,7 +8,7 @@ from typing import Protocol
 from urllib.parse import urlencode
 from urllib.request import Request
 
-from creator_app.credential_broker import (
+from creator_app.credentials.credential_broker import (
     CredentialBroker,
     CredentialId,
     CredentialUnavailable,

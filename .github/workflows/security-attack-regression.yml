@@ -1,0 +1,85 @@
+name: Security Attack Regression V1
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  attack-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CKNEXUS_ENVIRONMENT: development
+      CKNEXUS_HOST: 127.0.0.1
+      PORT: '8000'
+      CKNEXUS_ACCESS_TOKEN: test-access-value
+      CKNEXUS_SECURITY_ACCESS_TOKEN: test-access-value
+      CKNEXUS_MOCK_AI: 'true'
+      CKNEXUS_GMAIL_OAUTH_ENABLED: 'false'
+      CKNEXUS_GMAIL_SEND_ENABLED: 'false'
+      CKNEXUS_CONNECTOR_FABRIC_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+
+      - name: Frozen dependency sync
+        run: |
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+
+      - name: Static security gates
+        run: |
+          .venv/bin/ruff check scripts/security_attack_regression.py
+          .venv/bin/bandit -q scripts/security_attack_regression.py
+          .venv/bin/python scripts/secret_scan.py
+          .venv/bin/pip-audit
+
+      - name: Start isolated local CK-NEXUS runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup .venv/bin/ck-nexus > /tmp/cknexus-security-runtime.log 2>&1 &
+          echo $! > /tmp/cknexus-security-runtime.pid
+
+      - name: Run black-box and policy attack regression
+        run: .venv/bin/python scripts/security_attack_regression.py
+
+      - name: Show runtime log on failure
+        if: failure()
+        run: cat /tmp/cknexus-security-runtime.log || true
+
+      - name: Stop local runtime
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/cknexus-security-runtime.pid ]; then
+            kill "$(cat /tmp/cknexus-security-runtime.pid)" 2>/dev/null || true
+          fi
+
+      - name: Upload development security evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: security-attack-regression-v1
+          path: security-attack-regression.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Evidence boundary
+        if: always()
+        run: |
+          echo 'Development security regression only.'
+          echo 'This workflow is not Native Codex Security Q10 evidence.'
+          echo 'It cannot promote Q10/Q11/Q12 or authorize PR #14 merge.'
