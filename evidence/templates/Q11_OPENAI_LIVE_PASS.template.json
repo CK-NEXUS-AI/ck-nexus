@@ -1,0 +1,19 @@
+{
+  "schema_version": 4,
+  "gate": "Q11",
+  "status": "TEMPLATE_ONLY",
+  "source_sha": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+  "source_tree": "0525195934f703a8becf8a39f6397b2411e0bb2e",
+  "release_subject_manifest_sha256": "89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52",
+  "github_run_id": 0,
+  "artifact_id": 0,
+  "artifact_digest": "sha256:REPLACE_WITH_SERVER_SIDE_DIGEST",
+  "verifier_branch": "verify/q11-final-subject",
+  "credential_configured": true,
+  "credential_exposed": false,
+  "p0_ai_001_exit_code": 0,
+  "sentinel_observed": true,
+  "result": "PASS",
+  "production_promotion_allowed": true,
+  "template_warning": "Template only. Never commit as PASS until populated from a successful exact-subject live GitHub Actions run and provenance-reconciled."
+}
