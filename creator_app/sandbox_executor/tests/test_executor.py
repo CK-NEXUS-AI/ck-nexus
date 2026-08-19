@@ -82,7 +82,7 @@ def test_container_command_enforces_hardening_flags(tmp_path: Path) -> None:
     assert "--cap-drop=ALL" in command
     assert "--security-opt=no-new-privileges" in command
     assert "--user=1000:1000" in command
-    assert "/cknexus/adapter" == command[-1]
+    assert command[-1] == "/cknexus/adapter"
     assert "--privileged" not in command
     assert all("docker.sock" not in item for item in command)
 
