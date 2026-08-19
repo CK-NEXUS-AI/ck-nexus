@@ -334,7 +334,7 @@ def _container_command(
         raise SandboxBlocked("container image must be digest-pinned")
     if uid <= 0 or gid < 0:
         raise SandboxBlocked("container execution requires a non-root host identity")
-    mount = f"type=bind,src={worktree},dst=/workspace,rw"
+    mount = f"type=bind,src={worktree},dst=/workspace"
     return [
         engine,
         "run",
