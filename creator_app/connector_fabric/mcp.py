@@ -191,10 +191,8 @@ class MCPClient:
         *,
         name: str | None = None,
     ) -> dict[str, Any]:
-        validate_endpoint(
-            config.url,
-            policy=EndpointPolicy(allow_private_network=config.allow_private_network),
-        )
+        endpoint_policy = EndpointPolicy(allow_private_network=config.allow_private_network)
+        validate_endpoint(config.url, policy=endpoint_policy)
         self._request_id += 1
         request_params = dict(params)
         request_params["_meta"] = {
@@ -228,6 +226,7 @@ class MCPClient:
             headers=headers,
             body=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
             timeout=self.timeout_seconds,
+            endpoint_policy=endpoint_policy,
         )
         if response.status == 401:
             raise MCPDiscoveryError("AUTH_REQUIRED", "MCP server requires authorization.")

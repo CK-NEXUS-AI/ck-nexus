@@ -28,7 +28,7 @@ class FakeTransport:
         self.responses = list(responses)
         self.requests = []
 
-    def request(self, method, url, *, headers, body, timeout):
+    def request(self, method, url, *, headers, body, timeout, endpoint_policy=None):
         self.requests.append(
             {
                 "method": method,
@@ -36,6 +36,7 @@ class FakeTransport:
                 "headers": dict(headers),
                 "body": body,
                 "timeout": timeout,
+                "endpoint_policy": endpoint_policy,
             }
         )
         if not self.responses:
