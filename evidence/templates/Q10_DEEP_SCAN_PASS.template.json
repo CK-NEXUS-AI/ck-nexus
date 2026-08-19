@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "gate": "Q10",
+  "status": "TEMPLATE_ONLY",
+  "repository": "spinlnw10-art/ck-nexus",
+  "target_sha": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+  "target_tree_sha": "0525195934f703a8becf8a39f6397b2411e0bb2e",
+  "release_subject_manifest_sha256": "89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52",
+  "application_subject_manifest_sha256": "dff89dc7fa9cd6e40480c3344f688a75383ec798929efe23f3a29c79d1186cec",
+  "target_scope": ".",
+  "scan_mode": "deep",
+  "codex_security_scan_id": "REPLACE_WITH_NATIVE_SCAN_ID",
+  "codex_security_report_sha256": "REPLACE_WITH_64_HEX_SHA256",
+  "codex_security_completed_at": "REPLACE_WITH_COMPLETION_TIMESTAMP",
+  "terminal_phases": {
+    "preflight": "PASS",
+    "repeated_discovery": "PASS",
+    "canonical_validation": "PASS",
+    "attack_path_analysis": "PASS",
+    "canonical_draft": "PASS",
+    "completion_with_generated_report": "PASS"
+  },
+  "coverage": "complete",
+  "reportable_findings_open": 0,
+  "codex_security_deep_scan": "PASS",
+  "gate_result": "PASS",
+  "production_promotion_allowed": true,
+  "template_warning": "This file is a template only and is never Q10 evidence until populated from a completed native Codex Security Deep Security Scan and validated."
+}
