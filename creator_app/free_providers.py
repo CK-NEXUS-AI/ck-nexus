@@ -23,10 +23,14 @@ from creator_app.provider_router import (
 )
 
 
-def _require_https_url(url: str) -> None:
+def _require_safe_provider_url(url: str) -> None:
     parsed = urlparse(url)
-    if parsed.scheme != "https" or not parsed.hostname:
-        raise ValueError("Provider endpoint must use HTTPS with a valid hostname")
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme == "https" and host:
+        return
+    if parsed.scheme == "http" and host in {"localhost", "127.0.0.1", "::1"}:
+        return
+    raise ValueError("Provider endpoint must use HTTPS, except loopback HTTP")
 
 
 # ── Quota Tracker ────────────────────────────────────────────────────────────
@@ -79,7 +83,7 @@ class QuotaTracker:
         return (
             bool(window.last_error)
             and "429" in window.last_error
-            and now - window.last_error_time < 30
+            and now - window.last_error_time < self._windows_seconds
         )
 
     def stats(self, provider: str) -> dict[str, Any]:
@@ -113,9 +117,9 @@ class OpenAICompatibleAdapter:
         timeout_seconds: int = 30,
         extra_headers: dict[str, str] | None = None,
         quota_tracker: QuotaTracker | None = None,
+        opener: Any | None = None,
     ) -> None:
         self.name = name
-        _require_https_url(base_url)
         self.base_url = base_url.rstrip("/")
         self.env_key = env_key
         self.model = model
@@ -123,6 +127,7 @@ class OpenAICompatibleAdapter:
         self.timeout_seconds = timeout_seconds
         self._extra_headers = extra_headers or {}
         self._quota = quota_tracker
+        self._opener = opener
         self.capabilities = ProviderCapabilities(
             features=features,
             models=self._models,
@@ -157,8 +162,10 @@ class OpenAICompatibleAdapter:
             **self._extra_headers,
         }
 
+        endpoint = f"{self.base_url}/chat/completions"
+        _require_safe_provider_url(endpoint)
         request = Request(
-            f"{self.base_url}/chat/completions",
+            endpoint,
             data=payload,
             method="POST",
             headers=headers,
@@ -166,7 +173,8 @@ class OpenAICompatibleAdapter:
 
         def _call() -> str:
             try:
-                with urlopen(request, timeout=self.timeout_seconds) as response:  # nosec B310 -- HTTPS URL validated before request construction.
+                opener = self._opener or urlopen
+                with opener(request, timeout=self.timeout_seconds) as response:
                     body = json.loads(response.read().decode("utf-8"))
             except Exception as exc:
                 if self._quota:
@@ -232,7 +240,7 @@ class GeminiAdapter:
             f"https://generativelanguage.googleapis.com/v1beta/"
             f"models/{self.model}:generateContent?key={key}"
         )
-        _require_https_url(url)
+        _require_safe_provider_url(url)
         payload = json.dumps(
             {
                 "contents": [{"parts": [{"text": prompt}]}],
@@ -251,7 +259,7 @@ class GeminiAdapter:
 
         def _call() -> str:
             try:
-                with urlopen(request, timeout=self.timeout_seconds) as response:  # nosec B310 -- fixed Gemini HTTPS endpoint validated above.
+                with urlopen(request, timeout=self.timeout_seconds) as response:  # nosec B310
                     body = json.loads(response.read().decode("utf-8"))
             except Exception as exc:
                 if self._quota:
