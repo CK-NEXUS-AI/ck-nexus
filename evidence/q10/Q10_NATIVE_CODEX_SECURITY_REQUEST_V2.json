@@ -1,0 +1,34 @@
+{
+  "schema_version": "2.0",
+  "repository": "spinlnw10-art/ck-nexus",
+  "mode": "deep",
+  "scope": ".",
+  "target_sha": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+  "target_tree_sha": "0525195934f703a8becf8a39f6397b2411e0bb2e",
+  "runtime_subject": "89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52",
+  "required_native_flow": [
+    "start_codex_security_deep_scan",
+    "repeated independent standard scans coordinated by deep scan",
+    "canonical aggregation",
+    "complete_codex_security_scan exactly once",
+    "sealed report.md"
+  ],
+  "required_outputs": [
+    "codex_security_scan_id",
+    "codex_security_report_sha256",
+    "codex_security_completed_at",
+    "codex_security_target_sha",
+    "codex_security_target_tree_sha",
+    "codex_security_release_subject_manifest_sha256"
+  ],
+  "substitutes_forbidden": [
+    "Bandit",
+    "pip-audit",
+    "secret scan",
+    "ordinary CI",
+    "manual-only review",
+    "GPT simulation"
+  ],
+  "promotion_rule": "Q10 remains NOT_VERIFIED until native sealed evidence matches the exact target/tree/subject and passes policy.",
+  "subject_rotation_rule": "Any remediation that changes a frozen runtime path invalidates subject-bound evidence and requires a new runtime subject plus restart from Q10."
+}
