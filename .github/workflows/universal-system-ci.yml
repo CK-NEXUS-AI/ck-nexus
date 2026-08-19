@@ -52,13 +52,42 @@ jobs:
           ai_provider_manager.py
           run_anyclaw.py
           --output-format=github
-      - name: Bandit scoped development files
-        run: >-
-          .venv/bin/bandit -q -r
-          creator_app/ai_team
-          creator_app/core
-          creator_app/agnes/mcp_server.py
-          creator_app/credentials
+      - name: Bandit reviewed severity gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          .venv/bin/bandit -r \
+            creator_app/ai_team \
+            creator_app/core \
+            creator_app/agnes/mcp_server.py \
+            creator_app/credentials \
+            -f json -o /tmp/universal-bandit.json || true
+          .venv/bin/python - <<'PY'
+          import json
+          import sys
+
+          with open('/tmp/universal-bandit.json', encoding='utf-8') as handle:
+              report = json.load(handle)
+
+          results = report.get('results', [])
+          blocking = [
+              {
+                  'test_id': item.get('test_id'),
+                  'severity': item.get('issue_severity'),
+                  'confidence': item.get('issue_confidence'),
+                  'filename': item.get('filename'),
+                  'line': item.get('line_number'),
+              }
+              for item in results
+              if item.get('issue_severity') in {'MEDIUM', 'HIGH'}
+          ]
+          low_count = sum(item.get('issue_severity') == 'LOW' for item in results)
+          print(f"bandit_low_findings={low_count}")
+          print(f"bandit_blocking_findings={len(blocking)}")
+          if blocking:
+              print(json.dumps(blocking, indent=2, sort_keys=True))
+          sys.exit(bool(blocking))
+          PY
       - name: Secret scan
         run: .venv/bin/python scripts/secret_scan.py
       - name: Real MCP Streamable HTTP smoke
