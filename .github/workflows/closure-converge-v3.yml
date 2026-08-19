@@ -4,24 +4,31 @@ on:
   workflow_dispatch:
     inputs:
       q10_scan_manifest:
-        description: Path to sealed Q10 scan manifest
+        description: Path to genuine sealed Native Codex Security scan manifest
         required: true
         default: evidence/q10/native/scan-manifest.json
       q10_report:
-        description: Path to sealed Codex Security report.md
+        description: Path to genuine sealed Native Codex Security report.md
         required: true
         default: evidence/q10/native/report.md
       run_q12:
-        description: Run Q12 on the dedicated self-hosted delegated runner
+        description: Dispatch canonical Q12 verifier on delegated self-hosted Linux
         required: true
         type: boolean
-        default: false
+        default: true
 
 permissions:
-  contents: read
+  actions: write
+  contents: write
+
+concurrency:
+  group: cknexus-production-closure
+  cancel-in-progress: false
 
 env:
   EXPECTED_SUBJECT: 89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52
+  EXPECTED_SOURCE: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
+  EXPECTED_TREE: 0525195934f703a8becf8a39f6397b2411e0bb2e
 
 jobs:
   q10:
@@ -40,15 +47,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test "$(git show -s --format=%T "$EXPECTED_SOURCE")" = "$EXPECTED_TREE"
           python .github/release-tools/codex_security_bridge.py \
             --scan-manifest '${{ inputs.q10_scan_manifest }}' \
             --report '${{ inputs.q10_report }}' \
-            --output q10-normalized.json
+            --baseline-evidence evidence/Q10_DEPENDENCY_AUDIT.json \
+            --output Q10_DEPENDENCY_AUDIT.json
+          test "$(python -c "import json; print(json.load(open('Q10_DEPENDENCY_AUDIT.json'))['gate_result'])")" = PASS
+          cp '${{ inputs.q10_report }}' q10-report.md
           echo 'passed=true' >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
-          name: q10-normalized-evidence
-          path: q10-normalized.json
+          name: q10-native-normalized-${{ env.EXPECTED_SOURCE }}
+          path: |
+            Q10_DEPENDENCY_AUDIT.json
+            q10-report.md
           if-no-files-found: error
 
   q11:
@@ -56,7 +69,7 @@ jobs:
     if: needs.q10.outputs.passed == 'true'
     runs-on: ubuntu-24.04
     outputs:
-      passed: ${{ steps.smoke.outputs.passed }}
+      passed: ${{ steps.handoff.outputs.passed }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -64,32 +77,31 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Install frozen dependencies
-        run: |
-          python -m pip install --upgrade pip uv
-          uv sync --all-extras --dev --frozen
-      - id: smoke
-        name: Run credential-isolated Q11 live smoke
+      - id: handoff
+        name: Dispatch canonical Q11 verifier and normalize artifact provenance
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_SMOKE_MODEL: ${{ vars.OPENAI_SMOKE_MODEL }}
+          GITHUB_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          .venv/bin/python .github/release-tools/q11_live_runner.py --output q11-live.json
+          python .github/release-tools/canonical_verifier_handoff.py \
+            --branch verify/q11-final-subject \
+            --artifact-prefix "q11-final-${EXPECTED_SOURCE}" \
+            --evidence-name Q11_OPENAI_LIVE.json \
+            --output Q11_OPENAI_LIVE.json
           echo 'passed=true' >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
-          name: q11-live-evidence
-          path: q11-live.json
+          name: q11-canonical-normalized-${{ env.EXPECTED_SOURCE }}
+          path: Q11_OPENAI_LIVE.json
           if-no-files-found: error
 
   q12:
     needs: [q10, q11]
     if: inputs.run_q12 && needs.q10.outputs.passed == 'true' && needs.q11.outputs.passed == 'true'
-    runs-on: [self-hosted, linux, cknexus-q12]
+    runs-on: ubuntu-24.04
     outputs:
-      passed: ${{ steps.cgroup.outputs.passed }}
+      passed: ${{ steps.handoff.outputs.passed }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -97,26 +109,144 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Enforce non-root identity
-        run: test "$(id -u)" -ne 0
-      - id: cgroup
-        name: Run delegated cgroup v2 gate
+      - id: handoff
+        name: Dispatch canonical Q12 verifier and normalize artifact provenance
         env:
-          CKNEXUS_ENVIRONMENT: staging
-          CKNEXUS_AGNES_CGROUP_ROOT: ${{ vars.CKNEXUS_AGNES_CGROUP_ROOT }}
+          GITHUB_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          python .github/release-tools/q12_cgroup_runner.py --output q12-live.json
+          python .github/release-tools/canonical_verifier_handoff.py \
+            --branch verify/q12-final-subject \
+            --artifact-prefix "q12-final-${EXPECTED_SOURCE}" \
+            --evidence-name Q12_CGROUP_V2.json \
+            --output Q12_CGROUP_V2.json \
+            --timeout-seconds 3600
           echo 'passed=true' >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
-          name: q12-live-evidence
-          path: q12-live.json
+          name: q12-canonical-normalized-${{ env.EXPECTED_SOURCE }}
+          path: Q12_CGROUP_V2.json
+          if-no-files-found: error
+
+  reconcile:
+    needs: [q10, q11, q12]
+    if: inputs.run_q12 && needs.q10.result == 'success' && needs.q11.result == 'success' && needs.q12.result == 'success'
+    runs-on: ubuntu-24.04
+    outputs:
+      eligible: ${{ steps.closure.outputs.eligible }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: q10-native-normalized-${{ env.EXPECTED_SOURCE }}
+          path: closure-input/q10
+      - uses: actions/download-artifact@v4
+        with:
+          name: q11-canonical-normalized-${{ env.EXPECTED_SOURCE }}
+          path: closure-input/q11
+      - uses: actions/download-artifact@v4
+        with:
+          name: q12-canonical-normalized-${{ env.EXPECTED_SOURCE }}
+          path: closure-input/q12
+      - name: Overlay only verified gate evidence for provenance recheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp closure-input/q10/Q10_DEPENDENCY_AUDIT.json evidence/Q10_DEPENDENCY_AUDIT.json
+          cp closure-input/q11/Q11_OPENAI_LIVE.json evidence/Q11_OPENAI_LIVE.json
+          cp closure-input/q12/Q12_CGROUP_V2.json evidence/Q12_CGROUP_V2.json
+      - name: Reconcile all eight canonical evidence records
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python .github/release-tools/verify_release_evidence_provenance.py \
+            --expected-subject "$EXPECTED_SUBJECT" \
+            --output release-evidence-provenance.json
+      - id: closure
+        name: Enforce Q10 + Q11 + Q12 + provenance contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/release-tools/closure_master.py \
+            --q10 evidence/Q10_DEPENDENCY_AUDIT.json \
+            --q10-report closure-input/q10/q10-report.md \
+            --q11 evidence/Q11_OPENAI_LIVE.json \
+            --q12 evidence/Q12_CGROUP_V2.json \
+            --provenance release-evidence-provenance.json \
+            --output closure-result.json
+          status=$(python -c "import json; print(json.load(open('closure-result.json'))['status'])")
+          test "$status" = GATES_PASS_PACKAGE_NOT_PROVIDED
+          echo 'eligible=true' >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: closure-reconciled-${{ env.EXPECTED_SOURCE }}
+          path: |
+            evidence/Q10_DEPENDENCY_AUDIT.json
+            evidence/Q11_OPENAI_LIVE.json
+            evidence/Q12_CGROUP_V2.json
+            release-evidence-provenance.json
+            closure-result.json
+          if-no-files-found: error
+
+  promote:
+    needs: reconcile
+    if: needs.reconcile.outputs.eligible == 'true'
+    runs-on: ubuntu-24.04
+    outputs:
+      closure_sha: ${{ steps.promote.outputs.closure_sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: closure-reconciled-${{ env.EXPECTED_SOURCE }}
+          path: closure-input
+      - id: promote
+        name: Promote evidence only to production closure branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/release-tools/promote_closure_evidence.py \
+            --q10 closure-input/evidence/Q10_DEPENDENCY_AUDIT.json \
+            --q11 closure-input/evidence/Q11_OPENAI_LIVE.json \
+            --q12 closure-input/evidence/Q12_CGROUP_V2.json \
+            --provenance closure-input/release-evidence-provenance.json
+          closure_sha=$(git rev-parse HEAD)
+          echo "closure_sha=$closure_sha" >> "$GITHUB_OUTPUT"
+
+  final-package:
+    needs: promote
+    if: needs.promote.result == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Dispatch canonical Final production package and require checksummed artifact
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python .github/release-tools/dispatch_workflow_and_require_artifact.py \
+            --workflow-file final-production-package.yml \
+            --ref release/q10-q16-closure \
+            --workflow-name 'Final production package' \
+            --artifact-prefix ck-nexus-production- \
+            --expected-head-sha '${{ needs.promote.outputs.closure_sha }}' \
+            --output final-package-result.json \
+            --timeout-seconds 7200
+      - uses: actions/upload-artifact@v4
+        with:
+          name: closure-final-package-proof-${{ needs.promote.outputs.closure_sha }}
+          path: final-package-result.json
           if-no-files-found: error
 
   status:
-    needs: [q10, q11, q12]
+    needs: [q10, q11, q12, reconcile, promote, final-package]
     if: always()
     runs-on: ubuntu-24.04
     steps:
@@ -128,6 +258,14 @@ jobs:
             echo "Q10: ${{ needs.q10.result }}"
             echo "Q11: ${{ needs.q11.result }}"
             echo "Q12: ${{ needs.q12.result }}"
+            echo "Provenance: ${{ needs.reconcile.result }}"
+            echo "Evidence promotion: ${{ needs.promote.result }}"
+            echo "Final package: ${{ needs.final-package.result }}"
             echo
-            echo 'Production status remains NO-GO until Q10/Q11/Q12 evidence is normalized, committed on the closure line, provenance is re-reconciled, and the checksummed final package is built and reviewed.'
+            if [ '${{ needs.final-package.result }}' = success ]; then
+              echo 'Status: ELIGIBLE_FOR_HUMAN_RELEASE_REVIEW_NOT_MERGED'
+            else
+              echo 'Status: NO-GO'
+            fi
+            echo 'PR #14 is never merged by this workflow.'
           } >> "$GITHUB_STEP_SUMMARY"
