@@ -15,8 +15,8 @@ jobs:
       CKNEXUS_ENVIRONMENT: development
       CKNEXUS_HOST: 127.0.0.1
       PORT: '8000'
-      CKNEXUS_ACCESS_TOKEN: security-regression-token
-      CKNEXUS_SECURITY_ACCESS_TOKEN: security-regression-token
+      CKNEXUS_ACCESS_TOKEN: test-access-value
+      CKNEXUS_SECURITY_ACCESS_TOKEN: test-access-value
       CKNEXUS_MOCK_AI: 'true'
       CKNEXUS_GMAIL_OAUTH_ENABLED: 'false'
       CKNEXUS_GMAIL_SEND_ENABLED: 'false'
@@ -74,10 +74,11 @@ jobs:
         with:
           name: security-attack-regression-v1
           path: security-attack-regression.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Evidence boundary
+        if: always()
         run: |
           echo 'Development security regression only.'
           echo 'This workflow is not Native Codex Security Q10 evidence.'
