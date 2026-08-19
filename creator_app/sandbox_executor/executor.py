@@ -10,6 +10,7 @@ worktree, and returns development evidence. It never applies or commits the patc
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import subprocess
@@ -25,6 +26,7 @@ _SHA1_RE = re.compile(r"^[0-9a-f]{40}$")
 _EXECUTION_ID_RE = re.compile(r"^devexec-[0-9a-f]{20}$")
 _ALLOWED_ENGINES = frozenset({"docker", "podman"})
 _ADAPTER_ENTRYPOINT = "/cknexus/adapter"
+_MAX_TASK_BYTES = 100_000
 
 
 class SandboxBlocked(RuntimeError):
@@ -155,6 +157,7 @@ class SandboxExecutor:
         execution_id = str(plan.get("execution_id", ""))
         assistant_id = str(plan.get("assistant_id", "")).strip()
         task = str(plan.get("task", "")).strip()
+        workstream_id = str(plan.get("workstream_id", "")).strip()
         policy = plan.get("policy")
         if not isinstance(policy, dict):
             raise SandboxBlocked("plan policy is missing")
@@ -162,8 +165,10 @@ class SandboxExecutor:
             raise SandboxBlocked("plan execution_id is invalid")
         if not assistant_id:
             raise SandboxBlocked("plan assistant_id is missing")
-        if not task:
-            raise SandboxBlocked("plan task is missing")
+        if not task or len(task.encode("utf-8")) > _MAX_TASK_BYTES:
+            raise SandboxBlocked("plan task is missing or exceeds the task size limit")
+        if not workstream_id:
+            raise SandboxBlocked("plan workstream_id is missing")
         if plan.get("execution_state") != "PLANNED_NOT_EXECUTED":
             raise SandboxBlocked("plan must be in PLANNED_NOT_EXECUTED state")
         if plan.get("authority") != "CK-NEXUS":
@@ -180,6 +185,12 @@ class SandboxExecutor:
             raise SandboxBlocked("external mutation authority must remain false")
         if plan.get("credential_refs"):
             raise SandboxBlocked("V1 executor does not resolve or forward credentials")
+
+        digest = _plan_request_digest(plan)
+        if plan.get("request_digest") != digest:
+            raise SandboxBlocked("plan request_digest does not match normalized request fields")
+        if execution_id != f"devexec-{digest[:20]}":
+            raise SandboxBlocked("plan execution_id does not match request_digest")
         return {
             "execution_id": execution_id,
             "assistant_id": assistant_id,
@@ -331,3 +342,15 @@ def _container_command(
         image_ref,
         _ADAPTER_ENTRYPOINT,
     ]
+
+
+def _plan_request_digest(plan: dict[str, Any]) -> str:
+    payload = {
+        "assistant_id": str(plan.get("assistant_id", "")).strip(),
+        "task": str(plan.get("task", "")).strip(),
+        "workstream_id": str(plan.get("workstream_id", "")).strip(),
+        "required_capabilities": sorted(plan.get("required_capabilities") or ()),
+        "credential_refs": sorted(plan.get("credential_refs") or ()),
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
