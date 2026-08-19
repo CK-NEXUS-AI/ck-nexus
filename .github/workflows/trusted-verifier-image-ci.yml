@@ -40,19 +40,26 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve exact base image digest
+      - name: Verify exact pinned base image digest
         shell: bash
         run: |
           set -euo pipefail
-          docker pull "$BASE_TAG"
-          base_ref="$(docker inspect --format='{{index .RepoDigests 0}}' "$BASE_TAG")"
-          test -n "$base_ref"
-          case "$base_ref" in
-            *@sha256:*) ;;
-            *) echo 'base image did not resolve to a digest' >&2; exit 1 ;;
+          pinned="$(tr -d '\r\n' < .github/verifier-image/base-image.txt)"
+          case "$pinned" in
+            python@sha256:*) ;;
+            *) echo 'pinned base image is invalid' >&2; exit 1 ;;
           esac
-          echo "BASE_IMAGE=$base_ref" >> "$GITHUB_ENV"
-          echo "resolved_base_image=$base_ref"
+          docker pull "$BASE_TAG"
+          resolved="$(docker inspect --format='{{index .RepoDigests 0}}' "$BASE_TAG")"
+          test -n "$resolved"
+          if [ "$resolved" != "$pinned" ]; then
+            echo "base image drift detected" >&2
+            echo "pinned=$pinned" >&2
+            echo "resolved=$resolved" >&2
+            exit 1
+          fi
+          echo "BASE_IMAGE=$pinned" >> "$GITHUB_ENV"
+          echo "verified_base_image=$pinned"
 
       - name: Build verifier image from frozen project dependencies
         shell: bash
@@ -133,8 +140,9 @@ jobs:
           set -euo pipefail
           dockerfile_sha="$(sha256sum .github/verifier-image/Dockerfile | awk '{print $1}')"
           entrypoint_sha="$(sha256sum .github/verifier-image/verify | awk '{print $1}')"
+          base_pin_sha="$(sha256sum .github/verifier-image/base-image.txt | awk '{print $1}')"
           lock_sha="$(sha256sum uv.lock | awk '{print $1}')"
-          export dockerfile_sha entrypoint_sha lock_sha
+          export dockerfile_sha entrypoint_sha base_pin_sha lock_sha
           python - <<'PY'
           import hashlib
           import json
@@ -150,11 +158,13 @@ jobs:
               "published_image": os.environ.get("PUBLISHED_IMAGE"),
               "dockerfile_sha256": os.environ["dockerfile_sha"],
               "entrypoint_sha256": os.environ["entrypoint_sha"],
+              "base_pin_sha256": os.environ["base_pin_sha"],
               "uv_lock_sha256": os.environ["lock_sha"],
               "runtime_network": "deny",
               "credential_forwarding": False,
               "default_uid": 65532,
               "profile": "python_quality",
+              "host_specific_tests_delegated": True,
               "release_evidence": False,
               "production_status": "NO-GO",
               "completed_at": datetime.now(UTC).isoformat(),
