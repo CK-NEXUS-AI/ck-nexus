@@ -1,0 +1,59 @@
+name: Trusted Verifier Allowlist Discovery
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/trusted-verifier-allowlist-ci.yml'
+      - 'creator_app/dynamic_verifier/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  IMAGE_TAG: ghcr.io/spinlnw10-art/ck-nexus-verifier-python:4e7a4eb37ad332a312f236e9b83b7f72f063b74f
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve published verifier image digest
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          found=0
+          for attempt in 1 2 3 4 5 6; do
+            if docker pull "$IMAGE_TAG"; then
+              found=1
+              break
+            fi
+            echo "image not available yet; attempt=$attempt" >&2
+            sleep 10
+          done
+          test "$found" -eq 1
+          digest_ref="$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE_TAG")"
+          case "$digest_ref" in
+            ghcr.io/spinlnw10-art/ck-nexus-verifier-python@sha256:*) ;;
+            *) echo 'unexpected published image digest' >&2; exit 1 ;;
+          esac
+          echo "TRUSTED_VERIFIER_IMAGE=$digest_ref" >> "$GITHUB_ENV"
+          echo "trusted_verifier_image=$digest_ref"
+
+      - name: Verify runtime image metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(docker image inspect --format='{{.Config.User}}' "$TRUSTED_VERIFIER_IMAGE")" = '65532:65532'
+          test "$(docker image inspect --format='{{json .Config.Entrypoint}}' "$TRUSTED_VERIFIER_IMAGE")" = '["/cknexus/verify"]'
+          echo 'published verifier image metadata PASS'
+
+      - name: Production boundary
+        run: |
+          echo 'Digest discovery is development evidence only.'
+          echo 'No Q10/Q11/Q12 promotion. PR #14 remains untouched. Production NO-GO.'
