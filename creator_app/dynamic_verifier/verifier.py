@@ -2,8 +2,8 @@
 
 This phase is deliberately separate from both the assistant sandbox and the static
 patch verifier. It re-runs independent static verification, applies the patch only
-to a fresh disposable exact-SHA worktree, and runs a digest-pinned verifier image
-with no network or credentials. Patched code never executes on the host.
+to a fresh disposable exact-SHA worktree, and runs an explicitly trusted verifier
+image with no network or credentials. Patched code never executes on the host.
 """
 
 from __future__ import annotations
@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Any
 
 from creator_app.patch_verifier import IndependentPatchVerifier, PatchVerificationPolicy
+
+from .trusted_images import trusted_verifier_image
 
 _IMAGE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/:+-]*@sha256:[0-9a-f]{64}$")
 _SHA1_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -92,6 +94,9 @@ class IsolatedDynamicVerifier:
         """Statically reverify, apply to disposable worktree, then run verifier image."""
         self._validate(request)
         repo = request.repository_path.expanduser().resolve()
+        trusted = trusted_verifier_image(request.verifier_image, request.profile)
+        if trusted is None:  # Defensive duplicate after validation.
+            raise DynamicVerificationBlocked("verifier image lost trusted status")
 
         static_result = IndependentPatchVerifier().verify(
             patch=request.patch,
@@ -130,6 +135,8 @@ class IsolatedDynamicVerifier:
             "patch_digest": request.patch_digest,
             "static_verification_id": static_result.verification_id,
             "verifier_image": request.verifier_image,
+            "trusted_image_source_commit": trusted.source_commit,
+            "trusted_image_discovery_run_id": trusted.discovery_run_id,
             "profile": request.profile,
             "state": state,
             "exit_code": exit_code,
@@ -182,6 +189,10 @@ class IsolatedDynamicVerifier:
             raise DynamicVerificationBlocked("container engine is not allowlisted")
         if request.profile not in _ALLOWED_PROFILES:
             raise DynamicVerificationBlocked("verification profile is not allowlisted")
+        if trusted_verifier_image(request.verifier_image, request.profile) is None:
+            raise DynamicVerificationBlocked(
+                "verifier_image is not in the CK-NEXUS trusted registry"
+            )
         repo = request.repository_path.expanduser().resolve()
         if not repo.is_dir() or not (repo / ".git").exists():
             raise DynamicVerificationBlocked(
@@ -285,6 +296,8 @@ def _verifier_container_command(
         raise DynamicVerificationBlocked("verifier image must be digest-pinned")
     if profile not in _ALLOWED_PROFILES:
         raise DynamicVerificationBlocked("verification profile is not allowlisted")
+    if trusted_verifier_image(verifier_image, profile) is None:
+        raise DynamicVerificationBlocked("verifier image is not trusted")
     if uid <= 0 or gid < 0:
         raise DynamicVerificationBlocked("verifier requires non-root host identity")
     mount = f"type=bind,src={worktree},dst=/workspace"
