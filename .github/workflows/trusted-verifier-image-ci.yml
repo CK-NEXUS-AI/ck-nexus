@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/verifier-image/**'
       - '.github/workflows/trusted-verifier-image-ci.yml'
+      - 'creator_app/dynamic_verifier/**'
+      - 'creator_app/sandbox_executor/**'
       - 'pyproject.toml'
       - 'uv.lock'
   push:
@@ -12,6 +14,8 @@ on:
     paths:
       - '.github/verifier-image/**'
       - '.github/workflows/trusted-verifier-image-ci.yml'
+      - 'creator_app/dynamic_verifier/**'
+      - 'creator_app/sandbox_executor/**'
       - 'pyproject.toml'
       - 'uv.lock'
   workflow_dispatch:
@@ -86,7 +90,7 @@ jobs:
             --cpus=2 \
             --tmpfs=/tmp:rw,noexec,nosuid,nodev,size=134217728 \
             --user="$uid:$gid" \
-            --mount="type=bind,src=$PWD,dst=/workspace,rw" \
+            --mount="type=bind,src=$PWD,dst=/workspace" \
             --workdir=/workspace \
             --env=CKNEXUS_VERIFY_PROFILE=python_quality \
             cknexus-verifier:test \
@@ -98,6 +102,8 @@ jobs:
           set -euo pipefail
           test "$(docker image inspect --format='{{.Config.User}}' cknexus-verifier:test)" = '65532:65532'
           ! docker history --no-trunc cknexus-verifier:test | grep -Ei 'API[_-]?KEY|AUTHORIZATION: BEARER|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY'
+          ! grep -R --line-number 'dst=/workspace,rw' \
+            creator_app/dynamic_verifier creator_app/sandbox_executor .github/verifier-image
           docker run --rm --entrypoint /bin/sh cknexus-verifier:test -c \
             'test "$(id -u)" -ne 0 && test -x /cknexus/verify && test -x /opt/cknexus-venv/bin/ruff && test -x /opt/cknexus-venv/bin/pytest'
 
