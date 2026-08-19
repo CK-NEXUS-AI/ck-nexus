@@ -104,9 +104,10 @@ def _gateway(*, local: bool = False) -> AIGateway:
 
 
 def test_secret_content_is_never_disclosed_externally() -> None:
+    synthetic_key = "sk-" + "a" * 32
     envelope = ContentEnvelope(
         source="chat",
-        content="token sk-abcdefghijklmnopqrstuvwxyz012345",
+        content="token " + synthetic_key,
         classification=DataClassification.INTERNAL,
         trust=TrustLevel.TRUSTED,
         purpose="answer",
