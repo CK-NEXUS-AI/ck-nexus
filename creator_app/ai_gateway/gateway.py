@@ -49,9 +49,12 @@ class AIGateway:
                     continue
                 if model.cost_tier > request.max_cost_tier:
                     continue
-                if request.data_class in {DataClass.PERSONAL, DataClass.SENSITIVE}:
-                    if not model.local and not request.allow_external:
-                        continue
+                if (
+                    request.data_class in {DataClass.PERSONAL, DataClass.SENSITIVE}
+                    and not model.local
+                    and not request.allow_external
+                ):
+                    continue
                 candidates.append(model)
 
         if not candidates:
