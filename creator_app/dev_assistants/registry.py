@@ -57,7 +57,7 @@ ASSISTANTS: tuple[AssistantSpec, ...] = (
         commands=("gemini",),
         capabilities=frozenset({"code_edit", "repo_analysis", "shell", "web", "mcp"}),
         free_entry_path="Personal Google-account free tier is available upstream.",
-        inference_may_cost=False,
+        inference_may_cost=True,
         notes="Use OAuth/login flow; never copy account tokens into CK-NEXUS source.",
     ),
     AssistantSpec(
@@ -94,7 +94,10 @@ ASSISTANTS: tuple[AssistantSpec, ...] = (
         capabilities=frozenset({"code_edit", "repo_analysis", "agent_sdk", "sandbox"}),
         free_entry_path="Core agent stack is open source; bring your own model/runtime.",
         inference_may_cost=True,
-        notes="Run only in isolated development environments; enterprise directory has separate terms.",
+        notes=(
+            "Run only in isolated development environments; "
+            "enterprise directory has separate terms."
+        ),
     ),
     AssistantSpec(
         assistant_id="goose",
@@ -106,7 +109,10 @@ ASSISTANTS: tuple[AssistantSpec, ...] = (
         capabilities=frozenset({"code_edit", "workflow", "mcp", "local_agent"}),
         free_entry_path="Open-source local agent; model/provider charges may still apply.",
         inference_may_cost=True,
-        notes="Use MCP extensions through CK-NEXUS capability boundaries, not direct secret sharing.",
+        notes=(
+            "Use MCP extensions through CK-NEXUS capability boundaries, "
+            "not direct secret sharing."
+        ),
     ),
     AssistantSpec(
         assistant_id="mini_swe_agent",
