@@ -172,9 +172,7 @@ PROVIDER_REGISTRY: list[ProviderSpec] = [
         env_key="FIREWORKS_API_KEY",
         tier=ProviderTier.FREE,
         key_validation_endpoint="https://api.fireworks.ai/inference/v1/models",
-        free_models=(
-            "accounts/fireworks/models/llama-v3p3-70b-instruct",
-        ),
+        free_models=("accounts/fireworks/models/llama-v3p3-70b-instruct",),
         signup_url="https://fireworks.ai/account/api-keys",
         docs_url="https://docs.fireworks.ai/",
         description="Fast inference, free tier",
@@ -203,9 +201,7 @@ PROVIDER_REGISTRY: list[ProviderSpec] = [
         env_key="XAI_API_KEY",
         tier=ProviderTier.FREE,
         key_validation_endpoint="https://api.x.ai/v1/models",
-        free_models=(
-            "grok-2-1212",
-        ),
+        free_models=("grok-2-1212",),
         signup_url="https://console.x.ai/",
         docs_url="https://docs.x.ai/",
         description="Elon Musk's AI, free credits",
@@ -234,9 +230,7 @@ PROVIDER_REGISTRY: list[ProviderSpec] = [
         env_key="NOVITA_API_KEY",
         tier=ProviderTier.FREE,
         key_validation_endpoint="https://api.novita.ai/v3/openai/models",
-        free_models=(
-            "meta-llama/llama-3.3-70b-instruct",
-        ),
+        free_models=("meta-llama/llama-3.3-70b-instruct",),
         signup_url="https://novita.ai/settings",
         docs_url="https://novita.ai/docs",
         description="Uncensored models, free tier",
@@ -249,9 +243,7 @@ PROVIDER_REGISTRY: list[ProviderSpec] = [
         env_key="CHUTES_API_KEY",
         tier=ProviderTier.FREE,
         key_validation_endpoint="https://api.chutes.ai/v1/models",
-        free_models=(
-            "chutesai/llama-3.3-70b-instruct",
-        ),
+        free_models=("chutesai/llama-3.3-70b-instruct",),
         signup_url="https://chutes.ai/app/api-keys",
         docs_url="https://chutes.ai/docs",
         description="Community-driven, free tier",
@@ -281,9 +273,7 @@ PROVIDER_REGISTRY: list[ProviderSpec] = [
         env_key="OPENAI_API_KEY",
         tier=ProviderTier.FREEMIUM,
         key_validation_endpoint="https://api.openai.com/v1/models",
-        free_models=(
-            "gpt-4o-mini",
-        ),
+        free_models=("gpt-4o-mini",),
         signup_url="https://platform.openai.com/api-keys",
         docs_url="https://platform.openai.com/docs",
         description="$5 free credit on signup",
@@ -296,9 +286,7 @@ PROVIDER_REGISTRY: list[ProviderSpec] = [
         env_key="ANTHROPIC_API_KEY",
         tier=ProviderTier.FREEMIUM,
         key_validation_endpoint="https://api.anthropic.com/v1/messages",
-        free_models=(
-            "claude-3-5-haiku-20241022",
-        ),
+        free_models=("claude-3-5-haiku-20241022",),
         signup_url="https://console.anthropic.com/settings/keys",
         docs_url="https://docs.anthropic.com/",
         description="Claude models, free tier",
@@ -349,13 +337,15 @@ def scan_all_providers() -> list[dict[str, Any]]:
     results = []
     for p in PROVIDER_REGISTRY:
         key = os.environ.get(p.env_key, "")
-        results.append({
-            "name": p.name,
-            "slug": p.slug,
-            "icon": p.icon,
-            "tier": p.tier,
-            "env_key": p.env_key,
-            "has_key": bool(key),
-            "key_preview": f"****{key[-4:]}" if len(key) > 4 else None,
-        })
+        results.append(
+            {
+                "name": p.name,
+                "slug": p.slug,
+                "icon": p.icon,
+                "tier": p.tier,
+                "env_key": p.env_key,
+                "has_key": bool(key),
+                "key_preview": f"****{key[-4:]}" if len(key) > 4 else None,
+            }
+        )
     return results

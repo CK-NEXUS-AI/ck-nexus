@@ -3,6 +3,7 @@
 Extends the original build_provider_router to include all free providers
 from provider_hub + provider_registry, with automatic fallback.
 """
+
 from __future__ import annotations
 
 from creator_app.config import Settings

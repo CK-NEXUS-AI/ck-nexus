@@ -1,27 +1,27 @@
 """Unit tests for free provider adapters — no live API keys needed."""
+
 from __future__ import annotations
 
-import os
-import json
 import asyncio
-import time
-from unittest.mock import patch, MagicMock
-from pathlib import Path
+import json
+import os
 import sys
+import time
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from creator_app.free_providers import (
-    QuotaTracker,
-    QuotaWindow,
-    OpenAICompatibleAdapter,
     GeminiAdapter,
+    OpenAICompatibleAdapter,
+    QuotaTracker,
     build_free_adapters,
 )
-from creator_app.provider_router import ProviderKind, ProviderCapabilities
-
+from creator_app.provider_router import ProviderKind
 
 # ── QuotaTracker Tests ──────────────────────────────────────────────────────
+
 
 class TestQuotaTracker:
     def test_record_increments(self):
@@ -56,10 +56,13 @@ class TestQuotaTracker:
 
 # ── OpenAICompatibleAdapter Tests ───────────────────────────────────────────
 
+
 class TestOpenAICompatibleAdapter:
     def test_not_available_without_key(self):
         adapter = OpenAICompatibleAdapter(
-            name="test", base_url="http://x", env_key="NONEXISTENT_KEY_XYZ",
+            name="test",
+            base_url="http://x",
+            env_key="NONEXISTENT_KEY_XYZ",
             model="test-model",
         )
         assert adapter.is_available() is False
@@ -67,8 +70,10 @@ class TestOpenAICompatibleAdapter:
     def test_available_with_key(self):
         with patch.dict(os.environ, {"TEST_PROVIDER_KEY": "sk-test123"}):
             adapter = OpenAICompatibleAdapter(
-                name="test", base_url="http://localhost:8080",
-                env_key="TEST_PROVIDER_KEY", model="test-model",
+                name="test",
+                base_url="http://localhost:8080",
+                env_key="TEST_PROVIDER_KEY",
+                model="test-model",
             )
             assert adapter.is_available() is True
 
@@ -77,15 +82,19 @@ class TestOpenAICompatibleAdapter:
         qt.record_error("test", "HTTP 429 rate limited")
         with patch.dict(os.environ, {"TEST_KEY": "sk-123"}):
             adapter = OpenAICompatibleAdapter(
-                name="test", base_url="http://x",
-                env_key="TEST_KEY", model="m",
+                name="test",
+                base_url="http://x",
+                env_key="TEST_KEY",
+                model="m",
                 quota_tracker=qt,
             )
             assert adapter.is_available() is False
 
     def test_capabilities(self):
         adapter = OpenAICompatibleAdapter(
-            name="groq", base_url="http://x", env_key="K",
+            name="groq",
+            base_url="http://x",
+            env_key="K",
             model="llama-3.3-70b",
             models=("llama-3.3-70b", "llama-3.1-8b"),
             features=frozenset({"text", "fast"}),
@@ -96,10 +105,12 @@ class TestOpenAICompatibleAdapter:
         assert adapter.capabilities.supports(["missing"]) is False
 
     def test_invoke_success(self):
-        mock_response = json.dumps({
-            "choices": [{"message": {"content": "Hello world"}}],
-            "usage": {"total_tokens": 50},
-        }).encode()
+        mock_response = json.dumps(
+            {
+                "choices": [{"message": {"content": "Hello world"}}],
+                "usage": {"total_tokens": 50},
+            }
+        ).encode()
 
         mock_urlopen = MagicMock()
         mock_resp = MagicMock()
@@ -109,18 +120,23 @@ class TestOpenAICompatibleAdapter:
         mock_urlopen.return_value = mock_resp
 
         with patch.dict(os.environ, {"TEST_KEY": "sk-test"}):
-            adapter = OpenAICompatibleAdapter(
-                name="test", base_url="http://localhost",
-                env_key="TEST_KEY", model="m",
+            OpenAICompatibleAdapter(
+                name="test",
+                base_url="http://localhost",
+                env_key="TEST_KEY",
+                model="m",
                 opener=mock_urlopen,
             )
             # Need to pass opener to __init__ — but our adapter uses urlopen directly
             # Test via the _call path
             from creator_app.free_providers import OpenAICompatibleAdapter as OCA
+
             qt = QuotaTracker()
             adapter2 = OCA(
-                name="test", base_url="http://localhost",
-                env_key="TEST_KEY", model="m",
+                name="test",
+                base_url="http://localhost",
+                env_key="TEST_KEY",
+                model="m",
                 quota_tracker=qt,
             )
             # Patch urlopen at module level
@@ -130,10 +146,12 @@ class TestOpenAICompatibleAdapter:
             assert qt.stats("test")["tokens"] == 50
 
     def test_invoke_raises_on_empty_response(self):
-        mock_response = json.dumps({
-            "choices": [{"message": {"content": ""}}],
-            "usage": {},
-        }).encode()
+        mock_response = json.dumps(
+            {
+                "choices": [{"message": {"content": ""}}],
+                "usage": {},
+            }
+        ).encode()
 
         mock_urlopen = MagicMock()
         mock_resp = MagicMock()
@@ -144,18 +162,21 @@ class TestOpenAICompatibleAdapter:
 
         with patch.dict(os.environ, {"TEST_KEY": "sk-test"}):
             adapter = OpenAICompatibleAdapter(
-                name="test", base_url="http://localhost",
-                env_key="TEST_KEY", model="m",
+                name="test",
+                base_url="http://localhost",
+                env_key="TEST_KEY",
+                model="m",
             )
             with patch("creator_app.free_providers.urlopen", mock_urlopen):
                 try:
                     asyncio.run(adapter.invoke("Hi"))
-                    assert False, "Should have raised"
+                    raise AssertionError("Should have raised")
                 except RuntimeError as e:
                     assert "empty" in str(e).lower()
 
 
 # ── GeminiAdapter Tests ─────────────────────────────────────────────────────
+
 
 class TestGeminiAdapter:
     def test_not_available_without_key(self):
@@ -170,6 +191,7 @@ class TestGeminiAdapter:
 
 
 # ── build_free_adapters Tests ───────────────────────────────────────────────
+
 
 class TestBuildFreeAdapters:
     def test_empty_without_keys(self):

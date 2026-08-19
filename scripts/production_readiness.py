@@ -49,9 +49,7 @@ def command_ok(command: list[str]) -> tuple[bool, str]:
     except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
         return False, str(exc)
     output = (process.stdout + process.stderr).strip().splitlines()
-    return process.returncode == 0, (
-        output[-1] if output else f"exit={process.returncode}"
-    )
+    return process.returncode == 0, (output[-1] if output else f"exit={process.returncode}")
 
 
 def main() -> int:
@@ -69,9 +67,7 @@ def main() -> int:
             "LOCAL-FILES",
             "Canonical release files",
             "PASS" if not missing else "BLOCKED",
-            "all required files present"
-            if not missing
-            else "missing: " + ", ".join(missing),
+            "all required files present" if not missing else "missing: " + ", ".join(missing),
         ),
         Gate(
             "LOCAL-COMPILE",
@@ -89,8 +85,7 @@ def main() -> int:
             "Q11",
             "Live provider smoke test",
             "BLOCKED",
-            "Requires authorized staging OPENAI_API_KEY and successful "
-            "verify/q11-final-subject.",
+            "Requires authorized staging OPENAI_API_KEY and successful verify/q11-final-subject.",
         ),
         Gate(
             "Q12",

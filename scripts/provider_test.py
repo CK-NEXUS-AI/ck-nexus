@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """CK-NEXUS Provider Auto-Test — scan keys, validate, route a test prompt."""
+
 from __future__ import annotations
 
 import asyncio
@@ -28,9 +29,7 @@ def scan_keys() -> list[dict]:
                 "tier": spec.tier,
                 "env_key": spec.env_key,
                 "has_key": bool(key),
-                "key_preview": (
-                    f"****{key[-4:]}" if len(key) > 8 else ("***" if key else None)
-                ),
+                "key_preview": (f"****{key[-4:]}" if len(key) > 8 else ("***" if key else None)),
                 "free_models": list(spec.free_models),
             }
         )
@@ -45,11 +44,7 @@ def print_scan(scan: list[dict]) -> int:
     for provider in scan:
         status = "✅" if provider["has_key"] else "❌"
         tier_tag = "FREE" if provider["tier"] == "free" else "FREEMIUM"
-        models = (
-            ", ".join(provider["free_models"][:2])
-            if provider["free_models"]
-            else "-"
-        )
+        models = ", ".join(provider["free_models"][:2]) if provider["free_models"] else "-"
         print(
             f"  {status} {provider['icon']}  {provider['name']:<16} "
             f"[{tier_tag}]  {provider['env_key']}"

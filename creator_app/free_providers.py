@@ -4,6 +4,7 @@ Each adapter conforms to the ProviderAdapter protocol from provider_router.py.
 All use OpenAI-compatible chat completions endpoints (most free providers do).
 Keys are read from environment variables — never logged or stored in memory.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -20,12 +21,13 @@ from creator_app.provider_router import (
     ProviderKind,
 )
 
-
 # ── Quota Tracker ────────────────────────────────────────────────────────────
+
 
 @dataclass
 class QuotaWindow:
     """Tracks usage within a sliding time window."""
+
     requests: int = 0
     tokens_used: int = 0
     window_start: float = field(default_factory=time.monotonic)
@@ -84,6 +86,7 @@ class QuotaTracker:
 
 # ── Base OpenAI-Compatible Adapter ──────────────────────────────────────────
 
+
 class OpenAICompatibleAdapter:
     """Base adapter for providers exposing OpenAI-compatible /chat/completions."""
 
@@ -122,21 +125,21 @@ class OpenAICompatibleAdapter:
         key = self._get_key()
         if not key:
             return False
-        if self._quota and self._quota.is_rate_limited(self.name):
-            return False
-        return True
+        return not (self._quota and self._quota.is_rate_limited(self.name))
 
     async def invoke(self, prompt: str) -> str:
         key = self._get_key()
         if not key:
             raise RuntimeError(f"{self.name}: API key not set in {self.env_key}")
 
-        payload = json.dumps({
-            "model": self.model,
-            "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 4096,
-            "temperature": 0.7,
-        }).encode("utf-8")
+        payload = json.dumps(
+            {
+                "model": self.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 4096,
+                "temperature": 0.7,
+            }
+        ).encode("utf-8")
 
         headers = {
             "Content-Type": "application/json",
@@ -179,6 +182,7 @@ class OpenAICompatibleAdapter:
 
 # ── Gemini uses a different endpoint format ──────────────────────────────────
 
+
 class GeminiAdapter:
     """Google Gemini adapter using the generateContent REST API."""
 
@@ -207,9 +211,7 @@ class GeminiAdapter:
         key = self._get_key()
         if not key:
             return False
-        if self._quota and self._quota.is_rate_limited(self.name):
-            return False
-        return True
+        return not (self._quota and self._quota.is_rate_limited(self.name))
 
     async def invoke(self, prompt: str) -> str:
         key = self._get_key()
@@ -220,14 +222,21 @@ class GeminiAdapter:
             f"https://generativelanguage.googleapis.com/v1beta/"
             f"models/{self.model}:generateContent?key={key}"
         )
-        payload = json.dumps({
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"maxOutputTokens": 4096, "temperature": 0.7},
-        }).encode("utf-8")
+        payload = json.dumps(
+            {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"maxOutputTokens": 4096, "temperature": 0.7},
+            }
+        ).encode("utf-8")
 
-        request = Request(url, data=payload, method="POST", headers={
-            "Content-Type": "application/json",
-        })
+        request = Request(
+            url,
+            data=payload,
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+            },
+        )
 
         def _call() -> str:
             try:
@@ -258,6 +267,7 @@ class GeminiAdapter:
 
 # ── Concrete Free-Tier Adapters ─────────────────────────────────────────────
 
+
 def build_free_adapters(
     quota_tracker: QuotaTracker | None = None,
 ) -> list[Any]:
@@ -268,141 +278,161 @@ def build_free_adapters(
     # Groq — fast Llama/Mixtral
     groq_key = os.environ.get("GROQ_API_KEY", "").strip()
     if groq_key:
-        adapters.append(OpenAICompatibleAdapter(
-            name="groq",
-            base_url="https://api.groq.com/openai/v1",
-            env_key="GROQ_API_KEY",
-            model="llama-3.3-70b-versatile",
-            models=("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"),
-            features=frozenset({"text", "fast"}),
-            timeout_seconds=15,
-            quota_tracker=qt,
-        ))
+        adapters.append(
+            OpenAICompatibleAdapter(
+                name="groq",
+                base_url="https://api.groq.com/openai/v1",
+                env_key="GROQ_API_KEY",
+                model="llama-3.3-70b-versatile",
+                models=("llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"),
+                features=frozenset({"text", "fast"}),
+                timeout_seconds=15,
+                quota_tracker=qt,
+            )
+        )
 
     # Cerebras — ultra-fast inference
     cerebras_key = os.environ.get("CEREBRAS_API_KEY", "").strip()
     if cerebras_key:
-        adapters.append(OpenAICompatibleAdapter(
-            name="cerebras",
-            base_url="https://api.cerebras.ai/v1",
-            env_key="CEREBRAS_API_KEY",
-            model="llama-3.3-70b",
-            models=("llama-3.3-70b", "llama-3.1-8b"),
-            features=frozenset({"text", "fast"}),
-            timeout_seconds=15,
-            quota_tracker=qt,
-        ))
+        adapters.append(
+            OpenAICompatibleAdapter(
+                name="cerebras",
+                base_url="https://api.cerebras.ai/v1",
+                env_key="CEREBRAS_API_KEY",
+                model="llama-3.3-70b",
+                models=("llama-3.3-70b", "llama-3.1-8b"),
+                features=frozenset({"text", "fast"}),
+                timeout_seconds=15,
+                quota_tracker=qt,
+            )
+        )
 
     # DeepSeek — strong reasoning
     deepseek_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
     if deepseek_key:
-        adapters.append(OpenAICompatibleAdapter(
-            name="deepseek",
-            base_url="https://api.deepseek.com/v1",
-            env_key="DEEPSEEK_API_KEY",
-            model="deepseek-chat",
-            models=("deepseek-chat", "deepseek-reasoner"),
-            features=frozenset({"text", "reasoning"}),
-            timeout_seconds=30,
-            quota_tracker=qt,
-        ))
+        adapters.append(
+            OpenAICompatibleAdapter(
+                name="deepseek",
+                base_url="https://api.deepseek.com/v1",
+                env_key="DEEPSEEK_API_KEY",
+                model="deepseek-chat",
+                models=("deepseek-chat", "deepseek-reasoner"),
+                features=frozenset({"text", "reasoning"}),
+                timeout_seconds=30,
+                quota_tracker=qt,
+            )
+        )
 
     # OpenRouter — gateway to many free models
     openrouter_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
     if openrouter_key:
-        adapters.append(OpenAICompatibleAdapter(
-            name="openrouter",
-            base_url="https://openrouter.ai/api/v1",
-            env_key="OPENROUTER_API_KEY",
-            model="meta-llama/llama-3.3-70b-instruct:free",
-            models=(
-                "meta-llama/llama-3.3-70b-instruct:free",
-                "qwen/qwen-2.5-72b-instruct:free",
-                "mistralai/mistral-7b-instruct:free",
-            ),
-            features=frozenset({"text", "many-models"}),
-            timeout_seconds=30,
-            extra_headers={"HTTP-Referer": "https://ck-nexus.local"},
-            quota_tracker=qt,
-        ))
+        adapters.append(
+            OpenAICompatibleAdapter(
+                name="openrouter",
+                base_url="https://openrouter.ai/api/v1",
+                env_key="OPENROUTER_API_KEY",
+                model="meta-llama/llama-3.3-70b-instruct:free",
+                models=(
+                    "meta-llama/llama-3.3-70b-instruct:free",
+                    "qwen/qwen-2.5-72b-instruct:free",
+                    "mistralai/mistral-7b-instruct:free",
+                ),
+                features=frozenset({"text", "many-models"}),
+                timeout_seconds=30,
+                extra_headers={"HTTP-Referer": "https://ck-nexus.local"},
+                quota_tracker=qt,
+            )
+        )
 
     # Together AI
     together_key = os.environ.get("TOGETHER_API_KEY", "").strip()
     if together_key:
-        adapters.append(OpenAICompatibleAdapter(
-            name="together",
-            base_url="https://api.together.xyz/v1",
-            env_key="TOGETHER_API_KEY",
-            model="meta-llama/Llama-3-70b-chat-hf",
-            models=("meta-llama/Llama-3-70b-chat-hf", "mistralai/Mixtral-8x7B-Instruct-v0.1"),
-            features=frozenset({"text"}),
-            timeout_seconds=30,
-            quota_tracker=qt,
-        ))
+        adapters.append(
+            OpenAICompatibleAdapter(
+                name="together",
+                base_url="https://api.together.xyz/v1",
+                env_key="TOGETHER_API_KEY",
+                model="meta-llama/Llama-3-70b-chat-hf",
+                models=("meta-llama/Llama-3-70b-chat-hf", "mistralai/Mixtral-8x7B-Instruct-v0.1"),
+                features=frozenset({"text"}),
+                timeout_seconds=30,
+                quota_tracker=qt,
+            )
+        )
 
     # Mistral AI
     mistral_key = os.environ.get("MISTRAL_API_KEY", "").strip()
     if mistral_key:
-        adapters.append(OpenAICompatibleAdapter(
-            name="mistral",
-            base_url="https://api.mistral.ai/v1",
-            env_key="MISTRAL_API_KEY",
-            model="mistral-small-latest",
-            models=("mistral-small-latest", "mistral-tiny"),
-            features=frozenset({"text"}),
-            timeout_seconds=30,
-            quota_tracker=qt,
-        ))
+        adapters.append(
+            OpenAICompatibleAdapter(
+                name="mistral",
+                base_url="https://api.mistral.ai/v1",
+                env_key="MISTRAL_API_KEY",
+                model="mistral-small-latest",
+                models=("mistral-small-latest", "mistral-tiny"),
+                features=frozenset({"text"}),
+                timeout_seconds=30,
+                quota_tracker=qt,
+            )
+        )
 
     # Google Gemini
     gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if gemini_key:
-        adapters.append(GeminiAdapter(
-            model="gemini-2.0-flash",
-            timeout_seconds=30,
-            quota_tracker=qt,
-        ))
+        adapters.append(
+            GeminiAdapter(
+                model="gemini-2.0-flash",
+                timeout_seconds=30,
+                quota_tracker=qt,
+            )
+        )
 
     # SambaNova
     sambanova_key = os.environ.get("SAMBANOVA_API_KEY", "").strip()
     if sambanova_key:
-        adapters.append(OpenAICompatibleAdapter(
-            name="sambanova",
-            base_url="https://api.sambanova.ai/v1",
-            env_key="SAMBANOVA_API_KEY",
-            model="Meta-Llama-3.3-70B-Instruct",
-            models=("Meta-Llama-3.3-70B-Instruct",),
-            features=frozenset({"text"}),
-            timeout_seconds=30,
-            quota_tracker=qt,
-        ))
+        adapters.append(
+            OpenAICompatibleAdapter(
+                name="sambanova",
+                base_url="https://api.sambanova.ai/v1",
+                env_key="SAMBANOVA_API_KEY",
+                model="Meta-Llama-3.3-70B-Instruct",
+                models=("Meta-Llama-3.3-70B-Instruct",),
+                features=frozenset({"text"}),
+                timeout_seconds=30,
+                quota_tracker=qt,
+            )
+        )
 
     # Cohere
     cohere_key = os.environ.get("COHERE_API_KEY", "").strip()
     if cohere_key:
-        adapters.append(OpenAICompatibleAdapter(
-            name="cohere",
-            base_url="https://api.cohere.com/v2",
-            env_key="COHERE_API_KEY",
-            model="command-r",
-            models=("command-r", "command-r-plus"),
-            features=frozenset({"text", "rag"}),
-            timeout_seconds=30,
-            quota_tracker=qt,
-        ))
+        adapters.append(
+            OpenAICompatibleAdapter(
+                name="cohere",
+                base_url="https://api.cohere.com/v2",
+                env_key="COHERE_API_KEY",
+                model="command-r",
+                models=("command-r", "command-r-plus"),
+                features=frozenset({"text", "rag"}),
+                timeout_seconds=30,
+                quota_tracker=qt,
+            )
+        )
 
     # HuggingFace
     hf_key = os.environ.get("HUGGINGFACE_API_KEY", "").strip()
     if hf_key:
-        adapters.append(OpenAICompatibleAdapter(
-            name="huggingface",
-            base_url="https://api-inference.huggingface.co/v1",
-            env_key="HUGGINGFACE_API_KEY",
-            model="meta-llama/Llama-3.3-70B-Instruct",
-            models=("meta-llama/Llama-3.3-70B-Instruct", "Qwen/Qwen2.5-72B-Instruct"),
-            features=frozenset({"text"}),
-            timeout_seconds=60,
-            quota_tracker=qt,
-        ))
+        adapters.append(
+            OpenAICompatibleAdapter(
+                name="huggingface",
+                base_url="https://api-inference.huggingface.co/v1",
+                env_key="HUGGINGFACE_API_KEY",
+                model="meta-llama/Llama-3.3-70B-Instruct",
+                models=("meta-llama/Llama-3.3-70B-Instruct", "Qwen/Qwen2.5-72B-Instruct"),
+                features=frozenset({"text"}),
+                timeout_seconds=60,
+                quota_tracker=qt,
+            )
+        )
 
     return adapters

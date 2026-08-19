@@ -3,15 +3,15 @@
 Integrates with CredentialBroker + CredentialVault for secure key storage.
 Supports Claude/Anthropic, OpenAI, Groq, Gemini, and more.
 """
+
 from __future__ import annotations
 
+import json
 import os
-import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 from urllib.request import Request, urlopen
-import json
 
 
 class ProviderTier(StrEnum):
@@ -325,11 +325,13 @@ def _mask_key(key: str) -> str:
 def _validate_anthropic(key: str) -> dict[str, Any]:
     """Validate Anthropic key by sending a minimal request."""
     try:
-        payload = json.dumps({
-            "model": "claude-3-5-haiku-20241022",
-            "max_tokens": 1,
-            "messages": [{"role": "user", "content": "hi"}],
-        }).encode()
+        payload = json.dumps(
+            {
+                "model": "claude-3-5-haiku-20241022",
+                "max_tokens": 1,
+                "messages": [{"role": "user", "content": "hi"}],
+            }
+        ).encode()
         req = Request(
             "https://api.anthropic.com/v1/messages",
             data=payload,
@@ -342,7 +344,10 @@ def _validate_anthropic(key: str) -> dict[str, Any]:
         )
         with urlopen(req, timeout=10) as resp:
             if resp.status == 200:
-                return {"valid": True, "models": ["claude-sonnet-4-20250514", "claude-3-5-haiku-20241022"]}
+                return {
+                    "valid": True,
+                    "models": ["claude-sonnet-4-20250514", "claude-3-5-haiku-20241022"],
+                }
             return {"valid": False, "error": f"HTTP {resp.status}"}
     except Exception as e:
         err = str(e)
@@ -353,7 +358,12 @@ def _validate_anthropic(key: str) -> dict[str, Any]:
         return {"valid": False, "error": err[:100]}
 
 
-def _validate_generic(key: str, validate_url: str, header_format: str = "Bearer {key}", header_key: str = "Authorization") -> dict[str, Any]:
+def _validate_generic(
+    key: str,
+    validate_url: str,
+    header_format: str = "Bearer {key}",
+    header_key: str = "Authorization",
+) -> dict[str, Any]:
     """Generic key validation via GET to models endpoint."""
     try:
         auth_header = header_format.replace("{key}", key)
@@ -395,18 +405,20 @@ def scan_all() -> list[dict[str, Any]]:
     results = []
     for ep in PROVIDERS:
         key = os.environ.get(ep.env_key, "")
-        results.append({
-            "name": ep.name,
-            "slug": ep.slug,
-            "icon": ep.icon,
-            "tier": ep.tier,
-            "env_key": ep.env_key,
-            "has_key": bool(key),
-            "key_preview": _mask_key(key) if key else None,
-            "free_models": list(ep.free_models),
-            "signup_url": ep.signup_url,
-            "description": ep.description,
-        })
+        results.append(
+            {
+                "name": ep.name,
+                "slug": ep.slug,
+                "icon": ep.icon,
+                "tier": ep.tier,
+                "env_key": ep.env_key,
+                "has_key": bool(key),
+                "key_preview": _mask_key(key) if key else None,
+                "free_models": list(ep.free_models),
+                "signup_url": ep.signup_url,
+                "description": ep.description,
+            }
+        )
     return results
 
 
@@ -432,24 +444,28 @@ def validate_all() -> list[dict[str, Any]]:
     for ep in PROVIDERS:
         key = os.environ.get(ep.env_key, "")
         if not key:
-            results.append({
-                "name": ep.name,
-                "slug": ep.slug,
-                "icon": ep.icon,
-                "valid": False,
-                "error": "Key not set",
-            })
+            results.append(
+                {
+                    "name": ep.name,
+                    "slug": ep.slug,
+                    "icon": ep.icon,
+                    "valid": False,
+                    "error": "Key not set",
+                }
+            )
             continue
         if ep.is_anthropic:
             v = _validate_anthropic(key)
         else:
             v = _validate_generic(key, ep.validate_url, ep.header_format, ep.header_key)
-        results.append({
-            "name": ep.name,
-            "slug": ep.slug,
-            "icon": ep.icon,
-            "valid": v.get("valid", False),
-            "error": v.get("error"),
-            "models": v.get("models", []),
-        })
+        results.append(
+            {
+                "name": ep.name,
+                "slug": ep.slug,
+                "icon": ep.icon,
+                "valid": v.get("valid", False),
+                "error": v.get("error"),
+                "models": v.get("models", []),
+            }
+        )
     return results
