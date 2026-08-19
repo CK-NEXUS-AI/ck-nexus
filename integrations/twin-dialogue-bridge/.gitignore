@@ -1,0 +1,4 @@
+node_modules/
+.cknexus-twin-dialogue.jsonl
+.env
+*.log
