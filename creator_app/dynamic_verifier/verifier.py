@@ -159,7 +159,9 @@ class IsolatedDynamicVerifier:
     @staticmethod
     def _validate(request: DynamicVerificationInput) -> None:
         if os.name != "posix" or not hasattr(os, "getuid") or os.getuid() == 0:
-            raise DynamicVerificationBlocked("dynamic verifier requires a POSIX non-root host")
+            raise DynamicVerificationBlocked(
+                "dynamic verifier requires a POSIX non-root host"
+            )
         if not request.patch:
             raise DynamicVerificationBlocked("patch must not be empty")
         if not _SHA256_RE.fullmatch(request.patch_digest):
@@ -171,7 +173,9 @@ class IsolatedDynamicVerifier:
         if not request.assistant_id.strip():
             raise DynamicVerificationBlocked("assistant_id must not be empty")
         if not _SHA1_RE.fullmatch(request.source_sha):
-            raise DynamicVerificationBlocked("source_sha must be exact lowercase 40-character Git SHA")
+            raise DynamicVerificationBlocked(
+                "source_sha must be exact lowercase 40-character Git SHA"
+            )
         if not _IMAGE_RE.fullmatch(request.verifier_image):
             raise DynamicVerificationBlocked("verifier_image must be digest-pinned")
         if request.engine not in _ALLOWED_ENGINES:
@@ -180,7 +184,9 @@ class IsolatedDynamicVerifier:
             raise DynamicVerificationBlocked("verification profile is not allowlisted")
         repo = request.repository_path.expanduser().resolve()
         if not repo.is_dir() or not (repo / ".git").exists():
-            raise DynamicVerificationBlocked("repository_path must be an existing Git repository root")
+            raise DynamicVerificationBlocked(
+                "repository_path must be an existing Git repository root"
+            )
 
     @staticmethod
     def _add_worktree(repo: Path, worktree: Path, source_sha: str) -> None:
@@ -216,10 +222,15 @@ class IsolatedDynamicVerifier:
             env=_git_env(),
         )
         if result.returncode != 0:
-            raise DynamicVerificationBlocked("failed to apply verified patch to disposable worktree")
+            raise DynamicVerificationBlocked(
+                "failed to apply verified patch to disposable worktree"
+            )
 
     @staticmethod
-    def _run_verifier_container(request: DynamicVerificationInput, worktree: Path) -> int:
+    def _run_verifier_container(
+        request: DynamicVerificationInput,
+        worktree: Path,
+    ) -> int:
         command = _verifier_container_command(
             engine=request.engine,
             worktree=worktree,
