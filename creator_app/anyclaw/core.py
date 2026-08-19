@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass
+from creator_app.anyclaw.hub.usb_hub import USBHub
 
 
 @dataclass
@@ -78,11 +79,13 @@ class AnyClawCore:
     CLAUDE_URL = "https://api.anthropic.com/v1/messages"
 
     def __init__(self, mode: str = "super"):
-        """mode: 'super' = free → claude, 'free' = free only, 'claude' = claude only"""
+        """mode: 'super' = USB Hub auto, 'free' = free only, 'claude' = claude only"""
         self.mode = mode
         self._cache: dict[str, str] = {}
         self._history: list[ChatResponse] = []
         self._call_count: dict[str, int] = {}
+        self._hub = USBHub(max_slots=20)
+        self._hub.auto_discover()
 
     def chat(self, message: str) -> ChatResponse:
         """ส่งข้อความ → ได้คำตอบ."""
@@ -118,6 +121,50 @@ class AnyClawCore:
         self._history.append(resp)
         self._call_count[resp.provider] = self._call_count.get(resp.provider, 0) + 1
         return resp
+
+    def hub_chat(self, message: str) -> ChatResponse:
+        """เรียกใช้งานผ่าน USB Hub — สลับอัตโนมัติ.
+
+        วิธีใช้:
+            claw = AnyClawCore()
+            response = claw.hub_chat("สวัสดีครับ")
+            print(f"จาก {response.provider}: {response.content}")
+        """
+        start = time.time()
+
+        # ใช้ USB Hub เรียก LLM
+        result = self._hub.call(message, provider_type="llm")
+
+        latency = (time.time() - start) * 1000
+
+        if result.get("success"):
+            return ChatResponse(
+                content=result.get("response", ""),
+                provider=result.get("provider", "unknown"),
+                latency_ms=latency,
+            )
+        else:
+            return ChatResponse(
+                content=f"Error: {result.get('error', 'Unknown')}",
+                provider="error",
+                latency_ms=latency,
+            )
+
+    def hub_search(self, query: str) -> dict:
+        """ค้นหาผ่าน USB Hub."""
+        return self._hub.call(query, provider_type="search")
+
+    def hub_tts(self, text: str, output: str = "/tmp/anyclaw_tts.mp3") -> dict:
+        """สร้างเสียงผ่าน USB Hub."""
+        return self._hub.call(text, provider_type="tts", output=output)
+
+    def hub_status(self) -> dict:
+        """ดูสถานะ USB Hub."""
+        return self._hub.get_status()
+
+    def hub_print_status(self) -> None:
+        """พิมพ์สถานะ USB Hub."""
+        self._hub.print_status()
 
     def chat_stream(self, message: str):
         """Stream response — yield chunks."""
