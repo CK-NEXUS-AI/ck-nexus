@@ -133,6 +133,7 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
 
     def connect(self) -> None:
         raw_sock = self._connection_factory((self._connect_ip, self.port), float(self.timeout))
+        tls_sock: ssl.SSLSocket | None = None
         try:
             raw_peer = str(raw_sock.getpeername()[0])
             _validate_connected_peer(
@@ -148,6 +149,8 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
                 policy=self._policy,
             )
         except Exception:
+            if tls_sock is not None:
+                tls_sock.close()
             raw_sock.close()
             raise
         self.sock = tls_sock
@@ -199,6 +202,8 @@ class UrllibHttpTransport:
         scheme = parsed.scheme.lower()
         port = parsed.port or (443 if scheme == "https" else 80)
         target = parsed.path or "/"
+        if parsed.query:
+            target = f"{target}?{parsed.query}"
 
         last_error: OSError | ssl.SSLError | http.client.HTTPException | None = None
         for connect_ip in allowed_addresses:
