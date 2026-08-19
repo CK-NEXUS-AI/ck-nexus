@@ -30,12 +30,12 @@ jobs:
       - name: Unit tests
         run: .venv/bin/pytest -q creator_app/dev_assistants/tests
       - name: Ruff
-        run: .venv/bin/ruff check creator_app/dev_assistants --output-format=github
+        run: .venv/bin/ruff check creator_app/dev_assistants creator_app/agnes/mcp_server.py --output-format=github
       - name: Bandit reviewed severity gate
         shell: bash
         run: |
           set -euo pipefail
-          .venv/bin/bandit -r creator_app/dev_assistants -f json -o /tmp/dev-assistants-bandit.json || true
+          .venv/bin/bandit -r creator_app/dev_assistants creator_app/agnes/mcp_server.py -f json -o /tmp/dev-assistants-bandit.json || true
           .venv/bin/python - <<'PY'
           import json
           import sys
@@ -59,6 +59,44 @@ jobs:
           ! grep -R --line-number -E 'subprocess\.|os\.system\(|shell=True|pip install|npm install' creator_app/dev_assistants
           echo 'Development Assistant Fabric V1 contains discovery/routing only.'
           echo 'No third-party installer or execution path is enabled.'
+      - name: MCP discovery smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CKNEXUS_UNIVERSAL_MCP_HOST=127.0.0.1
+          export CKNEXUS_UNIVERSAL_MCP_PORT=8765
+          .venv/bin/python -m creator_app.agnes.mcp_server >/tmp/dev-assistant-mcp.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          .venv/bin/python - <<'PY'
+          import asyncio
+
+          from mcp import ClientSession
+          from mcp.client.streamable_http import streamablehttp_client
+
+          async def verify() -> None:
+              last_error = None
+              for _ in range(30):
+                  try:
+                      async with streamablehttp_client(
+                          'http://127.0.0.1:8765/mcp'
+                      ) as (read_stream, write_stream, _):
+                          async with ClientSession(read_stream, write_stream) as session:
+                              await session.initialize()
+                              tools = await session.list_tools()
+                              names = {tool.name for tool in tools.tools}
+                              assert 'cknexus_dev_assistants' in names
+                              result = await session.call_tool('cknexus_dev_assistants', {})
+                              assert not result.isError
+                              print('cknexus_dev_assistants verified')
+                              return
+                  except Exception as exc:
+                      last_error = exc
+                      await asyncio.sleep(0.5)
+              raise RuntimeError(f'MCP smoke failed: {last_error}')
+
+          asyncio.run(verify())
+          PY
       - name: Production boundary
         run: |
           echo 'Post-P0 development evidence only.'
