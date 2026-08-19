@@ -37,29 +37,33 @@ class CognitiveGovernor:
                 nodes=nodes,
             )
 
-        if request.action_class == ActionClass.PRODUCTION_MUTATION:
-            if not request.user_approved or not request.production_authorized:
-                return CognitiveDecision(
-                    allowed=False,
-                    risk=risk,
-                    mode=mode,
-                    approval_required=True,
-                    reason="production_mutation_requires_user_and_release_authority",
-                    team=team,
-                    nodes=nodes,
-                )
+        if (
+            request.action_class == ActionClass.PRODUCTION_MUTATION
+            and (not request.user_approved or not request.production_authorized)
+        ):
+            return CognitiveDecision(
+                allowed=False,
+                risk=risk,
+                mode=mode,
+                approval_required=True,
+                reason="production_mutation_requires_user_and_release_authority",
+                team=team,
+                nodes=nodes,
+            )
 
-        if request.action_class in {ActionClass.EXTERNAL_WRITE, ActionClass.DESTRUCTIVE}:
-            if not request.user_approved:
-                return CognitiveDecision(
-                    allowed=False,
-                    risk=risk,
-                    mode=mode,
-                    approval_required=True,
-                    reason="explicit_user_approval_required",
-                    team=team,
-                    nodes=nodes,
-                )
+        if (
+            request.action_class in {ActionClass.EXTERNAL_WRITE, ActionClass.DESTRUCTIVE}
+            and not request.user_approved
+        ):
+            return CognitiveDecision(
+                allowed=False,
+                risk=risk,
+                mode=mode,
+                approval_required=True,
+                reason="explicit_user_approval_required",
+                team=team,
+                nodes=nodes,
+            )
 
         return CognitiveDecision(
             allowed=True,
@@ -119,9 +123,7 @@ class CognitiveGovernor:
 
     @staticmethod
     def _nodes(request: CognitiveRequest, team: tuple[str, ...]) -> tuple[PlanNode, ...]:
-        nodes: list[PlanNode] = [
-            PlanNode("node-plan", "director", "plan"),
-        ]
+        nodes: list[PlanNode] = [PlanNode("node-plan", "director", "plan")]
         worker_ids: list[str] = []
         for index, role in enumerate(team):
             if role in {"director", "independent_verifier"}:
