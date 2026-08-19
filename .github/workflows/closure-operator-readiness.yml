@@ -1,0 +1,40 @@
+name: Closure operator readiness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout operator pack
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+      - name: Verify operator inputs
+        run: python .github/release-tools/q10_q12_operator_preflight.py
+      - name: Report current next safe action
+        run: python .github/release-tools/next_safe_action.py
+      - name: Evaluate closure readiness fail-closed
+        shell: bash
+        run: |
+          set +e
+          python .github/release-tools/closure_readiness.py > closure-readiness.json
+          rc=$?
+          cat closure-readiness.json
+          echo "readiness_exit_code=$rc" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+      - name: Upload readiness report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: closure-operator-readiness-${{ github.sha }}
+          path: closure-readiness.json
+          if-no-files-found: error
+          retention-days: 30
+
+# This workflow intentionally never invokes Q11 live provider, Q12 self-hosted
+# enforcement, production packaging, merge, tag or deployment. It is a
+# zero-promotion operator readiness report, not release evidence.
