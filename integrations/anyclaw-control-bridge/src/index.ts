@@ -38,9 +38,10 @@ async function runAnyClaw(args: string[], timeoutMs = 60_000) {
 }
 
 function result(payload: unknown) {
+  const safe = JSON.parse(redact(JSON.stringify(payload))) as Record<string, unknown>;
   return {
-    content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }],
-    structuredContent: payload as Record<string, unknown>,
+    content: [{ type: 'text' as const, text: JSON.stringify(safe, null, 2) }],
+    structuredContent: safe,
   };
 }
 
