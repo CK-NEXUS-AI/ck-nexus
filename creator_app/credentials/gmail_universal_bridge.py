@@ -167,9 +167,19 @@ class GmailUniversalBridge:
         otp_matches = tuple(OTP_PATTERN.findall(text))
         url_matches = tuple(URL_PATTERN.findall(text))
         payment_matches = tuple(PAYMENT_PATTERN.findall(text))
-        verification_keywords = ("verify", "confirm", "otp", "token", "code", "reset", "ยืนยัน")
+        verification_keywords = (
+            "verify",
+            "confirm",
+            "otp",
+            "token",
+            "code",
+            "reset",
+            "ยืนยัน",
+        )
         verification_links = tuple(
-            url for url in url_matches if any(keyword in url.lower() for keyword in verification_keywords)
+            url
+            for url in url_matches
+            if any(keyword in url.lower() for keyword in verification_keywords)
         )
 
         self._stats["otps_extracted"] += len(otp_matches)
@@ -294,7 +304,11 @@ class GmailUniversalBridge:
                 text_parts.append(str(snippet))
         return "\n".join(text_parts)
 
-    def _send_urgent_notification(self, email: ExtractedEmail, extracted: ExtractedData) -> None:
+    def _send_urgent_notification(
+        self,
+        email: ExtractedEmail,
+        extracted: ExtractedData,
+    ) -> None:
         """Forward an urgent record only to explicitly registered urgent targets."""
         for target in self._forward_targets:
             if "urgent" not in target.name.lower() and "telegram" not in target.name.lower():
