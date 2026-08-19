@@ -1,0 +1,177 @@
+name: Trusted Verifier Image CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/verifier-image/**'
+      - '.github/workflows/trusted-verifier-image-ci.yml'
+      - 'pyproject.toml'
+      - 'uv.lock'
+  push:
+    branches: [main]
+    paths:
+      - '.github/verifier-image/**'
+      - '.github/workflows/trusted-verifier-image-ci.yml'
+      - 'pyproject.toml'
+      - 'uv.lock'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: trusted-verifier-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BASE_TAG: python:3.12-slim-bookworm
+  IMAGE_REPO: ghcr.io/spinlnw10-art/ck-nexus-verifier-python
+
+jobs:
+  verify-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve exact base image digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$BASE_TAG"
+          base_ref="$(docker inspect --format='{{index .RepoDigests 0}}' "$BASE_TAG")"
+          test -n "$base_ref"
+          case "$base_ref" in
+            *@sha256:*) ;;
+            *) echo 'base image did not resolve to a digest' >&2; exit 1 ;;
+          esac
+          echo "BASE_IMAGE=$base_ref" >> "$GITHUB_ENV"
+          echo "resolved_base_image=$base_ref"
+
+      - name: Build verifier image from frozen project dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build \
+            --pull=false \
+            --build-arg "BASE_IMAGE=$BASE_IMAGE" \
+            --build-arg UV_VERSION=0.12.5 \
+            -f .github/verifier-image/Dockerfile \
+            -t cknexus-verifier:test \
+            .
+          image_id="$(docker image inspect --format='{{.Id}}' cknexus-verifier:test)"
+          case "$image_id" in
+            sha256:*) ;;
+            *) echo 'local verifier image is missing a content image id' >&2; exit 1 ;;
+          esac
+          echo "LOCAL_IMAGE_ID=$image_id" >> "$GITHUB_ENV"
+          echo "local_image_id=$image_id"
+
+      - name: Runtime isolation smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          uid="$(id -u)"
+          gid="$(id -g)"
+          docker run --rm \
+            --pull=never \
+            --network=none \
+            --read-only \
+            --cap-drop=ALL \
+            --security-opt=no-new-privileges \
+            --pids-limit=128 \
+            --memory=2147483648 \
+            --cpus=2 \
+            --tmpfs=/tmp:rw,noexec,nosuid,nodev,size=134217728 \
+            --user="$uid:$gid" \
+            --mount="type=bind,src=$PWD,dst=/workspace,rw" \
+            --workdir=/workspace \
+            --env=CKNEXUS_VERIFY_PROFILE=python_quality \
+            cknexus-verifier:test \
+            /cknexus/verify
+
+      - name: Image security assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(docker image inspect --format='{{.Config.User}}' cknexus-verifier:test)" != 'root' || true
+          ! docker history --no-trunc cknexus-verifier:test | grep -Ei 'API[_-]?KEY|AUTHORIZATION: BEARER|BEGIN (RSA|OPENSSH|EC) PRIVATE KEY'
+          docker run --rm --entrypoint /bin/sh cknexus-verifier:test -c \
+            'test -x /cknexus/verify && test -x /opt/cknexus-venv/bin/ruff && test -x /opt/cknexus-venv/bin/pytest'
+
+      - name: Publish exact commit image to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          image_tag="$IMAGE_REPO:${GITHUB_SHA}"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker tag cknexus-verifier:test "$image_tag"
+          docker push "$image_tag"
+          docker pull "$image_tag"
+          published_ref="$(docker inspect --format='{{index .RepoDigests 0}}' "$image_tag")"
+          case "$published_ref" in
+            "$IMAGE_REPO"@sha256:*) ;;
+            *) echo 'published image did not resolve to expected GHCR digest' >&2; exit 1 ;;
+          esac
+          echo "PUBLISHED_IMAGE=$published_ref" >> "$GITHUB_ENV"
+          echo "published_image=$published_ref"
+
+      - name: Build provenance record
+        shell: bash
+        run: |
+          set -euo pipefail
+          dockerfile_sha="$(sha256sum .github/verifier-image/Dockerfile | awk '{print $1}')"
+          entrypoint_sha="$(sha256sum .github/verifier-image/verify | awk '{print $1}')"
+          lock_sha="$(sha256sum uv.lock | awk '{print $1}')"
+          export dockerfile_sha entrypoint_sha lock_sha
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from datetime import UTC, datetime
+
+          payload = {
+              "schema_version": 1,
+              "kind": "CKNEXUS_TRUSTED_VERIFIER_IMAGE_BUILD",
+              "source_commit": os.environ["GITHUB_SHA"],
+              "base_image": os.environ["BASE_IMAGE"],
+              "local_image_id": os.environ["LOCAL_IMAGE_ID"],
+              "published_image": os.environ.get("PUBLISHED_IMAGE"),
+              "dockerfile_sha256": os.environ["dockerfile_sha"],
+              "entrypoint_sha256": os.environ["entrypoint_sha"],
+              "uv_lock_sha256": os.environ["lock_sha"],
+              "runtime_network": "deny",
+              "credential_forwarding": False,
+              "profile": "python_quality",
+              "release_evidence": False,
+              "production_status": "NO-GO",
+              "completed_at": datetime.now(UTC).isoformat(),
+          }
+          encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+          record = {
+              "provenance": payload,
+              "provenance_sha256": hashlib.sha256(encoded).hexdigest(),
+          }
+          with open("trusted-verifier-image.json", "w", encoding="utf-8") as handle:
+              json.dump(record, handle, indent=2, sort_keys=True)
+              handle.write("\n")
+          print(json.dumps(record, indent=2, sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trusted-verifier-image-${{ github.sha }}
+          path: trusted-verifier-image.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Production boundary
+        run: |
+          echo 'Trusted verifier image is Post-P0 development infrastructure.'
+          echo 'Its evidence cannot satisfy Q10/Q11/Q12 and cannot authorize PR #14 merge.'
+          echo 'Production remains NO-GO.'
