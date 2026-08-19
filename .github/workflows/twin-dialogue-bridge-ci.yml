@@ -1,0 +1,36 @@
+name: Twin Dialogue Bridge CI
+
+on:
+  pull_request:
+    paths:
+      - 'integrations/twin-dialogue-bridge/**'
+      - '.github/workflows/twin-dialogue-bridge-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: integrations/twin-dialogue-bridge
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      - name: Verify development-only authority boundary
+        shell: bash
+        run: |
+          grep -q "DEVELOPMENT_ONLY" src/core.ts
+          grep -q "ADVISORY_ONLY" src/core.ts
+          grep -q "production_evidence: false" src/core.ts
+          grep -q "Production status remains NO-GO" README.md
