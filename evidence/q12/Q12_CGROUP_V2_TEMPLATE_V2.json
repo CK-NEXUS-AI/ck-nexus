@@ -1,0 +1,19 @@
+{
+  "schema_version": "2.0",
+  "result": "BLOCKED",
+  "production_promotion_allowed": false,
+  "release_subject": "89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52",
+  "runtime_source": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+  "environment": "staging",
+  "non_root": null,
+  "delegated": null,
+  "cpu_max": null,
+  "memory_max": null,
+  "pids_max": null,
+  "escape_attempt_blocked": null,
+  "workflow_run_id": null,
+  "artifact_id": null,
+  "artifact_digest": null,
+  "completed_at": null,
+  "notes": "Template only. Q12 requires real non-root delegated cgroup v2 enforcement; sudo/root probes are not valid PASS evidence."
+}
