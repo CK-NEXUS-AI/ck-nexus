@@ -93,10 +93,11 @@ jobs:
       - name: Privacy invariants
         run: |
           set -euo pipefail
-          grep -R --line-number 'secret_material_never_disclosed' creator_app/privacy_firewall
-          grep -R --line-number 'TrustLevel.UNTRUSTED' creator_app/gmail_governance
-          grep -R --line-number 'explicit send approval' creator_app/gmail_governance
-          grep -R --line-number 'claim_real_emotions=False' creator_app/personal_intelligence
+          grep -R --line-number --exclude-dir=__pycache__ 'secret_material_never_disclosed' creator_app/privacy_firewall
+          grep -R --line-number --exclude-dir=__pycache__ 'TrustLevel.UNTRUSTED' creator_app/gmail_governance
+          grep -R --line-number --exclude-dir=__pycache__ 'explicit send approval' creator_app/gmail_governance
+          grep -R --line-number --exclude-dir=__pycache__ 'claim_real_emotions: bool = False' creator_app/personal_intelligence
+          grep -R --line-number --exclude-dir=__pycache__ 'imitate_human_identity: bool = False' creator_app/personal_intelligence
       - name: Production boundary
         run: |
           echo 'Personal Data Plane is Post-P0 development infrastructure.'
