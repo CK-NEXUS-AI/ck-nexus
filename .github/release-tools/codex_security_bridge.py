@@ -13,7 +13,10 @@ EXPECTED_SUBJECT = "89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec630
 
 
 def load_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return data
 
 
 def sha256_file(path: Path) -> str:
@@ -44,7 +47,23 @@ def verify_timestamp(value: object) -> str:
     return text
 
 
-def normalize(manifest: dict, report: Path) -> dict:
+def validate_baseline(baseline: dict) -> None:
+    require(baseline, "gate", "Q10")
+    require(baseline, "source_sha", EXPECTED_SHA)
+    require(baseline, "source_tree", EXPECTED_TREE)
+    require(baseline, "release_subject_manifest_sha256", EXPECTED_SUBJECT)
+    require(baseline, "component_result", "PASS")
+    require(baseline, "vulnerabilities_found", 0)
+    artifact_id = require(baseline, "artifact_id")
+    run_id = require(baseline, "github_run_id")
+    digest = require(baseline, "artifact_digest")
+    if not isinstance(artifact_id, int) or not isinstance(run_id, int):
+        raise ValueError("baseline artifact_id/github_run_id must be integers")
+    if not isinstance(digest, str) or not digest.startswith("sha256:"):
+        raise ValueError("baseline artifact_digest must be sha256:...")
+
+
+def normalize(manifest: dict, report: Path, baseline: dict | None) -> dict:
     scan_id = str(require(manifest, "codex_security_scan_id")).strip()
     if not scan_id:
         raise ValueError("codex_security_scan_id is empty")
@@ -61,20 +80,27 @@ def normalize(manifest: dict, report: Path) -> dict:
     claimed_digest = str(require(manifest, "codex_security_report_sha256")).lower()
     if report_digest != claimed_digest:
         raise ValueError("report SHA-256 mismatch")
-    return {
-        "schema_version": 2,
-        "gate": "Q10",
-        "gate_result": "PASS",
-        "codex_security_deep_scan": "PASS",
-        "production_promotion_allowed": True,
-        "codex_security_scan_id": scan_id,
-        "codex_security_report_sha256": report_digest,
-        "codex_security_completed_at": completed_at,
-        "codex_security_target_sha": EXPECTED_SHA,
-        "codex_security_target_tree_sha": EXPECTED_TREE,
-        "codex_security_release_subject_manifest_sha256": EXPECTED_SUBJECT,
-        "source_classification": "NATIVE_CODEX_SECURITY_SEALED_EVIDENCE",
-    }
+
+    output = dict(baseline or {})
+    if baseline is not None:
+        validate_baseline(baseline)
+    output.update(
+        {
+            "schema_version": max(int(output.get("schema_version", 0)), 6),
+            "gate": "Q10",
+            "gate_result": "PASS",
+            "codex_security_deep_scan": "PASS",
+            "production_promotion_allowed": True,
+            "codex_security_scan_id": scan_id,
+            "codex_security_report_sha256": report_digest,
+            "codex_security_completed_at": completed_at,
+            "codex_security_target_sha": EXPECTED_SHA,
+            "codex_security_target_tree_sha": EXPECTED_TREE,
+            "codex_security_release_subject_manifest_sha256": EXPECTED_SUBJECT,
+            "source_classification": "NATIVE_CODEX_SECURITY_SEALED_EVIDENCE",
+        }
+    )
+    return output
 
 
 def main() -> int:
@@ -83,21 +109,34 @@ def main() -> int:
     )
     parser.add_argument("--scan-manifest", required=True, type=Path)
     parser.add_argument("--report", required=True, type=Path)
+    parser.add_argument("--baseline-evidence", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
 
-    result = {"result": "BLOCKED", "errors": []}
+    result: dict = {"result": "BLOCKED", "production_promotion_allowed": False, "errors": []}
     try:
         if not args.scan_manifest.is_file():
             raise ValueError("scan manifest not found")
         if not args.report.is_file():
             raise ValueError("report.md not found")
-        result = normalize(load_json(args.scan_manifest), args.report)
+        baseline = None
+        if args.baseline_evidence is not None:
+            if not args.baseline_evidence.is_file():
+                raise ValueError("baseline Q10 evidence not found")
+            baseline = load_json(args.baseline_evidence)
+        result = normalize(load_json(args.scan_manifest), args.report, baseline)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
-        result = {"result": "BLOCKED", "production_promotion_allowed": False, "errors": [str(exc)]}
+        result = {
+            "result": "BLOCKED",
+            "production_promotion_allowed": False,
+            "errors": [str(exc)],
+        }
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    args.output.write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result.get("gate_result") == "PASS" else 2
 
