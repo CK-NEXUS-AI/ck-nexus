@@ -1,6 +1,6 @@
 """CK-NEXUS governed Gmail integration contracts."""
 
-from .attachments import AttachmentDecision, evaluate_attachment
+from .attachments import AttachmentDecision, evaluate_attachment, verify_attachment_digest
 from .contracts import (
     GmailBackend,
     GmailCapability,
@@ -22,4 +22,5 @@ __all__ = [
     "GovernedGmailService",
     "authorize_gmail",
     "evaluate_attachment",
+    "verify_attachment_digest",
 ]
