@@ -1,0 +1,30 @@
+# CK-NEXUS Final Release Checklist V2
+
+- [ ] Confirm repository is `spinlnw10-art/ck-nexus`.
+- [ ] Confirm closure PR #14 is still Draft/Open/Unmerged before closure work starts.
+- [ ] Confirm closure head is `a55a8d36b0a1b61b426c5d59ab44ebd841eb8d53` or explicitly rebaseline before proceeding.
+- [ ] Confirm Q10 target SHA `39f5c1adb9d761ab418cf088ff1f051b1ca731d1`.
+- [ ] Confirm Q10 target tree `0525195934f703a8becf8a39f6397b2411e0bb2e`.
+- [ ] Confirm frozen runtime subject `89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52`.
+- [ ] Run native Codex Security Deep Security Scan on exact target, scope `.`.
+- [ ] Seal scan with exactly one canonical completion.
+- [ ] Capture scan ID, sealed report SHA-256, completion timestamp, target SHA/tree, runtime subject.
+- [ ] Verify no finding requires runtime remediation; if remediation is required, rotate subject and restart Q10.
+- [ ] Run Q11 live-provider smoke using authorized secret store; raw credential never enters logs/evidence.
+- [ ] Capture Q11 workflow run ID, artifact ID/digest, sentinel success, exact runtime subject.
+- [ ] Run Q12 on dedicated non-root delegated cgroup v2 staging/self-hosted Linux runner.
+- [ ] Prove CPU limit `20000 100000`.
+- [ ] Prove memory limit `67108864`.
+- [ ] Prove PID limit `16`.
+- [ ] Prove process attachment and escape-attempt blocking.
+- [ ] Capture Q12 workflow run ID, artifact ID/digest, exact runtime subject.
+- [ ] Re-run provenance reconciliation after Q10/Q11/Q12 PASS.
+- [ ] Require at least 8/8 reconciled records and zero provenance failures.
+- [ ] Run `.github/release-tools/closure_master.py` against all final evidence.
+- [ ] Run Final Production Package workflow only after the verifier passes.
+- [ ] Verify package SHA-256/checksum artifact and package contents.
+- [ ] Confirm buyer/release docs show only current evidence-backed claims.
+- [ ] Confirm no stale development-main or historical chat evidence is used for promotion.
+- [ ] Obtain human review of PR #14.
+- [ ] Merge only after all gates, provenance, package integrity, and review are complete.
+- [ ] Create Production Ready tag/claim only from the merged, checksummed canonical release subject.
