@@ -14,12 +14,20 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from creator_app.provider_router import (
     ProviderCapabilities,
     ProviderKind,
 )
+
+
+def _require_https_url(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise ValueError("Provider endpoint must use HTTPS with a valid hostname")
+
 
 # ── Quota Tracker ────────────────────────────────────────────────────────────
 
@@ -107,6 +115,7 @@ class OpenAICompatibleAdapter:
         quota_tracker: QuotaTracker | None = None,
     ) -> None:
         self.name = name
+        _require_https_url(base_url)
         self.base_url = base_url.rstrip("/")
         self.env_key = env_key
         self.model = model
@@ -157,7 +166,7 @@ class OpenAICompatibleAdapter:
 
         def _call() -> str:
             try:
-                with urlopen(request, timeout=self.timeout_seconds) as response:
+                with urlopen(request, timeout=self.timeout_seconds) as response:  # nosec B310 -- HTTPS URL validated before request construction.
                     body = json.loads(response.read().decode("utf-8"))
             except Exception as exc:
                 if self._quota:
@@ -223,6 +232,7 @@ class GeminiAdapter:
             f"https://generativelanguage.googleapis.com/v1beta/"
             f"models/{self.model}:generateContent?key={key}"
         )
+        _require_https_url(url)
         payload = json.dumps(
             {
                 "contents": [{"parts": [{"text": prompt}]}],
@@ -241,7 +251,7 @@ class GeminiAdapter:
 
         def _call() -> str:
             try:
-                with urlopen(request, timeout=self.timeout_seconds) as response:
+                with urlopen(request, timeout=self.timeout_seconds) as response:  # nosec B310 -- fixed Gemini HTTPS endpoint validated above.
                     body = json.loads(response.read().decode("utf-8"))
             except Exception as exc:
                 if self._quota:

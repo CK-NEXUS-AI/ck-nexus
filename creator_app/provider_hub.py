@@ -11,6 +11,7 @@ import os
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 
@@ -309,6 +310,13 @@ PROVIDERS: list[ProviderEndpoint] = [
 ]
 
 
+def _require_known_validation_url(url: str) -> None:
+    allowed = {provider.validate_url for provider in PROVIDERS}
+    parsed = urlparse(url)
+    if url not in allowed or parsed.scheme != "https" or not parsed.hostname:
+        raise ValueError("Provider validation URL is not an approved HTTPS endpoint")
+
+
 def _get_key(slug: str) -> str | None:
     ep = next((p for p in PROVIDERS if p.slug == slug), None)
     if not ep:
@@ -342,7 +350,7 @@ def _validate_anthropic(key: str) -> dict[str, Any]:
                 "content-type": "application/json",
             },
         )
-        with urlopen(req, timeout=10) as resp:
+        with urlopen(req, timeout=10) as resp:  # nosec B310 -- fixed Anthropic HTTPS endpoint.
             if resp.status == 200:
                 return {
                     "valid": True,
@@ -366,9 +374,10 @@ def _validate_generic(
 ) -> dict[str, Any]:
     """Generic key validation via GET to models endpoint."""
     try:
+        _require_known_validation_url(validate_url)
         auth_header = header_format.replace("{key}", key)
         req = Request(validate_url, method="GET", headers={header_key: auth_header})
-        with urlopen(req, timeout=10) as resp:
+        with urlopen(req, timeout=10) as resp:  # nosec B310 -- approved HTTPS validation URL enforced above.
             if resp.status == 200:
                 body = json.loads(resp.read())
                 models = []
