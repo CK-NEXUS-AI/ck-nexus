@@ -14,7 +14,7 @@ class PatternRegistry:
         self._patterns = {(p.id, p.version): p for p in patterns}
 
     @classmethod
-    def from_file(cls, path: str | Path | None = None) -> "PatternRegistry":
+    def from_file(cls, path: str | Path | None = None) -> PatternRegistry:
         selected = Path(path) if path else Path(__file__).with_name("patterns.json")
         raw = json.loads(selected.read_text(encoding="utf-8"))
         patterns = tuple(WorkflowPattern.from_mapping(item) for item in raw.get("patterns", []))
