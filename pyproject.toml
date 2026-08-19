@@ -74,6 +74,10 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
 
+[tool.ruff.lint.per-file-ignores]
+"creator_app/anyclaw/dashboard.py" = ["E501"]
+"creator_app/anyclaw/mcp_server.py" = ["E501"]
+
 [tool.bandit]
 exclude_dirs = ["tests", ".venv"]
 skips = ["B101"]
