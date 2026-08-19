@@ -317,7 +317,11 @@ class GmailUniversalBridge:
                 target.forward_func(email, extracted)
                 self._stats["notifications_sent"] += 1
             except Exception as exc:
-                logger.warning("Urgent notification to %s failed: %s", target.name, type(exc).__name__)
+                logger.warning(
+                    "Urgent notification to %s failed: %s",
+                    target.name,
+                    type(exc).__name__,
+                )
 
     def archive_email(self, message_id: str) -> bool:
         """Return False until a governed Gmail modify-capability adapter is implemented."""
