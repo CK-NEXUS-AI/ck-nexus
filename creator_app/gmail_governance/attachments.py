@@ -48,7 +48,7 @@ _EXPECTED_MIME = {
     ".docx": frozenset(
         {"application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
     ),
-    ".json": frozenset({"application/json", "text/json"}),
+    ".json": frozenset({"application/json"}),
     ".md": frozenset({"text/markdown", "text/plain"}),
     ".pdf": frozenset({"application/pdf"}),
     ".pptx": frozenset(
@@ -169,7 +169,9 @@ def _validate_ooxml(content: bytes, suffix: str) -> tuple[bool, str]:
             required_part = _OOXML_MAIN_PART[suffix]
             if required_part.casefold() not in normalized_names:
                 return False, "ooxml_missing_main_part"
-    except (OSError, ValueError, zipfile.BadZipFile, RuntimeError):
+            if archive.testzip() is not None:
+                return False, "archive_crc_or_header_mismatch"
+    except (OSError, ValueError, zipfile.BadZipFile, RuntimeError, NotImplementedError):
         return False, "malformed_ooxml_archive"
     return True, "ooxml"
 
