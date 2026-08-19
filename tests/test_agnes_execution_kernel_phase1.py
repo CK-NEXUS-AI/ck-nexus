@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
-from creator_app.credential_broker import CredentialBroker, CredentialId
 from fastapi.testclient import TestClient
 
 from creator_app.agnes.execution.adapters.base import ExecutionContext
@@ -34,6 +33,7 @@ from creator_app.agnes_runtime import AgnesNervousSystem, AgnesPolicy
 from creator_app.agnes_skills import AgnesSkillRegistry
 from creator_app.api import create_app
 from creator_app.config import Settings
+from creator_app.credential_broker import CredentialBroker, CredentialId
 
 
 def _skill_file() -> Path:
