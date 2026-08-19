@@ -287,7 +287,7 @@ def _verifier_container_command(
         raise DynamicVerificationBlocked("verification profile is not allowlisted")
     if uid <= 0 or gid < 0:
         raise DynamicVerificationBlocked("verifier requires non-root host identity")
-    mount = f"type=bind,src={worktree},dst=/workspace,rw"
+    mount = f"type=bind,src={worktree},dst=/workspace"
     return [
         engine,
         "run",
