@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from creator_app.provider_router import (
+from creator_app.credentials.capability_router import (
     ProviderCapabilities,
     ProviderKind,
     ProviderRouteError,

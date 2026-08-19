@@ -1,0 +1,196 @@
+"""TeamDirector — หัวหน้าทีม ผู้ประสานงานหลัก.
+
+สั่งงานครั้งเดียว → ทีมทำงานเองทั้งหมด
+- แบ่งงาน
+- ตรวจ
+- รวมผล
+- บันทึกประวัติ
+"""
+
+from __future__ import annotations
+
+import time
+from typing import Any
+
+from creator_app.ai_team.agent import Agent
+from creator_app.ai_team.agent_models import (
+    TaskResult,
+    TaskStatus,
+    TeamPlan,
+    TeamRequest,
+    TeamResult,
+    generate_id,
+)
+from creator_app.ai_team.agents import (
+    AnalystAgent,
+    ConnectorAgent,
+    DesignerAgent,
+    DirectorAgent,
+    EngineerAgent,
+    GuardianAgent,
+    ResearcherAgent,
+)
+from creator_app.ai_team.shared_knowledge import SharedKnowledge
+
+
+class TeamDirector:
+    """หัวหน้าทีม — สร้างทีม วางแผน แบ่งงาน ประสานงาน รวมผล.
+
+    วิธีใช้:
+        team = TeamDirector()
+        result = team.process_request("สร้างระบบเชื่อม Gmail")
+        print(result.final_output)
+    """
+
+    def __init__(self, knowledge_path: str | None = None) -> None:
+        self.director = DirectorAgent()
+        self.agents: dict[str, Agent] = {
+            "engineer": EngineerAgent(),
+            "guardian": GuardianAgent(),
+            "analyst": AnalystAgent(),
+            "researcher": ResearcherAgent(),
+            "designer": DesignerAgent(),
+            "connector": ConnectorAgent(),
+        }
+        self.knowledge = SharedKnowledge(persistence_path=knowledge_path)
+        self._request_history: list[TeamResult] = []
+
+    def process_request(
+        self,
+        description: str,
+        *,
+        priority: int = 2,
+        context: str = "",
+        constraints: tuple[str, ...] = (),
+    ) -> TeamResult:
+        """สั่งงานทั้งทีม — ครั้งเดียวจบทั้งระบบ."""
+        start = time.time()
+
+        from creator_app.ai_team.agent_models import RequestPriority
+
+        request = TeamRequest(
+            request_id=generate_id("req"),
+            description=description,
+            priority=RequestPriority(priority),
+            context=context,
+            constraints=constraints,
+        )
+
+        # ค้นหาความรู้เดิม
+        existing_knowledge = self.knowledge.search(description, max_results=3)
+        knowledge_context = ""
+        if existing_knowledge:
+            knowledge_context = "\n".join(
+                f"ความรู้เดิม ({k.topic}): {k.content[:200]}" for k in existing_knowledge
+            )
+
+        # Director วางแผน
+        plan_result = self.director.process(
+            request,
+            context={"agents": list(self.agents.values())},
+        )
+        plan = plan_result.metadata.get("plan")
+        if plan is None:
+            plan = TeamPlan(request_id=request.request_id)
+
+        # ทำงานตามแผน
+        step_results: list[TaskResult] = []
+        completed_steps: set[str] = set()
+
+        for step in plan.steps:
+            deps_met = all(d in completed_steps for d in step.depends_on)
+            if not deps_met:
+                continue
+
+            agent = self.agents.get(step.agent_role)
+            if agent is None:
+                continue
+
+            agent_context = {
+                "request": request,
+                "plan": plan,
+                "completed_steps": completed_steps,
+                "step_results": step_results,
+                "knowledge_context": knowledge_context,
+            }
+
+            result = agent.process(request, context=agent_context)
+            agent.record_result(result)
+            step_results.append(result)
+            completed_steps.add(step.step_id)
+
+            if result.status == TaskStatus.COMPLETED:
+                self.knowledge.add(
+                    topic=description[:100],
+                    agent_name=agent.name,
+                    content=result.output,
+                    keywords=tuple(description.lower().split()[:5]),
+                    confidence=result.confidence,
+                )
+
+        # Director รวมผล
+        synthesis = self.director.synthesize_results(step_results, request)
+
+        team_result = TeamResult(
+            request_id=request.request_id,
+            final_output=synthesis.output,
+            status=TaskStatus.COMPLETED,
+            steps_completed=len(step_results),
+            steps_total=plan.total_steps,
+            team_members_used=tuple(dict.fromkeys(r.agent_name for r in step_results)),
+            duration_seconds=time.time() - start,
+            artifacts=tuple(a for r in step_results for a in r.artifacts),
+            confidence=synthesis.confidence,
+            plan=plan,
+            step_results=step_results,
+        )
+
+        self._request_history.append(team_result)
+        return team_result
+
+    def list_team(self) -> dict[str, Any]:
+        members = []
+        members.append(
+            {
+                "name": self.director.name,
+                "role": self.director.role.value,
+                "description": self.director.description,
+                "expertise": list(self.director.expertise),
+            }
+        )
+        for agent in self.agents.values():
+            members.append(
+                {
+                    "name": agent.name,
+                    "role": agent.role.value,
+                    "description": agent.description,
+                    "expertise": list(agent.expertise),
+                }
+            )
+        return {
+            "team_name": "CK-NEXUS AI Expert Team",
+            "total_members": len(members),
+            "members": members,
+        }
+
+    def team_status(self) -> dict[str, Any]:
+        agent_statuses = [self.director.status()]
+        agent_statuses.extend(a.status() for a in self.agents.values())
+        return {
+            "team_name": "CK-NEXUS AI Expert Team",
+            "total_requests": len(self._request_history),
+            "knowledge_stats": self.knowledge.stats(),
+            "agents": agent_statuses,
+        }
+
+    def add_agent(self, name: str, agent: Agent) -> None:
+        self.agents[name] = agent
+
+    def remove_agent(self, name: str) -> bool:
+        if name in self.agents:
+            del self.agents[name]
+            return True
+        return False
+
+    def get_history(self) -> list[TeamResult]:
+        return list(self._request_history)

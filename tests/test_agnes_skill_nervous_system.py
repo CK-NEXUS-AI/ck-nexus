@@ -4,6 +4,12 @@ import json
 from pathlib import Path
 
 import pytest
+from creator_app.provider_router import (
+    ProviderCapabilities,
+    ProviderKind,
+    ProviderRouter,
+    ProviderRouterPolicy,
+)
 from fastapi.testclient import TestClient
 
 from creator_app.agnes_ledger import AppendOnlyLedger
@@ -11,12 +17,6 @@ from creator_app.agnes_runtime import AgnesNervousSystem, AgnesPolicyViolation
 from creator_app.agnes_skills import AgnesSkillRegistry
 from creator_app.api import create_app
 from creator_app.config import Settings
-from creator_app.provider_router import (
-    ProviderCapabilities,
-    ProviderKind,
-    ProviderRouter,
-    ProviderRouterPolicy,
-)
 
 
 class _LocalProvider:

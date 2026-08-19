@@ -67,7 +67,7 @@ class RedisTokenBucket:
         self._policy_version = safe_fragment(policy_version)
 
     @classmethod
-    def from_url(cls, redis_url: str, *, policy_version: str) -> "RedisTokenBucket":
+    def from_url(cls, redis_url: str, *, policy_version: str) -> RedisTokenBucket:
         try:
             import redis.asyncio as aioredis
         except ImportError as exc:
@@ -76,18 +76,13 @@ class RedisTokenBucket:
 
     async def ping(self) -> bool:
         try:
-            ping = getattr(self._backend, "ping")
+            ping = self._backend.ping
             return bool(await ping())
         except Exception:
             return False
 
     def key(self, tenant_id: str, actor_id: str, route_id: str) -> str:
-        return "ratelimit:{}:{}:{}:{}".format(
-            self._policy_version,
-            safe_fragment(tenant_id),
-            safe_fragment(actor_id),
-            safe_fragment(route_id),
-        )
+        return f"ratelimit:{self._policy_version}:{safe_fragment(tenant_id)}:{safe_fragment(actor_id)}:{safe_fragment(route_id)}"
 
     async def consume(
         self,
@@ -143,12 +138,7 @@ class InMemoryTokenBucket:
         return True
 
     def key(self, tenant_id: str, actor_id: str, route_id: str) -> str:
-        return "ratelimit:{}:{}:{}:{}".format(
-            self.policy_version,
-            safe_fragment(tenant_id),
-            safe_fragment(actor_id),
-            safe_fragment(route_id),
-        )
+        return f"ratelimit:{self.policy_version}:{safe_fragment(tenant_id)}:{safe_fragment(actor_id)}:{safe_fragment(route_id)}"
 
     async def consume(
         self,

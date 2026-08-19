@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from creator_app.credential_broker import (
+from creator_app.credentials.credential_broker import (
     CredentialAccessDenied,
     CredentialBroker,
     CredentialId,

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from .guardrails import GuardrailEvaluator
-from .models import ExecutionContext, ExecutionRecord, ToolRequest, WorkflowPattern
+from .models import ExecutionRecord, ToolRequest, WorkflowPattern
 
 
 class ToolExecutor(Protocol):
