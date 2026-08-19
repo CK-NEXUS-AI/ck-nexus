@@ -51,6 +51,45 @@ def test_rebound_peer_is_rejected_even_if_initial_address_was_public() -> None:
         )
 
 
+def test_credentials_are_not_written_before_peer_binding_passes() -> None:
+    class RecordingSocket:
+        def __init__(self) -> None:
+            self.sent: list[bytes] = []
+            self.closed = False
+
+        def getpeername(self) -> tuple[str, int]:
+            return ("127.0.0.1", 80)
+
+        def sendall(self, data: bytes) -> None:
+            self.sent.append(data)
+
+        def close(self) -> None:
+            self.closed = True
+
+    socket_record = RecordingSocket()
+
+    def connection_factory(address: tuple[str, int], timeout: float) -> RecordingSocket:
+        assert address == ("93.184.216.34", 80)
+        assert timeout == 1.0
+        return socket_record
+
+    transport = UrllibHttpTransport(
+        resolver=lambda _host: ("93.184.216.34",),
+        connection_factory=connection_factory,  # type: ignore[arg-type]
+    )
+    with pytest.raises(EndpointSecurityError, match="did not match"):
+        transport.request(
+            "GET",
+            "http://example.com/mcp",
+            headers={"Authorization": "Bearer must-not-leak"},
+            body=None,
+            timeout=1.0,
+        )
+
+    assert socket_record.sent == []
+    assert socket_record.closed is True
+
+
 def test_explicit_private_network_policy_allows_matching_private_peer() -> None:
     _validate_connected_peer(
         "127.0.0.1",
