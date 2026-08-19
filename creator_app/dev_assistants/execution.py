@@ -96,13 +96,12 @@ class DevExecutionContract:
         if missing:
             raise ValueError(f"assistant lacks required capabilities: {sorted(missing)}")
 
-        discovered = {
-            row["assistant_id"]: row
-            for row in self._fabric.discover()
-        }
+        discovered = {row["assistant_id"]: row for row in self._fabric.discover()}
         availability = discovered.get(spec.assistant_id, {})
         command = availability.get("command")
 
+        normalized_task = request.task.strip()
+        normalized_workstream_id = request.workstream_id.strip()
         request_digest = _digest_request(request)
         execution_id = f"devexec-{request_digest[:20]}"
         return {
@@ -112,8 +111,10 @@ class DevExecutionContract:
             "assistant_name": spec.name,
             "command": command,
             "assistant_available": bool(availability.get("available")),
+            "task": normalized_task,
+            "workstream_id": normalized_workstream_id,
             "task_transport": "brokered_input",
-            "credential_refs": list(request.credential_refs),
+            "credential_refs": sorted(request.credential_refs),
             "required_capabilities": sorted(required),
             "policy": {
                 "isolation": effective_policy.isolation.value,
