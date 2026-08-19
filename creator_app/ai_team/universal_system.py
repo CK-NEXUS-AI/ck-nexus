@@ -17,9 +17,18 @@
 from __future__ import annotations
 
 import time
+import time as _time
 from dataclasses import dataclass
 from typing import Any
 
+from creator_app.ai_team.intelligence import (
+    AutoModelRouter,
+    MultiPerspectiveThinker,
+    ParallelExecutor,
+    SelfCorrectionLoop,
+    SemanticMemory,
+    SmartCache,
+)
 from creator_app.ai_team.team_director import TeamDirector
 
 # ─── ระบบที่ 1: ตัวแทนอัจฉริยะ (Smart Agent) ──────────────────────────
@@ -440,3 +449,174 @@ class UniversalSystem:
             "platforms": len(self.cross_platform.platforms),
             "categories": list(set(t.category for t in TOOL_REGISTRY)),
         }
+
+
+# ─── Intelligence Modules — เพิ่มความเร็ว + ความฉลาด ──────────────────
+
+
+class EnhancedUniversalSystem:
+    """Universal System ที่เพิ่ม Intelligence Modules.
+
+    5 โมดูลใหม่:
+    1. SmartCache — แคช 2 ชั้น (exact + semantic)
+    2. ParallelExecutor — รันงานขนาน
+    3. AutoModelRouter — เลือกโมเดลอัตโนมัติ
+    4. SelfCorrectionLoop — ตรวจสอบก่อนส่ง
+    5. MultiPerspectiveThinker — คิดหลายมุม
+    6. SemanticMemory — จำแบบเข้าใจ
+
+    วิธีใช้:
+        system = EnhancedUniversalSystem()
+        result = system.process("สรุปอีเมลล่าสุด 3 ฉบับ")
+    """
+
+    def __init__(self, *, enable_cache: bool = True, enable_parallel: bool = True,
+                 enable_auto_route: bool = True, enable_self_correction: bool = True,
+                 enable_perspective: bool = True, enable_memory: bool = True):
+        self.base = UniversalSystem()
+        self.cache = SmartCache() if enable_cache else None
+        self.parallel = ParallelExecutor() if enable_parallel else None
+        self.router = AutoModelRouter() if enable_auto_route else None
+        self.correction = SelfCorrectionLoop() if enable_self_correction else None
+        self.perspective = MultiPerspectiveThinker() if enable_perspective else None
+        self.memory = SemanticMemory() if enable_memory else None
+        self._features_enabled = {
+            "cache": enable_cache,
+            "parallel": enable_parallel,
+            "auto_route": enable_auto_route,
+            "self_correction": enable_self_correction,
+            "perspective": enable_perspective,
+            "memory": enable_memory,
+        }
+
+    def process(self, request: str, *, priority: int = 2) -> str:
+        """ประมวลผล — ใช้ Intelligence Modules ทั้งหมด."""
+        start = _time.time()
+
+        # 0. จำว่าเคยทำงานนี้มาก่อน
+        if self.memory:
+            past = self.memory.recall(request, limit=2)
+            if past:
+                self.memory.store_experience(request, "processing", importance=0.5)
+
+        # 1. ตรวจแคช
+        if self.cache:
+            cached = self.cache.get(request)
+            if cached:
+                return f"⚡ [Cache Hit] {cached.response}"
+
+        # 2. เลือกโมเดล
+        model_info = ""
+        if self.router:
+            model = self.router.select_model(request)
+            model_info = (
+                f"🤖 Model: {model.name}"
+                f" (speed={model.speed_rating}/10,"
+                f" quality={model.quality_rating}/10)"
+            )
+
+        # 3. วิเคราะห์หลายมุม (ถ้าเป็นงานซับซ้อน)
+        perspective_info = ""
+        if self.perspective:
+            difficulty = self.router.classify_difficulty(request) if self.router else None
+            if difficulty and difficulty.value in ("medium", "hard", "expert"):
+                analysis = self.perspective.analyze(request)
+                perspective_info = analysis.summary
+
+        # 4. ประมวลผลผ่าน base system
+        result = self.base.process(request, priority=priority)
+
+        # 5. ตรวจสอบก่อนส่ง
+        if self.correction:
+            check = self.correction.verify(request, result)
+            if not check.passes:
+                result = self.correction.refine(result, check.suggestions)
+                result += f"\n\n🔧 Self-Correction: {check.summary}"
+
+        # 6. เก็บในแคช
+        if self.cache:
+            self.cache.set(request, result, tags=("universal",))
+
+        # 7. เก็บในความจำ
+        if self.memory:
+            self.memory.store_experience(request, "completed", importance=0.6)
+
+        # 8. สร้าง output
+        duration = _time.time() - start
+        enhanced_lines = [
+            result,
+            "",
+            "─── Intelligence Stats ───",
+        ]
+        if model_info:
+            enhanced_lines.append(model_info)
+        if perspective_info:
+            enhanced_lines.append(perspective_info)
+        if self.cache:
+            cache_stats = self.cache.stats
+            hits = cache_stats['hits']
+            misses = cache_stats['misses']
+            rate = cache_stats['hit_rate_percent']
+            enhanced_lines.append(
+                f"📦 Cache: {hits} hits, {misses} misses ({rate}% hit rate)"
+            )
+        if self.correction:
+            corr_stats = self.correction.stats
+            if corr_stats["total_verified"] > 0:
+                passed = corr_stats['passed']
+            total = corr_stats['total_verified']
+            conf = corr_stats['avg_confidence']
+            enhanced_lines.append(
+                f"🔍 Self-Correction: {passed}/{total} passed,"
+                f" avg confidence {conf:.0%}"
+            )
+        if self.memory:
+            mem_stats = self.memory.stats()
+            memories = mem_stats['total_memories']
+            avg_imp = mem_stats['avg_importance']
+            enhanced_lines.append(
+                f"🧠 Memory: {memories} entries, avg importance {avg_imp}"
+            )
+        enhanced_lines.append(f"⏱️ Total: {duration:.2f}s")
+
+        return "\n".join(enhanced_lines)
+
+    async def process_parallel(
+        self,
+        requests: list[str],
+        *,
+        timeout: float = 30.0,
+    ) -> list[str]:
+        """ประมวลผลหลายคำขอพร้อมกัน."""
+        if not self.parallel:
+            return [self.process(r) for r in requests]
+
+        def make_task(req: str) -> tuple[str, Any]:
+            def task() -> str:
+                return self.process(req)
+            return (f"task-{hash(req) % 10000}", task)
+
+        tasks = [make_task(r) for r in requests]
+        results = await self.parallel.run_batch("parallel-process", tasks, timeout=timeout)
+        return [
+            r.result if r.result else f"❌ {r.error}"
+            for r in results
+        ]
+
+    def stats(self) -> dict[str, Any]:
+        """สถิตรวมของทุกระบบ."""
+        base_stats = self.base.status()
+        enhanced: dict[str, Any] = {**base_stats, "features_enabled": self._features_enabled}
+        if self.cache:
+            enhanced["cache"] = self.cache.stats
+        if self.router:
+            enhanced["router"] = self.router.stats()
+        if self.correction:
+            enhanced["correction"] = self.correction.stats
+        if self.perspective:
+            enhanced["perspective"] = self.perspective.stats()
+        if self.memory:
+            enhanced["memory"] = self.memory.stats()
+        if self.parallel:
+            enhanced["parallel"] = self.parallel.stats()
+        return enhanced
