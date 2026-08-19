@@ -5,46 +5,53 @@ import argparse
 import io
 import json
 import os
-import subprocess
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path
 from typing import Any
 
-ALLOWED = {
-    "verify/q11-final-subject": "Verify Q11 final release subject",
-    "verify/q12-final-subject": "Verify Q12 final release subject on delegated self-hosted Linux",
+VERIFIERS = {
+    "verify/q11-final-subject": {
+        "workflow_file": "verify-q11-final-subject.yml",
+        "workflow_name": "Verify Q11 final release subject",
+    },
+    "verify/q12-final-subject": {
+        "workflow_file": "verify-q12-final-subject.yml",
+        "workflow_name": "Verify Q12 final release subject on delegated self-hosted Linux",
+    },
 }
 
 
-def run_git(*args: str) -> str:
-    proc = subprocess.run(
-        ["git", *args],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-    return proc.stdout.strip()
-
-
-def api_json(url: str, token: str) -> dict[str, Any]:
+def request_json(
+    url: str,
+    token: str,
+    *,
+    method: str = "GET",
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    data = None if payload is None else json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(
         url,
+        data=data,
+        method=method,
         headers={
             "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
             "User-Agent": "ck-nexus-canonical-verifier-handoff",
+            "Content-Type": "application/json",
         },
     )
     with urllib.request.urlopen(request, timeout=30) as response:
+        if response.status == 204:
+            return {}
         return json.load(response)
 
 
-def api_bytes(url: str, token: str) -> bytes:
+def request_bytes(url: str, token: str) -> bytes:
     request = urllib.request.Request(
         url,
         headers={
@@ -58,52 +65,80 @@ def api_bytes(url: str, token: str) -> bytes:
         return response.read()
 
 
-def trigger(branch: str, message: str) -> str:
-    if branch not in ALLOWED:
-        raise ValueError(f"branch is not an allowed verifier branch: {branch}")
-    run_git("fetch", "origin", f"refs/heads/{branch}")
-    run_git("checkout", "--detach", "FETCH_HEAD")
-    run_git("config", "user.name", "ck-nexus-closure-bot")
-    run_git("config", "user.email", "ck-nexus-closure-bot@users.noreply.github.com")
-    run_git("commit", "--allow-empty", "-m", message)
-    sha = run_git("rev-parse", "HEAD")
-    run_git("push", "origin", f"{sha}:refs/heads/{branch}")
-    return sha
+def workflow_runs(
+    *, repository: str, token: str, workflow_file: str, branch: str
+) -> list[dict[str, Any]]:
+    encoded_branch = urllib.parse.quote(branch, safe="")
+    url = (
+        f"https://api.github.com/repos/{repository}/actions/workflows/"
+        f"{workflow_file}/runs?branch={encoded_branch}&event=workflow_dispatch&per_page=100"
+    )
+    return list(request_json(url, token).get("workflow_runs", []))
 
 
-def wait_for_run(
-    *, repository: str, token: str, sha: str, workflow_name: str, timeout_seconds: int
+def dispatch(
+    *, repository: str, token: str, workflow_file: str, branch: str
+) -> None:
+    url = (
+        f"https://api.github.com/repos/{repository}/actions/workflows/"
+        f"{workflow_file}/dispatches"
+    )
+    request_json(url, token, method="POST", payload={"ref": branch})
+
+
+def wait_for_new_run(
+    *,
+    repository: str,
+    token: str,
+    workflow_file: str,
+    branch: str,
+    previous_ids: set[int],
+    timeout_seconds: int,
 ) -> dict[str, Any]:
     deadline = time.monotonic() + timeout_seconds
-    encoded_sha = urllib.parse.quote(sha, safe="")
-    url = (
-        f"https://api.github.com/repos/{repository}/actions/runs"
-        f"?head_sha={encoded_sha}&per_page=100"
-    )
+    selected: dict[str, Any] | None = None
     while time.monotonic() < deadline:
-        payload = api_json(url, token)
-        runs = payload.get("workflow_runs", [])
-        matching = [run for run in runs if run.get("name") == workflow_name]
-        if matching:
-            run = sorted(matching, key=lambda item: int(item.get("id", 0)), reverse=True)[0]
-            if run.get("status") == "completed":
-                return run
+        runs = workflow_runs(
+            repository=repository,
+            token=token,
+            workflow_file=workflow_file,
+            branch=branch,
+        )
+        fresh = [run for run in runs if int(run.get("id", 0)) not in previous_ids]
+        if fresh:
+            selected = sorted(
+                fresh,
+                key=lambda item: int(item.get("id", 0)),
+                reverse=True,
+            )[0]
+            if selected.get("status") == "completed":
+                return selected
         time.sleep(10)
-    raise TimeoutError(f"timed out waiting for workflow: {workflow_name}")
+    if selected is None:
+        raise TimeoutError("workflow dispatch created no observable run")
+    raise TimeoutError(
+        f"workflow run {selected.get('id')} did not complete before timeout"
+    )
 
 
 def find_artifact(
     *, repository: str, token: str, run_id: int, prefix: str
 ) -> dict[str, Any]:
-    url = f"https://api.github.com/repos/{repository}/actions/runs/{run_id}/artifacts?per_page=100"
-    payload = api_json(url, token)
+    url = (
+        f"https://api.github.com/repos/{repository}/actions/runs/"
+        f"{run_id}/artifacts?per_page=100"
+    )
+    payload = request_json(url, token)
     artifacts = [
         item
         for item in payload.get("artifacts", [])
-        if str(item.get("name", "")).startswith(prefix) and item.get("expired") is False
+        if str(item.get("name", "")).startswith(prefix)
+        and item.get("expired") is False
     ]
     if len(artifacts) != 1:
-        raise ValueError(f"expected one non-expired artifact with prefix {prefix!r}, got {len(artifacts)}")
+        raise ValueError(
+            f"expected one non-expired artifact with prefix {prefix!r}, got {len(artifacts)}"
+        )
     return artifacts[0]
 
 
@@ -111,9 +146,10 @@ def extract_evidence(archive: bytes, evidence_name: str) -> dict[str, Any]:
     with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
         matches = [name for name in bundle.namelist() if Path(name).name == evidence_name]
         if len(matches) != 1:
-            raise ValueError(f"expected one {evidence_name} in artifact, got {len(matches)}")
-        raw = bundle.read(matches[0])
-    payload = json.loads(raw.decode("utf-8"))
+            raise ValueError(
+                f"expected one {evidence_name} in artifact, got {len(matches)}"
+            )
+        payload = json.loads(bundle.read(matches[0]).decode("utf-8"))
     if not isinstance(payload, dict):
         raise ValueError("evidence payload must be a JSON object")
     return payload
@@ -121,33 +157,48 @@ def extract_evidence(archive: bytes, evidence_name: str) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Trigger canonical verifier branch and normalize its GitHub artifact provenance"
+        description=(
+            "Dispatch a canonical verifier workflow and normalize its GitHub artifact provenance"
+        )
     )
-    parser.add_argument("--branch", required=True, choices=sorted(ALLOWED))
+    parser.add_argument("--branch", required=True, choices=sorted(VERIFIERS))
     parser.add_argument("--artifact-prefix", required=True)
     parser.add_argument("--evidence-name", required=True)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--timeout-seconds", type=int, default=1800)
-    parser.add_argument("--message", default="chore: canonical closure verifier handoff")
     args = parser.parse_args()
 
     repository = os.environ.get("GITHUB_REPOSITORY", "spinlnw10-art/ck-nexus")
     token = os.environ.get("GITHUB_TOKEN", "")
+    config = VERIFIERS[args.branch]
     result: dict[str, Any] = {
         "result": "BLOCKED",
         "branch": args.branch,
-        "workflow": ALLOWED[args.branch],
+        "workflow": config["workflow_name"],
         "errors": [],
     }
     try:
         if not token:
             raise ValueError("GITHUB_TOKEN is required")
-        sha = trigger(args.branch, args.message)
-        run = wait_for_run(
+        before = workflow_runs(
             repository=repository,
             token=token,
-            sha=sha,
-            workflow_name=ALLOWED[args.branch],
+            workflow_file=config["workflow_file"],
+            branch=args.branch,
+        )
+        previous_ids = {int(run["id"]) for run in before}
+        dispatch(
+            repository=repository,
+            token=token,
+            workflow_file=config["workflow_file"],
+            branch=args.branch,
+        )
+        run = wait_for_new_run(
+            repository=repository,
+            token=token,
+            workflow_file=config["workflow_file"],
+            branch=args.branch,
+            previous_ids=previous_ids,
             timeout_seconds=args.timeout_seconds,
         )
         run_id = int(run["id"])
@@ -165,7 +216,7 @@ def main() -> int:
         digest = artifact.get("digest")
         if not isinstance(digest, str) or not digest.startswith("sha256:"):
             raise ValueError("GitHub artifact digest is missing or invalid")
-        archive = api_bytes(
+        archive = request_bytes(
             f"https://api.github.com/repos/{repository}/actions/artifacts/{artifact_id}/zip",
             token,
         )
@@ -177,13 +228,12 @@ def main() -> int:
         evidence["artifact_id"] = artifact_id
         evidence["artifact_digest"] = digest
         evidence["canonical_verifier_branch"] = args.branch
-        evidence["canonical_verifier_head_sha"] = sha
+        evidence["canonical_verifier_head_sha"] = run.get("head_sha")
         result = evidence
     except (
         OSError,
         ValueError,
         TimeoutError,
-        subprocess.CalledProcessError,
         urllib.error.URLError,
         json.JSONDecodeError,
         zipfile.BadZipFile,
