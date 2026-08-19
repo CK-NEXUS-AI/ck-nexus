@@ -28,7 +28,12 @@ from creator_app.core.self_capability_manager import (
     LEARNING_SOURCES,
     SelfCapabilityManager,
 )
-from creator_app.dev_assistants import DevAssistantFabric
+from creator_app.dev_assistants import (
+    DevAssistantFabric,
+    DevExecutionContract,
+    ExecutionPolicy,
+    ExecutionRequest,
+)
 
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 _DEFAULT_PORT = 8765
@@ -58,6 +63,7 @@ def _configured_port() -> int:
 _SYSTEM: UniversalSystem | None = None
 _CAPABILITY_MANAGER: SelfCapabilityManager | None = None
 _DEV_ASSISTANT_FABRIC: DevAssistantFabric | None = None
+_DEV_EXECUTION_CONTRACT: DevExecutionContract | None = None
 
 
 def get_system() -> UniversalSystem:
@@ -82,6 +88,14 @@ def get_dev_assistant_fabric() -> DevAssistantFabric:
     if _DEV_ASSISTANT_FABRIC is None:
         _DEV_ASSISTANT_FABRIC = DevAssistantFabric()
     return _DEV_ASSISTANT_FABRIC
+
+
+def get_dev_execution_contract() -> DevExecutionContract:
+    """Return the non-executing CK-NEXUS development execution contract."""
+    global _DEV_EXECUTION_CONTRACT
+    if _DEV_EXECUTION_CONTRACT is None:
+        _DEV_EXECUTION_CONTRACT = DevExecutionContract(get_dev_assistant_fabric())
+    return _DEV_EXECUTION_CONTRACT
 
 
 mcp = FastMCP(
@@ -181,6 +195,21 @@ def cknexus_dev_assistants() -> dict[str, Any]:
         "external_mutation_authorized": False,
         "assistants": fabric.discover(),
     }
+
+
+@mcp.tool()
+def cknexus_dev_execution_plan(
+    assistant_id: str,
+    task: str,
+    workstream_id: str = "default",
+) -> dict[str, Any]:
+    """Build a fail-closed sandbox execution plan without launching the assistant."""
+    request = ExecutionRequest(
+        assistant_id=assistant_id,
+        task=task,
+        workstream_id=workstream_id,
+    )
+    return get_dev_execution_contract().build_plan(request, ExecutionPolicy())
 
 
 def run_server() -> None:
