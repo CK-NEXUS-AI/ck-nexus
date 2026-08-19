@@ -1363,10 +1363,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def index() -> FileResponse:
         return FileResponse(WEB_DIR / "index.html")
 
-
     # ── Provider Hub Routes ──
     from creator_app.provider_hub import (
-        get_providers_list, scan_all, validate_provider, validate_all as validate_all_providers,
+        get_providers_list,
+        scan_all,
+        validate_provider,
+    )
+    from creator_app.provider_hub import (
+        validate_all as validate_all_providers,
     )
 
     @app.get("/signup", include_in_schema=False)
@@ -1389,9 +1393,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def api_providers_validate_all():
         return validate_all_providers()
 
-
     # ── Assistant Registry Routes ──
-    from creator_app.assistant_registry import list_assistants, scan_assistants, get_assistant_by_category, get_categories
+    from creator_app.assistant_registry import (
+        get_assistant_by_category,
+        get_categories,
+        list_assistants,
+        scan_assistants,
+    )
 
     @app.get("/assistants")
     async def assistants_page() -> FileResponse:
