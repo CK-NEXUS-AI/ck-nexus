@@ -199,7 +199,13 @@ def test_gmail_read_is_untrusted_and_send_requires_explicit_approval() -> None:
 
 
 def test_attachment_policy_requires_quarantine_and_blocks_executables() -> None:
-    safe = evaluate_attachment("report.pdf", size_bytes=100)
+    pdf = b"%PDF-1.7\n%%EOF\n"
+    safe = evaluate_attachment(
+        "report.pdf",
+        size_bytes=len(pdf),
+        declared_mime="application/pdf",
+        content=pdf,
+    )
     assert safe.allowed_for_parser_sandbox is True
     assert safe.quarantine_required is True
     assert safe.execute_on_host is False
