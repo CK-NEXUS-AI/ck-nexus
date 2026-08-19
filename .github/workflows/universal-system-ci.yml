@@ -32,15 +32,23 @@ jobs:
         run: |
           uv lock --check
           uv sync --all-extras --dev --frozen
-      - name: Verify exactly 45 AI Team tests are collected
+      - name: Verify original 45-test baseline
         shell: bash
         run: |
           set -euo pipefail
-          .venv/bin/pytest --collect-only -q creator_app/ai_team/tests | tee /tmp/universal-collect.txt
-          count=$(grep -c '::' /tmp/universal-collect.txt || true)
-          echo "collected_test_nodes=$count"
+          .venv/bin/pytest --collect-only -q \
+            creator_app/ai_team/tests/test_team.py \
+            creator_app/ai_team/tests/test_universal.py \
+            | tee /tmp/universal-baseline-collect.txt
+          count=$(grep -c '::' /tmp/universal-baseline-collect.txt || true)
+          echo "baseline_test_nodes=$count"
           test "$count" -eq 45
-      - name: Run 45 AI Team and Universal System tests
+      - name: Run original 45-test baseline
+        run: >-
+          .venv/bin/pytest -q
+          creator_app/ai_team/tests/test_team.py
+          creator_app/ai_team/tests/test_universal.py
+      - name: Run full AI Team and Universal System suite
         run: .venv/bin/pytest -q creator_app/ai_team/tests
       - name: Ruff scoped development files
         run: >-
