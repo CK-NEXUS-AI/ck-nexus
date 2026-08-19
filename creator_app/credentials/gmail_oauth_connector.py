@@ -2,19 +2,25 @@ from __future__ import annotations
 
 import json
 import logging
+import urllib.error
 from dataclasses import dataclass
 from typing import Protocol
+from urllib.parse import urlencode
+from urllib.request import Request
 
-from creator_app.credentials.credential_broker import (
+from creator_app.credential_broker import (
     CredentialBroker,
     CredentialId,
     CredentialUnavailable,
 )
+from creator_app.integration_security import open_trusted_request
 
 logger = logging.getLogger("cknexus.gmail")
 
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1/users/me"
+_GOOGLE_TOKEN_HOSTS = frozenset({"oauth2.googleapis.com"})
+_GMAIL_API_HOSTS = frozenset({"gmail.googleapis.com"})
 
 
 class GmailConnectorError(RuntimeError):
@@ -33,10 +39,12 @@ class GmailMessage:
 
 
 class GmailOAuthClient(Protocol):
-    """Protocol for Gmail OAuth operations. Concrete implementation must never expose raw tokens."""
+    """Protocol for Gmail OAuth operations that never returns tokens in status output."""
 
     def get_access_token(self) -> str: ...
+
     def refresh_access_token(self) -> str: ...
+
     def is_token_expired(self) -> bool: ...
 
 
@@ -50,16 +58,11 @@ class GmailConfig:
 
 
 class GmailConnector:
-    """Gmail connector that uses OAuth2 refresh flow — never raw token extraction.
+    """Read-only Gmail connector using brokered OAuth refresh credentials.
 
-    This connector integrates with the CK-NEXUS Credential Broker:
-    - Acquires a lease from the broker for gmail.oauth consumer
-    - Uses the refresh token to obtain short-lived access tokens
-    - Access tokens are ephemeral and never persisted/logged
-    - Supports automatic refresh when tokens expire
-    - Quota monitoring triggers key rotation warnings
-
-    Authority chain: USER -> ACCESS -> GOVERNOR -> CREDENTIAL BROKER -> GMAIL CONNECTOR
+    Credential-bearing requests are restricted to exact Google HTTPS hosts and
+    redirects are disabled by ``open_trusted_request``. Access tokens remain
+    ephemeral and are never returned by status/reporting APIs.
     """
 
     SCOPES = ("https://www.googleapis.com/auth/gmail.readonly",)
@@ -68,15 +71,13 @@ class GmailConnector:
         self,
         broker: CredentialBroker,
         *,
-        open_url: object | None = None,
         config_override: GmailConfig | None = None,
     ) -> None:
         self._broker = broker
-        self._open_url = open_url
         self._config_override = config_override
 
     def _acquire_config(self) -> GmailConfig:
-        """Acquire Gmail OAuth credentials from the broker via lease."""
+        """Acquire Gmail OAuth credentials from the broker via scoped leases."""
         try:
             lease_client_id = self._broker.acquire(
                 CredentialId.GMAIL_CLIENT_ID,
@@ -90,7 +91,7 @@ class GmailConnector:
                 CredentialId.GMAIL_REFRESH_TOKEN,
                 consumer="gmail.oauth",
             )
-        except (CredentialUnavailable, Exception):
+        except CredentialUnavailable:
             raise GmailConnectorError(
                 "Gmail OAuth credentials are not available through the broker."
             ) from None
@@ -102,11 +103,8 @@ class GmailConnector:
         )
 
     def _refresh_access_token(self, config: GmailConfig) -> str:
-        """Exchange refresh token for a short-lived access token."""
-        import urllib.error
-        import urllib.request
-
-        data = urllib.parse.urlencode(
+        """Exchange a refresh token for a short-lived access token."""
+        data = urlencode(
             {
                 "client_id": config.client_id,
                 "client_secret": config.client_secret,
@@ -116,39 +114,57 @@ class GmailConnector:
             }
         ).encode("utf-8")
 
-        request = urllib.request.Request(
+        request = Request(
             config.token_url,
             data=data,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         try:
-            with urllib.request.urlopen(request, timeout=10) as response:
+            with open_trusted_request(
+                request,
+                trusted_hosts=_GOOGLE_TOKEN_HOSTS,
+                timeout=10,
+            ) as response:
                 token_data = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
-            raise GmailConnectorError(f"Gmail token refresh failed: HTTP {exc.code}") from exc
+            raise GmailConnectorError(f"Gmail token refresh failed: HTTP {exc.code}") from None
+        except (urllib.error.URLError, json.JSONDecodeError, ValueError) as exc:
+            raise GmailConnectorError(
+                f"Gmail token refresh failed: {type(exc).__name__}"
+            ) from None
 
         access_token = token_data.get("access_token", "")
-        if not access_token:
+        if not isinstance(access_token, str) or not access_token:
             raise GmailConnectorError("Gmail token refresh returned no access token")
 
         expires_in = token_data.get("expires_in", 3600)
-        logger.debug("Obtained Gmail access token (expires_in=%ds)", expires_in)
+        logger.debug("Obtained Gmail access token metadata (expires_in=%s)", expires_in)
         return access_token
 
     def _gmail_request(self, access_token: str, path: str) -> dict:
-        """Make an authenticated Gmail API request."""
-        import urllib.request
-
-        url = f"{self._config_override.api_base if self._config_override else GMAIL_API_BASE}{path}"
-        request = urllib.request.Request(
+        """Make an authenticated request to the exact Gmail API host."""
+        base = self._config_override.api_base if self._config_override else GMAIL_API_BASE
+        url = f"{base.rstrip('/')}/{path.lstrip('/')}"
+        request = Request(
             url,
             headers={"Authorization": f"Bearer {access_token}"},
         )
         try:
-            with urllib.request.urlopen(request, timeout=30) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except Exception as exc:
-            raise GmailConnectorError(f"Gmail API request failed: {type(exc).__name__}") from exc
+            with open_trusted_request(
+                request,
+                trusted_hosts=_GMAIL_API_HOSTS,
+                timeout=30,
+            ) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            raise GmailConnectorError(f"Gmail API request failed: HTTP {exc.code}") from None
+        except (urllib.error.URLError, json.JSONDecodeError, ValueError) as exc:
+            raise GmailConnectorError(
+                f"Gmail API request failed: {type(exc).__name__}"
+            ) from None
+        if not isinstance(body, dict):
+            raise GmailConnectorError("Gmail API returned an unexpected response type")
+        return body
 
     def list_messages(
         self,
@@ -157,23 +173,27 @@ class GmailConnector:
         max_results: int = 100,
     ) -> tuple[GmailMessage, ...]:
         """List Gmail messages matching an optional query."""
+        if not 1 <= max_results <= 500:
+            raise ValueError("max_results must be between 1 and 500")
+
         config = self._config_override or self._acquire_config()
         access_token = self._refresh_access_token(config)
-
-        path = "/messages"
+        params: dict[str, str | int] = {"maxResults": max_results}
         if query:
-            path = f"/messages?q={urllib.parse.quote(query)}"
-        path += f"&maxResults={max_results}"
+            params["q"] = query
+        data = self._gmail_request(access_token, f"/messages?{urlencode(params)}")
 
-        data = self._gmail_request(access_token, path)
         messages = data.get("messages", [])
+        if not isinstance(messages, list):
+            raise GmailConnectorError("Gmail messages response has an invalid shape")
 
         result: list[GmailMessage] = []
         for msg_ref in messages:
+            if not isinstance(msg_ref, dict) or not isinstance(msg_ref.get("id"), str):
+                continue
             msg = self._get_message(access_token, msg_ref["id"])
             if msg is not None:
                 result.append(msg)
-
         return tuple(result)
 
     def _get_message(self, access_token: str, message_id: str) -> GmailMessage | None:
@@ -181,20 +201,23 @@ class GmailConnector:
         try:
             data = self._gmail_request(access_token, f"/messages/{message_id}")
         except GmailConnectorError:
-            logger.warning("Failed to fetch Gmail message %s", message_id)
+            logger.warning("Failed to fetch a Gmail message by id")
             return None
 
+        raw_headers = data.get("payload", {}).get("headers", [])
         headers = {
-            h["name"].lower(): h["value"] for h in data.get("payload", {}).get("headers", [])
+            item.get("name", "").lower(): item.get("value", "")
+            for item in raw_headers
+            if isinstance(item, dict)
         }
         return GmailMessage(
-            message_id=data.get("id", ""),
-            thread_id=data.get("threadId", ""),
-            subject=headers.get("subject", ""),
-            sender=headers.get("from", ""),
-            recipients=tuple(self._parse_recipients(headers.get("to", ""))),
-            date=headers.get("date", ""),
-            snippet=data.get("snippet", ""),
+            message_id=str(data.get("id", "")),
+            thread_id=str(data.get("threadId", "")),
+            subject=str(headers.get("subject", "")),
+            sender=str(headers.get("from", "")),
+            recipients=tuple(self._parse_recipients(str(headers.get("to", "")))),
+            date=str(headers.get("date", "")),
+            snippet=str(data.get("snippet", "")),
         )
 
     def search(self, query: str, *, max_results: int = 100) -> tuple[GmailMessage, ...]:
@@ -202,30 +225,19 @@ class GmailConnector:
         return self.list_messages(query=query, max_results=max_results)
 
     def count_unread(self) -> int:
-        """Count unread messages in the inbox."""
+        """Return Gmail's INBOX message count from the labels endpoint."""
         config = self._config_override or self._acquire_config()
         access_token = self._refresh_access_token(config)
         try:
-            data = self._gmail_request(access_token, "/gmail/label/INBOX")
-            return data.get("messagesTotal", 0)
+            data = self._gmail_request(access_token, "/labels/INBOX")
         except GmailConnectorError:
             return 0
+        total = data.get("messagesTotal", 0)
+        return total if isinstance(total, int) and total >= 0 else 0
 
     @staticmethod
     def _parse_recipients(header_value: str) -> list[str]:
-        """Parse RFC 2822 recipient header into individual email addresses."""
+        """Parse a basic comma-separated recipient header."""
         if not header_value:
             return []
         return [addr.strip() for addr in header_value.split(",") if addr.strip()]
-
-    def __repr__(self) -> str:
-        return "GmailConnector(broker=..., credentials=<redacted>)"
-
-
-# Import urllib.parse lazily within methods to avoid module-level state issues
-import urllib.parse  # noqa: E402
-
-
-def build_gmail_connector(broker: CredentialBroker) -> GmailConnector:
-    """Factory for building a Gmail connector from the credential broker."""
-    return GmailConnector(broker=broker)
