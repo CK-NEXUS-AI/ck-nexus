@@ -6,9 +6,10 @@ import hashlib
 import json
 import re
 import shlex
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import Any, Iterable
+from typing import Any
 
 _TOOL_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{1,63}$")
 _ALLOWED_INTERPRETERS = {"python", "python3"}
