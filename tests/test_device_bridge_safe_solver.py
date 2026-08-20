@@ -8,7 +8,7 @@ from creator_app.device_bridge.safe_solver import SafeProblemSolver, SolverPolic
 
 
 def test_read_text_redacts_secrets_and_returns_digest(tmp_path: Path) -> None:
-    target = tmp_path / "sample.env"
+    target = tmp_path / "sample.txt"
     target.write_text(
         "OPENAI_API_KEY=sk-abcdefghijklmnopqrstuvwxyz123456\n"
         "Authorization: Bearer top-secret-token\n",
@@ -16,12 +16,32 @@ def test_read_text_redacts_secrets_and_returns_digest(tmp_path: Path) -> None:
     )
     solver = SafeProblemSolver(tmp_path)
 
-    result = solver.read_text("sample.env")
+    result = solver.read_text("sample.txt")
 
     assert result["redacted"] is True
     assert "abcdefghijklmnopqrstuvwxyz" not in result["content"]
     assert "top-secret-token" not in result["content"]
     assert result["sha256"]
+
+
+def test_sensitive_env_file_is_denied(tmp_path: Path) -> None:
+    target = tmp_path / ".env"
+    target.write_text("TOKEN=do-not-read\n", encoding="utf-8")
+    solver = SafeProblemSolver(tmp_path)
+
+    with pytest.raises(SolverPolicyError, match="sensitive_path_denied"):
+        solver.read_text(".env")
+
+
+def test_sensitive_entries_are_hidden_from_listing(tmp_path: Path) -> None:
+    (tmp_path / ".env").write_text("TOKEN=hidden\n", encoding="utf-8")
+    (tmp_path / "visible.txt").write_text("ok\n", encoding="utf-8")
+    solver = SafeProblemSolver(tmp_path)
+
+    result = solver.list_files(".")
+
+    assert result["sensitive_entries_hidden"] == 1
+    assert [entry["path"] for entry in result["entries"]] == ["visible.txt"]
 
 
 def test_path_traversal_is_denied(tmp_path: Path) -> None:
@@ -47,6 +67,20 @@ def test_symlink_is_denied_even_when_target_is_inside_workspace(tmp_path: Path) 
 
     with pytest.raises(SolverPolicyError, match="symlink_denied"):
         solver.read_text("link.txt")
+
+
+def test_private_key_content_is_fully_redacted(tmp_path: Path) -> None:
+    target = tmp_path / "notes.txt"
+    target.write_text(
+        "-----BEGIN PRIVATE KEY-----\nabc123\n-----END PRIVATE KEY-----\n",
+        encoding="utf-8",
+    )
+    solver = SafeProblemSolver(tmp_path)
+
+    result = solver.read_text("notes.txt")
+
+    assert result["redacted"] is True
+    assert result["content"] == "***REDACTED_SENSITIVE_CONTENT***"
 
 
 def test_json_analysis_does_not_echo_raw_values(tmp_path: Path) -> None:
