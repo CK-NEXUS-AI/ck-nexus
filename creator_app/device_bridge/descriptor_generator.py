@@ -14,6 +14,7 @@ from typing import Any
 from creator_app.device_bridge.mcp_server_v2 import SERVER_NAME, SERVER_VERSION, TOOL_SPECS
 
 _SERVER_SCRIPT = "creator_app/device_bridge/mcp_server_v2.py"
+_SERVER_MODULE = "creator_app.device_bridge.mcp_server_v2"
 
 
 def registry_sha256() -> str:
@@ -55,7 +56,7 @@ def build_descriptor(
         ],
         "connection": {
             "method": "stdio",
-            "command": f"python3 {_SERVER_SCRIPT}",
+            "command": f"python3 -m {_SERVER_MODULE}",
             "cwd": str(root),
         },
         "integrity": {
