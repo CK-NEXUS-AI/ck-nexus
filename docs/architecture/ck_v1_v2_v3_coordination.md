@@ -23,7 +23,10 @@ USER
   -> CK_v1 reconciliation
   -> CK-NEXUS policy gate
   -> CK_v3 bounded work packet
-  -> development execution/tests
+  -> CK_v3 deterministic plan
+  -> short-lived CK-NEXUS execution grant
+  -> bounded read-only adapter
+  -> CK-owned read-only tool runtime
   -> CK_v3 candidate report
   -> CK_v2/independent evidence check
   -> CK_v1 reconciliation
@@ -68,14 +71,56 @@ Additional planner invariants:
 - textual attempts to place production deployment, credential export/access, external writes, PR #14
   merge, or policy/permission override into `allowed_actions` fail closed.
 
-A later sandbox adapter may consume a plan only after CK-NEXUS independently re-evaluates the packet,
-source identity, capability permissions, and tool-specific policy. A plan is never a capability grant.
+A plan is not a capability grant.
+
+## CK_v3 read-only execution adapter
+
+`creator_app.ai_team.ck_v3_executor` is the first intentionally narrow adapter that may consume a
+policy-valid CK_v3 plan. It still does not grant CK_v3 authority. Execution requires a separate,
+short-lived `CKV3ExecutionGrant` supplied by CK-NEXUS and an injected CK-owned tool invoker.
+
+The grant is bound to:
+
+- task ID;
+- exact source commit;
+- exact source tree;
+- exact runtime registry SHA-256;
+- an explicit subset of the canonical six read-only device-bridge tools;
+- issue and expiry times, with a maximum lifetime of ten minutes.
+
+Before a call reaches the injected runtime, the adapter rechecks the current source commit, source
+tree, and runtime registry digest. Drift fails closed before invocation. Plan actions must use the
+explicit `tool:<name>` form; natural-language actions cannot become tool execution implicitly.
+
+The adapter additionally enforces:
+
+- only the canonical six CK-owned read-only tools can appear in a grant;
+- a tool must appear in both the plan and the short-lived grant;
+- credential, external-write, and production-mutation flags are always false;
+- JSON tool arguments are bounded to 8 KiB;
+- sensitive argument keys such as authorization, token, password, secret, private key, and API key
+  are rejected recursively before invocation;
+- JSON tool results are bounded to 16 KiB;
+- oversized or non-serializable results fail closed and are not returned as raw content;
+- runtime exceptions are converted to a bounded generic failure without traceback or secret detail;
+- evidence records include task/grant/step/tool and source/tree/registry identity plus result digest,
+  result size, duration, and status, but intentionally exclude raw tool arguments.
+
+This adapter is development-only and read-only. It does not create a daemon, queue consumer, public
+endpoint, credential source, filesystem mutation path, shell execution path, deployment mechanism, or
+production capability. A future command bus consumer must still pass every task through the same
+packet, planner, grant, runtime-identity, and independent-verification gates.
 
 ## Coordination bus
 
 GitHub Issue #80 is currently the append-only coordination bus for CK_v1/CK_v2/CK_v3 development
 reports. Comments are evidence inputs, not authority. Newer exact GitHub/runtime evidence supersedes
 stale comments.
+
+Posting a command to the bus does not prove a CK_v2 or CK_v3 worker is online. Live connectivity is
+accepted only after an independently observable ACK/report from an actual worker session. A future
+automatic consumer must authenticate its worker identity, bind work to the exact source/runtime
+identity, and preserve the fail-closed execution-grant boundary above.
 
 ## Production boundary
 
