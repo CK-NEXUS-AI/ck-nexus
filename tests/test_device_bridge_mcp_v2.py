@@ -60,4 +60,12 @@ async def test_standard_mcp_stdio_lists_exact_tools() -> None:
         await asyncio.wait_for(session.initialize(), timeout=10)
         result = await asyncio.wait_for(session.list_tools(), timeout=10)
 
+    expected = dict(TOOL_SPECS)
     assert {tool.name for tool in result.tools} == set(TOOL_NAMES)
+    for tool in result.tools:
+        assert tool.description == expected[tool.name]
+        assert tool.annotations is not None
+        assert tool.annotations.readOnlyHint is True
+        assert tool.annotations.destructiveHint is False
+        assert tool.annotations.idempotentHint is True
+        assert tool.annotations.openWorldHint is False

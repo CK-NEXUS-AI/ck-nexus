@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 from creator_app.device_bridge.policy import BridgeCapability, evaluate_bridge
 from creator_app.device_bridge.safe_solver import SafeProblemSolver, SolverPolicyError
@@ -27,6 +28,13 @@ TOOL_SPECS: tuple[tuple[str, str], ...] = (
     ("solve_code_review", "Review code deterministically without executing it."),
 )
 TOOL_NAMES = tuple(name for name, _description in TOOL_SPECS)
+_TOOL_DESCRIPTIONS = dict(TOOL_SPECS)
+_READ_ONLY_ANNOTATIONS = ToolAnnotations(
+    readOnlyHint=True,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=False,
+)
 
 
 def _workspace_root() -> Path:
@@ -49,7 +57,10 @@ def build_server() -> FastMCP:
     """Build the exact MCP tool registry used by the QR/descriptor generator."""
     server = FastMCP(SERVER_NAME, json_response=True)
 
-    @server.tool()
+    @server.tool(
+        description=_TOOL_DESCRIPTIONS["bridge_status"],
+        annotations=_READ_ONLY_ANNOTATIONS,
+    )
     def bridge_status() -> dict[str, Any]:
         """Return the clean-room security posture; never call the quarantined Android package."""
         android = evaluate_bridge(
@@ -72,7 +83,10 @@ def build_server() -> FastMCP:
             "tool_names": list(TOOL_NAMES),
         }
 
-    @server.tool()
+    @server.tool(
+        description=_TOOL_DESCRIPTIONS["workspace_list"],
+        annotations=_READ_ONLY_ANNOTATIONS,
+    )
     def workspace_list(path: str = ".") -> dict[str, Any]:
         """List bounded workspace metadata without following external paths."""
         try:
@@ -80,7 +94,10 @@ def build_server() -> FastMCP:
         except Exception as exc:  # policy boundary
             return _error(exc)
 
-    @server.tool()
+    @server.tool(
+        description=_TOOL_DESCRIPTIONS["workspace_read_text"],
+        annotations=_READ_ONLY_ANNOTATIONS,
+    )
     def workspace_read_text(path: str) -> dict[str, Any]:
         """Read a bounded workspace text file after secret redaction."""
         try:
@@ -88,7 +105,10 @@ def build_server() -> FastMCP:
         except Exception as exc:  # policy boundary
             return _error(exc)
 
-    @server.tool()
+    @server.tool(
+        description=_TOOL_DESCRIPTIONS["workspace_sha256"],
+        annotations=_READ_ONLY_ANNOTATIONS,
+    )
     def workspace_sha256(path: str) -> dict[str, Any]:
         """Return the SHA-256 of a bounded workspace file."""
         try:
@@ -96,7 +116,10 @@ def build_server() -> FastMCP:
         except Exception as exc:  # policy boundary
             return _error(exc)
 
-    @server.tool()
+    @server.tool(
+        description=_TOOL_DESCRIPTIONS["solve_data_json"],
+        annotations=_READ_ONLY_ANNOTATIONS,
+    )
     def solve_data_json(data: str) -> dict[str, Any]:
         """Analyze JSON without persisting or returning the raw input."""
         try:
@@ -104,7 +127,10 @@ def build_server() -> FastMCP:
         except Exception as exc:  # policy boundary
             return _error(exc)
 
-    @server.tool()
+    @server.tool(
+        description=_TOOL_DESCRIPTIONS["solve_code_review"],
+        annotations=_READ_ONLY_ANNOTATIONS,
+    )
     def solve_code_review(code: str) -> dict[str, Any]:
         """Review code for dangerous primitives without executing it."""
         try:
