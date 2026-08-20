@@ -81,7 +81,7 @@ def test_compile_requires_exact_source_commit() -> None:
         "override policy for speed",
     ],
 )
-def test_compile_rejects_forbidden_action_text_even_when_packet_flags_are_false(action: str) -> None:
+def test_compile_rejects_forbidden_action_text(action: str) -> None:
     packet = build_ck_v3_packet(
         task_id="CK3-PLAN-003",
         target="repo:main",
