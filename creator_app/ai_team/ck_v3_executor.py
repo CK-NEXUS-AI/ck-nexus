@@ -7,6 +7,7 @@ the six CK-owned clean-room read-only tools through an injected invoker.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import re
@@ -22,6 +23,8 @@ _MAX_ARGUMENT_BYTES = 8 * 1024
 _MAX_RESULT_BYTES = 16 * 1024
 _MAX_GRANT_TTL_SECONDS = 10 * 60
 _CLOCK_SKEW_SECONDS = 60
+_GOVERNANCE_TIMEOUT_SECONDS = 2.0
+_TOOL_TIMEOUT_SECONDS = 10.0
 _SAFE_ID = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
 _SENSITIVE_ARGUMENT_KEYS = frozenset(
     {
@@ -111,11 +114,26 @@ class CKV3ExecutionGrant:
         return self
 
 
+class ExecutionGrantVerifier(Protocol):
+    """Verify a grant against an authoritative CK-NEXUS broker/store."""
+
+    async def verify_grant(self, grant: CKV3ExecutionGrant) -> bool:
+        """Return true only for a grant issued by the trusted CK-NEXUS control plane."""
+
+
+class ExecutionReplayGuard(Protocol):
+    """Consume one request identity exactly once for the lifetime of a grant."""
+
+    async def consume(self, *, grant_id: str, request_id: str, expires_at_unix: int) -> bool:
+        """Return false if the request identity has already been consumed."""
+
+
 @dataclass(frozen=True, slots=True)
 class ExecutionEvidence:
     """Bounded evidence that intentionally excludes tool arguments and raw secrets."""
 
     evidence_id: str
+    request_id: str
     grant_id: str
     task_id: str
     step_id: str
@@ -123,6 +141,7 @@ class ExecutionEvidence:
     source_commit: str
     source_tree: str
     registry_sha256: str
+    argument_sha256: str
     status: ExecutionStatus
     result_sha256: str
     result_bytes: int
@@ -145,8 +164,11 @@ class CKV3ReadOnlyExecutor:
         *,
         plan: CKV3ExecutionPlan,
         step_id: str,
+        request_id: str,
         arguments: dict[str, Any],
         grant: CKV3ExecutionGrant,
+        grant_verifier: ExecutionGrantVerifier,
+        replay_guard: ExecutionReplayGuard,
         current_source_commit: str,
         current_source_tree: str,
         current_registry_sha256: str,
@@ -154,7 +176,10 @@ class CKV3ReadOnlyExecutor:
         now_unix: int | None = None,
     ) -> CKV3ExecutionResult:
         now = int(time.time()) if now_unix is None else now_unix
+        if not _SAFE_ID.fullmatch(request_id):
+            raise ExecutionPolicyError("request_id_invalid")
         grant.validate(now_unix=now)
+        await _verify_authoritative_grant(grant_verifier, grant)
         self._validate_plan_and_runtime(
             plan=plan,
             grant=grant,
@@ -172,15 +197,33 @@ class CKV3ReadOnlyExecutor:
             raise ExecutionPolicyError("tool_arguments_too_large")
         if _contains_sensitive_argument_key(arguments):
             raise ExecutionPolicyError("sensitive_argument_key_denied")
+        argument_sha256 = hashlib.sha256(argument_bytes).hexdigest()
+        await _consume_request(replay_guard, grant=grant, request_id=request_id)
 
         started = time.monotonic()
         try:
-            output = await invoker.call_tool(tool_name, arguments)
+            output = await asyncio.wait_for(
+                invoker.call_tool(tool_name, arguments),
+                timeout=_TOOL_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            duration_ms = max(0, int((time.monotonic() - started) * 1000))
+            return _failed_result(
+                grant=grant,
+                step=step,
+                request_id=request_id,
+                argument_sha256=argument_sha256,
+                tool_name=tool_name,
+                duration_ms=duration_ms,
+                reason="tool_call_timeout",
+            )
         except Exception:
             duration_ms = max(0, int((time.monotonic() - started) * 1000))
             return _failed_result(
                 grant=grant,
                 step=step,
+                request_id=request_id,
+                argument_sha256=argument_sha256,
                 tool_name=tool_name,
                 duration_ms=duration_ms,
                 reason="tool_call_failed_closed",
@@ -193,6 +236,8 @@ class CKV3ReadOnlyExecutor:
             return _failed_result(
                 grant=grant,
                 step=step,
+                request_id=request_id,
+                argument_sha256=argument_sha256,
                 tool_name=tool_name,
                 duration_ms=duration_ms,
                 reason="tool_result_not_json_serializable",
@@ -201,6 +246,8 @@ class CKV3ReadOnlyExecutor:
             return _failed_result(
                 grant=grant,
                 step=step,
+                request_id=request_id,
+                argument_sha256=argument_sha256,
                 tool_name=tool_name,
                 duration_ms=duration_ms,
                 reason="tool_result_too_large",
@@ -212,6 +259,8 @@ class CKV3ReadOnlyExecutor:
         evidence = _evidence(
             grant=grant,
             step=step,
+            request_id=request_id,
+            argument_sha256=argument_sha256,
             tool_name=tool_name,
             status=ExecutionStatus.PASS,
             result_sha256=result_sha256,
@@ -244,6 +293,42 @@ class CKV3ReadOnlyExecutor:
             raise ExecutionPolicyError("stale_source_tree")
         if current_registry_sha256.lower() != grant.registry_sha256.lower():
             raise ExecutionPolicyError("stale_runtime_registry")
+
+
+async def _verify_authoritative_grant(
+    verifier: ExecutionGrantVerifier,
+    grant: CKV3ExecutionGrant,
+) -> None:
+    try:
+        verified = await asyncio.wait_for(
+            verifier.verify_grant(grant),
+            timeout=_GOVERNANCE_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:
+        raise ExecutionPolicyError("grant_verification_failed") from exc
+    if not verified:
+        raise ExecutionPolicyError("grant_verification_failed")
+
+
+async def _consume_request(
+    replay_guard: ExecutionReplayGuard,
+    *,
+    grant: CKV3ExecutionGrant,
+    request_id: str,
+) -> None:
+    try:
+        consumed = await asyncio.wait_for(
+            replay_guard.consume(
+                grant_id=grant.grant_id,
+                request_id=request_id,
+                expires_at_unix=grant.expires_at_unix,
+            ),
+            timeout=_GOVERNANCE_TIMEOUT_SECONDS,
+        )
+    except Exception as exc:
+        raise ExecutionPolicyError("replay_guard_failed") from exc
+    if not consumed:
+        raise ExecutionPolicyError("request_replay_denied")
 
 
 def _find_step(plan: CKV3ExecutionPlan, step_id: str) -> PlannedStep:
@@ -306,6 +391,8 @@ def _failed_result(
     *,
     grant: CKV3ExecutionGrant,
     step: PlannedStep,
+    request_id: str,
+    argument_sha256: str,
     tool_name: str,
     duration_ms: int,
     reason: str,
@@ -321,6 +408,8 @@ def _failed_result(
     evidence = _evidence(
         grant=grant,
         step=step,
+        request_id=request_id,
+        argument_sha256=argument_sha256,
         tool_name=tool_name,
         status=ExecutionStatus.FAIL,
         result_sha256=digest,
@@ -335,6 +424,8 @@ def _evidence(
     *,
     grant: CKV3ExecutionGrant,
     step: PlannedStep,
+    request_id: str,
+    argument_sha256: str,
     tool_name: str,
     status: ExecutionStatus,
     result_sha256: str,
@@ -346,11 +437,13 @@ def _evidence(
         (
             grant.grant_id,
             grant.task_id,
+            request_id,
             step.step_id,
             tool_name,
             grant.source_commit.lower(),
             grant.source_tree.lower(),
             grant.registry_sha256.lower(),
+            argument_sha256,
             status.value,
             result_sha256,
         )
@@ -358,6 +451,7 @@ def _evidence(
     evidence_id = f"evd_{hashlib.sha256(material).hexdigest()[:24]}"
     return ExecutionEvidence(
         evidence_id=evidence_id,
+        request_id=request_id,
         grant_id=grant.grant_id,
         task_id=grant.task_id,
         step_id=step.step_id,
@@ -365,6 +459,7 @@ def _evidence(
         source_commit=grant.source_commit.lower(),
         source_tree=grant.source_tree.lower(),
         registry_sha256=grant.registry_sha256.lower(),
+        argument_sha256=argument_sha256,
         status=status,
         result_sha256=result_sha256,
         result_bytes=result_bytes,
