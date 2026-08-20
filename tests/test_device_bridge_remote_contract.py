@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import time
 
-import pytest
-
 from mcp.server.auth.provider import AccessToken, TokenVerifier
+import pytest
 
 from creator_app.device_bridge.mcp_server_v2 import TOOL_NAMES
 from creator_app.device_bridge.remote_contract import (
