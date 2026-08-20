@@ -67,8 +67,8 @@ def build_server(
 ) -> FastMCP:
     """Build the exact clean-room tool registry with optional HTTP authorization.
 
-    Local stdio keeps HTTP settings unset. A remote Streamable HTTP server must inject authorization,
-    remain loopback-bound, use stateless requests, and enforce a bounded request body.
+    Local stdio keeps HTTP settings unset. A remote Streamable HTTP server must inject
+    authorization, remain loopback-bound, use stateless requests, and bound request bodies.
     """
     if (auth is None) != (token_verifier is None):
         raise ValueError("auth_and_token_verifier_must_be_paired")
@@ -118,35 +118,50 @@ def build_server(
             "tool_names": list(TOOL_NAMES),
         }
 
-    @server.tool(description=_TOOL_DESCRIPTIONS["workspace_list"], annotations=_READ_ONLY_ANNOTATIONS)
+    @server.tool(
+        description=_TOOL_DESCRIPTIONS["workspace_list"],
+        annotations=_READ_ONLY_ANNOTATIONS,
+    )
     def workspace_list(path: str = ".") -> dict[str, Any]:
         try:
             return {"ok": True, **_solver().list_files(path)}
         except Exception as exc:
             return _error(exc)
 
-    @server.tool(description=_TOOL_DESCRIPTIONS["workspace_read_text"], annotations=_READ_ONLY_ANNOTATIONS)
+    @server.tool(
+        description=_TOOL_DESCRIPTIONS["workspace_read_text"],
+        annotations=_READ_ONLY_ANNOTATIONS,
+    )
     def workspace_read_text(path: str) -> dict[str, Any]:
         try:
             return {"ok": True, **_solver().read_text(path)}
         except Exception as exc:
             return _error(exc)
 
-    @server.tool(description=_TOOL_DESCRIPTIONS["workspace_sha256"], annotations=_READ_ONLY_ANNOTATIONS)
+    @server.tool(
+        description=_TOOL_DESCRIPTIONS["workspace_sha256"],
+        annotations=_READ_ONLY_ANNOTATIONS,
+    )
     def workspace_sha256(path: str) -> dict[str, Any]:
         try:
             return {"ok": True, **_solver().sha256_file(path)}
         except Exception as exc:
             return _error(exc)
 
-    @server.tool(description=_TOOL_DESCRIPTIONS["solve_data_json"], annotations=_READ_ONLY_ANNOTATIONS)
+    @server.tool(
+        description=_TOOL_DESCRIPTIONS["solve_data_json"],
+        annotations=_READ_ONLY_ANNOTATIONS,
+    )
     def solve_data_json(data: str) -> dict[str, Any]:
         try:
             return {"ok": True, **_solver().analyze_json(data)}
         except Exception as exc:
             return _error(exc)
 
-    @server.tool(description=_TOOL_DESCRIPTIONS["solve_code_review"], annotations=_READ_ONLY_ANNOTATIONS)
+    @server.tool(
+        description=_TOOL_DESCRIPTIONS["solve_code_review"],
+        annotations=_READ_ONLY_ANNOTATIONS,
+    )
     def solve_code_review(code: str) -> dict[str, Any]:
         try:
             return {"ok": True, **_solver().review_code(code)}
