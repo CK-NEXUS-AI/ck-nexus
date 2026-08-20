@@ -127,7 +127,9 @@ def test_approved_write_activation_still_does_not_grant_tool_execution(tmp_path)
         "demo.tool_1",
     ]
     approved = [
-        event for event in _events(evidence_path) if event["event"] == "connector.write_activation_approved"
+        event
+        for event in _events(evidence_path)
+        if event["event"] == "connector.write_activation_approved"
     ]
     assert approved[-1]["details"]["approvalRef"] == "EVD-STRESS-L2-001"
 
