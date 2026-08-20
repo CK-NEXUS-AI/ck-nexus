@@ -28,6 +28,7 @@ def test_generated_descriptor_matches_exact_runtime_registry(tmp_path: Path) -> 
     parsed = parse_descriptor(payload)
 
     validate_registry_match(parsed, TOOL_NAMES)
+    assert parsed.command == ("python3", "-m", "creator_app.device_bridge.mcp_server_v2")
     assert descriptor["integrity"]["registry_sha256"] == registry_sha256()
     assert len(descriptor_sha256(descriptor)) == 64
     assert [tool["name"] for tool in descriptor["tools"]] == list(TOOL_NAMES)
@@ -48,7 +49,7 @@ async def test_standard_mcp_stdio_lists_exact_tools() -> None:
     repo_root = Path.cwd().resolve()
     params = StdioServerParameters(
         command=sys.executable,
-        args=["creator_app/device_bridge/mcp_server_v2.py"],
+        args=["-m", "creator_app.device_bridge.mcp_server_v2"],
         env={"CKNEXUS_WORKSPACE_ROOT": str(repo_root)},
     )
 
