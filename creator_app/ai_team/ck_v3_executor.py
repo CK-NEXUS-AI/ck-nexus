@@ -1,8 +1,8 @@
 """Fail-closed CK_v3 adapter for an exact attested read-only tool registry.
 
 The adapter does not grant authority. It consumes an already bounded CK_v3 execution plan plus a
-short-lived CK-NEXUS execution grant, rechecks exact source/runtime identity, and may invoke only the
-six CK-owned clean-room read-only tools through an injected invoker.
+short-lived CK-NEXUS execution grant, rechecks exact source/runtime identity, and may invoke only
+the six CK-owned clean-room read-only tools through an injected invoker.
 """
 
 from __future__ import annotations
@@ -25,15 +25,21 @@ _CLOCK_SKEW_SECONDS = 60
 _SAFE_ID = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
 _SENSITIVE_ARGUMENT_KEYS = frozenset(
     {
+        "access_token",
         "api_key",
         "authorization",
+        "bearer_token",
+        "client_secret",
         "cookie",
         "credential",
         "credentials",
+        "id_token",
+        "oauth_token",
         "password",
         "private_key",
         "refresh_token",
         "secret",
+        "session_cookie",
         "token",
     }
 )
@@ -291,7 +297,7 @@ def _contains_sensitive_argument_key(value: Any) -> bool:
                 return True
             if _contains_sensitive_argument_key(nested):
                 return True
-    elif isinstance(value, list | tuple):
+    elif isinstance(value, (list, tuple)):
         return any(_contains_sensitive_argument_key(item) for item in value)
     return False
 
@@ -307,7 +313,11 @@ def _failed_result(
     result_sha256: str | None = None,
 ) -> CKV3ExecutionResult:
     safe_output = {"ok": False, "error": reason}
-    digest = result_sha256 or hashlib.sha256(_canonical_json_bytes(safe_output, "internal")).hexdigest()
+    if result_sha256 is None:
+        safe_bytes = _canonical_json_bytes(safe_output, "internal")
+        digest = hashlib.sha256(safe_bytes).hexdigest()
+    else:
+        digest = result_sha256
     evidence = _evidence(
         grant=grant,
         step=step,
