@@ -53,8 +53,23 @@ The helper packet builder automatically records these denied actions:
 - policy or permission override;
 - merge of protected production closure work.
 
-A future runtime adapter may execute CK_v3 work through the sandbox/execution fabric, but it must map
-these structural fields to actual CK-NEXUS policy checks before any tool execution.
+## CK_v3 execution planner
+
+`creator_app.ai_team.ck_v3_planner` converts an already policy-valid CK_v3 work packet into a
+deterministic, evidence-first `CKV3ExecutionPlan`. The planner itself does not execute anything.
+
+Additional planner invariants:
+
+- exact 40-hex source commit is mandatory;
+- every planned step remains read-only by default;
+- every step carries the packet's expected evidence contract;
+- the plan explicitly has `execution_authority=False`;
+- independent verification is always required;
+- textual attempts to place production deployment, credential export/access, external writes, PR #14
+  merge, or policy/permission override into `allowed_actions` fail closed.
+
+A later sandbox adapter may consume a plan only after CK-NEXUS independently re-evaluates the packet,
+source identity, capability permissions, and tool-specific policy. A plan is never a capability grant.
 
 ## Coordination bus
 
