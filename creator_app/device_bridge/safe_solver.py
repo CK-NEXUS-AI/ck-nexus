@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -17,20 +17,32 @@ _MAX_TEXT_BYTES = 32_768
 _MAX_JSON_BYTES = 65_536
 _MAX_LIST_ENTRIES = 100
 
-_SECRET_PATTERNS = (
-    re.compile(r"(?i)(authorization\s*:\s*bearer\s+)[^\s]+"),
-    re.compile(r"(?i)\b(sk-[A-Za-z0-9_-]{16,})\b"),
-    re.compile(r"(?i)\b(gsk_[A-Za-z0-9]{16,})\b"),
-    re.compile(r"(?i)\b(AIza[A-Za-z0-9_-]{16,})\b"),
-    re.compile(r"(?i)([A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD)\s*=\s*)[^\s]+"),
+_SECRET_REPLACEMENTS = (
+    (
+        re.compile(r"(?i)(authorization\s*:\s*bearer\s+)[^\s]+"),
+        r"\1***REDACTED***",
+    ),
+    (re.compile(r"(?i)\bsk-[A-Za-z0-9_-]{16,}\b"), "***REDACTED***"),
+    (re.compile(r"(?i)\bgsk_[A-Za-z0-9]{16,}\b"), "***REDACTED***"),
+    (re.compile(r"(?i)\bAIza[A-Za-z0-9_-]{16,}\b"), "***REDACTED***"),
+    (
+        re.compile(r"(?i)([A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD)\s*=\s*)[^\s]+"),
+        r"\1***REDACTED***",
+    ),
 )
 
 _DANGEROUS_CODE_PATTERNS = (
     (re.compile(r"\bos\.system\s*\("), "os.system executes a shell command"),
-    (re.compile(r"\bsubprocess\.[A-Za-z_]+\s*\([^\n]*shell\s*=\s*True"), "subprocess shell=True"),
+    (
+        re.compile(r"\bsubprocess\.[A-Za-z_]+\s*\([^\n]*shell\s*=\s*True"),
+        "subprocess shell=True",
+    ),
     (re.compile(r"\beval\s*\("), "eval executes dynamic code"),
     (re.compile(r"\bexec\s*\("), "exec executes dynamic code"),
-    (re.compile(r"\bpickle\.loads?\s*\("), "pickle load can execute attacker-controlled payloads"),
+    (
+        re.compile(r"\bpickle\.loads?\s*\("),
+        "pickle load can execute attacker-controlled payloads",
+    ),
 )
 
 
@@ -58,7 +70,7 @@ class SafeProblemSolver:
 
     @property
     def workspace_root(self) -> str:
-        """Return the normalized workspace root without exposing credentials."""
+        """Return the normalized workspace root."""
         return str(self._root)
 
     def _resolve(self, relative_path: str, *, require_file: bool | None = None) -> Path:
@@ -68,8 +80,14 @@ class SafeProblemSolver:
             raise SolverPolicyError("path_invalid")
 
         supplied = Path(relative_path)
-        if supplied.is_absolute():
-            raise SolverPolicyError("absolute_path_denied")
+        if supplied.is_absolute() or ".." in supplied.parts:
+            raise SolverPolicyError("path_outside_workspace")
+
+        cursor = self._root
+        for part in supplied.parts:
+            cursor = cursor / part
+            if cursor.is_symlink():
+                raise SolverPolicyError("symlink_denied")
 
         candidate = (self._root / supplied).resolve(strict=True)
         try:
@@ -77,8 +95,6 @@ class SafeProblemSolver:
         except ValueError as exc:
             raise SolverPolicyError("path_outside_workspace") from exc
 
-        if candidate.is_symlink():
-            raise SolverPolicyError("symlink_denied")
         if require_file is True and not candidate.is_file():
             raise SolverPolicyError("file_required")
         if require_file is False and not candidate.is_dir():
@@ -110,7 +126,7 @@ class SafeProblemSolver:
                 )
             )
         return {
-            "entries": [entry.__dict__ for entry in entries],
+            "entries": [asdict(entry) for entry in entries],
             "count": len(entries),
             "truncated": len(entries) == _MAX_LIST_ENTRIES,
         }
@@ -178,14 +194,14 @@ class SafeProblemSolver:
             "sha256": hashlib.sha256(encoded).hexdigest(),
         }
         if isinstance(parsed, dict):
-            result["keys"] = sorted(str(key) for key in parsed.keys())[:100]
+            result["keys"] = sorted(str(key) for key in parsed)[:100]
             result["count"] = len(parsed)
         elif isinstance(parsed, list):
             result["count"] = len(parsed)
         return result
 
     def review_code(self, code: str) -> dict[str, Any]:
-        """Perform deterministic non-executing review for a small set of dangerous primitives."""
+        """Perform deterministic non-executing review for dangerous primitives."""
         if not isinstance(code, str):
             raise SolverPolicyError("code_must_be_string")
         encoded = code.encode("utf-8")
@@ -195,12 +211,7 @@ class SafeProblemSolver:
         findings: list[dict[str, Any]] = []
         for pattern, message in _DANGEROUS_CODE_PATTERNS:
             for match in pattern.finditer(code):
-                findings.append(
-                    {
-                        "offset": match.start(),
-                        "message": message,
-                    }
-                )
+                findings.append({"offset": match.start(), "message": message})
         return {
             "sha256": hashlib.sha256(encoded).hexdigest(),
             "finding_count": len(findings),
@@ -212,9 +223,6 @@ class SafeProblemSolver:
 def redact_text(text: str) -> str:
     """Redact common credential forms before data leaves the workspace boundary."""
     redacted = text
-    for pattern in _SECRET_PATTERNS:
-        if pattern.groups:
-            redacted = pattern.sub(lambda match: f"{match.group(1)}***REDACTED***", redacted)
-        else:
-            redacted = pattern.sub("***REDACTED***", redacted)
+    for pattern, replacement in _SECRET_REPLACEMENTS:
+        redacted = pattern.sub(replacement, redacted)
     return redacted
