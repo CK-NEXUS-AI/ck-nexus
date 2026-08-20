@@ -8,16 +8,16 @@ independent reconciliation decision.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class CKRole(str, Enum):
+class CKRole(StrEnum):
     CK_V1 = "CK_v1"
     CK_V2 = "CK_v2"
     CK_V3 = "CK_v3"
 
 
-class CoordinationState(str, Enum):
+class CoordinationState(StrEnum):
     ASSIGNED = "ASSIGNED"
     IN_PROGRESS = "IN_PROGRESS"
     BLOCKED = "BLOCKED"
@@ -26,7 +26,7 @@ class CoordinationState(str, Enum):
     REJECTED = "REJECTED"
 
 
-class ReportResult(str, Enum):
+class ReportResult(StrEnum):
     PASS_CANDIDATE = "PASS_CANDIDATE"
     FAIL = "FAIL"
     BLOCKED = "BLOCKED"
