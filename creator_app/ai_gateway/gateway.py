@@ -26,6 +26,9 @@ class AIGateway:
             raise ValueError(f"provider already registered: {provider_id}")
         self._providers[provider_id] = provider
 
+    def registered_provider_ids(self) -> tuple[str, ...]:
+        return tuple(sorted(self._providers))
+
     def discover(self) -> dict[str, tuple[ModelDescriptor, ...]]:
         """Refresh catalogs from adapters; unhealthy adapters contribute no models."""
         result: dict[str, tuple[ModelDescriptor, ...]] = {}
@@ -49,6 +52,15 @@ class AIGateway:
                     continue
                 if model.cost_tier > request.max_cost_tier:
                     continue
+                if request.require_streaming and not model.streaming:
+                    continue
+                if request.require_free_tier and model.free_tier is not True:
+                    continue
+                if request.min_context_window_tokens:
+                    if model.context_window_tokens is None:
+                        continue
+                    if model.context_window_tokens < request.min_context_window_tokens:
+                        continue
                 if (
                     request.data_class in {DataClass.PERSONAL, DataClass.SENSITIVE}
                     and not model.local
@@ -60,10 +72,12 @@ class AIGateway:
         if not candidates:
             raise NoEligibleModel("no model satisfies capability, privacy and cost policy")
 
-        def score(model: ModelDescriptor) -> tuple[int, int, int, str, str]:
+        def score(model: ModelDescriptor) -> tuple[int, int, int, int, str, str]:
             local_penalty = 0 if (request.prefer_local and model.local) else 1
+            open_weight_penalty = 0 if (request.prefer_open_weight and model.open_weight) else 1
             return (
                 local_penalty,
+                open_weight_penalty,
                 model.cost_tier,
                 model.latency_tier,
                 model.provider_id,
@@ -83,10 +97,19 @@ class AIGateway:
             "data_class": request.data_class.value,
             "external_allowed": request.allow_external,
             "selected_local": selected.local,
+            "selected_open_weight": selected.open_weight,
+            "selected_free_tier": selected.free_tier,
+            "selected_context_window_tokens": selected.context_window_tokens,
+            "selected_streaming": selected.streaming,
             "max_cost_tier": request.max_cost_tier,
+            "min_context_window_tokens": request.min_context_window_tokens,
+            "require_streaming": request.require_streaming,
+            "require_free_tier": request.require_free_tier,
+            "prefer_open_weight": request.prefer_open_weight,
             "authority": "CK-NEXUS",
             "credential_material_in_route": False,
             "model_catalog_source": "runtime_adapter_discovery",
+            "production_evidence": False,
         }
         encoded = json.dumps(evidence_payload, sort_keys=True, separators=(",", ":")).encode()
         evidence = {
@@ -102,8 +125,9 @@ class AIGateway:
 
     def status(self) -> dict[str, object]:
         return {
-            "registered_providers": sorted(self._providers),
+            "registered_providers": list(self.registered_provider_ids()),
             "provider_count": len(self._providers),
             "authority": "CK-NEXUS",
             "hard_coded_model_inventory": False,
+            "production_evidence": False,
         }
