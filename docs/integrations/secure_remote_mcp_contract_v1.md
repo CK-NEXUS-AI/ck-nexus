@@ -7,59 +7,40 @@ Status: development/security hardening only. No public endpoint is deployed by t
 Expose the CK-NEXUS clean-room MCP registry remotely without changing authority, tool scope, or the
 quarantine status of `gptos.intelligence.assistant`.
 
-The intended shape is:
-
 ```text
 CK-NEXUS clean-room MCP
-  -> bind 127.0.0.1 only
+  -> loopback-only Streamable HTTP
   -> authenticated secure tunnel / reverse proxy
   -> public HTTPS /mcp
-  -> OAuth 2.1 bearer-token protected resource server
+  -> OAuth protected resource
   -> GPT/OpenAI remote MCP client
 ```
 
 ## Enforced contract
 
-`creator_app.device_bridge.remote_contract` requires:
+The remote resource requires HTTPS, exact `/mcp`, no URL userinfo/query/fragment, public resource and
+issuer identities, `cknexus:read`, loopback bind intent, a non-privileged port, an injected real
+`TokenVerifier`, exact source/tree/registry/descriptor attestation, and access-token lifetime of at
+most 15 minutes. Remote HTTP is explicitly stateless and its request body is capped at 64 KiB.
 
-- public MCP resource URL uses HTTPS and exact `/mcp` path
-- authorization issuer uses HTTPS
-- explicit localhost/private IP literals are rejected as public resource/issuer identities
-- no username/password, query string, or fragment in configured URLs
-- only `cknexus:read` scope
-- local MCP bind host remains loopback (`127.0.0.1`, `localhost`, or `::1`)
-- non-privileged local port
-- a real MCP `TokenVerifier` supplied by the deployment integration
-- the same six read-only tools as the local clean-room MCP server
-- token binding to exact source commit, source tree, registry SHA-256, and descriptor SHA-256
-- a short token lifetime of at most 15 minutes
+The module does not mint tokens, store credentials, configure DNS, create a tunnel, or deploy a public
+endpoint. The exact six read-only MCP tools remain unchanged.
 
-The module does not mint tokens, store credentials, open a listener, configure DNS, or deploy a
-public endpoint.
+## Authentication versus authorization
 
-## Authorization boundary
+The deployment verifier performs cryptographic verification or standards-based token introspection.
+`AttestedTokenVerifier` then verifies client identity, exact resource, issuer, expiry, issued-at, short
+lifetime, and exact CK-NEXUS attestation. It intentionally does **not** reject an otherwise authentic
+token merely because `cknexus:read` is missing. The MCP SDK's required-scope middleware owns that
+authorization decision so semantics remain:
 
-For Streamable HTTP, CK-NEXUS treats the MCP server as an OAuth resource server. The authorization
-server is separate and must issue access tokens for this MCP resource. The MCP server validates every
-bearer token and required scope before tool execution.
-
-`AttestedTokenVerifier` wraps the deployment verifier. The deployment verifier remains responsible for
-cryptographic verification or standards-based token introspection. The wrapper then additionally
-requires:
-
-- non-empty client identity
-- `cknexus:read` scope
-- exact resource/audience match to the configured public `/mcp` URL
-- non-expired access token
-- issuer claim match
-- issued-at claim and maximum 15-minute lifetime
-- exact `cknexus_attestation` claim containing source commit/tree and registry/descriptor digests
+- missing or invalid authentication -> HTTP 401
+- authenticated token with insufficient scope -> HTTP 403
+- authenticated exact token with `cknexus:read` -> eligible for the read-only MCP registry
 
 Raw access tokens must never be written to logs, evidence, GitHub, or memory.
 
 ## Attestation claim
-
-The authorization integration must mint an attestation claim only after a clean local attestation:
 
 ```json
 {
@@ -74,41 +55,33 @@ The authorization integration must mint an attestation claim only after a clean 
 
 A token for a stale build, changed registry, or changed descriptor fails closed.
 
-## Network boundary
+## Local HTTP canary
 
-The MCP process remains loopback-only. Remote reachability belongs to an authenticated tunnel or
-reverse proxy with TLS and strict Host/Origin policy. Do not bind the MCP server directly to
-`0.0.0.0` and do not expose an unauthenticated HTTP wrapper.
+The development canary uses the SDK's in-process ASGI application; it does not open a socket. Tests
+prove the intended boundary before any tunnel exists:
 
-The public hostname still requires runtime DNS/Host/Origin verification. Static configuration checks
-cannot prove that a DNS name will never resolve to a private address, so DNS-rebinding protection
-remains a deployment/canary gate.
+1. no Authorization header -> 401
+2. invalid token -> 401
+3. valid identity lacking `cknexus:read` -> 403
+4. exact authenticated initialize request -> 200
+5. invalid Host -> 421
+6. invalid Origin -> 403
+7. request larger than 64 KiB -> 413
+8. registry remains exactly six tools with read-only, non-destructive, idempotent, closed-world hints
 
-## Replay model and residual risk
+The loopback host also causes the MCP SDK to enable its transport-security Host/Origin allowlist for
+localhost. This local proof does not prove the future public DNS/tunnel configuration.
 
-V1 uses OAuth bearer tokens. TLS, exact audience/resource binding, exact attestation binding, and a
-short lifetime reduce replay exposure, but a stolen bearer token can still be replayed within its
-valid lifetime. V1 therefore remains read-only and must not be promoted to mutation authority.
-Proof-of-possession such as DPoP or mTLS may be considered later only if the selected remote client
-and authorization provider support it end to end.
+## Remaining remote gates
 
-## Remote canary gates
+Before a secure-tunnel canary: verify real authorization-server integration, runtime DNS/Host/Origin
+policy at the edge, output limits, request timeout, rate limiting, sanitized audit/evidence IDs, token
+revocation behavior, and no credential leakage. Bearer replay remains a residual risk during the short
+token lifetime, so V1 remains read-only; DPoP or mTLS can only be considered later if supported end to
+end by the chosen client and authorization provider.
 
-Before remote canary promotion, independently verify:
+Promotion remains:
 
-1. exact source commit/tree and clean checkout
-2. exact six-tool registry and read-only annotations
-3. unauthenticated `/mcp` returns 401 before tool parsing/execution
-4. invalid, expired, wrong-issuer, wrong-resource, or stale-attestation tokens return 401
-5. insufficient scope returns 403
-6. valid read-only token can list/call only the six allowed tools
-7. DNS-rebinding/Host/Origin protections reject unapproved values
-8. request/output size, timeout, and rate limits are enforced at the remote boundary
-9. no credentials appear in responses/logs/evidence
-10. Android AnyClaw remains quarantined and no production mutation is possible
-
-## Promotion state
-
-`CONTRACT_ONLY -> TOKEN_VERIFIER_VERIFIED -> LOCAL_AUTH_CANARY -> SECURE_TUNNEL_CANARY -> GPT_READ_ONLY_CANARY -> GOVERNANCE_REVIEW`
+`CONTRACT_ONLY -> LOCAL_AUTH_CANARY -> TOKEN_VERIFIER_VERIFIED -> SECURE_TUNNEL_CANARY -> GPT_READ_ONLY_CANARY -> GOVERNANCE_REVIEW`
 
 Q10/Q11/Q12 and production closure status are unchanged.
