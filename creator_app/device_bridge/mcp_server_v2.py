@@ -41,10 +41,7 @@ def _solver() -> SafeProblemSolver:
 
 def _error(exc: Exception) -> dict[str, Any]:
     """Return a bounded policy error without host paths, tracebacks, or credential material."""
-    if isinstance(exc, SolverPolicyError):
-        reason = str(exc)[:120]
-    else:
-        reason = "tool_failed_closed"
+    reason = str(exc)[:120] if isinstance(exc, SolverPolicyError) else "tool_failed_closed"
     return {"ok": False, "error": reason}
 
 
