@@ -1,20 +1,7 @@
 """AnyClaw MCP Server — Standard MCP with Security Boundaries.
 
-Uses official MCP SDK (stdio transport) — local-first, no public exposure.
-
-Security:
-1. Tool allowlist
-2. Authentication boundary
-3. Request size limit
-4. Timeout
-5. Rate limiting
-6. Redacted errors
-7. No raw API key output
-8. SSRF protection
-9. Audit trail
-10. Prompt injection guard
-11. Production mutation = deny
-12. All tool calls through Governor
+Uses official MCP SDK — local-first, no public exposure.
+5 Tools for GPT integration.
 """
 from __future__ import annotations
 
@@ -28,7 +15,6 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from mcp.server import Server
 from mcp.types import Tool, TextContent
 
 # ═══ Security Config ═══
@@ -36,14 +22,10 @@ ALLOWED_TOOLS = {
     "anyclaw_chat", "anyclaw_search", "anyclaw_tts",
     "anyclaw_hub_status", "anyclaw_failover",
 }
-MAX_REQUEST_SIZE = 10_000
-TIMEOUT_SECONDS = 30
-RATE_LIMIT_PER_MINUTE = 60
 AUDIT_LOG = []
 
 
 def audit_log(tool: str, args: dict, result: str, success: bool) -> None:
-    """บันทึก audit trail."""
     AUDIT_LOG.append({
         "tool": tool,
         "args_hash": hashlib.sha256(json.dumps(args, sort_keys=True).encode()).hexdigest()[:16],
@@ -56,14 +38,12 @@ def audit_log(tool: str, args: dict, result: str, success: bool) -> None:
 
 
 def validate_tool(name: str) -> str | None:
-    """ตรวจสอบ tool allowlist."""
     if name not in ALLOWED_TOOLS:
         return f"Tool '{name}' not in allowlist"
     return None
 
 
 def sanitize_output(text: str) -> str:
-    """ลบ API key ออกจาก output."""
     import re
     text = re.sub(r'gsk_[a-zA-Z0-9]{20,}', 'gsk_***REDACTED***', text)
     text = re.sub(r'sk-or-v1_[a-zA-Z0-9]{20,}', 'sk-or-v1_***REDACTED***', text)
@@ -72,92 +52,59 @@ def sanitize_output(text: str) -> str:
 
 
 def check_prompt_injection(message: str) -> bool:
-    """ตรวจสอบ prompt injection."""
-    dangerous = [
-        "ignore previous", "ignore all", "you are now",
-        "system prompt", "act as", "pretend to be",
-        "ignore instructions", "bypass",
-    ]
+    dangerous = ["ignore previous", "ignore all", "you are now",
+                  "system prompt", "act as", "pretend to be",
+                  "ignore instructions", "bypass"]
     msg_lower = message.lower()
     return any(d in msg_lower for d in dangerous)
 
 
-# ═══ MCP Server ═══
-app = Server("anyclaw")
+# ═══ Tool Definitions for GPT ═══
+TOOLS = [
+    Tool(
+        name="anyclaw_chat",
+        description="Chat with AnyClaw AI — USB Hub auto-select best provider",
+        input_schema={"type": "object", "properties": {"message": {"type": "string"}}, "required": ["message"]},
+    ),
+    Tool(
+        name="anyclaw_search",
+        description="Search via USB Hub (DuckDuckGo)",
+        input_schema={"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
+    ),
+    Tool(
+        name="anyclaw_tts",
+        description="Create Thai speech from text",
+        input_schema={"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
+    ),
+    Tool(
+        name="anyclaw_hub_status",
+        description="View USB Hub status — all ports, providers",
+        input_schema={"type": "object", "properties": {}},
+    ),
+    Tool(
+        name="anyclaw_failover",
+        description="Test failover — simulate provider crash",
+        input_schema={"type": "object", "properties": {"provider": {"type": "string"}}},
+    ),
+]
 
 
-@app.list_tools()
-async def list_tools() -> list[Tool]:
-    """แสดง tools ทั้งหมด."""
-    return [
-        Tool(
-            name="anyclaw_chat",
-            description="คุยกับ AnyClaw AI — USB Hub auto-select best provider",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "message": {"type": "string", "description": "ข้อความ"}
-                },
-                "required": ["message"],
-            },
-        ),
-        Tool(
-            name="anyclaw_search",
-            description="ค้นหาข้อมูลผ่าน USB Hub",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "คำค้นหา"}
-                },
-                "required": ["query"],
-            },
-        ),
-        Tool(
-            name="anyclaw_tts",
-            description="สร้างเสียงภาษาไทย",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "text": {"type": "string", "description": "ข้อความ"}
-                },
-                "required": ["text"],
-            },
-        ),
-        Tool(
-            name="anyclaw_hub_status",
-            description="ดูสถานะ USB Hub",
-            inputSchema={"type": "object", "properties": {}},
-        ),
-        Tool(
-            name="anyclaw_failover",
-            description="ทดสอบ failover",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "provider": {"type": "string", "description": "ชื่อ provider"}
-                },
-            },
-        ),
-    ]
-
-
-@app.call_tool()
-async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
-    """เรียก tool — ผ่าน security checks ทุกขั้นตอน."""
-    # 1. Tool allowlist
+def handle_tool_call(name: str, arguments: dict) -> dict[str, Any]:
+    """Handle tool call with security checks."""
+    # 1. Allowlist
     err = validate_tool(name)
     if err:
-        return [TextContent(type="text", text=f"Error: {err}")]
+        return {"error": err}
 
-    # 2. Request size limit
-    if len(json.dumps(arguments)) > MAX_REQUEST_SIZE:
-        return [TextContent(type="text", text="Error: Request too large")]
+    # 2. Size limit
+    if len(json.dumps(arguments)) > 10000:
+        return {"error": "Request too large"}
 
-    # 3. Prompt injection check
+    # 3. Injection check
     for v in arguments.values():
         if isinstance(v, str) and check_prompt_injection(v):
             audit_log(name, arguments, "blocked_injection", False)
-            return [TextContent(type="text", text="Error: Potential prompt injection detected")]
+            return {"error": "Potential prompt injection detected"}
 
     # 4. Execute
     try:
@@ -197,25 +144,36 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
         else:
             text = "Unknown tool"
 
-        # 5. Sanitize output
         text = sanitize_output(text)
         audit_log(name, arguments, text, True)
-        return [TextContent(type="text", text=text)]
+        return {"content": [{"type": "text", "text": text}]}
 
     except Exception as e:
-        # 6. Redacted errors
         error_msg = sanitize_output(str(e))[:200]
         audit_log(name, arguments, error_msg, False)
-        return [TextContent(type="text", text=f"Error: {error_msg}")]
+        return {"error": error_msg}
 
 
-async def main():
-    """รัน MCP Server ผ่าน stdio (local-only)."""
-    from mcp.server.stdio import stdio_server
-    async with stdio_server() as (read_stream, write_stream):
-        await app.run(read_stream, write_stream, app.create_initialization_options())
+# ═══ For GPT Direct Import ═══
+def get_tools() -> list[dict]:
+    """Get tool definitions for GPT."""
+    return [
+        {"name": t.name, "description": t.description, "input_schema": t.input_schema}
+        for t in TOOLS
+    ]
+
+
+def call_tool(name: str, arguments: dict) -> dict:
+    """Call a tool — main entry point for GPT."""
+    return handle_tool_call(name, arguments)
 
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    print("AnyClaw MCP Server — Ready for GPT")
+    print(f"Tools: {[t.name for t in TOOLS]}")
+    print()
+    # Test
+    for tool in TOOLS:
+        r = call_tool(tool.name, {"message": "test", "query": "test", "text": "test", "provider": "groq_free"}.get(tool.name, {}))
+        status = "OK" if "content" in r else "FAIL"
+        print(f"  [{status}] {tool.name}")
