@@ -20,7 +20,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 from creator_app.device_bridge import parse_descriptor, validate_registry_match
-from creator_app.device_bridge.descriptor_generator import build_descriptor, descriptor_sha256
+from creator_app.device_bridge.descriptor_generator import build_descriptor
 from creator_app.device_bridge.mcp_server_v2 import TOOL_SPECS
 
 _GIT_TIMEOUT_SECONDS = 5
@@ -141,5 +141,4 @@ async def build_attested_descriptor(workspace_root: str | Path) -> dict[str, Any
             "runtime_registry_sha256": _runtime_registry_digest(runtime_tools),
         }
     )
-    descriptor["integrity"]["descriptor_sha256"] = descriptor_sha256(descriptor)
     return descriptor
