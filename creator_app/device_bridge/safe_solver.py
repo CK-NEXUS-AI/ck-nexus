@@ -17,6 +17,35 @@ _MAX_TEXT_BYTES = 32_768
 _MAX_JSON_BYTES = 65_536
 _MAX_LIST_ENTRIES = 100
 
+_SENSITIVE_PARTS = frozenset(
+    {
+        ".git",
+        ".ssh",
+        ".gnupg",
+        ".aws",
+        "credentials",
+        "credential-vault",
+        "secrets",
+        "secret",
+        "tokens",
+        "token",
+        "private",
+    }
+)
+_SENSITIVE_NAMES = frozenset(
+    {
+        ".env",
+        ".env.local",
+        ".env.production",
+        "auth.json",
+        "credentials.json",
+        "token.json",
+        "id_rsa",
+        "id_ed25519",
+    }
+)
+_SENSITIVE_SUFFIXES = frozenset({".pem", ".key", ".p12", ".pfx", ".kdb", ".db", ".sqlite"})
+
 _SECRET_REPLACEMENTS = (
     (
         re.compile(r"(?i)(authorization\s*:\s*bearer\s+)[^\s]+"),
@@ -25,6 +54,10 @@ _SECRET_REPLACEMENTS = (
     (re.compile(r"(?i)\bsk-[A-Za-z0-9_-]{16,}\b"), "***REDACTED***"),
     (re.compile(r"(?i)\bgsk_[A-Za-z0-9]{16,}\b"), "***REDACTED***"),
     (re.compile(r"(?i)\bAIza[A-Za-z0-9_-]{16,}\b"), "***REDACTED***"),
+    (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "***REDACTED***"),
+    (re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{16,}\b"), "***REDACTED***"),
+    (re.compile(r"\bgithub_pat_[A-Za-z0-9_]{16,}\b"), "***REDACTED***"),
+    (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"), "***REDACTED***"),
     (
         re.compile(r"(?i)([A-Z0-9_]*(?:API_KEY|TOKEN|SECRET|PASSWORD)\s*=\s*)[^\s]+"),
         r"\1***REDACTED***",
@@ -59,6 +92,20 @@ class WorkspaceEntry:
     size: int | None
 
 
+def _is_sensitive_path(relative_path: Path) -> bool:
+    lower_parts = tuple(part.lower() for part in relative_path.parts)
+    if any(part in _SENSITIVE_PARTS for part in lower_parts):
+        return True
+    if not lower_parts:
+        return False
+    name = lower_parts[-1]
+    if name in _SENSITIVE_NAMES or name.startswith(".env."):
+        return True
+    if "credential" in name or "secret" in name or "private_key" in name:
+        return True
+    return Path(name).suffix.lower() in _SENSITIVE_SUFFIXES
+
+
 class SafeProblemSolver:
     """Read-only, workspace-confined problem solver for untrusted bridge clients."""
 
@@ -82,6 +129,8 @@ class SafeProblemSolver:
         supplied = Path(relative_path)
         if supplied.is_absolute() or ".." in supplied.parts:
             raise SolverPolicyError("path_outside_workspace")
+        if _is_sensitive_path(supplied):
+            raise SolverPolicyError("sensitive_path_denied")
 
         cursor = self._root
         for part in supplied.parts:
@@ -102,10 +151,15 @@ class SafeProblemSolver:
         return candidate
 
     def list_files(self, relative_path: str = ".") -> dict[str, Any]:
-        """List bounded workspace metadata without reading file contents."""
+        """List bounded non-sensitive workspace metadata without reading file contents."""
         directory = self._resolve(relative_path, require_file=False)
         entries: list[WorkspaceEntry] = []
+        sensitive_hidden = 0
         for item in sorted(directory.iterdir(), key=lambda value: value.name)[:_MAX_LIST_ENTRIES]:
+            relative = item.relative_to(self._root)
+            if _is_sensitive_path(relative):
+                sensitive_hidden += 1
+                continue
             if item.is_symlink():
                 kind = "symlink"
                 size = None
@@ -120,7 +174,7 @@ class SafeProblemSolver:
                 size = None
             entries.append(
                 WorkspaceEntry(
-                    path=item.relative_to(self._root).as_posix(),
+                    path=relative.as_posix(),
                     kind=kind,
                     size=size,
                 )
@@ -128,7 +182,8 @@ class SafeProblemSolver:
         return {
             "entries": [asdict(entry) for entry in entries],
             "count": len(entries),
-            "truncated": len(entries) == _MAX_LIST_ENTRIES,
+            "sensitive_entries_hidden": sensitive_hidden,
+            "truncated": len(entries) + sensitive_hidden == _MAX_LIST_ENTRIES,
         }
 
     def read_text(self, relative_path: str) -> dict[str, Any]:
@@ -146,7 +201,10 @@ class SafeProblemSolver:
         except UnicodeDecodeError as exc:
             raise SolverPolicyError("non_utf8_file_denied") from exc
 
-        redacted = redact_text(text)
+        if "PRIVATE KEY-----" in text:
+            redacted = "***REDACTED_SENSITIVE_CONTENT***"
+        else:
+            redacted = redact_text(text)
         return {
             "path": path.relative_to(self._root).as_posix(),
             "size": size,
@@ -156,7 +214,7 @@ class SafeProblemSolver:
         }
 
     def sha256_file(self, relative_path: str) -> dict[str, Any]:
-        """Hash a bounded workspace file without returning its contents."""
+        """Hash a bounded non-sensitive workspace file without returning its contents."""
         path = self._resolve(relative_path, require_file=True)
         digest = hashlib.sha256()
         total = 0
