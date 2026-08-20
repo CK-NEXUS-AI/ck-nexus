@@ -93,27 +93,29 @@ async def test_remote_http_auth_status_semantics_and_valid_initialize() -> None:
     app = server.streamable_http_app()
     transport = httpx.ASGITransport(app=app)
 
-    async with app.router.lifespan_context(app):
-        async with httpx.AsyncClient(
+    async with (
+        app.router.lifespan_context(app),
+        httpx.AsyncClient(
             transport=transport,
             base_url="http://localhost:8767",
-        ) as client:
-            missing = await client.post("/mcp", json=_initialize(), headers=_headers())
-            invalid = await client.post(
-                "/mcp",
-                json=_initialize(),
-                headers=_headers("invalid"),
-            )
-            insufficient = await client.post(
-                "/mcp",
-                json=_initialize(),
-                headers=_headers("no-scope"),
-            )
-            valid = await client.post(
-                "/mcp",
-                json=_initialize(),
-                headers=_headers("valid"),
-            )
+        ) as client,
+    ):
+        missing = await client.post("/mcp", json=_initialize(), headers=_headers())
+        invalid = await client.post(
+            "/mcp",
+            json=_initialize(),
+            headers=_headers("invalid"),
+        )
+        insufficient = await client.post(
+            "/mcp",
+            json=_initialize(),
+            headers=_headers("no-scope"),
+        )
+        valid = await client.post(
+            "/mcp",
+            json=_initialize(),
+            headers=_headers("valid"),
+        )
 
     assert missing.status_code == 401
     assert invalid.status_code == 401
@@ -132,32 +134,34 @@ async def test_remote_http_rejects_bad_host_origin_and_oversized_body() -> None:
     app = server.streamable_http_app()
     transport = httpx.ASGITransport(app=app)
 
-    async with app.router.lifespan_context(app):
-        async with httpx.AsyncClient(
+    async with (
+        app.router.lifespan_context(app),
+        httpx.AsyncClient(
             transport=transport,
             base_url="http://localhost:8767",
-        ) as client:
-            bad_host_headers = _headers("valid")
-            bad_host_headers["host"] = "evil.example"
-            bad_host = await client.post(
-                "/mcp",
-                json=_initialize(),
-                headers=bad_host_headers,
-            )
+        ) as client,
+    ):
+        bad_host_headers = _headers("valid")
+        bad_host_headers["host"] = "evil.example"
+        bad_host = await client.post(
+            "/mcp",
+            json=_initialize(),
+            headers=bad_host_headers,
+        )
 
-            bad_origin_headers = _headers("valid")
-            bad_origin_headers["origin"] = "https://evil.example"
-            bad_origin = await client.post(
-                "/mcp",
-                json=_initialize(),
-                headers=bad_origin_headers,
-            )
+        bad_origin_headers = _headers("valid")
+        bad_origin_headers["origin"] = "https://evil.example"
+        bad_origin = await client.post(
+            "/mcp",
+            json=_initialize(),
+            headers=bad_origin_headers,
+        )
 
-            oversized = await client.post(
-                "/mcp",
-                content=b"x" * (64 * 1024 + 1),
-                headers=_headers("valid"),
-            )
+        oversized = await client.post(
+            "/mcp",
+            content=b"x" * (64 * 1024 + 1),
+            headers=_headers("valid"),
+        )
 
     assert bad_host.status_code == 421
     assert bad_origin.status_code == 403
