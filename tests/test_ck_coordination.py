@@ -2,19 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from creator_app.ai_team.ck_coordination import (
-    CKRole,
-    CandidateReport,
-    CoordinationPolicy,
-    CoordinationState,
-    ReportResult,
-    WorkPacket,
-    build_ck_v3_packet,
-)
+from creator_app.ai_team import ck_coordination as ck
 
 
-def _packet() -> WorkPacket:
-    return build_ck_v3_packet(
+def _packet() -> ck.WorkPacket:
+    return ck.build_ck_v3_packet(
         task_id="CK3-001",
         target="repo:main",
         objective="Prepare a bounded development proposal.",
@@ -24,15 +16,15 @@ def _packet() -> WorkPacket:
     )
 
 
-def _report(*, risks: tuple[str, ...] = ()) -> CandidateReport:
-    return CandidateReport(
+def _report(*, risks: tuple[str, ...] = ()) -> ck.CandidateReport:
+    return ck.CandidateReport(
         task_id="CK3-001",
-        role=CKRole.CK_V3,
+        role=ck.CKRole.CK_V3,
         observed=("source inspected",),
         actions=("tests executed",),
         evidence=("run:123",),
         risks=risks,
-        result=ReportResult.PASS_CANDIDATE,
+        result=ck.ReportResult.PASS_CANDIDATE,
         source_commit="a" * 40,
     )
 
@@ -40,7 +32,7 @@ def _report(*, risks: tuple[str, ...] = ()) -> CandidateReport:
 def test_ck_v3_packet_has_hard_non_authority_boundaries() -> None:
     packet = _packet()
 
-    assert packet.assignee is CKRole.CK_V3
+    assert packet.assignee is ck.CKRole.CK_V3
     assert packet.production_mutation is False
     assert packet.credential_access is False
     assert packet.external_write is False
@@ -59,7 +51,7 @@ def test_ck_v3_packet_has_hard_non_authority_boundaries() -> None:
 def test_helper_packet_cannot_receive_authority(field: str, reason: str) -> None:
     kwargs = {
         "task_id": "CK3-002",
-        "assignee": CKRole.CK_V3,
+        "assignee": ck.CKRole.CK_V3,
         "target": "repo:main",
         "objective": "test",
         "allowed_actions": ("read",),
@@ -71,14 +63,14 @@ def test_helper_packet_cannot_receive_authority(field: str, reason: str) -> None
         "external_write": False,
     }
     kwargs[field] = True
-    packet = WorkPacket(**kwargs)
+    packet = ck.WorkPacket(**kwargs)
 
     with pytest.raises(ValueError, match=reason):
-        CoordinationPolicy.validate_packet(packet)
+        ck.CoordinationPolicy.validate_packet(packet)
 
 
 def test_candidate_report_cannot_self_promote_without_independent_verification() -> None:
-    decision = CoordinationPolicy.reconcile_report(
+    decision = ck.CoordinationPolicy.reconcile_report(
         packet=_packet(),
         report=_report(),
         independent_evidence_verified=False,
@@ -86,12 +78,12 @@ def test_candidate_report_cannot_self_promote_without_independent_verification()
     )
 
     assert decision.accepted is True
-    assert decision.state is CoordinationState.DONE_CANDIDATE
+    assert decision.state is ck.CoordinationState.DONE_CANDIDATE
     assert "independent_verification_required" in decision.reasons
 
 
 def test_independently_reconciled_report_can_be_verified() -> None:
-    decision = CoordinationPolicy.reconcile_report(
+    decision = ck.CoordinationPolicy.reconcile_report(
         packet=_packet(),
         report=_report(),
         independent_evidence_verified=True,
@@ -99,23 +91,23 @@ def test_independently_reconciled_report_can_be_verified() -> None:
     )
 
     assert decision.accepted is True
-    assert decision.state is CoordinationState.VERIFIED
+    assert decision.state is ck.CoordinationState.VERIFIED
 
 
 def test_unresolved_risk_keeps_report_candidate() -> None:
-    decision = CoordinationPolicy.reconcile_report(
+    decision = ck.CoordinationPolicy.reconcile_report(
         packet=_packet(),
         report=_report(risks=("runtime artifact unavailable",)),
         independent_evidence_verified=True,
         current_source_commit="a" * 40,
     )
 
-    assert decision.state is CoordinationState.DONE_CANDIDATE
+    assert decision.state is ck.CoordinationState.DONE_CANDIDATE
     assert "unresolved_risks_present" in decision.reasons
 
 
 def test_stale_source_report_is_rejected() -> None:
-    decision = CoordinationPolicy.reconcile_report(
+    decision = ck.CoordinationPolicy.reconcile_report(
         packet=_packet(),
         report=_report(),
         independent_evidence_verified=True,
@@ -123,22 +115,22 @@ def test_stale_source_report_is_rejected() -> None:
     )
 
     assert decision.accepted is False
-    assert decision.state is CoordinationState.REJECTED
+    assert decision.state is ck.CoordinationState.REJECTED
     assert decision.reasons == ("stale_source_commit",)
 
 
 def test_task_or_role_mismatch_is_rejected() -> None:
-    wrong_role = CandidateReport(
+    wrong_role = ck.CandidateReport(
         task_id="CK3-001",
-        role=CKRole.CK_V2,
+        role=ck.CKRole.CK_V2,
         observed=(),
         actions=(),
         evidence=("run:123",),
         risks=(),
-        result=ReportResult.PASS_CANDIDATE,
+        result=ck.ReportResult.PASS_CANDIDATE,
         source_commit="a" * 40,
     )
-    decision = CoordinationPolicy.reconcile_report(
+    decision = ck.CoordinationPolicy.reconcile_report(
         packet=_packet(),
         report=wrong_role,
         independent_evidence_verified=True,
