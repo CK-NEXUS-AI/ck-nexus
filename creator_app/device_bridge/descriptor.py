@@ -13,6 +13,7 @@ from typing import Any
 
 _TOOL_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{1,63}$")
 _ALLOWED_INTERPRETERS = {"python", "python3"}
+_ALLOWED_MODULES = {"creator_app.device_bridge.mcp_server_v2"}
 _FORBIDDEN_SHELL_CHARS = {";", "|", "&", "`", "\n", "\r", ">", "<"}
 
 
@@ -81,7 +82,15 @@ def _parse_command(command_text: Any) -> tuple[str, ...]:
     except ValueError as exc:
         raise DescriptorError("command_invalid_quoting") from exc
 
-    if len(argv) != 2 or argv[0] not in _ALLOWED_INTERPRETERS:
+    if not argv or argv[0] not in _ALLOWED_INTERPRETERS:
+        raise DescriptorError("command_not_allowlisted")
+
+    if len(argv) == 3 and argv[1] == "-m":
+        if argv[2] not in _ALLOWED_MODULES:
+            raise DescriptorError("module_not_allowlisted")
+        return argv
+
+    if len(argv) != 2:
         raise DescriptorError("command_not_allowlisted")
 
     script = PurePosixPath(argv[1])
