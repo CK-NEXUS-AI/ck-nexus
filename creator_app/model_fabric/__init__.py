@@ -21,6 +21,7 @@ from creator_app.model_fabric.resolver import (
     RuntimeProviderSnapshot,
     runtime_snapshot_from_router_status,
 )
+from creator_app.model_fabric.service import UniversalModelCapabilityFabric
 
 __all__ = [
     "CapabilityEvidence",
@@ -32,5 +33,6 @@ __all__ = [
     "ProviderCapabilityProfile",
     "ProviderClass",
     "RuntimeProviderSnapshot",
+    "UniversalModelCapabilityFabric",
     "runtime_snapshot_from_router_status",
 ]
