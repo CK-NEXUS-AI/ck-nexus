@@ -1,8 +1,8 @@
 """Fail-closed contract for exposing the CK-NEXUS clean-room MCP server remotely.
 
 This module does not mint credentials or expose a public endpoint. It validates public resource and
-issuer identity and builds an OAuth-protected, loopback-bound Streamable HTTP MCP resource server only
-when a caller supplies a real TokenVerifier. Authentication is bound to exact source/runtime
+issuer identity and builds an OAuth-protected, loopback-bound Streamable HTTP MCP resource server.
+A caller must supply a real TokenVerifier. Authentication is bound to exact source/runtime
 attestation; required scope authorization is left to the MCP SDK so invalid tokens return 401 while
 authenticated principals with insufficient scope return 403.
 """
