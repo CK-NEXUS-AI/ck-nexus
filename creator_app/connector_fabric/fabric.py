@@ -149,8 +149,23 @@ class ConnectorFabric:
             raise RuntimeError("Connector must pass schema verification before activation.")
 
         has_non_read = any(tool.risk is not RiskClass.READ_ONLY for tool in snapshot.tools)
+        unknown_count = sum(tool.risk is RiskClass.UNKNOWN for tool in snapshot.tools)
         if allow_write:
             requested_state = ConnectorState.ACTIVE_WRITE
+            if unknown_count:
+                self.evidence.append(
+                    "connector.activation_denied",
+                    connector_id,
+                    {
+                        "requestedMode": requested_state.value,
+                        "schemaHash": snapshot.schema_hash,
+                        "hasNonReadTools": has_non_read,
+                        "unknownRiskToolCount": unknown_count,
+                        "reason": "Unknown-risk connector tools block write activation.",
+                    },
+                )
+                raise PermissionError("Unknown-risk connector tools block write activation.")
+
             decision = self.activation_authorizer.authorize_activation(
                 connector=record,
                 snapshot=snapshot,
@@ -161,6 +176,7 @@ class ConnectorFabric:
                 "requestedMode": requested_state.value,
                 "schemaHash": snapshot.schema_hash,
                 "hasNonReadTools": has_non_read,
+                "unknownRiskToolCount": unknown_count,
                 "reason": decision.reason[:200],
             }
             if decision.approval_ref:
