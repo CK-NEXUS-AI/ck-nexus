@@ -10,6 +10,7 @@ from creator_app.connector_fabric.models import (
     ConnectorProtocol,
     ConnectorRecord,
     ConnectorState,
+    DiscoverySnapshot,
     NormalizedTool,
     RiskClass,
 )
@@ -24,6 +25,13 @@ class ToolAuthorizationDecision:
     reason: str
 
 
+@dataclass(frozen=True, slots=True)
+class ConnectorActivationDecision:
+    allowed: bool
+    reason: str
+    approval_ref: str | None = None
+
+
 class ToolAuthorizer(Protocol):
     def authorize(
         self,
@@ -35,9 +43,28 @@ class ToolAuthorizer(Protocol):
     ) -> ToolAuthorizationDecision: ...
 
 
+class ConnectorActivationAuthorizer(Protocol):
+    def authorize_activation(
+        self,
+        *,
+        connector: ConnectorRecord,
+        snapshot: DiscoverySnapshot,
+        requested_state: ConnectorState,
+        context: dict[str, Any],
+    ) -> ConnectorActivationDecision: ...
+
+
 class FailClosedAuthorizer:
     def authorize(self, **kwargs) -> ToolAuthorizationDecision:  # noqa: ANN003
         return ToolAuthorizationDecision(False, "No trusted execution authorizer is configured.")
+
+
+class FailClosedActivationAuthorizer:
+    def authorize_activation(self, **kwargs) -> ConnectorActivationDecision:  # noqa: ANN003
+        return ConnectorActivationDecision(
+            False,
+            "No trusted write-activation authorizer is configured.",
+        )
 
 
 class ConnectorFabric:
@@ -51,12 +78,14 @@ class ConnectorFabric:
         mcp_client: MCPClient | None = None,
         openapi_client: OpenAPIClient | None = None,
         authorizer: ToolAuthorizer | None = None,
+        activation_authorizer: ConnectorActivationAuthorizer | None = None,
     ) -> None:
         self.registry = registry
         self.evidence = evidence
         self.mcp_client = mcp_client or MCPClient()
         self.openapi_client = openapi_client or OpenAPIClient()
         self.authorizer = authorizer or FailClosedAuthorizer()
+        self.activation_authorizer = activation_authorizer or FailClosedActivationAuthorizer()
 
     def register(self, config: ConnectorConfig) -> ConnectorRecord:
         validate_endpoint(
@@ -107,19 +136,70 @@ class ConnectorFabric:
         )
         return updated
 
-    def activate(self, connector_id: str, *, allow_write: bool = False) -> ConnectorRecord:
+    def activate(
+        self,
+        connector_id: str,
+        *,
+        allow_write: bool = False,
+        context: dict[str, Any] | None = None,
+    ) -> ConnectorRecord:
         record = self.registry.get(connector_id)
         snapshot = self.registry.snapshot(connector_id)
         if record.state is not ConnectorState.SCHEMA_VERIFIED:
             raise RuntimeError("Connector must pass schema verification before activation.")
+
         has_non_read = any(tool.risk is not RiskClass.READ_ONLY for tool in snapshot.tools)
+        unknown_count = sum(tool.risk is RiskClass.UNKNOWN for tool in snapshot.tools)
         if allow_write:
-            state = ConnectorState.ACTIVE_WRITE
+            requested_state = ConnectorState.ACTIVE_WRITE
+            if unknown_count:
+                self.evidence.append(
+                    "connector.activation_denied",
+                    connector_id,
+                    {
+                        "requestedMode": requested_state.value,
+                        "schemaHash": snapshot.schema_hash,
+                        "hasNonReadTools": has_non_read,
+                        "unknownRiskToolCount": unknown_count,
+                        "reason": "Unknown-risk connector tools block write activation.",
+                    },
+                )
+                raise PermissionError("Unknown-risk connector tools block write activation.")
+
+            decision = self.activation_authorizer.authorize_activation(
+                connector=record,
+                snapshot=snapshot,
+                requested_state=requested_state,
+                context=context or {},
+            )
+            evidence_payload = {
+                "requestedMode": requested_state.value,
+                "schemaHash": snapshot.schema_hash,
+                "hasNonReadTools": has_non_read,
+                "unknownRiskToolCount": unknown_count,
+                "reason": decision.reason[:200],
+            }
+            if decision.approval_ref:
+                evidence_payload["approvalRef"] = decision.approval_ref[:200]
+            if not decision.allowed:
+                self.evidence.append(
+                    "connector.activation_denied",
+                    connector_id,
+                    evidence_payload,
+                )
+                raise PermissionError("Connector write activation denied by policy authority.")
+            state = requested_state
+            self.evidence.append(
+                "connector.write_activation_approved",
+                connector_id,
+                evidence_payload,
+            )
         else:
             state = ConnectorState.ACTIVE_READ_ONLY
             if has_non_read:
                 # Non-read tools stay registered but are withheld from model binding.
                 pass
+
         updated = self.registry.set_state(connector_id, state)
         self.evidence.append(
             "connector.activated",
