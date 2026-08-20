@@ -1,9 +1,10 @@
 """Fail-closed contract for exposing the CK-NEXUS clean-room MCP server remotely.
 
-This module does not open a listener or mint credentials. It validates the public resource/issuer
-identity and builds an OAuth-protected MCP resource server only when a caller supplies a real
-TokenVerifier. Remote access tokens are additionally bound to the exact CK-NEXUS source/registry
-attestation before the MCP SDK is allowed to treat them as authenticated.
+This module does not mint credentials or expose a public endpoint. It validates public resource/issuer
+identity and builds an OAuth-protected, loopback-bound Streamable HTTP MCP resource server only when
+a caller supplies a real TokenVerifier. Authentication is bound to exact source/runtime attestation;
+required scope authorization is left to the MCP SDK so invalid tokens return 401 while authenticated
+principals with insufficient scope return 403.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 _MAX_TOKEN_TTL_SECONDS = 15 * 60
 _CLOCK_SKEW_SECONDS = 60
 _ATTESTATION_CLAIM = "cknexus_attestation"
+_REMOTE_MAX_REQUEST_BODY_SIZE = 64 * 1024
 
 
 class RemoteContractError(ValueError):
@@ -41,6 +43,7 @@ class RemoteBridgeConfig:
     required_scope: str = _REQUIRED_SCOPE
     local_bind_host: str = "127.0.0.1"
     local_bind_port: int = 8767
+    max_request_body_size: int = _REMOTE_MAX_REQUEST_BODY_SIZE
 
     def validate(self) -> RemoteBridgeConfig:
         _validate_https_url(self.resource_server_url, required_path="/mcp", require_public=True)
@@ -51,6 +54,8 @@ class RemoteBridgeConfig:
             raise RemoteContractError("remote_mcp_must_bind_loopback")
         if not 1024 <= self.local_bind_port <= 65535:
             raise RemoteContractError("remote_bind_port_invalid")
+        if not 1024 <= self.max_request_body_size <= _REMOTE_MAX_REQUEST_BODY_SIZE:
+            raise RemoteContractError("remote_request_body_limit_invalid")
         return self
 
 
@@ -116,7 +121,7 @@ def _same_url(left: str, right: str) -> bool:
 
 
 class AttestedTokenVerifier(TokenVerifier):
-    """Wrap a real verifier and fail closed unless the token targets this exact attested bridge."""
+    """Verify identity/attestation while leaving required-scope authorization to MCP middleware."""
 
     def __init__(
         self,
@@ -141,7 +146,7 @@ class AttestedTokenVerifier(TokenVerifier):
             return None
 
         now = int(time.time())
-        if not access.client_id or self._config.required_scope not in access.scopes:
+        if not access.client_id:
             return None
         if access.resource is None or not _same_url(
             access.resource,
@@ -169,7 +174,7 @@ class AttestedTokenVerifier(TokenVerifier):
 
 
 def build_remote_auth(config: RemoteBridgeConfig) -> AuthSettings:
-    """Build RFC 9728/OAuth resource metadata settings from validated configuration."""
+    """Build OAuth protected-resource settings from validated configuration."""
     validated = config.validate()
     return AuthSettings(
         issuer_url=AnyHttpUrl(validated.issuer_url),
@@ -184,14 +189,19 @@ def build_remote_server(
     identity: RemoteAttestationIdentity,
     token_verifier: TokenVerifier,
 ) -> FastMCP:
-    """Build six read-only tools behind an exact-attestation-bound bearer verifier."""
+    """Build six read-only tools behind attested auth and loopback-only stateless HTTP."""
+    validated = config.validate()
     verified = AttestedTokenVerifier(
         delegate=token_verifier,
-        config=config,
+        config=validated,
         identity=identity,
     )
     return build_server(
-        auth=build_remote_auth(config),
+        auth=build_remote_auth(validated),
         token_verifier=verified,
         transport_label="streamable-http",
+        host=validated.local_bind_host,
+        port=validated.local_bind_port,
+        stateless_http=True,
+        max_request_body_size=validated.max_request_body_size,
     )
