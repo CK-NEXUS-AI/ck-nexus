@@ -14,11 +14,10 @@ from ipaddress import ip_address
 from typing import Any
 from urllib.parse import urlsplit
 
-from pydantic import AnyHttpUrl
-
 from mcp.server.auth.provider import AccessToken, TokenVerifier
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
+from pydantic import AnyHttpUrl
 
 from creator_app.device_bridge.mcp_server_v2 import build_server
 
@@ -43,7 +42,7 @@ class RemoteBridgeConfig:
     local_bind_host: str = "127.0.0.1"
     local_bind_port: int = 8767
 
-    def validate(self) -> "RemoteBridgeConfig":
+    def validate(self) -> RemoteBridgeConfig:
         _validate_https_url(self.resource_server_url, required_path="/mcp", require_public=True)
         _validate_https_url(self.issuer_url, require_public=True)
         if self.required_scope != _REQUIRED_SCOPE:
@@ -64,7 +63,7 @@ class RemoteAttestationIdentity:
     registry_sha256: str
     descriptor_sha256: str
 
-    def validate(self) -> "RemoteAttestationIdentity":
+    def validate(self) -> RemoteAttestationIdentity:
         _require_hex(self.source_commit, length=40, reason="source_commit_invalid")
         _require_hex(self.source_tree, length=40, reason="source_tree_invalid")
         _require_hex(self.registry_sha256, length=64, reason="registry_sha256_invalid")
@@ -144,7 +143,10 @@ class AttestedTokenVerifier(TokenVerifier):
         now = int(time.time())
         if not access.client_id or self._config.required_scope not in access.scopes:
             return None
-        if access.resource is None or not _same_url(access.resource, self._config.resource_server_url):
+        if access.resource is None or not _same_url(
+            access.resource,
+            self._config.resource_server_url,
+        ):
             return None
         if access.expires_at is None or access.expires_at <= now:
             return None
