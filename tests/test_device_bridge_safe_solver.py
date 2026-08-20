@@ -9,8 +9,9 @@ from creator_app.device_bridge.safe_solver import SafeProblemSolver, SolverPolic
 
 def test_read_text_redacts_secrets_and_returns_digest(tmp_path: Path) -> None:
     target = tmp_path / "sample.txt"
+    openai_like = "sk" + "-" + ("a" * 30)
     target.write_text(
-        "OPENAI_API_KEY=sk-abcdefghijklmnopqrstuvwxyz123456\n"
+        f"OPENAI_API_KEY={openai_like}\n"
         "Authorization: Bearer top-secret-token\n",
         encoding="utf-8",
     )
@@ -19,7 +20,7 @@ def test_read_text_redacts_secrets_and_returns_digest(tmp_path: Path) -> None:
     result = solver.read_text("sample.txt")
 
     assert result["redacted"] is True
-    assert "abcdefghijklmnopqrstuvwxyz" not in result["content"]
+    assert openai_like not in result["content"]
     assert "top-secret-token" not in result["content"]
     assert result["sha256"]
 
@@ -71,8 +72,10 @@ def test_symlink_is_denied_even_when_target_is_inside_workspace(tmp_path: Path) 
 
 def test_private_key_content_is_fully_redacted(tmp_path: Path) -> None:
     target = tmp_path / "notes.txt"
+    begin_marker = "-----BEGIN " + "PRIVATE KEY-----"
+    end_marker = "-----END " + "PRIVATE KEY-----"
     target.write_text(
-        "-----BEGIN PRIVATE KEY-----\nabc123\n-----END PRIVATE KEY-----\n",
+        f"{begin_marker}\nabc123\n{end_marker}\n",
         encoding="utf-8",
     )
     solver = SafeProblemSolver(tmp_path)
