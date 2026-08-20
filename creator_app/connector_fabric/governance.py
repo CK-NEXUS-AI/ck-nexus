@@ -164,7 +164,11 @@ class CapabilityAuthorityActivationAuthorizer:
                 False,
                 "Unknown-risk connector tools block write activation.",
             )
-        if not any(tool.risk in {RiskClass.WRITE, RiskClass.DESTRUCTIVE} for tool in snapshot.tools):
+        has_verified_non_read = any(
+            tool.risk in {RiskClass.WRITE, RiskClass.DESTRUCTIVE}
+            for tool in snapshot.tools
+        )
+        if not has_verified_non_read:
             return ConnectorActivationDecision(
                 False,
                 "Connector has no verified non-read tools to activate.",
