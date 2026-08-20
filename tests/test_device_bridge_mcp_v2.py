@@ -53,9 +53,11 @@ async def test_standard_mcp_stdio_lists_exact_tools() -> None:
         env={"CKNEXUS_WORKSPACE_ROOT": str(repo_root)},
     )
 
-    async with stdio_client(params) as (read_stream, write_stream):
-        async with ClientSession(read_stream, write_stream) as session:
-            await asyncio.wait_for(session.initialize(), timeout=10)
-            result = await asyncio.wait_for(session.list_tools(), timeout=10)
+    async with (
+        stdio_client(params) as (read_stream, write_stream),
+        ClientSession(read_stream, write_stream) as session,
+    ):
+        await asyncio.wait_for(session.initialize(), timeout=10)
+        result = await asyncio.wait_for(session.list_tools(), timeout=10)
 
     assert {tool.name for tool in result.tools} == set(TOOL_NAMES)
