@@ -36,7 +36,7 @@ def test_computer_use_is_discovery_only_until_runtime_adapter_proves_it() -> Non
     discovered = catalog.discover(frozenset({ModelCapability.COMPUTER_USE}))
 
     provider_ids = {item.provider_id for item in discovered}
-    assert {"openai", "anthropic", "google"}.issubset(provider_ids)
+    assert {"openai", "anthropic", "gemini"}.issubset(provider_ids)
 
     inventory = CapabilityInventory(catalog).reconcile(AIGateway())
     openai = next(item for item in inventory if item.provider_id == "openai")
