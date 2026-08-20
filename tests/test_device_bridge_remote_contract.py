@@ -93,7 +93,7 @@ def test_remote_contract_requires_exact_mcp_path_and_no_url_secrets() -> None:
         ).validate()
 
 
-def test_remote_contract_is_read_only_and_loopback_bound() -> None:
+def test_remote_contract_is_read_only_loopback_and_bounded() -> None:
     with pytest.raises(RemoteContractError, match="remote_scope_must_be_read_only"):
         RemoteBridgeConfig(
             resource_server_url="https://bridge.example.test/mcp",
@@ -106,6 +106,13 @@ def test_remote_contract_is_read_only_and_loopback_bound() -> None:
             resource_server_url="https://bridge.example.test/mcp",
             issuer_url="https://auth.example.test",
             local_bind_host="0.0.0.0",
+        ).validate()
+
+    with pytest.raises(RemoteContractError, match="remote_request_body_limit_invalid"):
+        RemoteBridgeConfig(
+            resource_server_url="https://bridge.example.test/mcp",
+            issuer_url="https://auth.example.test",
+            max_request_body_size=128 * 1024,
         ).validate()
 
 
@@ -129,6 +136,18 @@ async def test_attested_verifier_accepts_exact_short_lived_token() -> None:
     )
 
     assert await verifier.verify_token("opaque") is access
+
+
+@pytest.mark.asyncio
+async def test_attested_verifier_does_not_preconsume_scope_authorization() -> None:
+    no_scope = _valid_access().model_copy(update={"scopes": []})
+    verifier = AttestedTokenVerifier(
+        delegate=StaticVerifier(no_scope),
+        config=_config(),
+        identity=_identity(),
+    )
+
+    assert await verifier.verify_token("opaque") is no_scope
 
 
 @pytest.mark.asyncio
@@ -191,6 +210,9 @@ def test_auth_settings_and_remote_server_are_fail_closed() -> None:
     )
     assert server.settings.auth is not None
     assert server.settings.auth.required_scopes == ["cknexus:read"]
+    assert server.settings.host == "127.0.0.1"
+    assert server.settings.stateless_http is True
+    assert server.settings.max_request_body_size == 64 * 1024
     assert len(TOOL_NAMES) == 6
 
 

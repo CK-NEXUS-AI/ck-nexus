@@ -60,20 +60,36 @@ def build_server(
     auth: AuthSettings | None = None,
     token_verifier: TokenVerifier | None = None,
     transport_label: str = "stdio",
+    host: str | None = None,
+    port: int | None = None,
+    stateless_http: bool | None = None,
+    max_request_body_size: int | None = None,
 ) -> FastMCP:
     """Build the exact clean-room tool registry with optional HTTP authorization.
 
-    Authorization settings and token verification are an all-or-nothing pair. Local stdio keeps both
-    unset; a remote Streamable HTTP resource server must inject both.
+    Local stdio keeps HTTP settings unset. A remote Streamable HTTP server must inject
+    authorization, remain loopback-bound, use stateless requests, and bound request bodies.
     """
     if (auth is None) != (token_verifier is None):
         raise ValueError("auth_and_token_verifier_must_be_paired")
     if transport_label not in {"stdio", "streamable-http"}:
         raise ValueError("unsupported_transport_label")
+    if transport_label == "streamable-http" and (auth is None or token_verifier is None):
+        raise ValueError("remote_transport_requires_auth")
 
     kwargs: dict[str, Any] = {"json_response": True}
     if auth is not None and token_verifier is not None:
         kwargs.update({"auth": auth, "token_verifier": token_verifier})
+    if host is not None:
+        kwargs["host"] = host
+    if port is not None:
+        kwargs["port"] = port
+    if stateless_http is not None:
+        kwargs["stateless_http"] = stateless_http
+    if max_request_body_size is not None:
+        if max_request_body_size <= 0:
+            raise ValueError("max_request_body_size_must_be_positive")
+        kwargs["max_request_body_size"] = max_request_body_size
     server = FastMCP(SERVER_NAME, **kwargs)
 
     @server.tool(
@@ -107,10 +123,9 @@ def build_server(
         annotations=_READ_ONLY_ANNOTATIONS,
     )
     def workspace_list(path: str = ".") -> dict[str, Any]:
-        """List bounded workspace metadata without following external paths."""
         try:
             return {"ok": True, **_solver().list_files(path)}
-        except Exception as exc:  # policy boundary
+        except Exception as exc:
             return _error(exc)
 
     @server.tool(
@@ -118,10 +133,9 @@ def build_server(
         annotations=_READ_ONLY_ANNOTATIONS,
     )
     def workspace_read_text(path: str) -> dict[str, Any]:
-        """Read a bounded workspace text file after secret redaction."""
         try:
             return {"ok": True, **_solver().read_text(path)}
-        except Exception as exc:  # policy boundary
+        except Exception as exc:
             return _error(exc)
 
     @server.tool(
@@ -129,10 +143,9 @@ def build_server(
         annotations=_READ_ONLY_ANNOTATIONS,
     )
     def workspace_sha256(path: str) -> dict[str, Any]:
-        """Return the SHA-256 of a bounded workspace file."""
         try:
             return {"ok": True, **_solver().sha256_file(path)}
-        except Exception as exc:  # policy boundary
+        except Exception as exc:
             return _error(exc)
 
     @server.tool(
@@ -140,10 +153,9 @@ def build_server(
         annotations=_READ_ONLY_ANNOTATIONS,
     )
     def solve_data_json(data: str) -> dict[str, Any]:
-        """Analyze JSON without persisting or returning the raw input."""
         try:
             return {"ok": True, **_solver().analyze_json(data)}
-        except Exception as exc:  # policy boundary
+        except Exception as exc:
             return _error(exc)
 
     @server.tool(
@@ -151,10 +163,9 @@ def build_server(
         annotations=_READ_ONLY_ANNOTATIONS,
     )
     def solve_code_review(code: str) -> dict[str, Any]:
-        """Review code for dangerous primitives without executing it."""
         try:
             return {"ok": True, **_solver().review_code(code)}
-        except Exception as exc:  # policy boundary
+        except Exception as exc:
             return _error(exc)
 
     return server
@@ -164,5 +175,4 @@ mcp = build_server()
 
 
 if __name__ == "__main__":
-    # No transport argument means stdio in the official MCP Python SDK.
     mcp.run()
