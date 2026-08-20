@@ -1,8 +1,8 @@
-"""Standard MCP stdio server for the CK-NEXUS clean-room device bridge.
+"""Standard MCP server for the CK-NEXUS clean-room device bridge.
 
 The server is intentionally independent from the quarantined AnyClaw Android runtime. It exposes
-only read-only, workspace-confined tools. The official MCP Python SDK owns protocol framing and
-stdio transport.
+only read-only, workspace-confined tools. Local use defaults to stdio; authenticated remote use may
+inject MCP authorization settings and a token verifier without changing the tool registry.
 """
 
 from __future__ import annotations
@@ -11,6 +11,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from mcp.server.auth.provider import TokenVerifier
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
@@ -53,9 +55,26 @@ def _error(exc: Exception) -> dict[str, Any]:
     return {"ok": False, "error": reason}
 
 
-def build_server() -> FastMCP:
-    """Build the exact MCP tool registry used by the QR/descriptor generator."""
-    server = FastMCP(SERVER_NAME, json_response=True)
+def build_server(
+    *,
+    auth: AuthSettings | None = None,
+    token_verifier: TokenVerifier | None = None,
+    transport_label: str = "stdio",
+) -> FastMCP:
+    """Build the exact clean-room tool registry with optional HTTP authorization.
+
+    Authorization settings and token verification are an all-or-nothing pair. Local stdio keeps both
+    unset; a remote Streamable HTTP resource server must inject both.
+    """
+    if (auth is None) != (token_verifier is None):
+        raise ValueError("auth_and_token_verifier_must_be_paired")
+    if transport_label not in {"stdio", "streamable-http"}:
+        raise ValueError("unsupported_transport_label")
+
+    kwargs: dict[str, Any] = {"json_response": True}
+    if auth is not None and token_verifier is not None:
+        kwargs.update({"auth": auth, "token_verifier": token_verifier})
+    server = FastMCP(SERVER_NAME, **kwargs)
 
     @server.tool(
         description=_TOOL_DESCRIPTIONS["bridge_status"],
@@ -72,7 +91,7 @@ def build_server() -> FastMCP:
             "ok": True,
             "server": SERVER_NAME,
             "version": SERVER_VERSION,
-            "transport": "stdio",
+            "transport": transport_label,
             "authority": "CK-NEXUS",
             "android_anyclaw_allowed": android.allowed,
             "android_anyclaw_reason": android.reason,
