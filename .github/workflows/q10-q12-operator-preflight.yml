@@ -40,10 +40,12 @@ jobs:
               apt-get update >/dev/null &&
               DEBIAN_FRONTEND=noninteractive apt-get install -y git gcc util-linux python3 python3-pip curl >/dev/null &&
               python3 -m pip install --break-system-packages uv >/dev/null &&
+              export UV_PROJECT_ENVIRONMENT=/tmp/ckvenv &&
               uv sync --all-extras --dev --frozen >/dev/null &&
-              .venv/bin/python scripts/agnes_sandbox_doctor.py || true;
-              .venv/bin/python scripts/agnes_cgroup_v2_staging_gate.py || true;
-              .venv/bin/pytest -q tests/test_agnes_execution_kernel_phase3.py tests/test_r18_cgroup_v2_staging_enforcement.py tests/test_sandbox_platform_profile.py
+              export CKNEXUS_ENVIRONMENT=staging &&
+              /tmp/ckvenv/bin/python scripts/agnes_sandbox_doctor.py || true;
+              CKNEXUS_ENVIRONMENT=staging /tmp/ckvenv/bin/python scripts/agnes_cgroup_v2_staging_gate.py || true;
+              /tmp/ckvenv/bin/pytest -q tests/test_agnes_execution_kernel_phase3.py tests/test_r18_cgroup_v2_staging_enforcement.py tests/test_sandbox_platform_profile.py
             '
       - name: Verify Q10 request is fail-closed
         run: |
