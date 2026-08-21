@@ -1,0 +1,52 @@
+name: Capability Gap Audit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/capability_gap_audit.py'
+      - 'pyproject.toml'
+      - 'tests/**'
+      - 'docs/**'
+      - 'llms.txt'
+      - 'agents.json'
+      - '.github/workflows/capability-gap-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Generate capability gap report
+        run: python scripts/capability_gap_audit.py
+
+      - name: Verify fail-closed evidence boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('capability-gap-report.json').read_text())
+          assert data['classification'] == 'POST_P0_DEVELOPMENT_EVIDENCE_ONLY'
+          assert data['production_promotion_allowed'] is False
+          assert data['q10_q11_q12_substitution_allowed'] is False
+          assert data['head_sha']
+          assert data['tree_sha']
+          print(json.dumps(data['summary'], indent=2, sort_keys=True))
+          PY
+
+      - name: Upload capability gap evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: capability-gap-audit-${{ github.sha }}
+          path: capability-gap-report.json
+          if-no-files-found: error
