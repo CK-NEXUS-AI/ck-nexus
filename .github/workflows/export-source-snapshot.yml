@@ -1,0 +1,40 @@
+name: Export CK-NEXUS Source Snapshot
+
+on:
+  push:
+    branches:
+      - backup/ck-nexus-snapshot-2026-08-21
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Export exact audited source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET_SHA=9924b488c149a5b9591f26de5739941ca8000dfd
+          git cat-file -e "${TARGET_SHA}^{commit}"
+          git archive --format=zip --prefix=ck-nexus-2026-08-21/ \
+            --output=ck-nexus-development-snapshot-9924b488.zip "${TARGET_SHA}"
+          sha256sum ck-nexus-development-snapshot-9924b488.zip \
+            | tee ck-nexus-development-snapshot-9924b488.zip.sha256
+          printf '%s\n' "snapshot_sha=${TARGET_SHA}" > SNAPSHOT_IDENTITY.txt
+          printf '%s\n' 'classification=DEVELOPMENT_SNAPSHOT_NOT_PRODUCTION_RELEASE' >> SNAPSHOT_IDENTITY.txt
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v6
+        with:
+          name: ck-nexus-development-snapshot-9924b488
+          path: |
+            ck-nexus-development-snapshot-9924b488.zip
+            ck-nexus-development-snapshot-9924b488.zip.sha256
+            SNAPSHOT_IDENTITY.txt
+          if-no-files-found: error
+          retention-days: 30
