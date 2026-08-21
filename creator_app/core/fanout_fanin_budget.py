@@ -4,6 +4,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from creator_app.core.policy_errors import BudgetExceeded
+
 
 class BudgetLevel(StrEnum):
     HEALTHY = "healthy"
@@ -20,11 +22,7 @@ class BudgetPolicy(BaseModel):
     exhausted_threshold: float = Field(default=0.95, ge=0, le=1)
 
     def model_post_init(self, __context: object) -> None:
-        if not (
-            self.warning_threshold
-            < self.critical_threshold
-            < self.exhausted_threshold
-        ):
+        if not self.warning_threshold < self.critical_threshold < self.exhausted_threshold:
             raise ValueError("budget thresholds must be strictly increasing")
 
 
@@ -81,31 +79,21 @@ class FanoutFaninBudgetController:
         return projected <= self.policy.total_budget
 
     def reserve(self, estimated_cost: float, *, active_workers: int) -> None:
-        """Reserve cost before dispatching work.
-
-        Raises:
-            ValueError: If the reservation would exceed cost or concurrency limits.
-        """
         if not self.can_dispatch(
             estimated_cost=estimated_cost,
             active_workers=active_workers,
         ):
-            raise ValueError("dispatch rejected by swarm budget policy")
+            raise BudgetExceeded("dispatch rejected by swarm budget policy")
         self._reserved += estimated_cost
 
     def settle(self, *, reserved_cost: float, actual_cost: float) -> None:
-        """Convert a reservation into actual spend.
-
-        Raises:
-            ValueError: If costs are invalid or final spend would exceed budget.
-        """
         if reserved_cost < 0 or actual_cost < 0:
             raise ValueError("cost values must be non-negative")
         if reserved_cost > self._reserved:
             raise ValueError("cannot settle more than reserved cost")
         projected_spend = self._spent + actual_cost
         if projected_spend > self.policy.total_budget:
-            raise ValueError("actual cost would exceed swarm budget")
+            raise BudgetExceeded("actual cost would exceed swarm budget")
         self._reserved -= reserved_cost
         self._spent = projected_spend
 
