@@ -4,15 +4,13 @@ on:
   push:
     branches:
       - backup/ck-nexus-snapshot-2026-08-21
-  pull_request:
-    branches:
-      - post-p0/agnes-capability-gap-matrix-v2026
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   export:
+    if: ${{ !contains(github.event.head_commit.message, '[snapshot-export]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -25,19 +23,31 @@ jobs:
           set -euo pipefail
           TARGET_SHA=9924b488c149a5b9591f26de5739941ca8000dfd
           git cat-file -e "${TARGET_SHA}^{commit}"
+          mkdir -p exports
           git archive --format=zip --prefix=ck-nexus-2026-08-21/ \
-            --output=ck-nexus-development-snapshot-9924b488.zip "${TARGET_SHA}"
-          sha256sum ck-nexus-development-snapshot-9924b488.zip \
-            | tee ck-nexus-development-snapshot-9924b488.zip.sha256
-          printf '%s\n' "snapshot_sha=${TARGET_SHA}" > SNAPSHOT_IDENTITY.txt
-          printf '%s\n' 'classification=DEVELOPMENT_SNAPSHOT_NOT_PRODUCTION_RELEASE' >> SNAPSHOT_IDENTITY.txt
-      - name: Upload source snapshot
+            --output=exports/ck-nexus-development-snapshot-9924b488.zip "${TARGET_SHA}"
+          sha256sum exports/ck-nexus-development-snapshot-9924b488.zip \
+            | tee exports/ck-nexus-development-snapshot-9924b488.zip.sha256
+          printf '%s\n' "snapshot_sha=${TARGET_SHA}" > exports/SNAPSHOT_IDENTITY.txt
+          printf '%s\n' 'classification=DEVELOPMENT_SNAPSHOT_NOT_PRODUCTION_RELEASE' >> exports/SNAPSHOT_IDENTITY.txt
+      - name: Commit snapshot to backup branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- exports/ck-nexus-development-snapshot-9924b488.zip \
+            exports/ck-nexus-development-snapshot-9924b488.zip.sha256 \
+            exports/SNAPSHOT_IDENTITY.txt
+          git commit -m 'chore: store CK-NEXUS source snapshot [snapshot-export]'
+          git push origin HEAD:backup/ck-nexus-snapshot-2026-08-21
+      - name: Upload source snapshot artifact
         uses: actions/upload-artifact@v6
         with:
           name: ck-nexus-development-snapshot-9924b488
           path: |
-            ck-nexus-development-snapshot-9924b488.zip
-            ck-nexus-development-snapshot-9924b488.zip.sha256
-            SNAPSHOT_IDENTITY.txt
+            exports/ck-nexus-development-snapshot-9924b488.zip
+            exports/ck-nexus-development-snapshot-9924b488.zip.sha256
+            exports/SNAPSHOT_IDENTITY.txt
           if-no-files-found: error
           retention-days: 30
