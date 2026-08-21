@@ -22,13 +22,29 @@ jobs:
         run: |
           python -m pip install --upgrade pip uv
           uv sync --all-extras --dev --frozen
-      - name: Cloud Linux Phase-3 regression
+      - name: Cloud Linux host diagnostics
         run: |
-          .venv/bin/pytest -q tests/test_agnes_execution_kernel_phase3.py tests/test_r18_cgroup_v2_staging_enforcement.py tests/test_sandbox_platform_profile.py
-      - name: Sandbox doctor
-        run: |
+          id
+          uname -a
+          mount | grep cgroup || true
+          cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null || true
+          unshare -Urmpn --fork /bin/true || true
           .venv/bin/python scripts/agnes_sandbox_doctor.py || true
           .venv/bin/python scripts/agnes_cgroup_v2_staging_gate.py || true
+      - name: Privileged Linux Phase-3 candidate
+        run: |
+          docker run --rm --privileged --cgroupns=host \
+            -v "$GITHUB_WORKSPACE:/repo" -w /repo \
+            -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
+            ubuntu:24.04 bash -lc '
+              apt-get update >/dev/null &&
+              DEBIAN_FRONTEND=noninteractive apt-get install -y git gcc util-linux python3 python3-pip curl >/dev/null &&
+              python3 -m pip install --break-system-packages uv >/dev/null &&
+              uv sync --all-extras --dev --frozen >/dev/null &&
+              .venv/bin/python scripts/agnes_sandbox_doctor.py || true;
+              .venv/bin/python scripts/agnes_cgroup_v2_staging_gate.py || true;
+              .venv/bin/pytest -q tests/test_agnes_execution_kernel_phase3.py tests/test_r18_cgroup_v2_staging_enforcement.py tests/test_sandbox_platform_profile.py
+            '
       - name: Verify Q10 request is fail-closed
         run: |
           python - <<'PY'
