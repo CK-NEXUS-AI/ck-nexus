@@ -36,9 +36,11 @@ class ProgrammaticToolPlan(BaseModel):
         for step in self.steps:
             if not step.intent.strip():
                 return False
-            if step.risk in {ToolRisk.HIGH, ToolRisk.CRITICAL}:
-                if not step.requires_approval or not step.execution_grant_id:
-                    return False
+            if (
+                step.risk in {ToolRisk.HIGH, ToolRisk.CRITICAL}
+                and (not step.requires_approval or not step.execution_grant_id)
+            ):
+                return False
             if step.requires_approval and not step.execution_grant_id:
                 return False
         return True
