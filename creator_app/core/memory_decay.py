@@ -32,8 +32,21 @@ class MemoryDecayPolicy(BaseModel):
     def score(self, memory: MemoryRecord, *, now: datetime | None = None) -> float:
         """Return a bounded temporal ranking score without deleting history."""
         current = now or datetime.now(UTC)
-        anchor = memory.last_retrieved_at or memory.created_at
-        age_days = max((current - anchor).total_seconds() / 86400, 0.0)
+        return self.score_at(memory, now=current)
+
+    def score_at(self, memory: MemoryRecord, *, now: datetime) -> float:
+        """Score deterministically with a caller-supplied timezone-aware clock."""
+        if now.tzinfo is None:
+            raise ValueError("memory scoring clock must be timezone-aware")
+        if memory.created_at.tzinfo is None:
+            raise ValueError("memory created_at must be timezone-aware")
+        if memory.last_retrieved_at is not None and memory.last_retrieved_at.tzinfo is None:
+            raise ValueError("memory last_retrieved_at must be timezone-aware")
+        current = now.astimezone(UTC)
+        anchor = (memory.last_retrieved_at or memory.created_at).astimezone(UTC)
+        if anchor > current:
+            raise ValueError("memory timestamp cannot be in the future")
+        age_days = (current - anchor).total_seconds() / 86400
         decay = 0.5 ** (age_days / self.half_life_days)
         reinforcement = min(memory.retrieval_count * self.retrieval_reinforcement, 1.0)
         score = decay * memory.importance * memory.confidence + reinforcement
