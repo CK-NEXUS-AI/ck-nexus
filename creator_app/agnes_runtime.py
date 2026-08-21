@@ -32,6 +32,7 @@ from creator_app.agnes.execution.sandbox import (
     SandboxWorkspaceManager,
 )
 from creator_app.agnes_discovery import SkillDiscoveryPolicy
+from creator_app.agnes_experiential_memory import ExperienceResult, ExperientialMemory
 from creator_app.agnes_ledger import AppendOnlyLedger
 from creator_app.agnes_skills import AgnesSkillRegistry, SkillDefinition, SkillRisk
 from creator_app.agnes_workbench import WorkspaceBroker, WorkspaceKind
@@ -86,6 +87,7 @@ class AgnesNervousSystem:
         self.skill_file = skill_file
         self.registry = AgnesSkillRegistry.load(skill_file)
         self.ledger = AppendOnlyLedger(ledger_path)
+        self.experience_memory = ExperientialMemory(self.ledger)
         self.provider_router = provider_router
         self.policy = policy or AgnesPolicy()
         self.workspace_broker = WorkspaceBroker()
@@ -249,6 +251,42 @@ class AgnesNervousSystem:
             raise AgnesPolicyViolation("AGNES production mutation is disabled.")
         if skill.risk in {SkillRisk.EXTERNAL_WRITE, SkillRisk.HIGH_IMPACT} and not approved:
             raise AgnesPolicyViolation("This AGNES skill requires explicit approval.")
+
+    def record_experience(
+        self,
+        *,
+        task_type: str,
+        context_digest: str,
+        action_strategy: str,
+        result: ExperienceResult | str,
+        lesson: str,
+        confidence: float,
+        verified_by: str,
+        source_run: str | None = None,
+        evidence_links: list[str] | tuple[str, ...] = (),
+        failure_reason: str | None = None,
+        supersedes: str | None = None,
+    ) -> dict[str, object]:
+        entry = self.experience_memory.record_experience(
+            task_type=task_type,
+            context_digest=context_digest,
+            action_strategy=action_strategy,
+            result=result,
+            lesson=lesson,
+            confidence=confidence,
+            verified_by=verified_by,
+            source_run=source_run,
+            evidence_links=evidence_links,
+            failure_reason=failure_reason,
+            supersedes=supersedes,
+        )
+        return entry.as_dict()
+
+    def retrieve_experience(self, *, task_type: str, limit: int = 5) -> list[dict[str, object]]:
+        return [entry.as_dict() for entry in self.experience_memory.retrieve_relevant(task_type=task_type, limit=limit)]
+
+    def experience_provenance_graph(self) -> dict[str, object]:
+        return self.experience_memory.build_provenance_graph()
 
     def record_learning(
         self,
