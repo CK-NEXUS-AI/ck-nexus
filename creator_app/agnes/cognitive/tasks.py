@@ -22,7 +22,13 @@ _ALLOWED: dict[TaskState, frozenset[TaskState]] = {
     TaskState.CREATED: frozenset({TaskState.READY, TaskState.CANCELLED}),
     TaskState.READY: frozenset({TaskState.RUNNING, TaskState.CANCELLED}),
     TaskState.RUNNING: frozenset(
-        {TaskState.PAUSED, TaskState.WAITING_HUMAN, TaskState.VERIFYING, TaskState.FAILED, TaskState.CANCELLED}
+        {
+            TaskState.PAUSED,
+            TaskState.WAITING_HUMAN,
+            TaskState.VERIFYING,
+            TaskState.FAILED,
+            TaskState.CANCELLED,
+        }
     ),
     TaskState.PAUSED: frozenset({TaskState.READY, TaskState.CANCELLED}),
     TaskState.WAITING_HUMAN: frozenset({TaskState.READY, TaskState.CANCELLED}),
@@ -51,7 +57,12 @@ class DurableTaskRuntime:
         return replace(task, state=target)
 
     def checkpoint(self, task: DurableTask, checkpoint_ref: str) -> DurableTask:
-        if task.state not in {TaskState.RUNNING, TaskState.PAUSED, TaskState.WAITING_HUMAN}:
+        active_states = {
+            TaskState.RUNNING,
+            TaskState.PAUSED,
+            TaskState.WAITING_HUMAN,
+        }
+        if task.state not in active_states:
             raise ValueError("checkpoint is only valid for active or paused tasks")
         return replace(task, checkpoint_ref=checkpoint_ref)
 
