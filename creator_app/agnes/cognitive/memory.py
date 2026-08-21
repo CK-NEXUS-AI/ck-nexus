@@ -22,9 +22,7 @@ class MemoryRecord:
     def is_valid_at(self, when: datetime) -> bool:
         if self.valid_from and when < self.valid_from:
             return False
-        if self.valid_until and when >= self.valid_until:
-            return False
-        return True
+        return not (self.valid_until and when >= self.valid_until)
 
 
 class TemporalMemory:
@@ -44,7 +42,12 @@ class TemporalMemory:
             raise ValueError("memory_id already exists")
         self._records.append(record)
 
-    def active(self, *, kind: str | None = None, when: datetime | None = None) -> tuple[MemoryRecord, ...]:
+    def active(
+        self,
+        *,
+        kind: str | None = None,
+        when: datetime | None = None,
+    ) -> tuple[MemoryRecord, ...]:
         now = when or datetime.now(UTC)
         superseded = {item.supersedes for item in self._records if item.supersedes}
         return tuple(
