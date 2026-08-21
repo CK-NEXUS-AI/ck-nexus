@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class AgentRole(str, Enum):
+class AgentRole(StrEnum):
     ARCHITECT = "architect"
     BUILDER = "builder"
     UPDATER = "updater"
