@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import sqlite3
@@ -109,10 +110,8 @@ class SQLitePasskeyStore:
                 rp_id TEXT NOT NULL, origin TEXT NOT NULL, revoked INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (credential_id, actor_id))"""
             )
-        try:
+        with contextlib.suppress(OSError):
             os.chmod(self.path, 0o600)
-        except OSError:
-            pass
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=10)
@@ -146,7 +145,9 @@ class SQLitePasskeyStore:
             rp_id=str(row["rp_id"]), origin=str(row["origin"]), revoked=bool(row["revoked"]),
         )
 
-    def update_sign_count(self, *, credential_id: str, actor_id: str, sign_count: int) -> None:
+    def update_sign_count(
+        self, *, credential_id: str, actor_id: str, sign_count: int
+    ) -> None:
         with self._connect() as connection:
             result = connection.execute(
                 "UPDATE passkey_credentials SET sign_count=? WHERE credential_id=? AND actor_id=?",
