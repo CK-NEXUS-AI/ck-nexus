@@ -132,7 +132,9 @@ class SkillExecutionDispatcher:
             permission = self.permissions.evaluate(request, capability, risk)
             if not permission.allowed:
                 suffix = ",".join(permission.missing)
-                reason = f"{permission.reason}:{suffix}" if suffix else permission.reason
+                reason = (
+                    f"{permission.reason}:{suffix}" if suffix else permission.reason
+                )
                 return self._blocked(
                     request,
                     reason,
@@ -210,8 +212,12 @@ class SkillExecutionDispatcher:
             pre_ref = self.evidence.pre_audit(manifest)
 
             if request.idempotency_key:
-                key = f"{request.tenant_id}:{request.skill_id}:{request.idempotency_key}"
-                claimed, existing = await self.idempotency.claim(key, manifest.manifest_hash)
+                key = (
+                    f"{request.tenant_id}:{request.skill_id}:{request.idempotency_key}"
+                )
+                claimed, existing = await self.idempotency.claim(
+                    key, manifest.manifest_hash
+                )
                 if not claimed:
                     if existing and existing.manifest_hash != manifest.manifest_hash:
                         return self._blocked(
@@ -323,7 +329,9 @@ class SkillExecutionDispatcher:
             result.evidence_refs.extend([pre_ref, final_ref])
 
             if request.idempotency_key and idempotency_claimed:
-                key = f"{request.tenant_id}:{request.skill_id}:{request.idempotency_key}"
+                key = (
+                    f"{request.tenant_id}:{request.skill_id}:{request.idempotency_key}"
+                )
                 await self.idempotency.complete(
                     key,
                     success=result.status is ExecutionStatus.SUCCEEDED,

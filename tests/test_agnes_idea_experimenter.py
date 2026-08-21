@@ -12,14 +12,20 @@ from creator_app.agnes_idea_experimenter import (
     VariantScore,
 )
 from creator_app.agnes_ledger import AppendOnlyLedger
-from creator_app.provider_router import ProviderCapabilities, ProviderKind, ProviderRouter
+from creator_app.provider_router import (
+    ProviderCapabilities,
+    ProviderKind,
+    ProviderRouter,
+)
 
 
 class FakeProvider:
     kind = ProviderKind.MOCK
     capabilities = ProviderCapabilities(features=frozenset({"text"}), models=("fake",))
 
-    def __init__(self, name: str, output: str | None = None, *, fail: bool = False) -> None:
+    def __init__(
+        self, name: str, output: str | None = None, *, fail: bool = False
+    ) -> None:
         self.name = name
         self.output = output or f"output:{name}"
         self.fail = fail
@@ -59,7 +65,11 @@ def score(
 def test_multi_assistant_harness_runs_selected_providers_in_parallel() -> None:
     router = ProviderRouter([FakeProvider("alpha"), FakeProvider("beta")])
     harness = MultiAssistantEvaluationHarness(router)
-    runs = asyncio.run(harness.run("hello", provider_names=["alpha", "beta"], required_capabilities=["text"]))
+    runs = asyncio.run(
+        harness.run(
+            "hello", provider_names=["alpha", "beta"], required_capabilities=["text"]
+        )
+    )
     assert [run.provider for run in runs] == ["alpha", "beta"]
     assert all(run.success for run in runs)
     assert all(run.output_digest for run in runs)
@@ -78,17 +88,23 @@ def test_multi_assistant_harness_fails_one_provider_without_aborting_all() -> No
 
 def test_parallel_run_evidence_stores_digest_not_raw_output(tmp_path: Path) -> None:
     router = ProviderRouter([FakeProvider("alpha", "SUPER_SECRET_RESPONSE")])
-    runs = asyncio.run(MultiAssistantEvaluationHarness(router).run("prompt", provider_names=["alpha"]))
+    runs = asyncio.run(
+        MultiAssistantEvaluationHarness(router).run("prompt", provider_names=["alpha"])
+    )
     store = ledger(tmp_path)
     experimenter = IdeaAutoExperimenter(store)
-    experimenter.record_parallel_runs(experiment_id="exp-1", prompt_digest="digest:prompt", runs=runs)
+    experimenter.record_parallel_runs(
+        experiment_id="exp-1", prompt_digest="digest:prompt", runs=runs
+    )
     raw = (tmp_path / "experiment.jsonl").read_text(encoding="utf-8")
     assert "SUPER_SECRET_RESPONSE" not in raw
     assert runs[0].output_digest in raw
     assert '"raw_outputs_stored": false' in raw
 
 
-def test_candidate_can_be_proposed_when_verified_and_materially_better(tmp_path: Path) -> None:
+def test_candidate_can_be_proposed_when_verified_and_materially_better(
+    tmp_path: Path,
+) -> None:
     experimenter = IdeaAutoExperimenter(ledger(tmp_path), minimum_improvement=0.05)
     outcome = experimenter.evaluate(
         baseline_id="baseline",
@@ -157,7 +173,10 @@ def test_missing_evidence_fails_closed(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="requires evidence"):
         experimenter.evaluate(
             baseline_id="baseline",
-            variants=[score("baseline", quality=0.5, reliability=0.5, cost_score=0.5), bad],
+            variants=[
+                score("baseline", quality=0.5, reliability=0.5, cost_score=0.5),
+                bad,
+            ],
             hypothesis="missing evidence",
             verified_by="human_governor",
         )
@@ -167,5 +186,7 @@ def test_ledger_tamper_is_detected(tmp_path: Path) -> None:
     store = ledger(tmp_path)
     store.append("seed", {"ok": True})
     path = tmp_path / "experiment.jsonl"
-    path.write_text(path.read_text(encoding="utf-8").replace("true", "false"), encoding="utf-8")
+    path.write_text(
+        path.read_text(encoding="utf-8").replace("true", "false"), encoding="utf-8"
+    )
     assert store.verify().valid is False

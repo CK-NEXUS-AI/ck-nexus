@@ -24,7 +24,9 @@ class SandboxPlatformProfile:
         return False
 
 
-def detect_platform_profile(environment: dict[str, str] | None = None) -> SandboxPlatformProfile:
+def detect_platform_profile(
+    environment: dict[str, str] | None = None,
+) -> SandboxPlatformProfile:
     env = environment or dict(os.environ)
     prefix = str(env.get("PREFIX", "")).strip()
     if prefix:

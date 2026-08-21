@@ -113,9 +113,21 @@ class ApprovalAuthority:
         encoded = self._encode(payload)
         signature = hmac.new(self._key, encoded, hashlib.sha256).digest()
         token = self._b64(encoded) + "." + self._b64(signature)
-        return VerifiedApproval(token=token, **{k: payload[k] for k in (
-            "approval_id", "actor_id", "action", "resource", "fingerprint", "issued_at", "expires_at"
-        )})
+        return VerifiedApproval(
+            token=token,
+            **{
+                k: payload[k]
+                for k in (
+                    "approval_id",
+                    "actor_id",
+                    "action",
+                    "resource",
+                    "fingerprint",
+                    "issued_at",
+                    "expires_at",
+                )
+            },
+        )
 
     def redeem(
         self,
@@ -187,7 +199,9 @@ class ApprovalAuthority:
 
     @staticmethod
     def _encode(payload: dict[str, object]) -> bytes:
-        return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
 
     @staticmethod
     def _b64(value: bytes) -> str:

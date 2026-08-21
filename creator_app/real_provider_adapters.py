@@ -28,7 +28,9 @@ def sanitize_outbound_prompt(prompt: str) -> str:
     if not text:
         raise ValueError("provider prompt cannot be empty")
     if any(pattern.search(text) for pattern in _SECRET_PATTERNS):
-        raise ProviderBoundaryViolation("outbound prompt contains credential-like material")
+        raise ProviderBoundaryViolation(
+            "outbound prompt contains credential-like material"
+        )
     return text
 
 
@@ -126,6 +128,7 @@ class BrokeredHTTPProviderAdapter:
     @property
     def official_host(self) -> str:
         from urllib.parse import urlsplit
+
         return (urlsplit(self.contract.endpoint).hostname or "").lower()
 
     @property
@@ -133,7 +136,9 @@ class BrokeredHTTPProviderAdapter:
         return f"provider.{self.name}"
 
     def is_available(self) -> bool:
-        return self.broker.is_configured(self.contract.credential_id, consumer=self.consumer)
+        return self.broker.is_configured(
+            self.contract.credential_id, consumer=self.consumer
+        )
 
     def _scoped_key(self) -> str:
         token = self.broker.issue_scoped_token(
@@ -172,17 +177,25 @@ class BrokeredHTTPProviderAdapter:
             }
         elif c.protocol == "openai_responses":
             body = {"model": c.model, "input": prompt}
-            headers = {"Content-Type": "application/json", "Authorization": f"Bearer {key}"}
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {key}",
+            }
         elif c.protocol == "openai_chat":
             body = {
                 "model": c.model,
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": c.max_output_tokens,
             }
-            headers = {"Content-Type": "application/json", "Authorization": f"Bearer {key}"}
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {key}",
+            }
         else:
             raise ValueError("unsupported provider protocol")
-        return Request(c.endpoint, data=json.dumps(body).encode(), headers=headers, method="POST")
+        return Request(
+            c.endpoint, data=json.dumps(body).encode(), headers=headers, method="POST"
+        )
 
     async def invoke(self, prompt: str) -> str:
         if not self.is_available():
@@ -251,11 +264,31 @@ def build_real_provider_adapter(
 ) -> BrokeredHTTPProviderAdapter:
     pid = provider_id.strip().lower()
     definitions = {
-        "gemini": ("https://generativelanguage.googleapis.com/v1beta/interactions", CredentialId.GEMINI_API_KEY, "gemini_interactions"),
-        "anthropic": ("https://api.anthropic.com/v1/messages", CredentialId.ANTHROPIC_API_KEY, "anthropic_messages"),
-        "groq": ("https://api.groq.com/openai/v1/responses", CredentialId.GROQ_API_KEY, "openai_responses"),
-        "deepseek": ("https://api.deepseek.com/chat/completions", CredentialId.DEEPSEEK_API_KEY, "openai_chat"),
-        "openrouter": ("https://openrouter.ai/api/v1/chat/completions", CredentialId.OPENROUTER_API_KEY, "openai_chat"),
+        "gemini": (
+            "https://generativelanguage.googleapis.com/v1beta/interactions",
+            CredentialId.GEMINI_API_KEY,
+            "gemini_interactions",
+        ),
+        "anthropic": (
+            "https://api.anthropic.com/v1/messages",
+            CredentialId.ANTHROPIC_API_KEY,
+            "anthropic_messages",
+        ),
+        "groq": (
+            "https://api.groq.com/openai/v1/responses",
+            CredentialId.GROQ_API_KEY,
+            "openai_responses",
+        ),
+        "deepseek": (
+            "https://api.deepseek.com/chat/completions",
+            CredentialId.DEEPSEEK_API_KEY,
+            "openai_chat",
+        ),
+        "openrouter": (
+            "https://openrouter.ai/api/v1/chat/completions",
+            CredentialId.OPENROUTER_API_KEY,
+            "openai_chat",
+        ),
     }
     try:
         endpoint, credential_id, protocol = definitions[pid]

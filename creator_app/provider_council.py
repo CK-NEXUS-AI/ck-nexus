@@ -6,7 +6,10 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Iterable, Mapping
 
-from creator_app.agnes_idea_experimenter import AssistantRun, MultiAssistantEvaluationHarness
+from creator_app.agnes_idea_experimenter import (
+    AssistantRun,
+    MultiAssistantEvaluationHarness,
+)
 from creator_app.agnes_ledger import AppendOnlyLedger
 from creator_app.provider_router import ProviderKind, ProviderRouter
 
@@ -100,7 +103,9 @@ class ProviderCouncil:
         explicit = self.provider_cost_rank.get(provider_name)
         if explicit is not None:
             return explicit, 0
-        status = next(row for row in self.router.statuses() if row.name == provider_name)
+        status = next(
+            row for row in self.router.statuses() if row.name == provider_name
+        )
         default = 0 if status.kind in {ProviderKind.LOCAL, ProviderKind.MOCK} else 100
         return default, 1
 
@@ -116,7 +121,11 @@ class ProviderCouncil:
         if not names:
             raise RuntimeError("no eligible providers for council execution")
 
-        quorum = 1 if mode in {CouncilMode.FAST, CouncilMode.CHEAP} else self.policy.minimum_quorum
+        quorum = (
+            1
+            if mode in {CouncilMode.FAST, CouncilMode.CHEAP}
+            else self.policy.minimum_quorum
+        )
         if mode is CouncilMode.FAST:
             selected = names[:1]
         elif mode is CouncilMode.CHEAP:
@@ -136,7 +145,9 @@ class ProviderCouncil:
         if successful < quorum:
             decision = CouncilDecision.QUORUM_FAILED
         elif mode is CouncilMode.CONSENSUS:
-            counts = Counter(row.output_digest for row in successful_runs if row.output_digest)
+            counts = Counter(
+                row.output_digest for row in successful_runs if row.output_digest
+            )
             digest, count = counts.most_common(1)[0]
             if count >= quorum:
                 selected_digest = digest

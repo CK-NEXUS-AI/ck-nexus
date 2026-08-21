@@ -86,7 +86,9 @@ class ExperientialMemory:
     @staticmethod
     def _require_digest(value: str) -> str:
         normalized = value.strip().lower()
-        if len(normalized) != 64 or any(ch not in "0123456789abcdef" for ch in normalized):
+        if len(normalized) != 64 or any(
+            ch not in "0123456789abcdef" for ch in normalized
+        ):
             raise ValueError("context_digest must be a 64-character SHA-256 hex digest")
         return normalized
 
@@ -150,8 +152,12 @@ class ExperientialMemory:
             provenance = data["provenance"]
             if event_type == self.EVENT_VALIDATED:
                 provenance["validity_status"] = ValidityStatus.VALID.value
-                provenance["last_validated"] = str(payload.get("validated_at") or event.get("at"))
-                data["verified_by"] = str(payload.get("verified_by") or current.verified_by)
+                provenance["last_validated"] = str(
+                    payload.get("validated_at") or event.get("at")
+                )
+                data["verified_by"] = str(
+                    payload.get("verified_by") or current.verified_by
+                )
                 if payload.get("evidence_links"):
                     provenance["evidence_links"] = list(payload["evidence_links"])
             elif event_type == self.EVENT_SUPERSEDED:
@@ -165,21 +171,36 @@ class ExperientialMemory:
     def _from_dict(data: dict[str, Any]) -> ExperienceEntry:
         provenance = data["provenance"]
         return ExperienceEntry(
-            experience_id=str(data["experience_id"]), task_type=str(data["task_type"]),
-            context_digest=str(data["context_digest"]), action_strategy=str(data["action_strategy"]),
-            result=ExperienceResult(str(data["result"])), failure_reason=data.get("failure_reason"),
-            lesson=str(data["lesson"]), confidence=float(data["confidence"]),
-            verified_by=str(data["verified_by"]), source_run=provenance.get("source_run"),
-            evidence_links=tuple(provenance.get("evidence_links", ())), created_at=str(data["created_at"]),
+            experience_id=str(data["experience_id"]),
+            task_type=str(data["task_type"]),
+            context_digest=str(data["context_digest"]),
+            action_strategy=str(data["action_strategy"]),
+            result=ExperienceResult(str(data["result"])),
+            failure_reason=data.get("failure_reason"),
+            lesson=str(data["lesson"]),
+            confidence=float(data["confidence"]),
+            verified_by=str(data["verified_by"]),
+            source_run=provenance.get("source_run"),
+            evidence_links=tuple(provenance.get("evidence_links", ())),
+            created_at=str(data["created_at"]),
             validity_status=ValidityStatus(str(provenance["validity_status"])),
-            supersedes=data.get("supersedes"), last_validated=provenance.get("last_validated"),
+            supersedes=data.get("supersedes"),
+            last_validated=provenance.get("last_validated"),
         )
 
     def record_experience(
-        self, *, task_type: str, context_digest: str, action_strategy: str,
-        result: ExperienceResult | str, lesson: str, confidence: float,
-        verified_by: str, source_run: str | None = None,
-        evidence_links: list[str] | tuple[str, ...] = (), failure_reason: str | None = None,
+        self,
+        *,
+        task_type: str,
+        context_digest: str,
+        action_strategy: str,
+        result: ExperienceResult | str,
+        lesson: str,
+        confidence: float,
+        verified_by: str,
+        source_run: str | None = None,
+        evidence_links: list[str] | tuple[str, ...] = (),
+        failure_reason: str | None = None,
         supersedes: str | None = None,
     ) -> ExperienceEntry:
         digest = self._require_digest(context_digest)
@@ -188,63 +209,113 @@ class ExperientialMemory:
             raise KeyError(f"unknown superseded experience: {supersedes}")
         experience_id = f"exp_{uuid4().hex}"
         payload = {
-            "experience_id": experience_id, "task_type": task_type.strip(),
-            "context_digest": digest, "action_strategy": action_strategy.strip(),
-            "result": ExperienceResult(result).value, "failure_reason": failure_reason,
-            "lesson": lesson.strip(), "confidence": self._confidence(confidence),
-            "verified_by": self._verified_by(verified_by), "source_run": source_run,
-            "evidence_links": list(evidence_links), "supersedes": supersedes,
+            "experience_id": experience_id,
+            "task_type": task_type.strip(),
+            "context_digest": digest,
+            "action_strategy": action_strategy.strip(),
+            "result": ExperienceResult(result).value,
+            "failure_reason": failure_reason,
+            "lesson": lesson.strip(),
+            "confidence": self._confidence(confidence),
+            "verified_by": self._verified_by(verified_by),
+            "source_run": source_run,
+            "evidence_links": list(evidence_links),
+            "supersedes": supersedes,
             "authority": "learning_only_no_execution_grant",
         }
-        if not payload["task_type"] or not payload["action_strategy"] or not payload["lesson"]:
+        if (
+            not payload["task_type"]
+            or not payload["action_strategy"]
+            or not payload["lesson"]
+        ):
             raise ValueError("task_type, action_strategy and lesson are required")
         row = self.ledger.append(self.EVENT_RECORDED, payload)
         payload["created_at"] = str(row["at"])
-        entry = self._from_dict({**payload, "provenance": {
-            "source_run": source_run, "evidence_links": list(evidence_links),
-            "validity_status": ValidityStatus.VALID.value, "last_validated": None,
-        }})
+        entry = self._from_dict(
+            {
+                **payload,
+                "provenance": {
+                    "source_run": source_run,
+                    "evidence_links": list(evidence_links),
+                    "validity_status": ValidityStatus.VALID.value,
+                    "last_validated": None,
+                },
+            }
+        )
         if supersedes:
-            self.supersede_experience(supersedes, experience_id, verified_by=verified_by)
+            self.supersede_experience(
+                supersedes, experience_id, verified_by=verified_by
+            )
         return entry
 
-    def retrieve_relevant(self, *, task_type: str, limit: int = 5) -> list[ExperienceEntry]:
-        candidates = [entry for entry in self._state().values()
-                      if entry.task_type == task_type and entry.validity_status is ValidityStatus.VALID]
-        candidates.sort(key=lambda item: (item.confidence, item.created_at), reverse=True)
+    def retrieve_relevant(
+        self, *, task_type: str, limit: int = 5
+    ) -> list[ExperienceEntry]:
+        candidates = [
+            entry
+            for entry in self._state().values()
+            if entry.task_type == task_type
+            and entry.validity_status is ValidityStatus.VALID
+        ]
+        candidates.sort(
+            key=lambda item: (item.confidence, item.created_at), reverse=True
+        )
         return candidates[: max(0, limit)]
 
-    def validate_provenance(self, experience_id: str, *, verified_by: str,
-                            evidence_links: list[str] | tuple[str, ...] = ()) -> ExperienceEntry:
+    def validate_provenance(
+        self,
+        experience_id: str,
+        *,
+        verified_by: str,
+        evidence_links: list[str] | tuple[str, ...] = (),
+    ) -> ExperienceEntry:
         state = self._state()
         if experience_id not in state:
             raise KeyError(experience_id)
-        row = self.ledger.append(self.EVENT_VALIDATED, {
-            "experience_id": experience_id, "verified_by": self._verified_by(verified_by),
-            "evidence_links": list(evidence_links),
-        })
+        row = self.ledger.append(
+            self.EVENT_VALIDATED,
+            {
+                "experience_id": experience_id,
+                "verified_by": self._verified_by(verified_by),
+                "evidence_links": list(evidence_links),
+            },
+        )
         updated = self._state()[experience_id]
         if updated.last_validated is None:
             raise RuntimeError(f"validation event was not applied: {row['hash']}")
         return updated
 
-    def supersede_experience(self, old_id: str, new_id: str, *, verified_by: str) -> ExperienceEntry:
+    def supersede_experience(
+        self, old_id: str, new_id: str, *, verified_by: str
+    ) -> ExperienceEntry:
         state = self._state()
         if old_id not in state or new_id not in state:
             raise KeyError("old and new experience must already exist")
         if old_id == new_id:
             raise ValueError("an experience cannot supersede itself")
-        self.ledger.append(self.EVENT_SUPERSEDED, {
-            "experience_id": old_id, "superseded_by": new_id, "verified_by": self._verified_by(verified_by),
-        })
+        self.ledger.append(
+            self.EVENT_SUPERSEDED,
+            {
+                "experience_id": old_id,
+                "superseded_by": new_id,
+                "verified_by": self._verified_by(verified_by),
+            },
+        )
         return self._state()[old_id]
 
-    def invalidate_experience(self, experience_id: str, *, verified_by: str, reason: str) -> ExperienceEntry:
+    def invalidate_experience(
+        self, experience_id: str, *, verified_by: str, reason: str
+    ) -> ExperienceEntry:
         if experience_id not in self._state():
             raise KeyError(experience_id)
-        self.ledger.append(self.EVENT_INVALIDATED, {
-            "experience_id": experience_id, "verified_by": self._verified_by(verified_by), "reason": reason.strip(),
-        })
+        self.ledger.append(
+            self.EVENT_INVALIDATED,
+            {
+                "experience_id": experience_id,
+                "verified_by": self._verified_by(verified_by),
+                "reason": reason.strip(),
+            },
+        )
         return self._state()[experience_id]
 
     def build_provenance_graph(self) -> dict[str, object]:
@@ -253,9 +324,27 @@ class ExperientialMemory:
         edges: list[dict[str, str]] = []
         for entry in entries.values():
             if entry.source_run:
-                edges.append({"from": entry.source_run, "to": entry.experience_id, "type": "SOURCE_RUN"})
+                edges.append(
+                    {
+                        "from": entry.source_run,
+                        "to": entry.experience_id,
+                        "type": "SOURCE_RUN",
+                    }
+                )
             for ref in entry.evidence_links:
-                edges.append({"from": ref, "to": entry.experience_id, "type": "EVIDENCE"})
+                edges.append(
+                    {"from": ref, "to": entry.experience_id, "type": "EVIDENCE"}
+                )
             if entry.supersedes:
-                edges.append({"from": entry.experience_id, "to": entry.supersedes, "type": "SUPERSEDES"})
-        return {"nodes": nodes, "edges": edges, "ledger": self.ledger.verify().as_dict()}
+                edges.append(
+                    {
+                        "from": entry.experience_id,
+                        "to": entry.supersedes,
+                        "type": "SUPERSEDES",
+                    }
+                )
+        return {
+            "nodes": nodes,
+            "edges": edges,
+            "ledger": self.ledger.verify().as_dict(),
+        }

@@ -14,13 +14,13 @@ from creator_app.credential_broker import (
     CredentialId,
     CredentialUnavailable,
 )
-from creator_app.real_provider_adapters import build_real_provider_adapter
 from creator_app.provider_router import (
     ProviderCapabilities,
     ProviderKind,
     ProviderRouter,
     ProviderRouterPolicy,
 )
+from creator_app.real_provider_adapters import build_real_provider_adapter
 
 
 class UnsafeLocalProviderUrl(ValueError):
@@ -32,7 +32,9 @@ def validate_loopback_base_url(url: str) -> str:
     if parsed.scheme not in {"http", "https"}:
         raise UnsafeLocalProviderUrl("Local provider URL must use HTTP or HTTPS.")
     if parsed.username is not None or parsed.password is not None:
-        raise UnsafeLocalProviderUrl("Local provider URL must not contain user information.")
+        raise UnsafeLocalProviderUrl(
+            "Local provider URL must not contain user information."
+        )
     host = (parsed.hostname or "").lower().rstrip(".")
     if host not in {"localhost", "127.0.0.1", "::1"}:
         raise UnsafeLocalProviderUrl(
@@ -143,7 +145,9 @@ class OpenAIProviderAdapter:
 
     async def invoke(self, prompt: str) -> str:
         try:
-            lease = self.broker.acquire(CredentialId.OPENAI_API_KEY, consumer="provider.openai")
+            lease = self.broker.acquire(
+                CredentialId.OPENAI_API_KEY, consumer="provider.openai"
+            )
         except CredentialUnavailable as exc:
             raise RuntimeError("OpenAI credential is not configured.") from exc
         api_key = lease.reveal(consumer="provider.openai")
@@ -160,7 +164,9 @@ class OpenAIProviderAdapter:
         return output
 
 
-def build_provider_router(settings: Settings, broker: CredentialBroker) -> ProviderRouter:
+def build_provider_router(
+    settings: Settings, broker: CredentialBroker
+) -> ProviderRouter:
     providers = []
     if settings.mock_ai:
         providers.append(MockProviderAdapter())

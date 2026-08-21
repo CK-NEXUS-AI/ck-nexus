@@ -97,10 +97,14 @@ class AgnesNervousSystem:
         if dispatcher is not None:
             self.dispatcher = dispatcher
         elif sandbox_enabled:
-            sandbox_root = (sandbox_root or (ledger_path.parent / "agnes-sandbox")).resolve()
+            sandbox_root = (
+                sandbox_root or (ledger_path.parent / "agnes-sandbox")
+            ).resolve()
             repository_root = (sandbox_repository_root or Path.cwd()).resolve()
             normalized_environment = environment.strip().lower() or "development"
-            cgroups = CgroupV2Manager(root=phase3_cgroup_root) if phase3_enabled else None
+            cgroups = (
+                CgroupV2Manager(root=phase3_cgroup_root) if phase3_enabled else None
+            )
             if phase3_enabled and normalized_environment in {"staging", "production"}:
                 if not phase3_redis_url:
                     raise RuntimeError(
@@ -131,7 +135,9 @@ class AgnesNervousSystem:
                         "root is unavailable"
                     )
             else:
-                idempotency = SQLiteIdempotencyStore(sandbox_root / "idempotency.sqlite3")
+                idempotency = SQLiteIdempotencyStore(
+                    sandbox_root / "idempotency.sqlite3"
+                )
             self.dispatcher = SkillExecutionDispatcher(
                 skill_registry=self.registry,
                 policy_engine=ExecutionPolicyEngine(self.policy),
@@ -157,7 +163,9 @@ class AgnesNervousSystem:
                 runner = HardenedLinuxNamespaceRunner(sandbox_policy, cgroups=cgroups)
             else:
                 runner = LinuxNamespaceRunner(sandbox_policy)
-            self.dispatcher.register(LinuxNamespaceSandboxExecutor(workspace_manager, runner))
+            self.dispatcher.register(
+                LinuxNamespaceSandboxExecutor(workspace_manager, runner)
+            )
             if phase3_enabled:
                 self.dev_controller = AutonomousDevController(
                     agnes=self,
@@ -206,7 +214,9 @@ class AgnesNervousSystem:
             "policy": self.policy.as_dict(),
             "inference": self._inference_status(),
             "ledger": ledger.as_dict(),
-            "workspace_providers": [item.as_dict() for item in self.workspace_broker.providers()],
+            "workspace_providers": [
+                item.as_dict() for item in self.workspace_broker.providers()
+            ],
             "discovery_sources": self.discovery.source_catalog(),
             "execution_kernel": self.dispatcher.status(),
             "autonomous_dev_pipeline": {
@@ -252,7 +262,10 @@ class AgnesNervousSystem:
             and not self.policy.allow_production_mutation
         ):
             raise AgnesPolicyViolation("AGNES production mutation is disabled.")
-        if skill.risk in {SkillRisk.EXTERNAL_WRITE, SkillRisk.HIGH_IMPACT} and not approved:
+        if (
+            skill.risk in {SkillRisk.EXTERNAL_WRITE, SkillRisk.HIGH_IMPACT}
+            and not approved
+        ):
             raise AgnesPolicyViolation("This AGNES skill requires explicit approval.")
 
     def record_experience(
@@ -285,8 +298,15 @@ class AgnesNervousSystem:
         )
         return entry.as_dict()
 
-    def retrieve_experience(self, *, task_type: str, limit: int = 5) -> list[dict[str, object]]:
-        return [entry.as_dict() for entry in self.experience_memory.retrieve_relevant(task_type=task_type, limit=limit)]
+    def retrieve_experience(
+        self, *, task_type: str, limit: int = 5
+    ) -> list[dict[str, object]]:
+        return [
+            entry.as_dict()
+            for entry in self.experience_memory.retrieve_relevant(
+                task_type=task_type, limit=limit
+            )
+        ]
 
     def experience_provenance_graph(self) -> dict[str, object]:
         return self.experience_memory.build_provenance_graph()

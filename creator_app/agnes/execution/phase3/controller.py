@@ -7,7 +7,7 @@ from uuid import uuid4
 from creator_app.agnes_ledger import AppendOnlyLedger
 
 from ..approval import StickyApprovalResolver
-from ..request import SkillExecutionRequest
+from ..request import ExecutorRiskClass, SkillExecutionRequest
 from ..result import ExecutionStatus
 from .models import CandidateArtifact, PipelineHandle, PipelineState, PipelineStatus
 from .workspace import ManagedWorkspace, WorkspaceLifecycleManager
@@ -91,18 +91,23 @@ class AutonomousDevController:
 
             if status.state is PipelineState.APPROVED:
                 ws = await self.workspaces.create(
-                    request.baseline_commit or "", request.workspace_id or request.execution_id
+                    request.baseline_commit or "",
+                    request.workspace_id or request.execution_id,
                 )
                 self._workspace_objs[handle.pipeline_id] = ws
                 status.workspace_id = ws.workspace_id
-                self._transition(status, PipelineState.WORKSPACE_CREATED, "workspace_created")
+                self._transition(
+                    status, PipelineState.WORKSPACE_CREATED, "workspace_created"
+                )
                 return status.state
 
             if status.state is PipelineState.WORKSPACE_CREATED:
                 ws = self._workspace_objs[handle.pipeline_id]
                 await self.workspaces.checkout(ws, request.baseline_commit or "")
                 await self.workspaces.mark_running(ws)
-                self._transition(status, PipelineState.BASELINE_CHECKED_OUT, "baseline_checked_out")
+                self._transition(
+                    status, PipelineState.BASELINE_CHECKED_OUT, "baseline_checked_out"
+                )
                 return status.state
 
             if status.state is PipelineState.BASELINE_CHECKED_OUT:
@@ -128,7 +133,9 @@ class AutonomousDevController:
                 self._results[handle.pipeline_id]["patch"] = result.as_dict()
                 if result.status is not ExecutionStatus.SUCCEEDED:
                     raise RuntimeError(result.error or result.status.value)
-                self._transition(status, PipelineState.CODE_PATCH_APPLIED, "patch_applied")
+                self._transition(
+                    status, PipelineState.CODE_PATCH_APPLIED, "patch_applied"
+                )
                 return status.state
 
             if status.state is PipelineState.CODE_PATCH_APPLIED:
@@ -139,7 +146,8 @@ class AutonomousDevController:
                         "inputs": {
                             "command": list(
                                 request.inputs.get(
-                                    "test_command", ["python", "-m", "compileall", "-q", "."]
+                                    "test_command",
+                                    ["python", "-m", "compileall", "-q", "."],
                                 )
                             )
                         },
@@ -154,7 +162,8 @@ class AutonomousDevController:
                     environment=request.environment,
                     workspace_id=status.workspace_id,
                     baseline_commit=request.baseline_commit,
-                    idempotency_key=(request.idempotency_key or request.execution_id) + ":test",
+                    idempotency_key=(request.idempotency_key or request.execution_id)
+                    + ":test",
                 )
                 self._results[handle.pipeline_id]["test"] = result.as_dict()
                 if result.status is not ExecutionStatus.SUCCEEDED:
@@ -170,7 +179,8 @@ class AutonomousDevController:
                         "inputs": {
                             "command": list(
                                 request.inputs.get(
-                                    "scan_command", ["python", "-c", "print('security-scan:PASS')"]
+                                    "scan_command",
+                                    ["python", "-c", "print('security-scan:PASS')"],
                                 )
                             )
                         },
@@ -185,16 +195,21 @@ class AutonomousDevController:
                     environment=request.environment,
                     workspace_id=status.workspace_id,
                     baseline_commit=request.baseline_commit,
-                    idempotency_key=(request.idempotency_key or request.execution_id) + ":scan",
+                    idempotency_key=(request.idempotency_key or request.execution_id)
+                    + ":scan",
                 )
                 self._results[handle.pipeline_id]["scan"] = result.as_dict()
                 if result.status is not ExecutionStatus.SUCCEEDED:
                     raise RuntimeError(result.error or "security_scan_failed")
-                self._transition(status, PipelineState.SECURITY_SCANNED, "security_scan_passed")
+                self._transition(
+                    status, PipelineState.SECURITY_SCANNED, "security_scan_passed"
+                )
                 return status.state
 
             if status.state is PipelineState.SECURITY_SCANNED:
-                diff = await self.workspaces.get_diff(self._workspace_objs[handle.pipeline_id])
+                diff = await self.workspaces.get_diff(
+                    self._workspace_objs[handle.pipeline_id]
+                )
                 self._results[handle.pipeline_id]["diff"] = {"unified_diff": diff}
                 self._transition(status, PipelineState.DIFF_REVIEWED, "diff_collected")
                 return status.state
@@ -210,8 +225,12 @@ class AutonomousDevController:
                         "results": self._results[handle.pipeline_id],
                     },
                 )
-                self._results[handle.pipeline_id]["evidence_ref"] = {"hash": ref["hash"]}
-                self._transition(status, PipelineState.EVIDENCE_COLLECTED, "evidence_collected")
+                self._results[handle.pipeline_id]["evidence_ref"] = {
+                    "hash": ref["hash"]
+                }
+                self._transition(
+                    status, PipelineState.EVIDENCE_COLLECTED, "evidence_collected"
+                )
                 return status.state
 
             if status.state is PipelineState.EVIDENCE_COLLECTED:
@@ -224,15 +243,21 @@ class AutonomousDevController:
                     diff=self._results[handle.pipeline_id]["diff"]["unified_diff"],
                     test_result=self._results[handle.pipeline_id]["test"],
                     security_scan=self._results[handle.pipeline_id]["scan"],
-                    evidence_refs=(self._results[handle.pipeline_id]["evidence_ref"]["hash"],),
+                    evidence_refs=(
+                        self._results[handle.pipeline_id]["evidence_ref"]["hash"],
+                    ),
                     status="candidate",
                     created_at=datetime.now(UTC).isoformat(),
                     requires_merge_approval=True,
                 )
                 self._candidates[handle.pipeline_id] = candidate
-                await self.workspaces.mark_candidate(self._workspace_objs[handle.pipeline_id])
+                await self.workspaces.mark_candidate(
+                    self._workspace_objs[handle.pipeline_id]
+                )
                 self._transition(
-                    status, PipelineState.CANDIDATE_READY, "candidate_ready_stop_before_merge"
+                    status,
+                    PipelineState.CANDIDATE_READY,
+                    "candidate_ready_stop_before_merge",
                 )
                 return status.state
 
@@ -295,14 +320,22 @@ class AutonomousDevController:
             "execution_id": status.execution_id,
         }
         status.history.append(row)
-        self.ledger.append("agnes_pipeline_state", {"pipeline_id": status.pipeline_id, **row})
+        self.ledger.append(
+            "agnes_pipeline_state", {"pipeline_id": status.pipeline_id, **row}
+        )
 
-    def _transition(self, status: PipelineStatus, state: PipelineState, event: str) -> None:
+    def _transition(
+        self, status: PipelineStatus, state: PipelineState, event: str
+    ) -> None:
         status.state = state
         status.error = (
             None
             if state
-            not in {PipelineState.DISCARDED, PipelineState.ROLLED_BACK, PipelineState.FAILED}
+            not in {
+                PipelineState.DISCARDED,
+                PipelineState.ROLLED_BACK,
+                PipelineState.FAILED,
+            }
             else status.error
         )
         self._record(status, state, event)

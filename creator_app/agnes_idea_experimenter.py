@@ -86,7 +86,9 @@ class MultiAssistantEvaluationHarness:
         provider_names: Iterable[str],
         required_capabilities: Iterable[str] = (),
     ) -> tuple[AssistantRun, ...]:
-        names = tuple(dict.fromkeys(name.strip() for name in provider_names if name.strip()))
+        names = tuple(
+            dict.fromkeys(name.strip() for name in provider_names if name.strip())
+        )
         if not names:
             raise ValueError("at least one provider must be selected")
 
@@ -209,14 +211,18 @@ class IdeaAutoExperimenter:
             "idea_experiment_evaluated",
             {
                 "experiment_id": exp_id,
-                "hypothesis_digest": hashlib.sha256(hypothesis.encode("utf-8")).hexdigest(),
+                "hypothesis_digest": hashlib.sha256(
+                    hypothesis.encode("utf-8")
+                ).hexdigest(),
                 "baseline_id": baseline_id,
                 "winner_id": winner,
                 "improvement": round(improvement, 8),
                 "decision": decision.value,
                 "verified_by": verified_by,
                 "scores": {key: round(value, 8) for key, value in scores.items()},
-                "evidence_refs": {row.variant_id: list(row.evidence_refs) for row in rows},
+                "evidence_refs": {
+                    row.variant_id: list(row.evidence_refs) for row in rows
+                },
                 "auto_promote": False,
                 "production_mutation": False,
             },

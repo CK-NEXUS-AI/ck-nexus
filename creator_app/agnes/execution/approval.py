@@ -27,11 +27,15 @@ class StickyApprovalResolver:
         self._grants: dict[str, ApprovalGrant] = {}
 
     @staticmethod
-    def fingerprint(request: SkillExecutionRequest, risk_class: ExecutorRiskClass) -> str:
+    def fingerprint(
+        request: SkillExecutionRequest, risk_class: ExecutorRiskClass
+    ) -> str:
         payload = {
             "skill_id": request.skill_id,
             "skill_version": request.skill_version,
-            "input_hash": hashlib.sha256(canonical_json(request.inputs).encode()).hexdigest(),
+            "input_hash": hashlib.sha256(
+                canonical_json(request.inputs).encode()
+            ).hexdigest(),
             "actor_id": request.actor_id,
             "tenant_id": request.tenant_id,
             "workspace_id": request.workspace_id,
@@ -73,7 +77,6 @@ class StickyApprovalResolver:
         self._grants[approval_id] = grant
         return grant
 
-
     def grant_verified(
         self,
         *,
@@ -85,7 +88,9 @@ class StickyApprovalResolver:
     ) -> ApprovalGrant:
         if expires_at <= time():
             raise ValueError("verified approval must not already be expired")
-        if not all(v.strip() for v in (approval_id, fingerprint, actor_id, authn_method)):
+        if not all(
+            v.strip() for v in (approval_id, fingerprint, actor_id, authn_method)
+        ):
             raise ValueError("verified approval fields cannot be empty")
         grant = ApprovalGrant(
             approval_id=approval_id.strip(),
@@ -113,7 +118,11 @@ class StickyApprovalResolver:
         return None
 
     def is_approved(
-        self, *, approval_id: str | None, fingerprint: str, require_authenticated: bool = False
+        self,
+        *,
+        approval_id: str | None,
+        fingerprint: str,
+        require_authenticated: bool = False,
     ) -> bool:
         if not approval_id:
             return False

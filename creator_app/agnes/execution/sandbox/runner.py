@@ -80,7 +80,10 @@ class LinuxNamespaceRunner:
     production_safe = False
 
     def __init__(
-        self, policy: SandboxPolicy, *, platform_profile: SandboxPlatformProfile | None = None
+        self,
+        policy: SandboxPolicy,
+        *,
+        platform_profile: SandboxPlatformProfile | None = None,
     ) -> None:
         self.policy = policy
         self.platform_profile = platform_profile or detect_platform_profile()
@@ -90,7 +93,12 @@ class LinuxNamespaceRunner:
 
     async def health(self) -> dict[str, object]:
         if not self.unshare:
-            return {"ready": False, "backend": self.backend_name, "platform": self.platform_profile.name, "reason": "unshare_not_available"}
+            return {
+                "ready": False,
+                "backend": self.backend_name,
+                "platform": self.platform_profile.name,
+                "reason": "unshare_not_available",
+            }
         proc = await asyncio.create_subprocess_exec(
             self.unshare,
             "-Urmpn",
@@ -104,11 +112,15 @@ class LinuxNamespaceRunner:
             "ready": proc.returncode == 0,
             "backend": self.backend_name,
             "platform": self.platform_profile.name,
-            "virtual_root_map": [(str(src), dst) for src, dst in self.platform_profile.virtual_root_map],
+            "virtual_root_map": [
+                (str(src), dst) for src, dst in self.platform_profile.virtual_root_map
+            ],
             "network": "isolated_namespace",
             "filesystem": "chroot_with_read_only_system_binds",
             "production_safe": self.production_safe,
-            "reason": None if proc.returncode == 0 else stderr.decode(errors="replace")[:1000],
+            "reason": (
+                None if proc.returncode == 0 else stderr.decode(errors="replace")[:1000]
+            ),
         }
 
     def _resolve_executable(self, command: tuple[str, ...]) -> tuple[str, ...]:
@@ -132,15 +144,20 @@ class LinuxNamespaceRunner:
         resource.setrlimit(
             resource.RLIMIT_CPU, (self.policy.cpu_seconds, self.policy.cpu_seconds + 1)
         )
-        resource.setrlimit(resource.RLIMIT_AS, (self.policy.memory_bytes, self.policy.memory_bytes))
         resource.setrlimit(
-            resource.RLIMIT_NPROC, (self.policy.max_processes, self.policy.max_processes)
+            resource.RLIMIT_AS, (self.policy.memory_bytes, self.policy.memory_bytes)
         )
         resource.setrlimit(
-            resource.RLIMIT_FSIZE, (self.policy.max_file_bytes, self.policy.max_file_bytes)
+            resource.RLIMIT_NPROC,
+            (self.policy.max_processes, self.policy.max_processes),
         )
         resource.setrlimit(
-            resource.RLIMIT_NOFILE, (self.policy.max_open_files, self.policy.max_open_files)
+            resource.RLIMIT_FSIZE,
+            (self.policy.max_file_bytes, self.policy.max_file_bytes),
+        )
+        resource.setrlimit(
+            resource.RLIMIT_NOFILE,
+            (self.policy.max_open_files, self.policy.max_open_files),
         )
 
     async def run(
@@ -157,7 +174,10 @@ class LinuxNamespaceRunner:
             raise SandboxViolation("workspace_missing")
         runtime_parent = self.policy.base_dir / "runtime"
         runtime_parent.mkdir(parents=True, exist_ok=True)
-        rootfs = Path(tempfile.mkdtemp(prefix=f"{execution_id}-", dir=runtime_parent)) / "root"
+        rootfs = (
+            Path(tempfile.mkdtemp(prefix=f"{execution_id}-", dir=runtime_parent))
+            / "root"
+        )
         rootfs.mkdir(parents=True, exist_ok=True)
         args = [
             self.unshare or "unshare",
@@ -195,7 +215,9 @@ class LinuxNamespaceRunner:
                 total += len(chunk)
                 if total > self.policy.max_output_bytes:
                     output_limited = True
-                    remaining = max(0, self.policy.max_output_bytes - (total - len(chunk)))
+                    remaining = max(
+                        0, self.policy.max_output_bytes - (total - len(chunk))
+                    )
                     if remaining:
                         chunks.append(chunk[:remaining])
                     self._kill_group(proc.pid, signal.SIGTERM)
@@ -212,7 +234,9 @@ class LinuxNamespaceRunner:
             timed_out = True
             self._kill_group(proc.pid, signal.SIGTERM)
             try:
-                await asyncio.wait_for(proc.wait(), timeout=self.policy.kill_grace_seconds)
+                await asyncio.wait_for(
+                    proc.wait(), timeout=self.policy.kill_grace_seconds
+                )
             except TimeoutError:
                 self._kill_group(proc.pid, signal.SIGKILL)
                 await proc.wait()
@@ -222,7 +246,9 @@ class LinuxNamespaceRunner:
             shutil.rmtree(rootfs.parent, ignore_errors=True)
 
         return SandboxCommandResult(
-            returncode=proc.returncode if proc.returncode is not None else -signal.SIGKILL,
+            returncode=(
+                proc.returncode if proc.returncode is not None else -signal.SIGKILL
+            ),
             stdout=stdout.decode("utf-8", errors="replace"),
             stderr=stderr.decode("utf-8", errors="replace"),
             timed_out=timed_out,

@@ -94,7 +94,9 @@ class CredentialUnavailable(RuntimeError):
 class PersistentCredentialStore(Protocol):
     """Minimal encrypted-store boundary used by the broker."""
 
-    def get(self, credential_id: CredentialId) -> tuple[str, str, float | None] | None: ...
+    def get(
+        self, credential_id: CredentialId
+    ) -> tuple[str, str, float | None] | None: ...
 
     def put(
         self,
@@ -118,7 +120,9 @@ class SecretLease:
 
     def reveal(self, *, consumer: str) -> str:
         if consumer != self.consumer:
-            raise CredentialAccessDenied("Credential lease is bound to a different consumer.")
+            raise CredentialAccessDenied(
+                "Credential lease is bound to a different consumer."
+            )
         if self.expires_at is not None and monotonic() >= self.expires_at:
             raise CredentialUnavailable("Credential lease expired.")
         return self._value
@@ -147,8 +151,6 @@ class CredentialStatus:
         }
 
 
-
-
 @dataclass(frozen=True, slots=True, repr=False)
 class ScopedSessionToken:
     token: str
@@ -173,6 +175,7 @@ class _ScopedGrant:
     scopes: frozenset[str]
     expires_at: float
     remaining_uses: int
+
 
 @dataclass(slots=True)
 class _EphemeralSecret:
@@ -228,7 +231,9 @@ class CredentialBroker:
 
     def acquire(self, credential_id: CredentialId, *, consumer: str) -> SecretLease:
         if not self.is_allowed(credential_id, consumer=consumer):
-            raise CredentialAccessDenied("Credential access is not allowed for this consumer.")
+            raise CredentialAccessDenied(
+                "Credential access is not allowed for this consumer."
+            )
         resolved = self._resolve(credential_id)
         if resolved is None:
             raise CredentialUnavailable("Required credential is not configured.")
@@ -240,7 +245,6 @@ class CredentialBroker:
             _value=value,
             expires_at=expires_at,
         )
-
 
     @staticmethod
     def _token_digest(token: str) -> str:
@@ -257,7 +261,9 @@ class CredentialBroker:
         max_uses: int = 1,
     ) -> ScopedSessionToken:
         if not self.is_allowed(credential_id, consumer=consumer):
-            raise CredentialAccessDenied("Credential access is not allowed for this consumer.")
+            raise CredentialAccessDenied(
+                "Credential access is not allowed for this consumer."
+            )
         if self._resolve(credential_id) is None:
             raise CredentialUnavailable("Required credential is not configured.")
         normalized_provider = provider.strip().lower()
@@ -282,8 +288,11 @@ class CredentialBroker:
             remaining_uses=max_uses,
         )
         return ScopedSessionToken(
-            token=token, consumer=consumer, provider=normalized_provider,
-            scopes=frozenset(scope.strip() for scope in scopes), expires_at=expires_at,
+            token=token,
+            consumer=consumer,
+            provider=normalized_provider,
+            scopes=frozenset(scope.strip() for scope in scopes),
+            expires_at=expires_at,
         )
 
     def acquire_scoped(
@@ -306,9 +315,13 @@ class CredentialBroker:
             raise CredentialAccessDenied("Scoped credential token binding mismatch.")
         if grant.credential_id is not credential_id:
             raise CredentialAccessDenied("Scoped credential token credential mismatch.")
-        normalized_scopes = frozenset(scope.strip() for scope in required_scopes if scope.strip())
+        normalized_scopes = frozenset(
+            scope.strip() for scope in required_scopes if scope.strip()
+        )
         if not normalized_scopes.issubset(grant.scopes):
-            raise CredentialAccessDenied("Requested scope exceeds scoped credential grant.")
+            raise CredentialAccessDenied(
+                "Requested scope exceeds scoped credential grant."
+            )
         lease = self.acquire(credential_id, consumer=consumer)
         grant.remaining_uses -= 1
         if grant.remaining_uses <= 0:
@@ -358,13 +371,17 @@ class CredentialBroker:
             ttl_seconds=ttl_seconds,
         )
 
-    def clear_persistent(self, credential_id: CredentialId, *, reason: str = "revoked") -> None:
+    def clear_persistent(
+        self, credential_id: CredentialId, *, reason: str = "revoked"
+    ) -> None:
         if self._persistent_store is None:
             return
         self._persistent_store.delete(credential_id, reason=reason)
 
     def statuses(self, *, consumer: str) -> tuple[CredentialStatus, ...]:
-        allowed = sorted(self._policy.get(consumer, frozenset()), key=lambda item: item.value)
+        allowed = sorted(
+            self._policy.get(consumer, frozenset()), key=lambda item: item.value
+        )
         result: list[CredentialStatus] = []
         for credential_id in allowed:
             resolved = self._resolve(credential_id)
@@ -384,11 +401,15 @@ class CredentialBroker:
 
     def __repr__(self) -> str:
         configured = sum(
-            1 for credential_id in CredentialId if self._resolve(credential_id) is not None
+            1
+            for credential_id in CredentialId
+            if self._resolve(credential_id) is not None
         )
         return f"CredentialBroker(configured={configured}, values=<redacted>)"
 
-    def _resolve(self, credential_id: CredentialId) -> tuple[str, str, float | None] | None:
+    def _resolve(
+        self, credential_id: CredentialId
+    ) -> tuple[str, str, float | None] | None:
         ephemeral = self._ephemeral.get(credential_id)
         if ephemeral is not None:
             if ephemeral.expires_at is not None and monotonic() >= ephemeral.expires_at:
@@ -399,7 +420,9 @@ class CredentialBroker:
             persisted = self._persistent_store.get(credential_id)
             if persisted is not None:
                 value, source, ttl_remaining = persisted
-                expires_at = monotonic() + ttl_remaining if ttl_remaining is not None else None
+                expires_at = (
+                    monotonic() + ttl_remaining if ttl_remaining is not None else None
+                )
                 return value, source, expires_at
         value = self._environment.get(credential_id, "").strip()
         if not value:

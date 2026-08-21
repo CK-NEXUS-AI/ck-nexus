@@ -20,4 +20,6 @@ def test_termux_profile_is_narrow_and_canonical() -> None:
     assert profile.name == "termux_android"
     assert profile.allows_executable("/data/data/com.termux/files/usr/bin/python")
     assert not profile.allows_executable("/data/data/com.termux/files/home/python")
-    assert profile.virtual_root_map == ((Path("/data/data/com.termux/files/usr"), "/opt/ck-termux-root"),)
+    assert profile.virtual_root_map == (
+        (Path("/data/data/com.termux/files/usr"), "/opt/ck-termux-root"),
+    )

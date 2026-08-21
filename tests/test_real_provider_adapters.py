@@ -16,21 +16,30 @@ from creator_app.real_provider_adapters import (
 @dataclass
 class FakeResponse:
     payload: dict
-    def __enter__(self): return self
-    def __exit__(self, *args): return False
-    def read(self): return json.dumps(self.payload).encode()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self):
+        return json.dumps(self.payload).encode()
 
 
 class CaptureOpener:
     def __init__(self, payload: dict):
         self.payload = payload
         self.requests = []
+
     def __call__(self, request, timeout=0):
         self.requests.append((request, timeout))
         return FakeResponse(self.payload)
 
 
-def broker_for(credential_id: CredentialId, value: str = "provider-secret") -> CredentialBroker:
+def broker_for(
+    credential_id: CredentialId, value: str = "provider-secret"
+) -> CredentialBroker:
     return CredentialBroker(environment={credential_id: value})
 
 
@@ -39,13 +48,30 @@ def broker_for(credential_id: CredentialId, value: str = "provider-secret") -> C
     ("provider", "credential_id", "payload", "expected"),
     [
         ("gemini", CredentialId.GEMINI_API_KEY, {"output_text": "G"}, "G"),
-        ("anthropic", CredentialId.ANTHROPIC_API_KEY, {"content": [{"type": "text", "text": "A"}]}, "A"),
+        (
+            "anthropic",
+            CredentialId.ANTHROPIC_API_KEY,
+            {"content": [{"type": "text", "text": "A"}]},
+            "A",
+        ),
         ("groq", CredentialId.GROQ_API_KEY, {"output_text": "R"}, "R"),
-        ("deepseek", CredentialId.DEEPSEEK_API_KEY, {"choices": [{"message": {"content": "D"}}]}, "D"),
-        ("openrouter", CredentialId.OPENROUTER_API_KEY, {"choices": [{"message": {"content": "O"}}]}, "O"),
+        (
+            "deepseek",
+            CredentialId.DEEPSEEK_API_KEY,
+            {"choices": [{"message": {"content": "D"}}]},
+            "D",
+        ),
+        (
+            "openrouter",
+            CredentialId.OPENROUTER_API_KEY,
+            {"choices": [{"message": {"content": "O"}}]},
+            "O",
+        ),
     ],
 )
-async def test_real_adapters_use_brokered_credentials(provider, credential_id, payload, expected):
+async def test_real_adapters_use_brokered_credentials(
+    provider, credential_id, payload, expected
+):
     opener = CaptureOpener(payload)
     adapter = build_real_provider_adapter(
         provider, broker_for(credential_id), model="test-model", opener=opener
@@ -61,7 +87,10 @@ async def test_real_adapters_use_brokered_credentials(provider, credential_id, p
 async def test_gemini_uses_interactions_and_does_not_store_prompt_server_side():
     opener = CaptureOpener({"output_text": "OK"})
     adapter = build_real_provider_adapter(
-        "gemini", broker_for(CredentialId.GEMINI_API_KEY), model="gemini-test", opener=opener
+        "gemini",
+        broker_for(CredentialId.GEMINI_API_KEY),
+        model="gemini-test",
+        opener=opener,
     )
     await adapter.invoke("safe prompt")
     request, _ = opener.requests[0]
@@ -75,7 +104,10 @@ async def test_gemini_uses_interactions_and_does_not_store_prompt_server_side():
 async def test_anthropic_headers_and_messages_contract():
     opener = CaptureOpener({"content": [{"type": "text", "text": "OK"}]})
     adapter = build_real_provider_adapter(
-        "anthropic", broker_for(CredentialId.ANTHROPIC_API_KEY), model="claude-test", opener=opener
+        "anthropic",
+        broker_for(CredentialId.ANTHROPIC_API_KEY),
+        model="claude-test",
+        opener=opener,
     )
     await adapter.invoke("safe prompt")
     request, _ = opener.requests[0]
@@ -117,12 +149,19 @@ def test_unknown_provider_fails_closed():
 
 
 def test_real_adapter_binds_only_to_matching_verified_descriptor():
-    from creator_app.provider_onboarding import ProviderOnboardingRegistry, default_provider_catalog
+    from creator_app.provider_onboarding import (
+        ProviderOnboardingRegistry,
+        default_provider_catalog,
+    )
+
     r = ProviderOnboardingRegistry(default_provider_catalog())
     r.authorize("groq", evidence_ref="auth:1")
     r.verify("groq", evidence_ref="probe:1")
     adapter = build_real_provider_adapter(
-        "groq", broker_for(CredentialId.GROQ_API_KEY), model="groq-test", opener=CaptureOpener({"output_text":"OK"})
+        "groq",
+        broker_for(CredentialId.GROQ_API_KEY),
+        model="groq-test",
+        opener=CaptureOpener({"output_text": "OK"}),
     )
     assert r.bind_adapter("groq", adapter) is adapter
 
@@ -130,6 +169,7 @@ def test_real_adapter_binds_only_to_matching_verified_descriptor():
 def test_provider_router_includes_only_explicitly_configured_extra_models():
     from creator_app.config import Settings
     from creator_app.providers import build_provider_router
+
     b = CredentialBroker(environment={CredentialId.GROQ_API_KEY: "provider-secret"})
     router = build_provider_router(Settings(openai_model="", groq_model="groq-test"), b)
     names = {s.name for s in router.statuses()}
