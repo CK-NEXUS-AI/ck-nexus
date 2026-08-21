@@ -29,6 +29,7 @@ jobs:
           sha256sum exports/ck-nexus-development-snapshot-9924b488.zip \
             | tee exports/ck-nexus-development-snapshot-9924b488.zip.sha256
           printf '%s\n' "snapshot_sha=${TARGET_SHA}" > exports/SNAPSHOT_IDENTITY.txt
+          printf '%s\n' "workflow_run_id=${GITHUB_RUN_ID}" >> exports/SNAPSHOT_IDENTITY.txt
           printf '%s\n' 'classification=DEVELOPMENT_SNAPSHOT_NOT_PRODUCTION_RELEASE' >> exports/SNAPSHOT_IDENTITY.txt
       - name: Commit snapshot to backup branch only
         shell: bash
