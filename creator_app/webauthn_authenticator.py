@@ -127,8 +127,15 @@ class SQLitePasskeyStore:
                 ON CONFLICT(credential_id,actor_id) DO UPDATE SET
                 public_key_b64=excluded.public_key_b64, sign_count=excluded.sign_count,
                 rp_id=excluded.rp_id, origin=excluded.origin, revoked=excluded.revoked""",
-                (credential.credential_id, credential.actor_id, credential.public_key_b64,
-                 credential.sign_count, credential.rp_id, credential.origin, int(credential.revoked)),
+                (
+                    credential.credential_id,
+                    credential.actor_id,
+                    credential.public_key_b64,
+                    credential.sign_count,
+                    credential.rp_id,
+                    credential.origin,
+                    int(credential.revoked),
+                ),
             )
 
     def get(self, *, credential_id: str, actor_id: str) -> PasskeyCredential | None:
