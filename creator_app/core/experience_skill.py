@@ -59,7 +59,12 @@ class ExperienceSkillLearner:
             allowed_tools=allowed_tools or set(),
         )
 
-    def mark_verified(self, candidate: SkillCandidate, *, verifier_evidence_id: str) -> SkillCandidate:
+    def mark_verified(
+        self,
+        candidate: SkillCandidate,
+        *,
+        verifier_evidence_id: str,
+    ) -> SkillCandidate:
         if not verifier_evidence_id:
             raise ValueError("verifier evidence is required")
         updated = candidate.model_copy(deep=True)
