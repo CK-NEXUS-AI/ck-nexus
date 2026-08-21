@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import re
 from enum import StrEnum
+import re
 
 from pydantic import BaseModel, Field
 
@@ -63,12 +63,13 @@ class AttachmentPolicy:
             return False
         if not attachment.mime_type.startswith(cls._PREFIXES[attachment.modality]):
             return False
-        if attachment.external_processing_requested:
-            if attachment.sensitivity in {
-                AttachmentSensitivity.PERSONAL,
-                AttachmentSensitivity.SENSITIVE,
-            } and not attachment.external_processing_approval_id:
-                return False
+        if (
+            attachment.external_processing_requested
+            and attachment.sensitivity
+            in {AttachmentSensitivity.PERSONAL, AttachmentSensitivity.SENSITIVE}
+            and not attachment.external_processing_approval_id
+        ):
+            return False
         return True
 
     @staticmethod
