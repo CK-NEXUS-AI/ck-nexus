@@ -3,8 +3,8 @@ import pytest
 from creator_app.core.chat_bridge import (
     BridgeCommand,
     BridgeMode,
-    CKNexusChatBridge,
     ChatBridgePolicy,
+    CKNexusChatBridge,
 )
 from creator_app.core.mcp_bridge_manifest import build_manifest
 
