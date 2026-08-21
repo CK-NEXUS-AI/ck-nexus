@@ -1,0 +1,35 @@
+from __future__ import annotations
+
+from enum import StrEnum
+
+
+class FrontierCapability(StrEnum):
+    VIDEO = "video"
+    REALTIME_AUDIO = "realtime_audio"
+    REALTIME_VIDEO = "realtime_video"
+    SPEECH_TO_SPEECH = "speech_to_speech"
+    COMPUTER_USE = "computer_use"
+    BROWSER_USE = "browser_use"
+    DESKTOP_USE = "desktop_use"
+    MOBILE_USE = "mobile_use"
+    SHELL = "shell"
+    CODE_EXECUTION = "code_execution"
+    DURABLE_TASK = "durable_task"
+    BACKGROUND_TASK = "background_task"
+    CHECKPOINT = "checkpoint"
+    RESUME = "resume"
+    FORK = "fork"
+    MULTI_AGENT = "multi_agent"
+    SWARM = "swarm"
+    SUBAGENT = "subagent"
+    MODEL_POOL = "model_pool"
+    MEMORY_CONSOLIDATION = "memory_consolidation"
+    FORMAL_PROOF = "formal_proof"
+    SCIENCE = "science"
+    SIMULATION = "simulation"
+    GENERATIVE_UI = "generative_ui"
+    AG_UI = "ag_ui"
+    MCP = "mcp"
+    A2A = "a2a"
+    PROMPT_INJECTION_DETECTION = "prompt_injection_detection"
+    MEDIA_PROVENANCE = "media_provenance"
