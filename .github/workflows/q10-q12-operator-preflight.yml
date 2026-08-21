@@ -18,6 +18,17 @@ jobs:
           fetch-depth: 0
       - name: Verify frozen authority and gate inputs
         run: python .github/release-tools/q10_q12_operator_preflight.py
+      - name: Install project dependencies
+        run: |
+          python -m pip install --upgrade pip uv
+          uv sync --all-extras --dev --frozen
+      - name: Cloud Linux Phase-3 regression
+        run: |
+          .venv/bin/pytest -q tests/test_agnes_execution_kernel_phase3.py tests/test_r18_cgroup_v2_staging_enforcement.py tests/test_sandbox_platform_profile.py
+      - name: Sandbox doctor
+        run: |
+          .venv/bin/python scripts/agnes_sandbox_doctor.py || true
+          .venv/bin/python scripts/agnes_cgroup_v2_staging_gate.py || true
       - name: Verify Q10 request is fail-closed
         run: |
           python - <<'PY'
