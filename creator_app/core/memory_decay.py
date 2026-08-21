@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -72,4 +72,4 @@ class MemoryDecayEngine:
     def _normalize(value: datetime) -> datetime:
         if value.tzinfo is None:
             raise ValueError("memory timestamps must be timezone-aware")
-        return value.astimezone(timezone.utc)
+        return value.astimezone(UTC)

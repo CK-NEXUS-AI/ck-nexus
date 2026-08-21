@@ -5,6 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from creator_app.core.policy_errors import PolicyViolation
+
 
 class BridgeMode(StrEnum):
     DISABLED = "disabled"
@@ -41,11 +43,7 @@ class ChatBridgePolicy(BaseModel):
 
 
 class CKNexusChatBridge:
-    """Provider-neutral read-only chat bridge contract.
-
-    This component does not perform network calls or production mutations.
-    Runtime adapters may supply read handlers after explicit enablement.
-    """
+    """Provider-neutral read-only chat bridge contract."""
 
     def __init__(self, policy: ChatBridgePolicy | None = None) -> None:
         self.policy = policy or ChatBridgePolicy()
@@ -53,12 +51,12 @@ class CKNexusChatBridge:
 
     def register_read_handler(self, command: str, handler: Any) -> None:
         if command not in self.policy.allowed_commands:
-            raise ValueError("command is not allowed by bridge policy")
+            raise PolicyViolation("command is not allowed by bridge policy")
         self._handlers[command] = handler
 
     def enable_read_only(self, *, governor_approved: bool) -> None:
         if self.policy.require_governor_for_enable and not governor_approved:
-            raise PermissionError("CK Governor approval is required")
+            raise PolicyViolation("CK Governor approval is required")
         self.policy.mode = BridgeMode.READ_ONLY
 
     def disable(self) -> None:
@@ -66,11 +64,11 @@ class CKNexusChatBridge:
 
     def execute(self, request: BridgeCommand) -> BridgeResponse:
         if self.policy.mode != BridgeMode.READ_ONLY:
-            raise PermissionError("chat bridge is disabled")
+            raise PolicyViolation("chat bridge is disabled")
         if request.command not in self.policy.allowed_commands:
-            raise PermissionError("command is blocked by bridge policy")
+            raise PolicyViolation("command is blocked by bridge policy")
         if self.policy.production_mutation_allowed or self.policy.external_write_allowed:
-            raise RuntimeError("read-only bridge policy was weakened")
+            raise PolicyViolation("read-only bridge policy was weakened")
 
         handler = self._handlers.get(request.command)
         if handler is None:

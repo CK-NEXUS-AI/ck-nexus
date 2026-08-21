@@ -14,6 +14,7 @@ def test_high_risk_computer_action_requires_execution_grant() -> None:
         environment=ComputerEnvironment.DESKTOP,
         action_type="click",
         screenshot_digest="sha256:abc",
+        prompt_injection_scan_evidence_ids=["evd:screenshot-safe"],
         risk=ComputerActionRisk.HIGH,
     )
     assert ComputerUsePolicy.execution_allowed(proposal) is False

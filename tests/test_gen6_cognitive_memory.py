@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from creator_app.core.dream_consolidation import (
     DreamConsolidationEngine,
@@ -18,7 +18,7 @@ from creator_app.core.memory_regression import (
 
 
 def test_memory_decay_is_deterministic_with_explicit_clock() -> None:
-    now = datetime(2026, 8, 21, 10, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 21, 10, tzinfo=UTC)
     memory = MemoryDecayInput(
         created_at=now - timedelta(days=10),
         last_accessed_at=now - timedelta(days=2),
@@ -35,7 +35,7 @@ def test_memory_decay_is_deterministic_with_explicit_clock() -> None:
 
 
 def test_protected_memory_does_not_decay() -> None:
-    now = datetime(2026, 8, 21, 10, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 21, 10, tzinfo=UTC)
     memory = MemoryDecayInput(
         created_at=now - timedelta(days=500),
         last_accessed_at=now - timedelta(days=300),
