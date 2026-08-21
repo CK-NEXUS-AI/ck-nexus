@@ -56,7 +56,9 @@ class ExperienceSkillLearner:
             raise ValueError("minimum_successes must be at least 2")
         successful = [item for item in experiences if item.success]
         if len(successful) < required_successes:
-            raise ValueError("insufficient successful experiences for skill candidate")
+            raise ValueError(
+                "insufficient successful experiences for skill candidate"
+            )
         fingerprints = {item.workflow_fingerprint for item in successful}
         if len(fingerprints) != 1:
             raise ValueError("experiences do not represent one stable workflow")
