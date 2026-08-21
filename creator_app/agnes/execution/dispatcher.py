@@ -28,6 +28,7 @@ from .verification import ResultVerifier
 class DispatcherPolicy:
     require_durable_idempotency_for_high_risk: bool = True
     require_distributed_idempotency_for_staging_and_production: bool = True
+    require_authenticated_approval_for_high_risk: bool = False
 
 
 class SkillExecutionDispatcher:
@@ -83,6 +84,9 @@ class SkillExecutionDispatcher:
                 "production_safe": self.idempotency.production_safe,
             },
             "executors": executor_status,
+            "authenticated_approval_for_high_risk": (
+                self.dispatcher_policy.require_authenticated_approval_for_high_risk
+            ),
             "production_execution": "blocked_until_R12_and_production_safe_sandbox_evidence",
         }
 
@@ -138,13 +142,22 @@ class SkillExecutionDispatcher:
                     risk=risk,
                 )
 
+            require_authenticated_approval = (
+                self.dispatcher_policy.require_authenticated_approval_for_high_risk
+                and risk.rank >= ExecutorRiskClass.HIGH.rank
+            )
             if decision.requires_approval and not self.approval.is_approved(
                 approval_id=request.approval_id,
                 fingerprint=approval_fingerprint,
+                require_authenticated=require_authenticated_approval,
             ):
                 return self._blocked(
                     request,
-                    "sticky_approval_required_or_mismatch",
+                    (
+                        "authenticated_approval_required_or_mismatch"
+                        if require_authenticated_approval
+                        else "sticky_approval_required_or_mismatch"
+                    ),
                     start=start,
                     manifest=manifest,
                     approval_fingerprint=approval_fingerprint,

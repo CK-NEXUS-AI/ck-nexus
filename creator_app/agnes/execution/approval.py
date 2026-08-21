@@ -15,6 +15,9 @@ class ApprovalGrant:
     fingerprint: str
     approved_by: str
     expires_at: float
+    authenticated: bool = False
+    actor_id: str | None = None
+    authn_method: str | None = None
 
 
 class StickyApprovalResolver:
@@ -65,21 +68,58 @@ class StickyApprovalResolver:
             fingerprint=fingerprint,
             approved_by=approved_by,
             expires_at=time() + ttl_seconds,
+            authenticated=False,
         )
         self._grants[approval_id] = grant
         return grant
 
-    def find_matching(self, fingerprint: str) -> ApprovalGrant | None:
+
+    def grant_verified(
+        self,
+        *,
+        approval_id: str,
+        fingerprint: str,
+        actor_id: str,
+        expires_at: float,
+        authn_method: str,
+    ) -> ApprovalGrant:
+        if expires_at <= time():
+            raise ValueError("verified approval must not already be expired")
+        if not all(v.strip() for v in (approval_id, fingerprint, actor_id, authn_method)):
+            raise ValueError("verified approval fields cannot be empty")
+        grant = ApprovalGrant(
+            approval_id=approval_id.strip(),
+            fingerprint=fingerprint.strip(),
+            approved_by=actor_id.strip(),
+            expires_at=expires_at,
+            authenticated=True,
+            actor_id=actor_id.strip(),
+            authn_method=authn_method.strip(),
+        )
+        self._grants[grant.approval_id] = grant
+        return grant
+
+    def find_matching(
+        self, fingerprint: str, *, require_authenticated: bool = False
+    ) -> ApprovalGrant | None:
         now = time()
         for grant in self._grants.values():
-            if grant.expires_at > now and hmac.compare_digest(grant.fingerprint, fingerprint):
+            if (
+                grant.expires_at > now
+                and (grant.authenticated or not require_authenticated)
+                and hmac.compare_digest(grant.fingerprint, fingerprint)
+            ):
                 return grant
         return None
 
-    def is_approved(self, *, approval_id: str | None, fingerprint: str) -> bool:
+    def is_approved(
+        self, *, approval_id: str | None, fingerprint: str, require_authenticated: bool = False
+    ) -> bool:
         if not approval_id:
             return False
         grant = self._grants.get(approval_id)
         if grant is None or grant.expires_at <= time():
+            return False
+        if require_authenticated and not grant.authenticated:
             return False
         return hmac.compare_digest(grant.fingerprint, fingerprint)

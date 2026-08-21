@@ -90,3 +90,48 @@ def test_tampered_token_fails_closed():
     bad = approval.token[:-1] + ("A" if approval.token[-1] != "A" else "B")
     with pytest.raises(PermissionError):
         a.redeem(bad, actor_id="user-1", action="provider.authorize", resource="provider:gemini", fingerprint="f" * 64)
+
+
+from creator_app.agnes.execution.approval import StickyApprovalResolver
+
+
+def test_signed_token_becomes_authenticated_execution_grant():
+    a = authority(); c = challenge(a)
+    approval = a.complete_challenge(challenge_id=c.challenge_id, assertion="ok")
+    resolver = StickyApprovalResolver()
+    grant = a.redeem_to_resolver(
+        approval.token,
+        resolver=resolver,
+        actor_id="user-1",
+        action="provider.authorize",
+        resource="provider:gemini",
+        fingerprint="f" * 64,
+        authn_method="webauthn",
+    )
+    assert grant.authenticated is True
+    assert grant.actor_id == "user-1"
+    assert grant.authn_method == "webauthn"
+    assert resolver.is_approved(
+        approval_id=grant.approval_id,
+        fingerprint="f" * 64,
+        require_authenticated=True,
+    )
+
+
+def test_legacy_string_grant_cannot_satisfy_authenticated_gate():
+    resolver = StickyApprovalResolver()
+    legacy = resolver.grant(
+        approval_id="legacy-1",
+        fingerprint="f" * 64,
+        approved_by="human_governor",
+    )
+    assert legacy.authenticated is False
+    assert resolver.is_approved(
+        approval_id=legacy.approval_id,
+        fingerprint="f" * 64,
+    )
+    assert not resolver.is_approved(
+        approval_id=legacy.approval_id,
+        fingerprint="f" * 64,
+        require_authenticated=True,
+    )

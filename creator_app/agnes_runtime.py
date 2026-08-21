@@ -142,6 +142,9 @@ class AgnesNervousSystem:
                 dispatcher_policy=DispatcherPolicy(
                     require_durable_idempotency_for_high_risk=True,
                     require_distributed_idempotency_for_staging_and_production=True,
+                    require_authenticated_approval_for_high_risk=(
+                        normalized_environment in {"staging", "production"}
+                    ),
                 ),
             )
             sandbox_policy = SandboxPolicy(

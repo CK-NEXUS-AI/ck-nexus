@@ -65,12 +65,20 @@ class AutonomousDevController:
                     raise RuntimeError(decision.reason)
                 if decision.requires_approval:
                     grant = None
+                    require_authenticated = (
+                        self.agnes.dispatcher.dispatcher_policy.require_authenticated_approval_for_high_risk
+                        and risk.rank >= ExecutorRiskClass.HIGH.rank
+                    )
                     if request.approval_id and self.agnes.approvals.is_approved(
-                        approval_id=request.approval_id, fingerprint=fingerprint
+                        approval_id=request.approval_id,
+                        fingerprint=fingerprint,
+                        require_authenticated=require_authenticated,
                     ):
                         grant = request.approval_id
                     else:
-                        match = self.agnes.approvals.find_matching(fingerprint)
+                        match = self.agnes.approvals.find_matching(
+                            fingerprint, require_authenticated=require_authenticated
+                        )
                         grant = match.approval_id if match else None
                     if not grant:
                         status.error = "sticky_approval_required"

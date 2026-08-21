@@ -144,6 +144,32 @@ class ApprovalAuthority:
         self._redeemed_nonces.add(nonce)
         return payload
 
+    def redeem_to_resolver(
+        self,
+        token: str,
+        *,
+        resolver,
+        actor_id: str,
+        action: str,
+        resource: str,
+        fingerprint: str,
+        authn_method: str,
+    ):
+        payload = self.redeem(
+            token,
+            actor_id=actor_id,
+            action=action,
+            resource=resource,
+            fingerprint=fingerprint,
+        )
+        return resolver.grant_verified(
+            approval_id=str(payload["approval_id"]),
+            fingerprint=fingerprint,
+            actor_id=actor_id,
+            expires_at=float(payload["expires_at"]),
+            authn_method=authn_method,
+        )
+
     def _verify_token(self, token: str) -> dict[str, object]:
         try:
             body_text, sig_text = token.split(".", 1)
