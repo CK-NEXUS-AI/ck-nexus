@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from enum import Enum
-from typing import Iterable
+from collections.abc import Iterable
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class CapabilityStatus(str, Enum):
+class CapabilityStatus(StrEnum):
     FOUND = "found"
     PARTIAL = "partial"
     EXPERIMENTAL = "experimental"
@@ -37,11 +37,11 @@ class CapabilityRegistry:
             self.register(capability)
 
     def register(self, capability: Capability) -> None:
-        if capability.status == CapabilityStatus.VERIFIED:
-            if not capability.evidence_ids or not capability.exact_subject:
-                raise ValueError(
-                    "VERIFIED capability requires evidence_ids and exact_subject"
-                )
+        if (
+            capability.status == CapabilityStatus.VERIFIED
+            and (not capability.evidence_ids or not capability.exact_subject)
+        ):
+            raise ValueError("VERIFIED capability requires evidence_ids and exact_subject")
         self._items[capability.capability_id] = capability
 
     def get(self, capability_id: str) -> Capability | None:
