@@ -51,11 +51,14 @@ jobs:
             creator_app/core/resilience_evidence.py \
             creator_app/core/deterministic_state.py \
             creator_app/core/mock_provider.py \
+            creator_app/core/ultra_capability_governance.py \
+            creator_app/core/ultra_command_router.py \
             tests/conftest.py \
             tests/test_chat_mcp_bridge.py \
             tests/test_gen6_runtime_contracts.py \
             tests/test_gen6_elastic_swarm.py \
             tests/test_gen6_cognitive_memory.py \
+            tests/test_ultra_capability_governance.py \
             tests/unit/test_resilience_evidence.py \
             tests/unit/test_deterministic_state.py \
             tests/unit/test_mock_provider.py \
@@ -71,6 +74,7 @@ jobs:
             tests/test_chat_mcp_bridge.py \
             tests/test_gen6_elastic_swarm.py \
             tests/test_gen6_cognitive_memory.py \
+            tests/test_ultra_capability_governance.py \
             tests/unit/test_resilience_evidence.py \
             tests/unit/test_deterministic_state.py \
             tests/unit/test_mock_provider.py \
@@ -87,6 +91,8 @@ jobs:
             --cov=creator_app.core.resilience_evidence \
             --cov=creator_app.core.deterministic_state \
             --cov=creator_app.core.mock_provider \
+            --cov=creator_app.core.ultra_capability_governance \
+            --cov=creator_app.core.ultra_command_router \
             --cov-report=xml:coverage.xml --cov-fail-under=80 \
             --junitxml=junit.xml -q
       - name: Build standardized evidence
