@@ -1,4 +1,3 @@
-const TOKEN_KEY = "cknexus_access_token";
 const SESSION_ID = "creator-default";
 
 const state = { status: null, agents: [], runs: [], providers: [], credentials: null, vault: null };
@@ -12,13 +11,11 @@ const el = {
   runCount: $("#run-count"), agentCount: $("#agent-count"), agentSelect: $("#agent-select"),
   composer: $("#composer"), prompt: $("#prompt"), charCount: $("#char-count"), messages: $("#messages"),
   send: $("#send-btn"), refresh: $("#refresh-all"), providerRefresh: $("#provider-refresh"),
-  dialog: $("#access-dialog"), accessForm: $("#access-form"), accessToken: $("#access-token"), toast: $("#toast"),
+  toast: $("#toast"),
   newChat: $("#new-chat"),
 };
 
-function getToken() { try { return sessionStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; } }
-function setToken(value) { try { value ? sessionStorage.setItem(TOKEN_KEY, value) : sessionStorage.removeItem(TOKEN_KEY); } catch {} }
-function headers(json = false) { const h = {}; if (json) h["Content-Type"] = "application/json"; const token = getToken(); if (token) h.Authorization = `Bearer ${token}`; return h; }
+function headers(json = false) { const h = {}; if (json) h["Content-Type"] = "application/json"; return h; }
 
 async function api(path, options = {}) {
   const response = await fetch(path, options);
@@ -152,7 +149,6 @@ el.prompt.addEventListener("input", () => { el.charCount.textContent = `${el.pro
 el.sidebarToggle.addEventListener("click", () => el.sidebar.classList.toggle("open"));
 el.refresh.addEventListener("click", refreshAll); el.providerRefresh.addEventListener("click", loadProtected);
 el.newChat.addEventListener("click", () => { el.prompt.value=""; el.prompt.focus(); if(innerWidth<761) el.sidebar.classList.remove("open"); });
-el.accessForm.addEventListener("submit", async (event) => { event.preventDefault(); const token=el.accessToken.value.trim(); if(!token)return; setToken(token); el.dialog.close(); el.accessToken.value=""; await loadProtected(); });
 window.addEventListener("keydown", (event) => { if ((event.key === "r" || event.key === "R") && !event.ctrlKey && !event.metaKey && document.activeElement !== el.prompt) refreshAll(); if (event.key === "Escape") el.sidebar.classList.remove("open"); });
 
 refreshAll();
