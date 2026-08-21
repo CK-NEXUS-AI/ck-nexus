@@ -59,6 +59,7 @@ jobs:
             tests/unit/test_resilience_evidence.py \
             tests/unit/test_deterministic_state.py \
             tests/unit/test_mock_provider.py \
+            tests/integration/test_resilience_composition.py \
             tests/security/test_attack_contract_ids.py \
             tests/chaos/test_checkpoint_recovery.py \
             tests/chaos/test_disk_full.py \
@@ -73,6 +74,7 @@ jobs:
             tests/unit/test_resilience_evidence.py \
             tests/unit/test_deterministic_state.py \
             tests/unit/test_mock_provider.py \
+            tests/integration/test_resilience_composition.py \
             --mock-provider --timeout=30 \
             --cov=creator_app.core.chat_bridge \
             --cov=creator_app.core.mcp_bridge_manifest \
@@ -81,6 +83,7 @@ jobs:
             --cov=creator_app.core.dream_consolidation \
             --cov=creator_app.core.experience_skill \
             --cov=creator_app.core.memory_regression \
+            --cov=creator_app.core.resilience_faults \
             --cov=creator_app.core.resilience_evidence \
             --cov=creator_app.core.deterministic_state \
             --cov=creator_app.core.mock_provider \
