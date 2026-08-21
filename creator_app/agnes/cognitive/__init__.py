@@ -8,7 +8,13 @@ from .blackboard import BlackboardEntry, BlackboardEntryType, CognitiveBlackboar
 from .capabilities import CapabilityFamily, CapabilityRegistry, default_capability_registry
 from .context import CompiledContext, ContextCompiler, ContextItem
 from .feedback import FeedbackController, FeedbackObservation, FeedbackSignal
-from .governor import ActionProposal, CognitiveGovernor, GovernanceResult, GovernorDecision, RiskLevel
+from .governor import (
+    ActionProposal,
+    CognitiveGovernor,
+    GovernanceResult,
+    GovernorDecision,
+    RiskLevel,
+)
 from .memory import MemoryRecord, TemporalMemory
 from .meta_reasoner import (
     CompositionPlan,
