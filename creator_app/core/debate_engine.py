@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
 
-class RoleType(str, Enum):
+class RoleType(StrEnum):
     ARCHITECT = "architect"
     BUILDER = "builder"
     UPDATER = "updater"
@@ -21,7 +21,7 @@ class RoleType(str, Enum):
     GOVERNOR = "governor"
 
 
-class Decision(str, Enum):
+class Decision(StrEnum):
     PENDING = "PENDING"
     REJECT = "REJECT"
     RESEARCH_ONLY = "RESEARCH_ONLY"
