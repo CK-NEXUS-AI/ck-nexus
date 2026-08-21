@@ -101,12 +101,10 @@ class ModelPoolSelector:
         estimated_cost = self._estimated_cost(model, criteria.estimated_tokens)
         if criteria.budget_limit is not None and estimated_cost > criteria.budget_limit:
             return False
-        if (
-            criteria.latency_requirement_ms is not None
-            and model.latency_ms > criteria.latency_requirement_ms
-        ):
-            return False
-        return True
+        return (
+            criteria.latency_requirement_ms is None
+            or model.latency_ms <= criteria.latency_requirement_ms
+        )
 
     @staticmethod
     def _estimated_cost(model: ModelRecord, estimated_tokens: int) -> float:
