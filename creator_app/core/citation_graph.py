@@ -135,7 +135,11 @@ class CitationGraph:
         }
         enough_sources = len(source_ids) >= self.policy.minimum_verified_sources
         enough_publishers = len(publishers) >= self.policy.minimum_independent_publishers
-        status = ClaimStatus.VERIFIED if enough_sources and enough_publishers else ClaimStatus.BLOCKED
+        status = (
+            ClaimStatus.VERIFIED
+            if enough_sources and enough_publishers
+            else ClaimStatus.BLOCKED
+        )
         return ClaimVerification(
             claim_id=claim_id,
             status=status,
