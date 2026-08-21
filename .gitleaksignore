@@ -1,0 +1,10 @@
+# Historical false positives from removed test fixtures / empty example placeholders.
+# Keep this list fingerprint-specific so new findings remain fail-closed.
+9da213286ec5b2a196c8686980db6ad5d6add6bb:creator_app/credentials/tests/test_blind_vault.py:generic-api-key:25
+9da213286ec5b2a196c8686980db6ad5d6add6bb:creator_app/credentials/tests/test_blind_vault.py:generic-api-key:73
+9da213286ec5b2a196c8686980db6ad5d6add6bb:creator_app/credentials/tests/test_blind_vault.py:generic-api-key:80
+9da213286ec5b2a196c8686980db6ad5d6add6bb:creator_app/credentials/tests/test_blind_vault.py:generic-api-key:90
+9da213286ec5b2a196c8686980db6ad5d6add6bb:creator_app/credentials/tests/test_autoscale.py:generic-api-key:38
+9da213286ec5b2a196c8686980db6ad5d6add6bb:creator_app/credentials/tests/test_autoscale.py:generic-api-key:193
+cfe5ac0bb69f57815c578b0fe9c8bd253c85a0a9:.env.example:generic-api-key:49
+7a0070d761a4808795e3fc3788be5d39e9d33cca:.env.example:generic-api-key:18
