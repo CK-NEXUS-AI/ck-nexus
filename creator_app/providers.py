@@ -14,6 +14,7 @@ from creator_app.credential_broker import (
     CredentialId,
     CredentialUnavailable,
 )
+from creator_app.real_provider_adapters import build_real_provider_adapter
 from creator_app.provider_router import (
     ProviderCapabilities,
     ProviderKind,
@@ -179,6 +180,22 @@ def build_provider_router(settings: Settings, broker: CredentialBroker) -> Provi
             timeout_seconds=settings.provider_timeout_seconds,
         )
     )
+    for provider_id, model in (
+        ("gemini", settings.gemini_model),
+        ("anthropic", settings.anthropic_model),
+        ("groq", settings.groq_model),
+        ("deepseek", settings.deepseek_model),
+        ("openrouter", settings.openrouter_model),
+    ):
+        if model:
+            providers.append(
+                build_real_provider_adapter(
+                    provider_id,
+                    broker,
+                    model=model,
+                    timeout_seconds=settings.provider_timeout_seconds,
+                )
+            )
     return ProviderRouter(
         providers,
         policy=ProviderRouterPolicy(

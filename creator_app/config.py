@@ -35,6 +35,11 @@ class Settings:
     app_version: str = "0.2.0"
     environment: str = "development"
     openai_model: str = "gpt-5.6-sol"
+    gemini_model: str = ""
+    anthropic_model: str = ""
+    groq_model: str = ""
+    deepseek_model: str = ""
+    openrouter_model: str = ""
     openai_tracing_enabled: bool = False
     provider_local_first: bool = True
     provider_allow_cloud: bool = True
@@ -184,6 +189,11 @@ class Settings:
                 os.getenv("CKNEXUS_ENVIRONMENT", "development").strip().lower() or "development"
             ),
             openai_model=os.getenv("OPENAI_MODEL", "gpt-5.6-sol"),
+            gemini_model=os.getenv("GEMINI_MODEL", "").strip(),
+            anthropic_model=os.getenv("ANTHROPIC_MODEL", "").strip(),
+            groq_model=os.getenv("GROQ_MODEL", "").strip(),
+            deepseek_model=os.getenv("DEEPSEEK_MODEL", "").strip(),
+            openrouter_model=os.getenv("OPENROUTER_MODEL", "").strip(),
             openai_tracing_enabled=_as_bool(
                 os.getenv("CKNEXUS_OPENAI_TRACING_ENABLED"), default=False
             ),

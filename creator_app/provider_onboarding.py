@@ -118,6 +118,12 @@ class ProviderOnboardingRegistry:
             raise ValueError("adapter kind does not match provider descriptor")
         if not descriptor.capabilities.issubset(adapter.capabilities.features):
             raise ValueError("adapter capabilities do not satisfy provider descriptor")
+        binding_id = getattr(adapter, "credential_binding_id", None)
+        if binding_id is not None and binding_id != descriptor.credential_id:
+            raise ValueError("adapter credential binding does not match provider descriptor")
+        official_host = getattr(adapter, "official_host", None)
+        if official_host is not None and official_host != descriptor.official_host:
+            raise ValueError("adapter host does not match provider descriptor")
         if not adapter.is_available():
             raise RuntimeError("provider adapter is not currently available")
         return adapter

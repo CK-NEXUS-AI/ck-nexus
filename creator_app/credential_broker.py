@@ -12,6 +12,11 @@ from typing import Protocol
 
 class CredentialId(StrEnum):
     OPENAI_API_KEY = "openai.api_key"
+    GEMINI_API_KEY = "google.gemini.api_key"
+    ANTHROPIC_API_KEY = "anthropic.api_key"
+    GROQ_API_KEY = "groq.api_key"
+    DEEPSEEK_API_KEY = "deepseek.api_key"
+    OPENROUTER_API_KEY = "openrouter.api_key"
     GMAIL_CLIENT_ID = "gmail.client_id"
     GMAIL_CLIENT_SECRET = "gmail.client_secret"
     GMAIL_ACCESS_TOKEN = "gmail.access_token"
@@ -24,6 +29,11 @@ class CredentialId(StrEnum):
 
 ENV_BINDINGS: Mapping[CredentialId, str] = {
     CredentialId.OPENAI_API_KEY: "OPENAI_API_KEY",
+    CredentialId.GEMINI_API_KEY: "GEMINI_API_KEY",
+    CredentialId.ANTHROPIC_API_KEY: "ANTHROPIC_API_KEY",
+    CredentialId.GROQ_API_KEY: "GROQ_API_KEY",
+    CredentialId.DEEPSEEK_API_KEY: "DEEPSEEK_API_KEY",
+    CredentialId.OPENROUTER_API_KEY: "OPENROUTER_API_KEY",
     CredentialId.GMAIL_CLIENT_ID: "GMAIL_CLIENT_ID",
     CredentialId.GMAIL_CLIENT_SECRET: "GMAIL_CLIENT_SECRET",
     CredentialId.GMAIL_ACCESS_TOKEN: "GMAIL_ACCESS_TOKEN",
@@ -38,6 +48,16 @@ ENV_BINDINGS: Mapping[CredentialId, str] = {
 DEFAULT_CONSUMER_POLICY: Mapping[str, frozenset[CredentialId]] = {
     "provider.openai": frozenset({CredentialId.OPENAI_API_KEY}),
     "council.openai": frozenset({CredentialId.OPENAI_API_KEY}),
+    "provider.gemini": frozenset({CredentialId.GEMINI_API_KEY}),
+    "council.gemini": frozenset({CredentialId.GEMINI_API_KEY}),
+    "provider.anthropic": frozenset({CredentialId.ANTHROPIC_API_KEY}),
+    "council.anthropic": frozenset({CredentialId.ANTHROPIC_API_KEY}),
+    "provider.groq": frozenset({CredentialId.GROQ_API_KEY}),
+    "council.groq": frozenset({CredentialId.GROQ_API_KEY}),
+    "provider.deepseek": frozenset({CredentialId.DEEPSEEK_API_KEY}),
+    "council.deepseek": frozenset({CredentialId.DEEPSEEK_API_KEY}),
+    "provider.openrouter": frozenset({CredentialId.OPENROUTER_API_KEY}),
+    "council.openrouter": frozenset({CredentialId.OPENROUTER_API_KEY}),
     "gmail.oauth": frozenset(
         {
             CredentialId.GMAIL_CLIENT_ID,
