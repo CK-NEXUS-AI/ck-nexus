@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import hashlib
 from collections import Counter
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
-from collections.abc import Iterable, Mapping
 
 from creator_app.agnes_idea_experimenter import (
     AssistantRun,

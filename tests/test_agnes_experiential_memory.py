@@ -91,7 +91,7 @@ def test_validate_provenance_appends_verification_event(tmp_path: Path):
 def test_provenance_graph_links_run_evidence_and_supersession(tmp_path: Path):
     store = memory(tmp_path)
     old = record(store, lesson="old")
-    new = record(store, lesson="new", supersedes=old.experience_id)
+    record(store, lesson="new", supersedes=old.experience_id)
     graph = store.build_provenance_graph()
     edge_types = {edge["type"] for edge in graph["edges"]}
     assert {"SOURCE_RUN", "EVIDENCE", "SUPERSEDES"} <= edge_types

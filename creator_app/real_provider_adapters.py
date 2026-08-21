@@ -4,8 +4,8 @@ import asyncio
 import hashlib
 import json
 import re
-from dataclasses import dataclass
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 from urllib.request import Request, urlopen
 

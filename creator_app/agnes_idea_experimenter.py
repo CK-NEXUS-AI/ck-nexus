@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import StrEnum
 from time import monotonic
-from collections.abc import Iterable
 from uuid import uuid4
 
 from creator_app.agnes_ledger import AppendOnlyLedger

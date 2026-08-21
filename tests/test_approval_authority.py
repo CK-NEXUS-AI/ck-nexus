@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from creator_app.approval_authority import ApprovalAuthority
 from creator_app.agnes.execution.approval import StickyApprovalResolver
+from creator_app.approval_authority import ApprovalAuthority
 
 
 class FakeVerifier:
