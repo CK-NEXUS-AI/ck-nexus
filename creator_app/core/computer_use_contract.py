@@ -4,6 +4,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from creator_app.core.policy_errors import PolicyViolation
+
 
 class ComputerEnvironment(StrEnum):
     BROWSER = "browser"
@@ -36,8 +38,17 @@ class ComputerUsePolicy:
 
     @staticmethod
     def execution_allowed(proposal: ComputerActionProposal) -> bool:
+        if not proposal.screenshot_digest:
+            return False
+        if not proposal.prompt_injection_scan_evidence_ids:
+            return False
         if proposal.risk in {ComputerActionRisk.HIGH, ComputerActionRisk.CRITICAL}:
             return bool(proposal.execution_grant_id)
         if proposal.approval_required and not proposal.execution_grant_id:
             return False
-        return bool(proposal.screenshot_digest)
+        return True
+
+    @classmethod
+    def require_execution_allowed(cls, proposal: ComputerActionProposal) -> None:
+        if not cls.execution_allowed(proposal):
+            raise PolicyViolation("computer action blocked by CK-NEXUS policy")
