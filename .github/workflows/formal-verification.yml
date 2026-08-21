@@ -1,0 +1,39 @@
+name: CK-NEXUS Formal Verification
+
+on:
+  pull_request:
+    paths:
+      - 'formal/**'
+      - '.github/workflows/formal-verification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lean4:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Lean 4 via elan
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain leanprover/lean4:stable
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Record Lean version
+        run: lean --version | tee lean-version.txt
+      - name: Verify CK-NEXUS invariants
+        run: lean formal/CKNexusInvariants.lean
+      - name: Upload formal evidence
+        uses: actions/upload-artifact@v6
+        with:
+          name: ck-nexus-formal-verification
+          path: lean-version.txt
+          retention-days: 14
+      - name: Evidence boundary
+        run: |
+          echo 'Formal development gate only.'
+          echo 'Does not promote Q10/Q11/Q12 or authorize production.'
