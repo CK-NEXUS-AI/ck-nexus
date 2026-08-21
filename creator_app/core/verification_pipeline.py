@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class VerificationStatus(str, Enum):
+class VerificationStatus(StrEnum):
     PASS = "pass"
     FAIL = "fail"
     BLOCKED = "blocked"
