@@ -25,6 +25,13 @@ _ORDER = {
     TrustState.TRUSTED: 5,
 }
 
+_EVIDENCE_REQUIRED = {
+    TrustState.SCANNED,
+    TrustState.SANDBOXED,
+    TrustState.VERIFIED,
+    TrustState.TRUSTED,
+}
+
 
 @dataclass(frozen=True, slots=True)
 class TrustRecord:
@@ -53,7 +60,7 @@ class TrustEngine:
             raise ValueError("invalid trust target")
         if _ORDER[target] != _ORDER[record.state] + 1:
             raise ValueError("trust promotion must proceed one verified stage at a time")
-        if target in {TrustState.SCANNED, TrustState.SANDBOXED, TrustState.VERIFIED, TrustState.TRUSTED} and not evidence_ref:
+        if target in _EVIDENCE_REQUIRED and not evidence_ref:
             raise ValueError("evidence_ref is required for trust promotion")
         refs = record.evidence_refs + ((evidence_ref,) if evidence_ref else ())
         return replace(record, state=target, evidence_refs=refs)
