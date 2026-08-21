@@ -30,13 +30,16 @@ class UISurfaceBindingPolicy:
     ) -> bool:
         if binding.production_mutation_allowed or not binding.evidence_ids:
             return False
-        if binding.environment in {
-            ComputerEnvironment.BROWSER,
-            ComputerEnvironment.DESKTOP,
-            ComputerEnvironment.MOBILE,
-        }:
-            if not binding.screen_digest or not binding.prompt_injection_evidence_ids:
-                return False
+        if (
+            binding.environment
+            in {
+                ComputerEnvironment.BROWSER,
+                ComputerEnvironment.DESKTOP,
+                ComputerEnvironment.MOBILE,
+            }
+            and (not binding.screen_digest or not binding.prompt_injection_evidence_ids)
+        ):
+            return False
         if binding.requested_modalities:
             if realtime_session is None:
                 return False
