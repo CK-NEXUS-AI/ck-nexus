@@ -1,13 +1,13 @@
-from pathlib import Path
+import pathlib
 
 
-WEB = Path(__file__).resolve().parents[1] / "creator_app" / "web"
+WEB = pathlib.Path(__file__).resolve().parents[1] / "creator_app" / "web"
 HTML = WEB / "cognitive-twin.html"
 CSS = WEB / "cognitive-twin.css"
 JS = WEB / "cognitive-twin.js"
 
 
-def _read(path: Path) -> str:
+def _read(path: pathlib.Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
