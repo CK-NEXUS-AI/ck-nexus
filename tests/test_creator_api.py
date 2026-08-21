@@ -69,24 +69,24 @@ def test_split_liveness_and_readiness_probes(tmp_path: Path):
         }
 
 
-def test_typography_control_hub_is_served_without_external_assets(tmp_path: Path):
+def test_adaptive_cognitive_chat_is_served_without_external_assets(tmp_path: Path):
     with TestClient(create_app(settings(tmp_path))) as client:
         response = client.get("/")
         assert response.status_code == 200
-        assert "COMMAND PALETTE" in response.text
-        assert "DEEP MIDNIGHT" in response.text
-        assert "CLEAN ALABASTER" in response.text
-        assert "CYBER AURORA" in response.text
-        assert "DOWNLOAD TXT" in response.text
-        assert "DELETE LOCAL SESSION" in response.text
+        assert "ADAPTIVE COGNITIVE CHAT" in response.text
+        assert "AGNES" in response.text
+        assert "PROVIDER HUB" in response.text
+        assert "CREDENTIAL BROKER" in response.text
+        assert "RUN EVIDENCE" in response.text
         assert "googleapis.com" not in response.text
 
-        styles = client.get("/static/styles.css")
-        script = client.get("/static/app.js")
+        styles = client.get("/static/adaptive-chat.css")
+        script = client.get("/static/adaptive-chat.js")
         assert styles.status_code == 200
         assert script.status_code == 200
         assert "prefers-reduced-motion" in styles.text
-        assert "TOKEN_STORAGE_KEY" in script.text
+        assert "sessionStorage" not in script.text
+        assert "Authorization" not in script.text
 
 
 def test_agent_catalog_contains_sellable_mvp_agents(tmp_path: Path):
