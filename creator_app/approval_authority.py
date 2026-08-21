@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from time import time
 from typing import Protocol
 
+from creator_app.approval_replay import DurableReplayLedger
+
 
 class AuthenticatorVerifier(Protocol):
     def verify(self, *, challenge: str, assertion: str, actor_id: str) -> bool: ...
@@ -22,6 +24,9 @@ class ApprovalChallenge:
     action: str
     resource: str
     fingerprint: str
+    task_id: str
+    tenant_id: str
+    policy_digest: str
     expires_at: float
 
 
@@ -32,6 +37,9 @@ class VerifiedApproval:
     action: str
     resource: str
     fingerprint: str
+    task_id: str
+    tenant_id: str
+    policy_digest: str
     issued_at: float
     expires_at: float
     token: str
@@ -44,13 +52,20 @@ class ApprovalAuthority:
     never stores TOTP seeds, passkey private keys, API keys, or raw assertions.
     """
 
-    def __init__(self, *, signing_key: bytes, verifier: AuthenticatorVerifier) -> None:
+    def __init__(
+        self,
+        *,
+        signing_key: bytes,
+        verifier: AuthenticatorVerifier,
+        replay_ledger: DurableReplayLedger | None = None,
+    ) -> None:
         if len(signing_key) < 32:
             raise ValueError("approval signing key must be at least 256 bits")
         self._key = signing_key
         self._verifier = verifier
         self._challenges: dict[str, ApprovalChallenge] = {}
         self._redeemed_nonces: set[str] = set()
+        self._replay_ledger = replay_ledger
 
     def create_challenge(
         self,
@@ -59,6 +74,9 @@ class ApprovalAuthority:
         action: str,
         resource: str,
         fingerprint: str,
+        task_id: str = "",
+        tenant_id: str = "",
+        policy_digest: str = "",
         ttl_seconds: int = 120,
     ) -> ApprovalChallenge:
         if not all(v.strip() for v in (actor_id, action, resource, fingerprint)):
@@ -72,6 +90,9 @@ class ApprovalAuthority:
             action=action.strip(),
             resource=resource.strip(),
             fingerprint=fingerprint.strip(),
+            task_id=task_id.strip(),
+            tenant_id=tenant_id.strip(),
+            policy_digest=policy_digest.strip(),
             expires_at=time() + ttl_seconds,
         )
         self._challenges[item.challenge_id] = item
@@ -106,6 +127,9 @@ class ApprovalAuthority:
             "action": item.action,
             "resource": item.resource,
             "fingerprint": item.fingerprint,
+            "task_id": item.task_id,
+            "tenant_id": item.tenant_id,
+            "policy_digest": item.policy_digest,
             "issued_at": issued,
             "expires_at": issued + ttl_seconds,
             "nonce": nonce,
@@ -123,6 +147,9 @@ class ApprovalAuthority:
                     "action",
                     "resource",
                     "fingerprint",
+                    "task_id",
+                    "tenant_id",
+                    "policy_digest",
                     "issued_at",
                     "expires_at",
                 )
@@ -137,6 +164,9 @@ class ApprovalAuthority:
         action: str,
         resource: str,
         fingerprint: str,
+        task_id: str | None = None,
+        tenant_id: str | None = None,
+        policy_digest: str | None = None,
     ) -> dict[str, object]:
         payload = self._verify_token(token)
         expected = {
@@ -145,15 +175,30 @@ class ApprovalAuthority:
             "resource": resource,
             "fingerprint": fingerprint,
         }
+        if task_id is not None:
+            expected["task_id"] = task_id
+        if tenant_id is not None:
+            expected["tenant_id"] = tenant_id
+        if policy_digest is not None:
+            expected["policy_digest"] = policy_digest
         for key, value in expected.items():
             if not hmac.compare_digest(str(payload.get(key, "")), value):
                 raise PermissionError(f"approval {key} mismatch")
         if float(payload["expires_at"]) <= time():
             raise PermissionError("approval token expired")
         nonce = str(payload["nonce"])
-        if nonce in self._redeemed_nonces:
-            raise PermissionError("approval token already redeemed")
-        self._redeemed_nonces.add(nonce)
+        if self._replay_ledger is not None:
+            self._replay_ledger.redeem_once(
+                nonce=nonce,
+                approval_id=str(payload["approval_id"]),
+                actor_id=str(payload["actor_id"]),
+                expires_at=float(payload["expires_at"]),
+                subject_digest=fingerprint,
+            )
+        else:
+            if nonce in self._redeemed_nonces:
+                raise PermissionError("approval token already redeemed")
+            self._redeemed_nonces.add(nonce)
         return payload
 
     def redeem_to_resolver(
