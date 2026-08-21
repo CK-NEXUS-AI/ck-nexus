@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
+import sqlite3
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 
@@ -90,6 +93,76 @@ class InMemoryPasskeyStore:
                 revoked=current.revoked,
             )
         )
+
+
+class SQLitePasskeyStore:
+    """Durable local passkey metadata store. It stores public credentials only."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path.expanduser().resolve()
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self._connect() as connection:
+            connection.execute(
+                """CREATE TABLE IF NOT EXISTS passkey_credentials (
+                credential_id TEXT NOT NULL, actor_id TEXT NOT NULL,
+                public_key_b64 TEXT NOT NULL, sign_count INTEGER NOT NULL,
+                rp_id TEXT NOT NULL, origin TEXT NOT NULL, revoked INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (credential_id, actor_id))"""
+            )
+        try:
+            os.chmod(self.path, 0o600)
+        except OSError:
+            pass
+
+    def _connect(self) -> sqlite3.Connection:
+        connection = sqlite3.connect(self.path, timeout=10)
+        connection.row_factory = sqlite3.Row
+        return connection
+
+    def put(self, credential: PasskeyCredential) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """INSERT INTO passkey_credentials
+                (credential_id,actor_id,public_key_b64,sign_count,rp_id,origin,revoked)
+                VALUES (?,?,?,?,?,?,?)
+                ON CONFLICT(credential_id,actor_id) DO UPDATE SET
+                public_key_b64=excluded.public_key_b64, sign_count=excluded.sign_count,
+                rp_id=excluded.rp_id, origin=excluded.origin, revoked=excluded.revoked""",
+                (credential.credential_id, credential.actor_id, credential.public_key_b64,
+                 credential.sign_count, credential.rp_id, credential.origin, int(credential.revoked)),
+            )
+
+    def get(self, *, credential_id: str, actor_id: str) -> PasskeyCredential | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM passkey_credentials WHERE credential_id=? AND actor_id=?",
+                (credential_id, actor_id),
+            ).fetchone()
+        if row is None:
+            return None
+        return PasskeyCredential(
+            credential_id=str(row["credential_id"]), actor_id=str(row["actor_id"]),
+            public_key_b64=str(row["public_key_b64"]), sign_count=int(row["sign_count"]),
+            rp_id=str(row["rp_id"]), origin=str(row["origin"]), revoked=bool(row["revoked"]),
+        )
+
+    def update_sign_count(self, *, credential_id: str, actor_id: str, sign_count: int) -> None:
+        with self._connect() as connection:
+            result = connection.execute(
+                "UPDATE passkey_credentials SET sign_count=? WHERE credential_id=? AND actor_id=?",
+                (sign_count, credential_id, actor_id),
+            )
+            if result.rowcount != 1:
+                raise KeyError(credential_id)
+
+    def revoke(self, *, credential_id: str, actor_id: str) -> None:
+        with self._connect() as connection:
+            result = connection.execute(
+                "UPDATE passkey_credentials SET revoked=1 WHERE credential_id=? AND actor_id=?",
+                (credential_id, actor_id),
+            )
+            if result.rowcount != 1:
+                raise KeyError(credential_id)
 
 
 class WebAuthnAuthenticatorVerifier:
