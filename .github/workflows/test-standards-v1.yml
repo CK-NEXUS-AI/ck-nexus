@@ -13,6 +13,10 @@ jobs:
     timeout-minutes: 15
     env:
       CKNEXUS_ENVIRONMENT: development
+      CKNEXUS_HOST: 127.0.0.1
+      PORT: '8000'
+      CKNEXUS_ACCESS_TOKEN: test-access-value
+      CKNEXUS_SECURITY_ACCESS_TOKEN: test-access-value
       CKNEXUS_MOCK_AI: 'true'
       CKNEXUS_GMAIL_OAUTH_ENABLED: 'false'
       CKNEXUS_GMAIL_SEND_ENABLED: 'false'
@@ -58,10 +62,29 @@ jobs:
             --junitxml=junit.xml -q
       - name: Build standardized evidence
         run: .venv/bin/python scripts/build_test_report.py
-      - name: Security attack regression
+      - name: Start isolated mock runtime
+        shell: bash
         run: |
-          .venv/bin/python scripts/security_attack_regression.py | tee attack_trace.log
+          set -euo pipefail
+          nohup .venv/bin/ck-nexus > /tmp/cknexus-test-standards.log 2>&1 &
+          echo $! > /tmp/cknexus-test-standards.pid
+          for i in $(seq 1 20); do
+            if curl -fsS -o /dev/null http://127.0.0.1:8000/docs; then exit 0; fi
+            sleep 0.5
+          done
+          cat /tmp/cknexus-test-standards.log
+          exit 1
+      - name: Security attack regression
+        run: .venv/bin/python scripts/security_attack_regression.py | tee attack_trace.log
+      - name: Stop isolated runtime
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/cknexus-test-standards.pid ]; then
+            kill "$(cat /tmp/cknexus-test-standards.pid)" 2>/dev/null || true
+          fi
       - name: Upload test evidence
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: ck-nexus-test-standards-v1
@@ -70,6 +93,7 @@ jobs:
             attack_trace.log
             coverage.xml
             junit.xml
+          if-no-files-found: warn
           retention-days: 14
       - name: Production evidence boundary
         run: |
