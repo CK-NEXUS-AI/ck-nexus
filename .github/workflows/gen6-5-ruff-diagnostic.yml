@@ -1,0 +1,36 @@
+name: Gen 6.5 Ruff Diagnostic
+
+on:
+  pull_request:
+    paths:
+      - 'creator_app/core/ag_ui_contract.py'
+      - 'creator_app/core/document_layout.py'
+      - 'creator_app/core/media_provenance.py'
+      - 'creator_app/core/typed_attachments.py'
+      - 'creator_app/core/ui_surface_binding.py'
+      - 'tests/test_gen6_ui_multimodal.py'
+      - '.github/workflows/gen6-5-ruff-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  ruff-diff:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install exact Ruff
+        run: python -m pip install ruff==0.16.1
+      - name: Show required import diff
+        run: |
+          ruff check \
+            creator_app/core/ag_ui_contract.py \
+            creator_app/core/document_layout.py \
+            creator_app/core/media_provenance.py \
+            creator_app/core/typed_attachments.py \
+            creator_app/core/ui_surface_binding.py \
+            tests/test_gen6_ui_multimodal.py \
+            --select I --diff
