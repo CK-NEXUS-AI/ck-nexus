@@ -83,9 +83,7 @@ class AGUIContract:
             UIComponentKind.APPROVAL,
         }:
             return False
-        if component.approval_required and not component.interactive:
-            return False
-        return True
+        return not (component.approval_required and not component.interactive)
 
     @staticmethod
     def steering_allowed(command: SteeringCommand) -> bool:
@@ -112,9 +110,11 @@ class AGUIContract:
         for event in events:
             if event.component is not None and not AGUIContract.component_allowed(event.component):
                 return False
-            if event.event_type in {UIEventType.STATE_SNAPSHOT, UIEventType.STATE_DELTA}:
-                if not event.state_digest or not event.evidence_ids:
-                    return False
+            if (
+                event.event_type in {UIEventType.STATE_SNAPSHOT, UIEventType.STATE_DELTA}
+                and (not event.state_digest or not event.evidence_ids)
+            ):
+                return False
             if event.event_type == UIEventType.STATE_DELTA and not event.previous_state_digest:
                 return False
         return True
