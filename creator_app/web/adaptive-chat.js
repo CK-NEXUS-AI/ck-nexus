@@ -38,7 +38,7 @@ function setAgnes(mode, text) {
   el.agnesState.innerHTML = `<i></i> ${ready ? "READY" : mode.toUpperCase()}`;
   el.agnesCopy.textContent = text;
 }
-function authError(error) { if (error.status === 401) { if (!el.dialog.open) el.dialog.showModal(); } else toast(error.message); }
+function authError(error) { toast(error.status === 401 ? "Runtime ปฏิเสธการเข้าถึง" : error.message); }
 
 function renderRuntime(status) {
   const mode = safe(status?.mode, "UNAVAILABLE");
@@ -48,7 +48,8 @@ function renderRuntime(status) {
     <div><dt>Mode</dt><dd>${mode.toUpperCase()}</dd></div>
     <div><dt>Model</dt><dd>${safe(status?.model)}</dd></div>
     <div><dt>Database</dt><dd class="${status?.database_ready ? "status-ok" : "status-bad"}">${database}</dd></div>
-    <div><dt>Access Gate</dt><dd class="${status?.access_required ? "status-warn" : "status-ok"}">${access}</dd></div>`;
+    <div><dt>Session Access</dt><dd class="${status?.access_required ? "status-warn" : "status-ok"}">${access}</dd></div>
+    <div><dt>Dev Team</dt><dd class="${status?.dev_team_ready ? "status-ok" : "status-warn"}">${status?.dev_team_ready ? "READY" : "NOT READY"}</dd></div>`;
   const connected = mode === "openai" || mode === "mock";
   el.topState.classList.toggle("ready", connected);
   el.globalState.textContent = connected ? (mode === "mock" ? "DEMO LINKED" : "LIVE LINKED") : "DISCONNECTED";
