@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - backup/ck-nexus-snapshot-2026-08-21
+  pull_request:
+    branches:
+      - post-p0/agnes-capability-gap-matrix-v2026
 
 permissions:
   contents: read
