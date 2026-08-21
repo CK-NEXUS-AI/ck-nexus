@@ -158,6 +158,12 @@ class ScopedSessionToken:
     provider: str
     scopes: frozenset[str]
     expires_at: float
+    task_id: str = ""
+    run_id: str = ""
+    tenant_id: str = ""
+    workspace_id: str = ""
+    risk_class: str = ""
+    network_scope: str = ""
 
     def __repr__(self) -> str:
         return (
@@ -175,6 +181,12 @@ class _ScopedGrant:
     scopes: frozenset[str]
     expires_at: float
     remaining_uses: int
+    task_id: str = ""
+    run_id: str = ""
+    tenant_id: str = ""
+    workspace_id: str = ""
+    risk_class: str = ""
+    network_scope: str = ""
 
 
 @dataclass(slots=True)
@@ -259,6 +271,12 @@ class CredentialBroker:
         scopes: frozenset[str],
         ttl_seconds: float = 60.0,
         max_uses: int = 1,
+        task_id: str = "",
+        run_id: str = "",
+        tenant_id: str = "",
+        workspace_id: str = "",
+        risk_class: str = "",
+        network_scope: str = "",
     ) -> ScopedSessionToken:
         if not self.is_allowed(credential_id, consumer=consumer):
             raise CredentialAccessDenied(
@@ -286,6 +304,12 @@ class CredentialBroker:
             scopes=frozenset(scope.strip() for scope in scopes),
             expires_at=expires_at,
             remaining_uses=max_uses,
+            task_id=task_id.strip(),
+            run_id=run_id.strip(),
+            tenant_id=tenant_id.strip(),
+            workspace_id=workspace_id.strip(),
+            risk_class=risk_class.strip(),
+            network_scope=network_scope.strip(),
         )
         return ScopedSessionToken(
             token=token,
@@ -293,6 +317,12 @@ class CredentialBroker:
             provider=normalized_provider,
             scopes=frozenset(scope.strip() for scope in scopes),
             expires_at=expires_at,
+            task_id=task_id.strip(),
+            run_id=run_id.strip(),
+            tenant_id=tenant_id.strip(),
+            workspace_id=workspace_id.strip(),
+            risk_class=risk_class.strip(),
+            network_scope=network_scope.strip(),
         )
 
     def acquire_scoped(
@@ -303,6 +333,12 @@ class CredentialBroker:
         consumer: str,
         provider: str,
         required_scopes: frozenset[str],
+        task_id: str | None = None,
+        run_id: str | None = None,
+        tenant_id: str | None = None,
+        workspace_id: str | None = None,
+        risk_class: str | None = None,
+        network_scope: str | None = None,
     ) -> SecretLease:
         digest = self._token_digest(token)
         grant = self._scoped_grants.get(digest)
@@ -315,6 +351,19 @@ class CredentialBroker:
             raise CredentialAccessDenied("Scoped credential token binding mismatch.")
         if grant.credential_id is not credential_id:
             raise CredentialAccessDenied("Scoped credential token credential mismatch.")
+        bindings = {
+            "task_id": task_id,
+            "run_id": run_id,
+            "tenant_id": tenant_id,
+            "workspace_id": workspace_id,
+            "risk_class": risk_class,
+            "network_scope": network_scope,
+        }
+        for name, expected in bindings.items():
+            if expected is not None and getattr(grant, name) != expected.strip():
+                raise CredentialAccessDenied(
+                    f"Scoped credential token {name} binding mismatch."
+                )
         normalized_scopes = frozenset(
             scope.strip() for scope in required_scopes if scope.strip()
         )

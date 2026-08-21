@@ -1,0 +1,64 @@
+name: CK-NEXUS Development CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  development-verification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+      - name: Frozen dependency sync
+        run: |
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+          .venv/bin/python -c "import aiosqlite,asyncpg,psycopg,redis; print('dependency sync PASS')"
+      - name: Compile and Ruff
+        run: |
+          .venv/bin/python -m compileall -q main.py creator_app services scripts
+          .venv/bin/ruff check main.py creator_app services tests scripts --output-format=github
+      - name: Bandit reviewed gate
+        shell: bash
+        run: |
+          .venv/bin/bandit -r creator_app services main.py -f json -o bandit.json || true
+          .venv/bin/python - <<'PY'
+          import hashlib,json,sys
+          report=json.load(open('bandit.json',encoding='utf-8'))
+          reviewed={
+            ('B608','services/email_gateway/repository.py',221,'a248369faca360edbca232b1700ef67d87d9eeae8401bb1b379122f3274a4a6a'),
+            ('B608','services/email_gateway/repository.py',230,'2948e929a8c5a30e600e2d06c3cea59da396aa196adfd234183556d877df3de0'),
+          }
+          blocking=[]
+          for item in report.get('results',[]):
+            if item.get('issue_severity') not in {'MEDIUM','HIGH'}:
+              continue
+            finding=(
+              item.get('test_id'),item.get('filename'),item.get('line_number'),
+              hashlib.sha256(item.get('code','').encode()).hexdigest(),
+            )
+            if finding not in reviewed:
+              blocking.append(finding)
+          print('blocking=',blocking)
+          sys.exit(bool(blocking))
+          PY
+      - name: Secret scan
+        run: .venv/bin/python scripts/secret_scan.py
+      - name: Portable regression
+        run: .venv/bin/pytest -q --ignore=tests/test_agnes_execution_kernel_phase2.py --ignore=tests/test_agnes_execution_kernel_phase3.py
+      - name: Provenance classification
+        run: |
+          echo 'Development verification only.'
+          echo 'Frozen production evidence is intentionally not rebound to this development HEAD.'
+          echo 'Production Q10/Q11/Q12 and exact-subject evidence remain separate gates.'
