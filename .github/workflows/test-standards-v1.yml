@@ -47,14 +47,22 @@ jobs:
             creator_app/core/fanout_fanin_budget.py \
             creator_app/core/chat_bridge.py \
             creator_app/core/mcp_bridge_manifest.py \
+            creator_app/core/resilience_faults.py \
+            creator_app/core/resilience_evidence.py \
+            creator_app/core/deterministic_state.py \
+            creator_app/core/mock_provider.py \
             tests/conftest.py \
             tests/test_chat_mcp_bridge.py \
             tests/test_gen6_runtime_contracts.py \
             tests/test_gen6_elastic_swarm.py \
             tests/test_gen6_cognitive_memory.py \
+            tests/unit/test_resilience_evidence.py \
+            tests/unit/test_deterministic_state.py \
+            tests/unit/test_mock_provider.py \
             tests/security/test_attack_contract_ids.py \
             tests/chaos/test_checkpoint_recovery.py \
             tests/chaos/test_disk_full.py \
+            tests/chaos/test_fault_injection_contract.py \
             scripts/build_test_report.py
       - name: Run governed contract suite with coverage gate
         run: |
@@ -62,6 +70,9 @@ jobs:
             tests/test_chat_mcp_bridge.py \
             tests/test_gen6_elastic_swarm.py \
             tests/test_gen6_cognitive_memory.py \
+            tests/unit/test_resilience_evidence.py \
+            tests/unit/test_deterministic_state.py \
+            tests/unit/test_mock_provider.py \
             --mock-provider --timeout=30 \
             --cov=creator_app.core.chat_bridge \
             --cov=creator_app.core.mcp_bridge_manifest \
@@ -70,6 +81,9 @@ jobs:
             --cov=creator_app.core.dream_consolidation \
             --cov=creator_app.core.experience_skill \
             --cov=creator_app.core.memory_regression \
+            --cov=creator_app.core.resilience_evidence \
+            --cov=creator_app.core.deterministic_state \
+            --cov=creator_app.core.mock_provider \
             --cov-report=xml:coverage.xml --cov-fail-under=80 \
             --junitxml=junit.xml -q
       - name: Build standardized evidence
@@ -114,7 +128,7 @@ jobs:
             chaos_trace.log
             coverage.xml
             junit.xml
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
       - name: Production evidence boundary
         run: |
