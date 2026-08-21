@@ -40,10 +40,22 @@ jobs:
             'pytest-cov>=6,<8' 'pytest-timeout>=2,<3' 'freezegun>=1,<2'
       - name: Ruff standards files
         run: |
-          .venv/bin/ruff check tests/conftest.py scripts/build_test_report.py \
-            creator_app/core/chat_bridge.py creator_app/core/mcp_bridge_manifest.py \
-            tests/test_chat_mcp_bridge.py tests/test_gen6_elastic_swarm.py \
-            tests/test_gen6_cognitive_memory.py
+          .venv/bin/ruff check \
+            creator_app/core/policy_errors.py \
+            creator_app/core/checkpoint_guard.py \
+            creator_app/core/computer_use_contract.py \
+            creator_app/core/fanout_fanin_budget.py \
+            creator_app/core/chat_bridge.py \
+            creator_app/core/mcp_bridge_manifest.py \
+            tests/conftest.py \
+            tests/test_chat_mcp_bridge.py \
+            tests/test_gen6_runtime_contracts.py \
+            tests/test_gen6_elastic_swarm.py \
+            tests/test_gen6_cognitive_memory.py \
+            tests/security/test_attack_contract_ids.py \
+            tests/chaos/test_checkpoint_recovery.py \
+            tests/chaos/test_disk_full.py \
+            scripts/build_test_report.py
       - name: Run governed contract suite with coverage gate
         run: |
           .venv/bin/pytest \
@@ -62,6 +74,14 @@ jobs:
             --junitxml=junit.xml -q
       - name: Build standardized evidence
         run: .venv/bin/python scripts/build_test_report.py
+      - name: Attack IDs A-01 through A-05
+        run: |
+          .venv/bin/pytest tests/security/test_attack_contract_ids.py \
+            --mock-provider --attack-mode --timeout=30 -v | tee attack_trace.log
+      - name: Chaos level 3 bounded simulations
+        run: |
+          .venv/bin/pytest tests/chaos/ \
+            --mock-provider --chaos-level=3 --timeout=30 -v | tee chaos_trace.log
       - name: Start isolated mock runtime
         shell: bash
         run: |
@@ -74,8 +94,8 @@ jobs:
           done
           cat /tmp/cknexus-test-standards.log
           exit 1
-      - name: Security attack regression
-        run: .venv/bin/python scripts/security_attack_regression.py | tee attack_trace.log
+      - name: Existing black-box security attack regression
+        run: .venv/bin/python scripts/security_attack_regression.py | tee -a attack_trace.log
       - name: Stop isolated runtime
         if: always()
         shell: bash
@@ -91,6 +111,7 @@ jobs:
           path: |
             test_report.json
             attack_trace.log
+            chaos_trace.log
             coverage.xml
             junit.xml
           if-no-files-found: warn
