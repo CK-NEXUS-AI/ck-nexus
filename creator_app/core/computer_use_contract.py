@@ -44,9 +44,7 @@ class ComputerUsePolicy:
             return False
         if proposal.risk in {ComputerActionRisk.HIGH, ComputerActionRisk.CRITICAL}:
             return bool(proposal.execution_grant_id)
-        if proposal.approval_required and not proposal.execution_grant_id:
-            return False
-        return True
+        return not (proposal.approval_required and not proposal.execution_grant_id)
 
     @classmethod
     def require_execution_allowed(cls, proposal: ComputerActionProposal) -> None:
