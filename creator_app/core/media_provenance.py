@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import re
 from enum import StrEnum
+import re
 
 from pydantic import BaseModel, Field
 
