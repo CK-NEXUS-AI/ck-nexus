@@ -1,0 +1,472 @@
+{
+  "schema_version": "1.0",
+  "baseline_commit": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+  "authority": "repository implementation evidence; latest exact evidence wins",
+  "statuses": [
+    "EXISTS",
+    "PARTIAL",
+    "CONTRACT_ONLY",
+    "MISSING",
+    "EXPERIMENTAL"
+  ],
+  "invariant": "DISCOVERED != CONNECTED != AUTHORIZED != EXECUTED != VERIFIED != PRODUCTION_APPROVED",
+  "capabilities": [
+    {
+      "id": 1,
+      "capability": "Universal Computer-Use Fabric",
+      "fabric": "Execution",
+      "stream": "AIO-21",
+      "status": "MISSING",
+      "priority": "P0",
+      "risk": "HIGH",
+      "dependencies": [
+        "sandbox",
+        "policy",
+        "approval"
+      ],
+      "implementation_path": "Browser/Desktop/Android/Shell drivers behind Governor; every mutating action policy-gated",
+      "acceptance_test": "simulated browser action denied/approved correctly; evidence sealed"
+    },
+    {
+      "id": 2,
+      "capability": "Managed Agent Sandbox Runtime",
+      "fabric": "Execution",
+      "stream": "AIO-21",
+      "status": "PARTIAL",
+      "priority": "P0",
+      "risk": "HIGH",
+      "dependencies": [
+        "AGNES sandbox",
+        "workspace",
+        "policy"
+      ],
+      "implementation_path": "Generalize existing sandbox to portable executor contract",
+      "acceptance_test": "same task executes in local sandbox and alternate executor with identical result envelope"
+    },
+    {
+      "id": 3,
+      "capability": "Long-Horizon / Durable Agent Runtime",
+      "fabric": "Core",
+      "stream": "AIO-16",
+      "status": "PARTIAL",
+      "priority": "P0",
+      "risk": "HIGH",
+      "dependencies": [
+        "run state",
+        "idempotency",
+        "evidence"
+      ],
+      "implementation_path": "Add checkpoint/pause/resume/retry/fork/replay/migrate state machine",
+      "acceptance_test": "kill/restart runtime and resume exact run without duplicate side effects"
+    },
+    {
+      "id": 4,
+      "capability": "Research Swarm / Deep Research Fabric",
+      "fabric": "Research",
+      "stream": "AIO-20",
+      "status": "PARTIAL",
+      "priority": "P0",
+      "risk": "MEDIUM",
+      "dependencies": [
+        "AGNES",
+        "connector fabric",
+        "evidence"
+      ],
+      "implementation_path": "Director + scouts + contradiction/source verifier over normalized evidence",
+      "acceptance_test": "multi-source research produces deduped claims and evidence graph"
+    },
+    {
+      "id": 5,
+      "capability": "Search Federation Engine",
+      "fabric": "Research",
+      "stream": "AIO-20",
+      "status": "PARTIAL",
+      "priority": "P0/P1",
+      "risk": "MEDIUM",
+      "dependencies": [
+        "connector fabric",
+        "OpenAPI/MCP"
+      ],
+      "implementation_path": "Normalized search adapters and source scoring",
+      "acceptance_test": "same query fans out to >=3 adapters and returns normalized ranked results"
+    },
+    {
+      "id": 6,
+      "capability": "MCP 2026 Runtime Upgrade",
+      "fabric": "Connection",
+      "stream": "AIO-20",
+      "status": "PARTIAL",
+      "priority": "P0",
+      "risk": "HIGH",
+      "dependencies": [
+        "connector_fabric/mcp.py",
+        "governance"
+      ],
+      "implementation_path": "Capability negotiation, task mapping, subscriptions, auth hardening, untrusted descriptions",
+      "acceptance_test": "malicious MCP metadata cannot gain undeclared capability; task/subscription tests pass"
+    },
+    {
+      "id": 7,
+      "capability": "Secure Elicitation Runtime",
+      "fabric": "Identity",
+      "stream": "AIO-17",
+      "status": "CONTRACT_ONLY",
+      "priority": "P0",
+      "risk": "HIGH",
+      "dependencies": [
+        "Credential Broker",
+        "approval"
+      ],
+      "implementation_path": "Form vs secure URL/OAuth elicitation; secrets never requested in normal form",
+      "acceptance_test": "secret field request is rejected and replaced by brokered auth flow"
+    },
+    {
+      "id": 8,
+      "capability": "Portable Skill Runtime / Skill Store",
+      "fabric": "Capability",
+      "stream": "AIO-22",
+      "status": "PARTIAL",
+      "priority": "P0/P1",
+      "risk": "HIGH",
+      "dependencies": [
+        "AGNES skills",
+        "capability registry"
+      ],
+      "implementation_path": "Signed/versioned skill package with permissions, tests, SBOM",
+      "acceptance_test": "install signed skill in quarantine; permission mismatch blocks execution"
+    },
+    {
+      "id": 9,
+      "capability": "Skill Auto-Discovery + Skill Compiler",
+      "fabric": "Capability",
+      "stream": "AIO-22",
+      "status": "PARTIAL",
+      "priority": "P1",
+      "risk": "HIGH",
+      "dependencies": [
+        "agnes_discovery",
+        "skills",
+        "sandbox"
+      ],
+      "implementation_path": "Discover→quarantine→manifest→test→scan→score→review→register",
+      "acceptance_test": "unknown skill remains unusable until sandbox tests and approval pass"
+    },
+    {
+      "id": 10,
+      "capability": "Capability Graph",
+      "fabric": "Capability",
+      "stream": "AIO-22",
+      "status": "PARTIAL",
+      "priority": "P1",
+      "risk": "MEDIUM",
+      "dependencies": [
+        "capability registry",
+        "provider metadata"
+      ],
+      "implementation_path": "Replace flat capability lists with dependency/trust graph",
+      "acceptance_test": "planner resolves multi-capability task to valid model+tool+verifier chain"
+    },
+    {
+      "id": 11,
+      "capability": "Automatic Model Capability Benchmarking",
+      "fabric": "Intelligence",
+      "stream": "AIO-22",
+      "status": "MISSING",
+      "priority": "P1",
+      "risk": "MEDIUM",
+      "dependencies": [
+        "provider router",
+        "evidence"
+      ],
+      "implementation_path": "Evidence-driven model arena for quality/latency/cost/tool accuracy",
+      "acceptance_test": "router choice changes only after benchmark evidence revision"
+    },
+    {
+      "id": 12,
+      "capability": "Dynamic Model Composition",
+      "fabric": "Intelligence",
+      "stream": "AIO-22",
+      "status": "PARTIAL",
+      "priority": "P1",
+      "risk": "MEDIUM",
+      "dependencies": [
+        "provider router",
+        "council"
+      ],
+      "implementation_path": "Planner/research/coder/verifier composition and consensus modes",
+      "acceptance_test": "multi-model run records per-worker result and deterministic judge decision"
+    },
+    {
+      "id": 13,
+      "capability": "Formal Verification Layer",
+      "fabric": "Governance",
+      "stream": "AIO-17",
+      "status": "MISSING",
+      "priority": "P1",
+      "risk": "HIGH",
+      "dependencies": [
+        "policy engine",
+        "evidence"
+      ],
+      "implementation_path": "Lean/SMT/Z3 adapter for selected invariants; LLM verdict never authoritative",
+      "acceptance_test": "critical invariant violation blocks execution even when model says safe"
+    },
+    {
+      "id": 14,
+      "capability": "World Model / Simulation Fabric",
+      "fabric": "Execution",
+      "stream": "AIO-21",
+      "status": "MISSING",
+      "priority": "P1/P2",
+      "risk": "HIGH",
+      "dependencies": [
+        "planner",
+        "policy",
+        "verifier"
+      ],
+      "implementation_path": "Counterfactual/simulation stage before high-risk execution",
+      "acceptance_test": "deployment proposal produces predicted impact and deny/allow evidence before mutation"
+    },
+    {
+      "id": 15,
+      "capability": "Embodied AI / Robotics Fabric",
+      "fabric": "Execution",
+      "stream": "AIO-21",
+      "status": "MISSING",
+      "priority": "P2",
+      "risk": "CRITICAL",
+      "dependencies": [
+        "capability graph",
+        "safety gate"
+      ],
+      "implementation_path": "Robot/IoT adapter contract; AGNES never direct motor authority",
+      "acceptance_test": "unsafe actuator command denied by safety boundary in simulator"
+    },
+    {
+      "id": 16,
+      "capability": "Multi-Robot / Multi-Device Swarm",
+      "fabric": "Execution",
+      "stream": "AIO-21",
+      "status": "MISSING",
+      "priority": "P2",
+      "risk": "CRITICAL",
+      "dependencies": [
+        "device identity",
+        "capability graph"
+      ],
+      "implementation_path": "Common node contract for device/robot/compute swarm",
+      "acceptance_test": "scheduler selects only online trusted nodes within risk ceiling"
+    },
+    {
+      "id": 17,
+      "capability": "Perception Fabric",
+      "fabric": "Research",
+      "stream": "AIO-20",
+      "status": "PARTIAL",
+      "priority": "P1",
+      "risk": "MEDIUM",
+      "dependencies": [
+        "vision/audio/document support"
+      ],
+      "implementation_path": "Normalize text/image/video/audio/screen/DOM/spatial/telemetry observations",
+      "acceptance_test": "mixed-media task yields typed observations with provenance"
+    },
+    {
+      "id": 18,
+      "capability": "Real-time Multimodal Runtime",
+      "fabric": "Core",
+      "stream": "AIO-16",
+      "status": "MISSING",
+      "priority": "P1",
+      "risk": "HIGH",
+      "dependencies": [
+        "event bus",
+        "perception",
+        "provider fabric"
+      ],
+      "implementation_path": "Unified realtime stream for voice/camera/screen/tool events",
+      "acceptance_test": "session preserves ordering/correlation across concurrent modalities"
+    },
+    {
+      "id": 19,
+      "capability": "Agent Self-Evaluation / Reflection",
+      "fabric": "Governance",
+      "stream": "AIO-17",
+      "status": "PARTIAL",
+      "priority": "P1",
+      "risk": "MEDIUM",
+      "dependencies": [
+        "verification",
+        "council"
+      ],
+      "implementation_path": "Actor self-check + critic + independent verifier; self-check no authority",
+      "acceptance_test": "actor success with verifier failure remains blocked"
+    },
+    {
+      "id": 20,
+      "capability": "Contradiction Engine",
+      "fabric": "Knowledge",
+      "stream": "AIO-18",
+      "status": "MISSING",
+      "priority": "P1",
+      "risk": "MEDIUM",
+      "dependencies": [
+        "evidence graph",
+        "research"
+      ],
+      "implementation_path": "Claim relation SUPPORT/CONTRADICT/PARTIAL/UNKNOWN",
+      "acceptance_test": "conflicting sources remain explicit and synthesis reports disagreement"
+    },
+    {
+      "id": 21,
+      "capability": "Temporal Knowledge / Truth Timeline",
+      "fabric": "Knowledge",
+      "stream": "AIO-18",
+      "status": "PARTIAL",
+      "priority": "P1",
+      "risk": "MEDIUM",
+      "dependencies": [
+        "supersession/evidence concepts"
+      ],
+      "implementation_path": "valid_from/until, observed_at, supersedes relations for knowledge",
+      "acceptance_test": "stale fact is superseded without deleting history"
+    },
+    {
+      "id": 22,
+      "capability": "Active Memory Management",
+      "fabric": "Knowledge",
+      "stream": "AIO-18",
+      "status": "PARTIAL",
+      "priority": "P1",
+      "risk": "HIGH",
+      "dependencies": [
+        "memory modules",
+        "evidence"
+      ],
+      "implementation_path": "Working/episodic/semantic/procedural/project/evidence memory lifecycle",
+      "acceptance_test": "forget/expire/supersede operations obey policy and audit trail"
+    },
+    {
+      "id": 23,
+      "capability": "Context Compiler",
+      "fabric": "Knowledge",
+      "stream": "AIO-18",
+      "status": "MISSING",
+      "priority": "P1",
+      "risk": "HIGH",
+      "dependencies": [
+        "memory",
+        "policy",
+        "skills"
+      ],
+      "implementation_path": "Compile minimum sufficient policy+memory+skill+state context",
+      "acceptance_test": "irrelevant/stale memory excluded; required policy always included"
+    },
+    {
+      "id": 24,
+      "capability": "Agent Identity / Capability Passport",
+      "fabric": "Capability",
+      "stream": "AIO-23",
+      "status": "PARTIAL",
+      "priority": "P1",
+      "risk": "HIGH",
+      "dependencies": [
+        "agent registry",
+        "permissions"
+      ],
+      "implementation_path": "Machine-readable identity/version/skills/permissions/risk/trust/eval",
+      "acceptance_test": "passport hash change invalidates prior trust attestation"
+    },
+    {
+      "id": 25,
+      "capability": "Zero-Trust Tool Reputation System",
+      "fabric": "Governance",
+      "stream": "AIO-17",
+      "status": "PARTIAL",
+      "priority": "P1",
+      "risk": "HIGH",
+      "dependencies": [
+        "connector risk",
+        "sandbox",
+        "evidence"
+      ],
+      "implementation_path": "UNKNOWN→QUARANTINED→SCANNED→SANDBOXED→VERIFIED→TRUSTED lifecycle",
+      "acceptance_test": "schema/publisher/binary change automatically downgrades trust"
+    },
+    {
+      "id": 26,
+      "capability": "Dynamic Approval UX",
+      "fabric": "Identity",
+      "stream": "AIO-19",
+      "status": "PARTIAL",
+      "priority": "P1",
+      "risk": "HIGH",
+      "dependencies": [
+        "approval runtime",
+        "adaptive UI"
+      ],
+      "implementation_path": "Explain action/reason/impact/recovery/risk/scope; allow once/task/modify/deny",
+      "acceptance_test": "high-risk request cannot execute before explicit scoped approval"
+    },
+    {
+      "id": 27,
+      "capability": "Generative UI Runtime",
+      "fabric": "UI",
+      "stream": "AIO-19",
+      "status": "CONTRACT_ONLY",
+      "priority": "P1",
+      "risk": "MEDIUM",
+      "dependencies": [
+        "adaptive UI",
+        "schemas"
+      ],
+      "implementation_path": "Validated UI intent schema for tables/charts/maps/timeline/diff/form/artifact",
+      "acceptance_test": "untrusted UI schema cannot inject scripts or exceed allowed component set"
+    },
+    {
+      "id": 28,
+      "capability": "Cognitive UI Event Bus",
+      "fabric": "UI",
+      "stream": "AIO-19",
+      "status": "PARTIAL",
+      "priority": "P0/P1",
+      "risk": "HIGH",
+      "dependencies": [
+        "event signals",
+        "evidence"
+      ],
+      "implementation_path": "Single backend event envelope drives UI state and evidence",
+      "acceptance_test": "UI changes only after authoritative event; correlation chain verified"
+    },
+    {
+      "id": 29,
+      "capability": "Artifact-Native Operating System",
+      "fabric": "Core",
+      "stream": "AIO-16",
+      "status": "PARTIAL",
+      "priority": "P1",
+      "risk": "MEDIUM",
+      "dependencies": [
+        "artifact/evidence concepts"
+      ],
+      "implementation_path": "Typed artifact lifecycle with lineage, revision, verification, publish",
+      "acceptance_test": "artifact digest/revision lineage remains reproducible across rerun"
+    },
+    {
+      "id": 30,
+      "capability": "Scientific Agent Fabric",
+      "fabric": "Research",
+      "stream": "AIO-20",
+      "status": "MISSING",
+      "priority": "P2",
+      "risk": "HIGH",
+      "dependencies": [
+        "research",
+        "sandbox",
+        "artifacts"
+      ],
+      "implementation_path": "Literature/hypothesis/experiment/data/statistics/reproduction workbench",
+      "acceptance_test": "research result includes reproducible notebook/artifacts/citation verification"
+    }
+  ]
+}
