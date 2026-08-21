@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .guards import CommandGuard, SandboxViolation
+from .platform import SandboxPlatformProfile, detect_platform_profile
 from .policy import SandboxPolicy
 
 
@@ -78,15 +79,18 @@ class LinuxNamespaceRunner:
     backend_name = "linux_namespace_chroot"
     production_safe = False
 
-    def __init__(self, policy: SandboxPolicy) -> None:
+    def __init__(
+        self, policy: SandboxPolicy, *, platform_profile: SandboxPlatformProfile | None = None
+    ) -> None:
         self.policy = policy
+        self.platform_profile = platform_profile or detect_platform_profile()
         self.unshare = shutil.which("unshare")
         if self.policy.require_namespace and not self.unshare:
             raise RuntimeError("unshare_not_available")
 
     async def health(self) -> dict[str, object]:
         if not self.unshare:
-            return {"ready": False, "backend": self.backend_name, "reason": "unshare_not_available"}
+            return {"ready": False, "backend": self.backend_name, "platform": self.platform_profile.name, "reason": "unshare_not_available"}
         proc = await asyncio.create_subprocess_exec(
             self.unshare,
             "-Urmpn",
@@ -99,6 +103,8 @@ class LinuxNamespaceRunner:
         return {
             "ready": proc.returncode == 0,
             "backend": self.backend_name,
+            "platform": self.platform_profile.name,
+            "virtual_root_map": [(str(src), dst) for src, dst in self.platform_profile.virtual_root_map],
             "network": "isolated_namespace",
             "filesystem": "chroot_with_read_only_system_binds",
             "production_safe": self.production_safe,
@@ -109,10 +115,9 @@ class LinuxNamespaceRunner:
         executable = shutil.which(command[0])
         if executable is None:
             raise SandboxViolation(f"command_unavailable:{command[0]}")
-        allowed_roots = ("/usr/", "/bin/", "/opt/", "/usr/local/")
-        if not executable.startswith(allowed_roots):
+        if not self.platform_profile.allows_executable(executable):
             raise SandboxViolation("executable_outside_readonly_system_roots")
-        return (executable, *command[1:])
+        return (str(Path(executable).resolve()), *command[1:])
 
     def _launcher_path(self) -> str:
         return ""

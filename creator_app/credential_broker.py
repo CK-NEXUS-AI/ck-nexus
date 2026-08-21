@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import os
+import secrets
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
@@ -125,6 +127,33 @@ class CredentialStatus:
         }
 
 
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class ScopedSessionToken:
+    token: str
+    consumer: str
+    provider: str
+    scopes: frozenset[str]
+    expires_at: float
+
+    def __repr__(self) -> str:
+        return (
+            f"ScopedSessionToken(consumer={self.consumer!r}, provider={self.provider!r}, "
+            f"scopes={sorted(self.scopes)!r}, token=<redacted>, state='expiring')"
+        )
+
+
+@dataclass(slots=True)
+class _ScopedGrant:
+    token_digest: str
+    credential_id: CredentialId
+    consumer: str
+    provider: str
+    scopes: frozenset[str]
+    expires_at: float
+    remaining_uses: int
+
 @dataclass(slots=True)
 class _EphemeralSecret:
     value: str
@@ -150,6 +179,7 @@ class CredentialBroker:
         self._policy = dict(policy or DEFAULT_CONSUMER_POLICY)
         self._ephemeral: dict[CredentialId, _EphemeralSecret] = {}
         self._persistent_store = persistent_store
+        self._scoped_grants: dict[str, _ScopedGrant] = {}
 
     @classmethod
     def from_environment(
@@ -190,6 +220,83 @@ class CredentialBroker:
             _value=value,
             expires_at=expires_at,
         )
+
+
+    @staticmethod
+    def _token_digest(token: str) -> str:
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    def issue_scoped_token(
+        self,
+        credential_id: CredentialId,
+        *,
+        consumer: str,
+        provider: str,
+        scopes: frozenset[str],
+        ttl_seconds: float = 60.0,
+        max_uses: int = 1,
+    ) -> ScopedSessionToken:
+        if not self.is_allowed(credential_id, consumer=consumer):
+            raise CredentialAccessDenied("Credential access is not allowed for this consumer.")
+        if self._resolve(credential_id) is None:
+            raise CredentialUnavailable("Required credential is not configured.")
+        normalized_provider = provider.strip().lower()
+        if not normalized_provider:
+            raise ValueError("provider is required")
+        if not scopes or any(not scope.strip() for scope in scopes):
+            raise ValueError("at least one non-empty scope is required")
+        if ttl_seconds <= 0 or ttl_seconds > 300:
+            raise ValueError("ttl_seconds must be within 1..300 seconds")
+        if max_uses < 1 or max_uses > 32:
+            raise ValueError("max_uses must be within 1..32")
+        token = secrets.token_urlsafe(32)
+        digest = self._token_digest(token)
+        expires_at = monotonic() + ttl_seconds
+        self._scoped_grants[digest] = _ScopedGrant(
+            token_digest=digest,
+            credential_id=credential_id,
+            consumer=consumer,
+            provider=normalized_provider,
+            scopes=frozenset(scope.strip() for scope in scopes),
+            expires_at=expires_at,
+            remaining_uses=max_uses,
+        )
+        return ScopedSessionToken(
+            token=token, consumer=consumer, provider=normalized_provider,
+            scopes=frozenset(scope.strip() for scope in scopes), expires_at=expires_at,
+        )
+
+    def acquire_scoped(
+        self,
+        token: str,
+        credential_id: CredentialId,
+        *,
+        consumer: str,
+        provider: str,
+        required_scopes: frozenset[str],
+    ) -> SecretLease:
+        digest = self._token_digest(token)
+        grant = self._scoped_grants.get(digest)
+        if grant is None:
+            raise CredentialAccessDenied("Scoped credential token is invalid.")
+        if monotonic() >= grant.expires_at:
+            self._scoped_grants.pop(digest, None)
+            raise CredentialUnavailable("Scoped credential token expired.")
+        if grant.consumer != consumer or grant.provider != provider.strip().lower():
+            raise CredentialAccessDenied("Scoped credential token binding mismatch.")
+        if grant.credential_id is not credential_id:
+            raise CredentialAccessDenied("Scoped credential token credential mismatch.")
+        normalized_scopes = frozenset(scope.strip() for scope in required_scopes if scope.strip())
+        if not normalized_scopes.issubset(grant.scopes):
+            raise CredentialAccessDenied("Requested scope exceeds scoped credential grant.")
+        lease = self.acquire(credential_id, consumer=consumer)
+        grant.remaining_uses -= 1
+        if grant.remaining_uses <= 0:
+            self._scoped_grants.pop(digest, None)
+        return lease
+
+    def revoke_scoped_token(self, token: str) -> None:
+        self._scoped_grants.pop(self._token_digest(token), None)
 
     def put_ephemeral(
         self,
