@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="th" data-theme="midnight" data-motion="full">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="CK-NEXUS Living Cognitive Digital Twin — runtime-grounded AI facility" />
+  <title>CK-NEXUS / Living Cognitive Digital Twin</title>
+  <link rel="stylesheet" href="/static/cognitive-twin.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="CK-NEXUS">
+        <span class="brand-mark">CK</span>
+        <span><strong>CK-NEXUS</strong><small>LIVING COGNITIVE DIGITAL TWIN</small></span>
+      </a>
+      <div class="top-metrics" aria-label="สถานะระบบ">
+        <div><span>สถานะระบบ</span><strong id="top-system" class="good">กำลังตรวจสอบ</strong></div>
+        <div><span>AGNES</span><strong id="top-agnes">กำลังเชื่อมต่อ</strong></div>
+        <div><span>Provider</span><strong id="top-provider">—</strong></div>
+        <div><span>Production</span><strong class="danger">NO-GO</strong></div>
+      </div>
+      <div class="top-actions">
+        <button class="icon-button" id="toggle-focus" title="โหมดโฟกัส" aria-label="โหมดโฟกัส">◫</button>
+        <button class="icon-button" id="open-settings" title="การตั้งค่า" aria-label="เปิดการตั้งค่า">⚙</button>
+        <button class="connection-pill" id="connection-pill"><i></i><span>กำลังเชื่อมต่อ</span></button>
+      </div>
+    </header>
+
+    <aside class="sidebar" aria-label="เมนูหลัก">
+      <nav>
+        <button class="nav-item active" data-view="facility"><span>01</span><b>ศูนย์ปฏิบัติการ</b><small>Living Facility</small></button>
+        <button class="nav-item" data-view="missions"><span>02</span><b>ภารกิจและงาน</b><small>Missions / Tasks</small></button>
+        <button class="nav-item" data-view="agents"><span>03</span><b>ทีม AI</b><small>Agents / Council</small></button>
+        <button class="nav-item" data-view="research"><span>04</span><b>หอดูดาววิจัย</b><small>Research Observatory</small></button>
+        <button class="nav-item" data-view="workflow"><span>05</span><b>เส้นทางการทำงาน</b><small>Execution Pipeline</small></button>
+        <button class="nav-item" data-view="governance"><span>06</span><b>สิทธิ์และนโยบาย</b><small>Governor / Policy</small></button>
+        <button class="nav-item" data-view="evidence"><span>07</span><b>คลังหลักฐาน</b><small>Evidence Vault</small></button>
+        <button class="nav-item" data-view="replay"><span>08</span><b>เล่นซ้ำเหตุการณ์</b><small>Cognitive Replay</small></button>
+      </nav>
+      <div class="sidebar-foot">
+        <span>UI STATE</span>
+        <strong id="sidebar-state">LIVE / READ-ONLY</strong>
+        <small>หน้าจอนี้ไม่ให้สิทธิ์ Production</small>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <section class="facility-stage" id="facility-stage" aria-label="Living Cognitive Facility">
+        <div class="stage-toolbar">
+          <div><p>พื้นที่ปฏิบัติการจริง</p><h1>CK-NEXUS Cognitive Facility</h1></div>
+          <div class="view-controls" role="group" aria-label="โหมดมุมมอง">
+            <button data-camera="free" class="selected">อิสระ</button>
+            <button data-camera="task">ตามงาน</button>
+            <button data-camera="agent">ตาม Agent</button>
+            <button data-camera="incident">เหตุการณ์สำคัญ</button>
+          </div>
+        </div>
+
+        <div class="scene" id="scene" tabindex="0" aria-label="แผนที่ศูนย์ AI แบบโต้ตอบ">
+          <div class="scene-grid" aria-hidden="true"></div>
+          <div class="room room-research"><span>RESEARCH OBSERVATORY</span></div>
+          <div class="room room-analysis"><span>ANALYSIS CHAMBER</span></div>
+          <div class="room room-sandbox"><span>SANDBOX LAB</span></div>
+          <div class="room room-security"><span>SECURITY CONTROL</span></div>
+          <div class="room room-evidence"><span>EVIDENCE VAULT</span></div>
+          <div class="room room-core"><span>AGNES CORE</span></div>
+
+          <div class="governor-core" id="governor-core" role="button" tabindex="0" aria-label="CK Governor Authority Core">
+            <div class="core-orbit"></div><div class="core-symbol">◇</div><span>CK GOVERNOR</span><small>AUTHORITY CORE</small>
+          </div>
+
+          <div class="data-path path-one" aria-hidden="true"><i></i><i></i><i></i></div>
+          <div class="data-path path-two" aria-hidden="true"><i></i><i></i></div>
+          <div class="data-path path-three" aria-hidden="true"><i></i><i></i><i></i></div>
+
+          <button class="agent agent-agnes" data-agent="agnes" aria-label="AGNES Cognitive Coordinator">
+            <span class="avatar"><i class="face"></i></span>
+            <span class="agent-badge"><b>AGNES</b><small>Cognitive Coordinator</small><em id="state-agnes">กำลังตรวจสอบ</em></span>
+            <span class="thought-symbol" id="symbol-agnes">◌</span>
+          </button>
+          <button class="agent agent-strategos" data-agent="strategos" aria-label="Strategos Planner">
+            <span class="avatar"><i class="face"></i></span><span class="agent-badge"><b>STRATEGOS</b><small>Planner</small><em>พร้อมวางแผน</em></span><span class="thought-symbol">⌘</span>
+          </button>
+          <button class="agent agent-scout" data-agent="scout" aria-label="Scout Research">
+            <span class="avatar"><i class="face"></i></span><span class="agent-badge"><b>SCOUT</b><small>Research</small><em>เฝ้าดูแหล่งข้อมูล</em></span><span class="thought-symbol">◎</span>
+          </button>
+          <button class="agent agent-verifier" data-agent="verifier" aria-label="Verifier Quality">
+            <span class="avatar"><i class="face"></i></span><span class="agent-badge"><b>VERIFIER</b><small>Independent Verification</small><em>รอหลักฐาน</em></span><span class="thought-symbol">✓</span>
+          </button>
+          <button class="agent agent-guardian" data-agent="guardian" aria-label="Guardian Security">
+            <span class="avatar"><i class="face"></i></span><span class="agent-badge"><b>GUARDIAN</b><small>Security / Policy</small><em>เฝ้าระบบ</em></span><span class="thought-symbol">⌾</span>
+          </button>
+          <button class="agent agent-builder" data-agent="builder" aria-label="Builder Automation">
+            <span class="avatar"><i class="face"></i></span><span class="agent-badge"><b>BUILDER</b><small>Automation Builder</small><em>พร้อมทำงาน</em></span><span class="thought-symbol">⌬</span>
+          </button>
+
+          <div class="task-hologram" id="task-hologram" aria-label="Task Graph">
+            <div class="holo-ring ring-a"></div><div class="holo-ring ring-b"></div><strong id="holo-title">LIVE TASK GRAPH</strong>
+            <span class="node n1"></span><span class="node n2"></span><span class="node n3"></span><span class="node n4"></span>
+          </div>
+
+          <div class="visual-language-legend" aria-label="ภาษาภาพของ AI">
+            <span><i class="glyph research">◎</i> กำลังค้นหา</span><span><i class="glyph think">◌</i> กำลังคิด/ประสาน</span><span><i class="glyph verify">✓</i> กำลังตรวจ</span><span><i class="glyph wait">…</i> รอข้อมูล/อนุมัติ</span><span><i class="glyph block">×</i> ถูกบล็อก</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="runtime-board" aria-label="ข้อมูล Runtime จริง">
+        <article class="runtime-card"><header><div><span>สถานะ AGNES</span><strong id="agnes-mode">UNKNOWN</strong></div><i class="live-dot"></i></header><dl><div><dt>Agent</dt><dd id="agnes-agent">—</dd></div><div><dt>Skills</dt><dd id="agnes-skills">—</dd></div><div><dt>Inference</dt><dd id="agnes-inference">—</dd></div><div><dt>Ledger</dt><dd id="agnes-ledger">—</dd></div></dl></article>
+        <article class="runtime-card"><header><div><span>Execution Kernel</span><strong id="kernel-state">UNKNOWN</strong></div></header><dl><div><dt>Dispatcher</dt><dd id="kernel-dispatcher">—</dd></div><div><dt>Sandbox</dt><dd id="kernel-sandbox">—</dd></div><div><dt>Pipeline</dt><dd id="kernel-pipeline">—</dd></div><div><dt>Policy</dt><dd id="kernel-policy">—</dd></div></dl></article>
+        <article class="runtime-card"><header><div><span>Provider Fabric</span><strong id="provider-state">UNKNOWN</strong></div></header><dl><div><dt>Preferred</dt><dd id="provider-preferred">—</dd></div><div><dt>Local-first</dt><dd id="provider-local">—</dd></div><div><dt>Cloud</dt><dd id="provider-cloud">—</dd></div><div><dt>Available</dt><dd id="provider-count">—</dd></div></dl></article>
+        <article class="runtime-card evidence-card"><header><div><span>Evidence / Truth</span><strong>READ-ONLY</strong></div></header><p>หน้าจอจะแสดงเฉพาะสถานะที่ดึงได้จริงจาก CK-NEXUS API และแยก <b>observed</b>, <b>inferred</b>, <b>simulated</b> ออกจากกัน</p><div class="truth-key"><span class="solid">OBSERVED</span><span class="dashed">INFERRED</span><span class="ghost">SIMULATED</span><span class="locked">VERIFIED</span></div></article>
+      </section>
+    </main>
+
+    <aside class="inspector" id="inspector" aria-label="Agent Inspector">
+      <div class="inspector-empty" id="inspector-empty"><span>แตะตัวละคร</span><strong>ดูว่า AI กำลังทำอะไรอยู่</strong><p>ตัวละครเป็น visual manifestation เท่านั้น สิทธิ์และ authority ยังคงอยู่ที่ CK Governor</p></div>
+      <div class="inspector-content hidden" id="inspector-content">
+        <header><div class="portrait" id="inspector-portrait"></div><div><span id="inspector-role">AI AGENT</span><h2 id="inspector-name">AGNES</h2><p id="inspector-state">—</p></div><button id="close-inspector" aria-label="ปิด">×</button></header>
+        <section class="visual-speech"><div class="visual-sentence" id="visual-sentence"></div><p id="visual-explanation">ภาษาภาพสรุปจากสถานะที่สังเกตได้ ไม่แสดง private chain-of-thought</p></section>
+        <section class="inspector-section"><span>งานปัจจุบัน</span><strong id="inspector-task">ยังไม่มี task ที่ยืนยันได้</strong></section>
+        <section class="inspector-section"><span>แหล่งสถานะ</span><strong id="inspector-source">CK-NEXUS runtime</strong></section>
+        <section class="inspector-section"><span>ระดับความจริง</span><strong id="inspector-truth">OBSERVED</strong></section>
+        <section class="inspector-section"><span>สิ่งที่ผู้ใช้ทำได้</span><div class="action-grid"><button data-agent-action="follow">ติดตาม Agent</button><button data-agent-action="focus">โฟกัสจอ</button><button data-agent-action="evidence">ดูหลักฐาน</button><button data-agent-action="pause" disabled>พักงาน (ต้องมีสิทธิ์)</button></div></section>
+      </div>
+    </aside>
+
+    <div class="drawer hidden" id="settings-drawer" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="drawer-panel"><header><div><span>CK-NEXUS</span><h2 id="settings-title">การตั้งค่า Digital Twin</h2></div><button id="close-settings" aria-label="ปิด">×</button></header>
+        <section><h3>ภาษาและการอ่าน</h3><label>ภาษา<select id="language"><option value="th">ไทย</option><option value="th-en">ไทย + English technical</option></select></label><label>ขนาดตัวอักษร<input id="font-scale" type="range" min="90" max="125" value="100" /></label><label class="switch"><input id="high-contrast" type="checkbox" /> <span>โหมดความคมชัดสูง</span></label></section>
+        <section><h3>การเคลื่อนไหว</h3><label>ความสมจริง<select id="motion-quality"><option value="full">เต็มรูปแบบ</option><option value="balanced">สมดุล</option><option value="reduced">ลดการเคลื่อนไหว</option></select></label><label class="switch"><input id="semantic-motion" type="checkbox" checked /> <span>Semantic locomotion ตามสถานะงาน</span></label><label class="switch"><input id="micro-motion" type="checkbox" checked /> <span>Micro-motion / breathing / gaze</span></label></section>
+        <section><h3>ประสิทธิภาพ</h3><label>LOD<select id="lod-mode"><option value="auto">อัตโนมัติ</option><option value="high">สูง</option><option value="medium">กลาง</option><option value="low">ประหยัด</option></select></label><label class="switch"><input id="particles" type="checkbox" checked /> <span>Data particles</span></label><label class="switch"><input id="background-pause" type="checkbox" checked /> <span>พัก renderer เมื่อแท็บไม่ถูกมอง</span></label></section>
+        <section><h3>ความเป็นส่วนตัวและความจริง</h3><label class="switch"><input id="show-inferred" type="checkbox" checked /> <span>แสดง inferred state</span></label><label class="switch"><input id="show-simulated" type="checkbox" /> <span>แสดง simulated / future ghost</span></label><p class="setting-note">หน้าจอนี้ไม่อ่านหรือแสดง raw credentials, private chain-of-thought หรือ production secrets</p></section>
+      </div>
+    </div>
+
+    <div class="access-dialog" id="access-dialog" role="dialog" aria-modal="true" aria-labelledby="access-title">
+      <form id="access-form"><span>SECURE LOCAL SESSION</span><h2 id="access-title">เชื่อมต่อ CK-NEXUS</h2><p>ใส่ Access Token ของ environment นี้ หาก runtime ไม่ได้ตั้ง token ให้เว้นว่างได้ Token จะเก็บใน sessionStorage เท่านั้น</p><label>Access Token<input id="access-token" type="password" autocomplete="off" /></label><div><button type="submit" class="primary">เชื่อมต่อ</button><button type="button" id="continue-without-token">ลองแบบไม่มี Token</button></div><small id="access-error" role="alert"></small></form>
+    </div>
+  </div>
+  <script src="/static/cognitive-twin.js" defer></script>
+</body>
+</html>
