@@ -6,7 +6,6 @@ from creator_app.credential_broker import (
     CredentialAccessDenied,
     CredentialBroker,
     CredentialId,
-    CredentialUnavailable,
 )
 
 

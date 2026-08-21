@@ -85,7 +85,7 @@ def test_ledger_is_append_only_and_tamper_evident(tmp_path: Path):
 
 def test_foundry_never_auto_activates(tmp_path: Path):
     s = foundry(tmp_path)
-    c = candidate(s)
+    candidate(s)
     raw = s.ledger.path.read_text(encoding="utf-8")
     assert '"auto_activate": false' in raw
     assert '"auto_install": false' in raw

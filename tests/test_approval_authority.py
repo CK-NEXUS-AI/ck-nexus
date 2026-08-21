@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from creator_app.approval_authority import ApprovalAuthority
+from creator_app.agnes.execution.approval import StickyApprovalResolver
 
 
 class FakeVerifier:
@@ -94,7 +95,9 @@ def test_tampered_token_fails_closed():
     a = authority()
     c = challenge(a)
     approval = a.complete_challenge(challenge_id=c.challenge_id, assertion="ok")
-    bad = approval.token[:-1] + ("A" if approval.token[-1] != "A" else "B")
+    body, signature = approval.token.split(".", 1)
+    tampered_signature = ("A" if signature[0] != "A" else "B") + signature[1:]
+    bad = body + "." + tampered_signature
     with pytest.raises(PermissionError):
         a.redeem(
             bad,
@@ -105,7 +108,6 @@ def test_tampered_token_fails_closed():
         )
 
 
-from creator_app.agnes.execution.approval import StickyApprovalResolver
 
 
 def test_signed_token_becomes_authenticated_execution_grant():

@@ -4,7 +4,7 @@ import hashlib
 from collections import Counter
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Iterable, Mapping
+from collections.abc import Iterable, Mapping
 
 from creator_app.agnes_idea_experimenter import (
     AssistantRun,

@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from creator_app.agnes.execution.sandbox.platform import (
-    SandboxPlatformProfile,
     detect_platform_profile,
 )
 

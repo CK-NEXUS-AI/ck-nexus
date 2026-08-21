@@ -5,7 +5,7 @@ import hashlib
 from dataclasses import dataclass
 from enum import StrEnum
 from time import monotonic
-from typing import Iterable
+from collections.abc import Iterable
 from uuid import uuid4
 
 from creator_app.agnes_ledger import AppendOnlyLedger
