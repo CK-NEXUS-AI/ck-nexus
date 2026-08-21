@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from pathlib import Path
 
 
@@ -44,10 +42,20 @@ def test_cognitive_twin_keeps_authority_and_truth_boundaries_visible() -> None:
 def test_cognitive_twin_has_agent_inspector_and_visual_language() -> None:
     html = _read(HTML)
     js = _read(JS)
-    for agent in ("agnes", "strategos", "scout", "verifier", "guardian", "builder"):
+    agents = ("agnes", "strategos", "scout", "verifier", "guardian", "builder")
+    for agent in agents:
         assert f'data-agent="{agent}"' in html
         assert f"{agent}:" in js
-    for state in ("searching", "analyzing", "planning", "executing", "verifying", "waiting", "blocked"):
+    states = (
+        "searching",
+        "analyzing",
+        "planning",
+        "executing",
+        "verifying",
+        "waiting",
+        "blocked",
+    )
+    for state in states:
         assert state in js
     assert 'data-agent-action="pause" disabled' in html
 
