@@ -1,0 +1,77 @@
+name: CK-NEXUS Test Standards V1
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  standards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CKNEXUS_ENVIRONMENT: development
+      CKNEXUS_MOCK_AI: 'true'
+      CKNEXUS_GMAIL_OAUTH_ENABLED: 'false'
+      CKNEXUS_GMAIL_SEND_ENABLED: 'false'
+      CKNEXUS_CONNECTOR_FABRIC_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+      - name: Frozen project sync
+        run: |
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+      - name: Install test-only standards tools
+        run: |
+          uv pip install --python .venv/bin/python \
+            'pytest-cov>=6,<8' 'pytest-timeout>=2,<3' 'freezegun>=1,<2'
+      - name: Ruff standards files
+        run: |
+          .venv/bin/ruff check tests/conftest.py scripts/build_test_report.py \
+            creator_app/core/chat_bridge.py creator_app/core/mcp_bridge_manifest.py \
+            tests/test_chat_mcp_bridge.py tests/test_gen6_elastic_swarm.py \
+            tests/test_gen6_cognitive_memory.py
+      - name: Run governed contract suite with coverage gate
+        run: |
+          .venv/bin/pytest \
+            tests/test_chat_mcp_bridge.py \
+            tests/test_gen6_elastic_swarm.py \
+            tests/test_gen6_cognitive_memory.py \
+            --mock-provider --timeout=30 \
+            --cov=creator_app.core.chat_bridge \
+            --cov=creator_app.core.mcp_bridge_manifest \
+            --cov=creator_app.core.elastic_swarm_director \
+            --cov=creator_app.core.memory_decay \
+            --cov=creator_app.core.dream_consolidation \
+            --cov=creator_app.core.experience_skill \
+            --cov=creator_app.core.memory_regression \
+            --cov-report=xml:coverage.xml --cov-fail-under=80 \
+            --junitxml=junit.xml -q
+      - name: Build standardized evidence
+        run: .venv/bin/python scripts/build_test_report.py
+      - name: Security attack regression
+        run: |
+          .venv/bin/python scripts/security_attack_regression.py | tee attack_trace.log
+      - name: Upload test evidence
+        uses: actions/upload-artifact@v6
+        with:
+          name: ck-nexus-test-standards-v1
+          path: |
+            test_report.json
+            attack_trace.log
+            coverage.xml
+            junit.xml
+          retention-days: 14
+      - name: Production evidence boundary
+        run: |
+          echo 'Development test-standards evidence only.'
+          echo 'Does not alter Q10/Q11/Q12, PR #14, or production authority.'
