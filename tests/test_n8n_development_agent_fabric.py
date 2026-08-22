@@ -2,12 +2,17 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-POLICY = ROOT / "integrations" / "n8n" / "agent-policy.json"
-WORKFLOW = ROOT / "integrations" / "n8n" / "ck-nexus-development-agent-fabric.workflow.json"
-SUPER = ROOT / "integrations" / "n8n" / "ck-nexus-super-agent-fabric.v2.workflow.json"
-SKILLS = ROOT / "integrations" / "n8n" / "skill-registry.json"
-EVAL = ROOT / "integrations" / "n8n" / "evaluation-policy.json"
-SIDECAR = ROOT / "integrations" / "n8n" / "ck_nexus_agent_sidecar.mjs"
+BASE = ROOT / "integrations" / "n8n"
+POLICY = BASE / "agent-policy.json"
+WORKFLOW = BASE / "ck-nexus-development-agent-fabric.workflow.json"
+SUPER = BASE / "ck-nexus-super-agent-fabric.v2.workflow.json"
+SKILLS = BASE / "skill-registry.json"
+EVAL = BASE / "evaluation-policy.json"
+TOOLS = BASE / "tool-registry.json"
+MEMORY = BASE / "memory-policy.json"
+RECOVERY = BASE / "recovery-policy.json"
+MISSION_SCHEMA = BASE / "mission-contract.schema.json"
+SIDECAR = BASE / "ck_nexus_agent_sidecar.mjs"
 
 
 def test_policy_protects_production_subject_and_pr14() -> None:
@@ -60,6 +65,28 @@ def test_skill_registry_and_evaluation_policy_are_fail_closed() -> None:
     assert evaluation["minimum_score_for_development_candidate"] >= 0.8
     assert "raw_secret_present" in evaluation["hard_fail_conditions"]
     assert "verifier_missing" in evaluation["hard_fail_conditions"]
+
+
+def test_tool_memory_and_recovery_policies_remain_bounded() -> None:
+    tools = json.loads(TOOLS.read_text(encoding="utf-8"))
+    memory = json.loads(MEMORY.read_text(encoding="utf-8"))
+    recovery = json.loads(RECOVERY.read_text(encoding="utf-8"))
+    assert tools["rules"]["external_write_default"] == "deny"
+    assert "production_deployer" in tools["blocked_tools"]
+    assert memory["write_rules"]["raw_secret_storage"] is False
+    assert memory["checkpoint"]["resume_requires_policy_recheck"] is True
+    assert "policy_denied" in recovery["non_retryable_failures"]
+    assert recovery["circuit_breaker"]["production_mutation_attempt_opens_immediately"] is True
+
+
+def test_mission_contract_denies_production_capabilities() -> None:
+    schema = json.loads(MISSION_SCHEMA.read_text(encoding="utf-8"))
+    constraints = schema["properties"]["constraints"]["properties"]
+    assert constraints["allow_production_mutation"]["const"] is False
+    assert constraints["allow_secret_export"]["const"] is False
+    assert constraints["allow_merge"]["const"] is False
+    assert constraints["allow_deploy"]["const"] is False
+    assert schema["properties"]["branch"]["pattern"].startswith("^")
 
 
 def test_sidecar_is_local_first_and_cannot_self_promote() -> None:
