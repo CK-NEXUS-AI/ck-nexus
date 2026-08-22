@@ -3,15 +3,23 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
-import resource
 import shutil
 import signal
+import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+try:
+    import resource as _resource
+except ImportError:  # pragma: no cover - exercised on non-Unix platforms
+    _resource = None
+
 from .guards import CommandGuard, SandboxViolation
 from .policy import SandboxPolicy
+
+
+_IS_LINUX = sys.platform.startswith("linux")
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,9 +78,9 @@ exec chroot "$ROOT" /usr/bin/env -i \
 class LinuxNamespaceRunner:
     """Linux user/mount/PID/network namespace + chroot development sandbox.
 
-    It provides real filesystem-root and network namespace separation on supported
-    Linux hosts, but remains `production_safe=False` until a hardened backend adds
-    seccomp/cgroup enforcement and passes staging evidence.
+    The module is import-safe on non-Linux hosts so read-only application/status
+    surfaces can start there. Execution remains fail-closed unless the host is
+    Linux and the required Unix resource controls are available.
     """
 
     backend_name = "linux_namespace_chroot"
@@ -80,13 +88,26 @@ class LinuxNamespaceRunner:
 
     def __init__(self, policy: SandboxPolicy) -> None:
         self.policy = policy
-        self.unshare = shutil.which("unshare")
-        if self.policy.require_namespace and not self.unshare:
+        self.platform_supported = _IS_LINUX and _resource is not None
+        self.unshare = shutil.which("unshare") if self.platform_supported else None
+        if self.platform_supported and self.policy.require_namespace and not self.unshare:
             raise RuntimeError("unshare_not_available")
 
     async def health(self) -> dict[str, object]:
+        if not self.platform_supported:
+            return {
+                "ready": False,
+                "backend": self.backend_name,
+                "production_safe": False,
+                "reason": "linux_namespace_not_supported",
+            }
         if not self.unshare:
-            return {"ready": False, "backend": self.backend_name, "reason": "unshare_not_available"}
+            return {
+                "ready": False,
+                "backend": self.backend_name,
+                "production_safe": False,
+                "reason": "unshare_not_available",
+            }
         proc = await asyncio.create_subprocess_exec(
             self.unshare,
             "-Urmpn",
@@ -124,18 +145,22 @@ class LinuxNamespaceRunner:
         return None
 
     def _limits(self) -> None:
-        resource.setrlimit(
-            resource.RLIMIT_CPU, (self.policy.cpu_seconds, self.policy.cpu_seconds + 1)
+        if _resource is None:
+            raise SandboxViolation("linux_resource_limits_not_supported")
+        _resource.setrlimit(
+            _resource.RLIMIT_CPU, (self.policy.cpu_seconds, self.policy.cpu_seconds + 1)
         )
-        resource.setrlimit(resource.RLIMIT_AS, (self.policy.memory_bytes, self.policy.memory_bytes))
-        resource.setrlimit(
-            resource.RLIMIT_NPROC, (self.policy.max_processes, self.policy.max_processes)
+        _resource.setrlimit(
+            _resource.RLIMIT_AS, (self.policy.memory_bytes, self.policy.memory_bytes)
         )
-        resource.setrlimit(
-            resource.RLIMIT_FSIZE, (self.policy.max_file_bytes, self.policy.max_file_bytes)
+        _resource.setrlimit(
+            _resource.RLIMIT_NPROC, (self.policy.max_processes, self.policy.max_processes)
         )
-        resource.setrlimit(
-            resource.RLIMIT_NOFILE, (self.policy.max_open_files, self.policy.max_open_files)
+        _resource.setrlimit(
+            _resource.RLIMIT_FSIZE, (self.policy.max_file_bytes, self.policy.max_file_bytes)
+        )
+        _resource.setrlimit(
+            _resource.RLIMIT_NOFILE, (self.policy.max_open_files, self.policy.max_open_files)
         )
 
     async def run(
@@ -146,6 +171,8 @@ class LinuxNamespaceRunner:
         command: list[str] | tuple[str, ...],
         timeout_seconds: int,
     ) -> SandboxCommandResult:
+        if not self.platform_supported:
+            raise SandboxViolation("linux_namespace_not_supported")
         validated = CommandGuard.validate(command)
         resolved = self._resolve_executable(validated)
         if not workspace.is_dir():
