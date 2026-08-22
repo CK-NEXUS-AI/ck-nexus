@@ -11,5 +11,9 @@ $env:N8N_VERSION_NOTIFICATIONS_ENABLED = 'false'
 $env:N8N_PERSONALIZATION_ENABLED = 'false'
 $env:N8N_TEMPLATES_ENABLED = 'false'
 $env:N8N_BLOCK_ENV_ACCESS_IN_NODE = 'false'
-if (-not $env:CK_NEXUS_AGENT_ENDPOINT) { $env:CK_NEXUS_AGENT_ENDPOINT='http://127.0.0.1:8000/api/dev-agent' }
+if (-not $env:CK_NEXUS_AGENT_ENDPOINT) {
+  $env:CK_NEXUS_AGENT_ENDPOINT='http://127.0.0.1:8765/v1/agent'
+}
+Write-Host "CK-NEXUS n8n development instance: http://127.0.0.1:5678"
+Write-Host "Agent endpoint: $env:CK_NEXUS_AGENT_ENDPOINT"
 & $n8n start
