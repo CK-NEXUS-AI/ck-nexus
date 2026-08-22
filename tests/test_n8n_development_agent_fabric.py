@@ -15,6 +15,7 @@ MISSION_SCHEMA = BASE / "mission-contract.schema.json"
 HANDOFF_SCHEMA = BASE / "assistant-handoff.schema.json"
 SIDECAR = BASE / "ck_nexus_agent_sidecar.mjs"
 TOOL_GATEWAY = BASE / "ck_nexus_dev_tool_gateway.mjs"
+OPENAI_ADAPTER = BASE / "ck_nexus_openai_dev_adapter.mjs"
 INSTALLER = BASE / "install_n8n_windows.ps1"
 START_N8N = BASE / "start_n8n_dev.ps1"
 START_STACK = BASE / "start_super_agent_stack.ps1"
@@ -125,6 +126,19 @@ def test_tool_gateway_requires_token_and_has_no_arbitrary_shell() -> None:
     assert "release/q10-q16-closure" in text
 
 
+def test_openai_adapter_is_local_token_bound_and_non_persistent() -> None:
+    text = OPENAI_ADAPTER.read_text(encoding="utf-8")
+    assert "127.0.0.1" in text
+    assert "CK_NEXUS_INTELLIGENCE_TOKEN" in text
+    assert "OPENAI_API_KEY" in text
+    assert "CK_NEXUS_OPENAI_MODEL" in text
+    assert "https://api.openai.com/v1/responses" in text
+    assert "store:false" in text
+    assert "production_ready:false" in text
+    assert "q10_q11_q12_evidence:false" in text
+    assert "private chain-of-thought" in text
+
+
 def test_installer_and_launchers_are_collision_aware_and_local_only() -> None:
     installer = INSTALLER.read_text(encoding="utf-8")
     start_n8n = START_N8N.read_text(encoding="utf-8")
@@ -136,6 +150,8 @@ def test_installer_and_launchers_are_collision_aware_and_local_only() -> None:
     assert "127.0.0.1" in start_n8n
     assert "127.0.0.1" in start_stack
     assert "CK_NEXUS_TOOL_TOKEN" in start_stack
+    assert "CK_NEXUS_INTELLIGENCE_TOKEN" in start_stack
+    assert "OPENAI_API_KEY" in start_stack
     assert "http://127.0.0.1:8765/v1/agent" in start_n8n
     assert "unauthenticated tool call denied" in smoke
     assert "main" in smoke
