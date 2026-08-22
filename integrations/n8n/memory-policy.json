@@ -1,0 +1,25 @@
+{
+  "schema_version":"1.0",
+  "name":"CK-NEXUS Development Agent Memory Policy",
+  "mode":"development_only",
+  "memory_classes":[
+    {"id":"working","ttl":"mission","content":["task_graph","open_questions","current_outputs"]},
+    {"id":"episodic","ttl":"project","content":["attempts","failures","recoveries","handoffs"]},
+    {"id":"semantic","ttl":"project","content":["architecture_facts","public_contracts","verified_decisions"]},
+    {"id":"procedural","ttl":"versioned","content":["approved_skills","test_recipes","review_checklists"]},
+    {"id":"evidence_reference","ttl":"append_only","content":["artifact_ids","digests","run_ids","verifier_refs"]}
+  ],
+  "write_rules": {
+    "verified_fact_required_for_semantic":true,
+    "inferred_content_must_be_labeled":true,
+    "simulated_content_must_be_labeled":true,
+    "raw_secret_storage":false,
+    "production_evidence_rewrite":false,
+    "append_only_failure_history":true
+  },
+  "checkpoint": {
+    "required_fields":["mission_id","branch","phase","completed_roles","pending_roles","artifacts","evidence_state","next_action"],
+    "max_checkpoints_per_mission":24,
+    "resume_requires_policy_recheck":true
+  }
+}
