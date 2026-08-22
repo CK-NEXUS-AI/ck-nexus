@@ -1,4 +1,0 @@
-Current Chat B branch head before PR creation: 970dc40e17c82496e58ef363ed941af3de53c07c
-Windows local renderer test: PASS.
-GitHub exact-head CI/security: PENDING.
-No production authority or Q10/Q11/Q12 status change.
