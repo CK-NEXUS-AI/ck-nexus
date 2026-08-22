@@ -1,0 +1,54 @@
+{
+  "schema": "cknexus.idle_worker_policy.v1",
+  "status": "DEVELOPMENT_ONLY",
+  "selection_order": [
+    "security_governance",
+    "broken_tests",
+    "runtime_bug",
+    "evidence_gap",
+    "architecture_debt",
+    "missing_tests",
+    "performance",
+    "documentation_drift",
+    "research",
+    "optional_feature"
+  ],
+  "work_states": [
+    "QUEUED",
+    "CLAIMED",
+    "WORKING",
+    "TESTING",
+    "VERIFYING",
+    "BLOCKED",
+    "COMPLETE",
+    "SUPERSEDED"
+  ],
+  "truth_classes": [
+    "DISCOVERED",
+    "OBSERVED",
+    "INFERRED",
+    "VERIFIED",
+    "NOT_VERIFIED",
+    "STALE"
+  ],
+  "notifications": {
+    "notify_on_priorities": ["P0", "P1"],
+    "notify_on": [
+      "security_finding",
+      "test_failed",
+      "human_approval_required",
+      "evidence_ready",
+      "meaningful_state_change"
+    ],
+    "suppress": ["heartbeat", "duplicate_ack", "no_change", "low_value_progress"]
+  },
+  "hard_boundaries": {
+    "production_mutation": false,
+    "credential_access": false,
+    "self_verification": false,
+    "direct_main_write": false,
+    "merge": false,
+    "deploy": false,
+    "q10_q11_q12_promotion": false
+  }
+}
