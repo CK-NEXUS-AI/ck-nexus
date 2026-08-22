@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 POLICY = ROOT / "integrations" / "n8n" / "agent-policy.json"
 WORKFLOW = ROOT / "integrations" / "n8n" / "ck-nexus-development-agent-fabric.workflow.json"
+SIDECAR = ROOT / "integrations" / "n8n" / "ck_nexus_agent_sidecar.mjs"
 
 
 def test_policy_protects_production_subject_and_pr14() -> None:
@@ -30,3 +31,16 @@ def test_workflow_is_development_only_and_secret_free() -> None:
     assert "sk-proj-" not in lowered
     assert "api_key=" not in lowered
     assert "password=" not in lowered
+
+
+def test_sidecar_is_loopback_and_fail_closed() -> None:
+    text = SIDECAR.read_text(encoding="utf-8")
+    assert "127.0.0.1" in text
+    assert "release/q10-q16-closure" in text
+    assert "'main'" in text
+    assert "production_mutation_allowed: false" in text
+    assert "secret_read_allowed: false" in text
+    assert "merge_allowed: false" in text
+    assert "deploy_allowed: false" in text
+    assert "q10_promotion_allowed: false" in text
+    assert "UNVERIFIED_UNTIL_INDEPENDENT_CHECK" in text
