@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "name": "CK-NEXUS Development Agent Policy",
+  "mode": "development_only",
+  "authority": "ck_nexus_governor",
+  "allowed_branch_prefixes": ["post-p0/", "feat/", "fix/", "dev/"],
+  "protected_refs": ["main", "release/q10-q16-closure"],
+  "protected_pull_requests": [14],
+  "allowed_actions": [
+    "read_repository",
+    "research_public_sources",
+    "analyze_code",
+    "propose_architecture",
+    "generate_patch",
+    "create_development_branch",
+    "run_tests",
+    "run_static_analysis",
+    "create_evidence_draft",
+    "open_draft_pull_request",
+    "comment_on_issue"
+  ],
+  "denied_actions": [
+    "read_raw_secrets",
+    "write_raw_secrets",
+    "merge_pull_request",
+    "force_push",
+    "modify_protected_ref",
+    "modify_pr_14",
+    "deploy_production",
+    "create_production_ready_tag",
+    "promote_q10_without_native_codex_security_evidence",
+    "rewrite_production_evidence",
+    "destructive_host_action"
+  ],
+  "external_write_rule": "proposal_or_draft_pr_only_unless_ck_governor_explicitly_approves",
+  "secret_rule": "credential_broker_only_never_embed_secret_values",
+  "production_status": "NO_GO_UNTIL_Q10_Q11_Q12_AND_FINAL_PACKAGE_PASS"
+}
