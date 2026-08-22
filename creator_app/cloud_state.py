@@ -23,7 +23,9 @@ class PostgresConnectionFactory(Protocol):
 
 
 class PostgresApprovalReplayStore:
-    def __init__(self, factory: PostgresConnectionFactory, *, schema: str = "ck_nexus_dev") -> None:
+    def __init__(
+        self, factory: PostgresConnectionFactory, *, schema: str = "ck_nexus_dev"
+    ) -> None:
         self._factory = factory
         self._table = f"{schema}.approval_replay"
 
@@ -59,7 +61,9 @@ class PostgresApprovalReplayStore:
 
 
 class PostgresPasskeyStore:
-    def __init__(self, factory: PostgresConnectionFactory, *, schema: str = "ck_nexus_dev") -> None:
+    def __init__(
+        self, factory: PostgresConnectionFactory, *, schema: str = "ck_nexus_dev"
+    ) -> None:
         self._factory = factory
         self._table = f"{schema}.passkey_credentials"
 
