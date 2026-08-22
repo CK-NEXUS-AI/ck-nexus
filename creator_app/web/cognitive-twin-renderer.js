@@ -204,8 +204,10 @@
       const dt = Math.min(0.05, Math.max(0, (now - this.lastFrameAt) / 1000));
       this.lastFrameAt = now;
       if (this.motion.microMotion) {
-        this.nodes.forEach((node, index) => {
-          node.rotation.y += dt * (0.08 + (index % 3) * 0.02);
+        let motionIndex = 0;
+        this.nodes.forEach((node) => {
+          node.rotation.y += dt * (0.08 + (motionIndex % 3) * 0.02);
+          motionIndex += 1;
         });
       }
       this.renderer.render(this.scene, this.camera);
