@@ -3,12 +3,16 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
-import resource
 import shutil
 import signal
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+
+try:
+    import resource
+except ImportError:  # Windows: Linux sandbox remains unavailable/fail-closed.
+    resource = None  # type: ignore[assignment]
 
 from .guards import CommandGuard, SandboxViolation
 from .platform import SandboxPlatformProfile, detect_platform_profile
@@ -141,6 +145,8 @@ class LinuxNamespaceRunner:
         return None
 
     def _limits(self) -> None:
+        if resource is None:
+            raise RuntimeError("posix_resource_limits_unavailable")
         resource.setrlimit(
             resource.RLIMIT_CPU, (self.policy.cpu_seconds, self.policy.cpu_seconds + 1)
         )
