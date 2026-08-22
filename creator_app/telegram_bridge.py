@@ -4,12 +4,25 @@ import json
 import os
 import time
 import urllib.parse
-import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+import httpx
+
 JsonRequest = Callable[[str, dict[str, Any] | None, dict[str, str] | None], dict[str, Any]]
+
+
+def _validate_outbound_url(url: str) -> None:
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("unsupported_url_scheme")
+    if not parsed.hostname:
+        raise ValueError("url_hostname_required")
+    if parsed.username or parsed.password:
+        raise ValueError("url_userinfo_not_allowed")
+    if parsed.scheme == "http" and parsed.hostname not in {"127.0.0.1", "localhost"}:
+        raise ValueError("insecure_http_target")
 
 
 def _default_json_request(
@@ -17,16 +30,21 @@ def _default_json_request(
     payload: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    body = None
+    _validate_outbound_url(url)
     request_headers = {"Accept": "application/json"}
     if headers:
         request_headers.update(headers)
-    if payload is not None:
-        body = json.dumps(payload).encode("utf-8")
-        request_headers["Content-Type"] = "application/json"
-    request = urllib.request.Request(url, data=body, headers=request_headers)
-    with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
-        return json.loads(response.read().decode("utf-8"))
+    if payload is None:
+        response = httpx.get(url, headers=request_headers, timeout=30.0)
+    else:
+        response = httpx.post(
+            url,
+            json=payload,
+            headers=request_headers,
+            timeout=30.0,
+        )
+    response.raise_for_status()
+    return dict(response.json())
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +80,7 @@ class TelegramBridgeConfig:
     def validate(self) -> None:
         if not self.bot_token:
             raise RuntimeError("CKNEXUS_TELEGRAM_BOT_TOKEN is required")
+        _validate_outbound_url(self.ck_api_base)
 
 
 class TelegramBridge:
