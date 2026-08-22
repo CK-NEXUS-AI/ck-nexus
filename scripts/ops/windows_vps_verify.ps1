@@ -23,7 +23,11 @@ $taskName = "CK-NEXUS-DesktopCommander"
 
 Write-Output "CK-NEXUS Windows VPS Worker Verification"
 Write-Output "host=$(hostname)"
-Check "Windows platform" { $env:OS -eq "Windows_NT" }
+Check "Windows platform" {
+    [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+        [System.Runtime.InteropServices.OSPlatform]::Windows
+    )
+}
 Check "OpenSSH running" { (Get-Service sshd).Status -eq "Running" }
 Check "Node.js present" { Test-Path $node }
 Check "npm present" { Test-Path $npm }
