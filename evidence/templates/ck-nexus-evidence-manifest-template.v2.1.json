@@ -1,0 +1,211 @@
+{
+  "manifest_schema_version": "2.1",
+  "purpose": "Machine-verifiable production evidence manifest proving Q10/Q11/Q12 evidence all bind to the same frozen production subject, with hash-chained evidence and detached signature.",
+  "supersession": {
+    "supersedes_manifest": null,
+    "superseded_by_manifest": null,
+    "reason": null
+  },
+  "digest_policy": {
+    "algorithm": "SHA-256",
+    "encoding": "lowercase_hex",
+    "canonical_json": "RFC8785_JCS"
+  },
+  "evidence_bundle_contract": {
+    "format": "CKNEXUS_EVIDENCE_BUNDLE_V1",
+    "required_members": [
+      "artifact-manifest.json",
+      "execution.json",
+      "gate.json",
+      "subject.json",
+      "verification.json"
+    ],
+    "member_order": "lexicographic",
+    "digest_algorithm": "SHA-256"
+  },
+  "frozen_production_subject": {
+    "source_authority_pr": 14,
+    "branch": "release/q10-q16-closure",
+    "tested_commit": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+    "tested_tree": "0525195934f703a8becf8a39f6397b2411e0bb2e",
+    "frozen_at": null,
+    "note": "Authority is Issue #19 / PR #14. Any deliberate source/tree change supersedes this manifest and restarts Q10."
+  },
+  "gates": [
+    {
+      "gate": "Q10",
+      "description": "Native Codex Security Deep Security Scan",
+      "evidence_id": null,
+      "tested_commit": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+      "tested_tree": "0525195934f703a8becf8a39f6397b2411e0bb2e",
+      "started_at": null,
+      "completed_at": null,
+      "runner_environment": null,
+      "runner_identity": null,
+      "tooling_repository": "spinlnw10-art/ck-nexus",
+      "artifact_sha256": null,
+      "evidence_bundle_sha256": null,
+      "previous_gate_evidence_sha256": null,
+      "verifier": null,
+      "result": null,
+      "subject_mutation_check": {
+        "expected_commit": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+        "observed_commit_before": null,
+        "observed_commit_after": null,
+        "expected_tree": "0525195934f703a8becf8a39f6397b2411e0bb2e",
+        "observed_tree_before": null,
+        "observed_tree_after": null,
+        "mutation_detected": null,
+        "check_result": null
+      },
+      "git_clean_check": { "before": null, "after": null },
+      "authoritative": true,
+      "executor": {
+        "name": "Codex Security Deep Security Scan",
+        "executor_id": null,
+        "version": null,
+        "scan_id": null,
+        "attestation_sha256": null
+      },
+      "note": "Bandit, dependency audit, secret scan, CI and manual review cannot substitute for Q10."
+    },
+    {
+      "gate": "Q11",
+      "description": "Live provider smoke test",
+      "evidence_id": null,
+      "tested_commit": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+      "tested_tree": "0525195934f703a8becf8a39f6397b2411e0bb2e",
+      "started_at": null,
+      "completed_at": null,
+      "runner_environment": null,
+      "runner_identity": null,
+      "tooling_repository": "spinlnw10-art/ck-nexus",
+      "artifact_sha256": null,
+      "evidence_bundle_sha256": null,
+      "previous_gate_evidence_sha256": null,
+      "verifier": null,
+      "result": null,
+      "subject_mutation_check": {
+        "expected_commit": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+        "observed_commit_before": null,
+        "observed_commit_after": null,
+        "expected_tree": "0525195934f703a8becf8a39f6397b2411e0bb2e",
+        "observed_tree_before": null,
+        "observed_tree_after": null,
+        "mutation_detected": null,
+        "check_result": null
+      },
+      "git_clean_check": { "before": null, "after": null },
+      "authoritative": true,
+      "tooling_source_pr": 123,
+      "tooling_commit": null,
+      "workflow_path": ".github/workflows/q11-live-provider-smoke.yml",
+      "workflow_definition_sha256": null,
+      "workflow_run_id": null,
+      "tooling_entrypoint": "scripts/test_openai_live.py",
+      "tooling_entrypoint_sha256": null,
+      "provider_execution": {
+        "provider": "openai",
+        "model": null,
+        "credential_source": "github_actions_secret",
+        "credential_value_recorded": false,
+        "live_network_call": null,
+        "expected_sentinel": "CK-NEXUS-P0-SMOKE-PASS"
+      },
+      "note": "PR #123 is preparation only and currently contains stale hard-coded source identity; pin a reconciled tooling commit before authoritative execution."
+    },
+    {
+      "gate": "Q12",
+      "description": "Linux cgroup v2 isolation enforcement",
+      "evidence_id": null,
+      "tested_commit": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+      "tested_tree": "0525195934f703a8becf8a39f6397b2411e0bb2e",
+      "started_at": null,
+      "completed_at": null,
+      "runner_environment": null,
+      "runner_identity": null,
+      "tooling_repository": "spinlnw10-art/ck-nexus",
+      "artifact_sha256": null,
+      "evidence_bundle_sha256": null,
+      "previous_gate_evidence_sha256": null,
+      "verifier": null,
+      "result": null,
+      "subject_mutation_check": {
+        "expected_commit": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+        "observed_commit_before": null,
+        "observed_commit_after": null,
+        "expected_tree": "0525195934f703a8becf8a39f6397b2411e0bb2e",
+        "observed_tree_before": null,
+        "observed_tree_after": null,
+        "mutation_detected": null,
+        "check_result": null
+      },
+      "git_clean_check": { "before": null, "after": null },
+      "authoritative": true,
+      "tooling_source_pr": 121,
+      "tooling_commit": null,
+      "workflow_path": null,
+      "workflow_definition_sha256": null,
+      "workflow_run_id": null,
+      "tooling_entrypoint": "scripts/agnes_cgroup_v2_staging_gate.py",
+      "tooling_entrypoint_sha256": null,
+      "q12_enforcement": {
+        "non_root": null,
+        "cgroup_v2": null,
+        "delegated_boundary_writable": null,
+        "cpu_limit_enforced": null,
+        "memory_limit_enforced": null,
+        "pids_limit_enforced": null,
+        "child_pid_attached": null,
+        "escape_test_pass": null,
+        "fail_closed_test_pass": null
+      },
+      "note": "PR #121 is readiness tooling only. Authoritative execution must use the exact verifier workflow/runner and pin its workflow definition at run time."
+    }
+  ],
+  "non_authoritative_parallel_work": [
+    {
+      "label": "PRE-Q10_MANUAL_SECURITY_REVIEW",
+      "status": "informational_only",
+      "note": "Must never be substituted for the Q10 native Codex Security Deep Security Scan result."
+    }
+  ],
+  "evidence_chain": {
+    "order": ["Q10", "Q11", "Q12"],
+    "rule": "Q11.previous_gate_evidence_sha256 must equal Q10.evidence_bundle_sha256 and Q12.previous_gate_evidence_sha256 must equal Q11.evidence_bundle_sha256.",
+    "chain_verified": null
+  },
+  "reconciliation_gate": {
+    "required_gate_order": ["Q10", "Q11", "Q12"],
+    "all_gates_pass": null,
+    "all_gates_share_tested_commit": null,
+    "all_gates_share_tested_tree": null,
+    "no_subject_mutation_across_gates": null,
+    "tooling_commits_are_pinned": null,
+    "workflow_definitions_pinned": null,
+    "artifact_digests_verified": null,
+    "evidence_chain_verified": null,
+    "independent_verifier_complete": null,
+    "ready_for_q16_final_package": null,
+    "ready_for_q16_final_package_rule": "TRUE iff Q10/Q11/Q12 are PASS, exact commit/tree match the frozen subject, no subject mutation is detected, Q11/Q12 tooling and workflow definitions are pinned, artifact/evidence digests are present and verified, evidence chain is valid, and independent verification is PASS."
+  },
+  "independent_verification": {
+    "verifier_id": null,
+    "verified_at": null,
+    "result": null,
+    "report_sha256": null,
+    "verified_manifest_payload_sha256": null
+  },
+  "manifest_integrity": {
+    "canonicalization": "JCS_RFC8785",
+    "hash_scope": "entire_manifest_excluding_manifest_integrity",
+    "hash_algorithm": "SHA-256",
+    "payload_sha256": null,
+    "signature_input": "payload_sha256_raw_bytes",
+    "signature_scheme": "ed25519",
+    "signature_encoding": "base64",
+    "signature": null,
+    "signed_by": null,
+    "signed_at": null
+  }
+}
