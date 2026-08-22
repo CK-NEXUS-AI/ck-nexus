@@ -1,7 +1,7 @@
 {
   "chat": "B",
   "status": "TESTING",
-  "subject_sha": "0dca9ea51733f5f7e7c0858b9b27bc9991d3412d",
+  "subject_sha": "62ebb72bb6651f3e31fb5d8f81f53d6f4952dfa1",
   "changed_files": [
     "creator_app/web/cognitive-twin-renderer.js",
     "tests/web/cognitive-twin-renderer.test.js"
@@ -10,17 +10,22 @@
     "CKNexusTwinRenderer.CognitiveTwinRendererAdapter",
     "applyProjection(input)",
     "diagnostics()",
-    "CSS_FALLBACK | THREE_WEBGL backend classification"
+    "CSS_FALLBACK | THREE_WEBGL backend classification",
+    "VERIFIED requires evidence_id | verification_id | evidence_ref",
+    "agent ids restricted to safe renderer identifiers"
   ],
   "tests": [
-    "Windows Node 24.19.0: cognitive-twin-renderer.test.js PASS"
+    "Windows Node 24.19.0: pre-hardening renderer unit test PASS",
+    "CK-NEXUS CI run 32573434776: SUCCESS on exact subject 62ebb72bb6651f3e31fb5d8f81f53d6f4952dfa1",
+    "Security Attack Regression V1 run 32573434842: SUCCESS on exact subject 62ebb72bb6651f3e31fb5d8f81f53d6f4952dfa1"
   ],
-  "security": "Fail-safe renderer only; no credential access, executor binding, production mutation, CDN load, or authority delegation.",
+  "security": "Exact-head CI/security PASS. Renderer is fail-safe; no credential access, executor binding, production mutation, CDN load, or authority delegation. Fake VERIFIED labels without evidence binding downgrade to INFERRED.",
   "blockers": [
     "Chat A public State Projector contract not handed off yet",
+    "Browser/WebGL live preview smoke still pending",
     "Three.js/VRM runtime assets intentionally not loaded until governed dependency/source decision",
-    "GitHub CI/security exact-head result pending"
+    "Windows full Python collection remains blocked by runtime-owned Linux resource import until Chat A platform-gates it fail-closed"
   ],
-  "next_owner": "B",
-  "next_action": "Run exact-head CI/security, then bind adapter only to Chat A verified public projection contract."
+  "next_owner": "A",
+  "next_action": "Chat A publishes exact-SHA Windows-safe runtime import fix plus verified public State Projector contract; Chat B then binds renderer and runs browser preview smoke."
 }
