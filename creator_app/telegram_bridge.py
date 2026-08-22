@@ -5,8 +5,9 @@ import os
 import time
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 JsonRequest = Callable[[str, dict[str, Any] | None, dict[str, str] | None], dict[str, Any]]
 
@@ -37,19 +38,25 @@ class TelegramBridgeConfig:
     default_agent_id: str = "general"
 
     @classmethod
-    def from_env(cls) -> "TelegramBridgeConfig":
+    def from_env(cls) -> TelegramBridgeConfig:
         raw_allow = os.getenv("CKNEXUS_TELEGRAM_ALLOWED_CHAT_IDS", "")
         allowed = frozenset(
             int(value.strip())
             for value in raw_allow.split(",")
             if value.strip()
         )
+        api_base = os.getenv(
+            "CKNEXUS_API_BASE", "http://127.0.0.1:8000"
+        ).rstrip("/")
         return cls(
             bot_token=os.getenv("CKNEXUS_TELEGRAM_BOT_TOKEN", "").strip(),
-            ck_api_base=os.getenv("CKNEXUS_API_BASE", "http://127.0.0.1:8000").rstrip("/"),
+            ck_api_base=api_base,
             ck_access_token=os.getenv("CKNEXUS_ACCESS_TOKEN", "").strip(),
             allowed_chat_ids=allowed,
-            default_agent_id=os.getenv("CKNEXUS_TELEGRAM_AGENT_ID", "general").strip() or "general",
+            default_agent_id=(
+                os.getenv("CKNEXUS_TELEGRAM_AGENT_ID", "general").strip()
+                or "general"
+            ),
         )
 
     def validate(self) -> None:
@@ -58,7 +65,11 @@ class TelegramBridgeConfig:
 
 
 class TelegramBridge:
-    def __init__(self, config: TelegramBridgeConfig, request_json: JsonRequest = _default_json_request):
+    def __init__(
+        self,
+        config: TelegramBridgeConfig,
+        request_json: JsonRequest = _default_json_request,
+    ) -> None:
         config.validate()
         self.config = config
         self.request_json = request_json
@@ -122,7 +133,10 @@ class TelegramBridge:
             return
 
         if text.startswith("/whoami"):
-            self.send_message(chat_id, f"chat_id={chat_id}\nใช้ค่านี้ใน allowlist บน VPS เท่านั้น")
+            self.send_message(
+                chat_id,
+                f"chat_id={chat_id}\nใช้ค่านี้ใน allowlist บน VPS เท่านั้น",
+            )
             return
 
         if not self._allowed(chat_id):
@@ -134,7 +148,10 @@ class TelegramBridge:
         elif text.startswith("/status"):
             self.send_message(chat_id, self._status_text())
         elif text.startswith("/health"):
-            self.send_message(chat_id, "CK-NEXUS Telegram bridge=READY\n" + self._status_text())
+            self.send_message(
+                chat_id,
+                "CK-NEXUS Telegram bridge=READY\n" + self._status_text(),
+            )
         elif text.startswith("/ask "):
             prompt = text.removeprefix("/ask ").strip()
             if len(prompt) < 3:
@@ -146,7 +163,8 @@ class TelegramBridge:
 
     def poll_once(self) -> int:
         query = urllib.parse.urlencode({"timeout": 25, "offset": self.offset})
-        data = self.request_json(f"{self.telegram_base}/getUpdates?{query}", None, None)
+        url = f"{self.telegram_base}/getUpdates?{query}"
+        data = self.request_json(url, None, None)
         processed = 0
         for update in data.get("result", []):
             update_id = int(update.get("update_id", 0))
