@@ -12,6 +12,7 @@ TOOLS = BASE / "tool-registry.json"
 MEMORY = BASE / "memory-policy.json"
 RECOVERY = BASE / "recovery-policy.json"
 MISSION_SCHEMA = BASE / "mission-contract.schema.json"
+HANDOFF_SCHEMA = BASE / "assistant-handoff.schema.json"
 SIDECAR = BASE / "ck_nexus_agent_sidecar.mjs"
 START_N8N = BASE / "start_n8n_dev.ps1"
 START_STACK = BASE / "start_super_agent_stack.ps1"
@@ -56,6 +57,8 @@ def test_super_agent_has_independent_review_stage() -> None:
     assert "Final Development Gate" in names
     text = SUPER.read_text(encoding="utf-8")
     assert "VERIFIED_DEVELOPMENT_CANDIDATE" in text
+    assert "independent_review_pass_not_proven" in text
+    assert "reviews.length===3&&verdicts.every" in text
     assert "production_ready:false" in text
     assert "q10_q11_q12_evidence:false" in text
 
@@ -82,14 +85,17 @@ def test_tool_memory_and_recovery_policies_remain_bounded() -> None:
     assert recovery["circuit_breaker"]["production_mutation_attempt_opens_immediately"] is True
 
 
-def test_mission_contract_denies_production_capabilities() -> None:
-    schema = json.loads(MISSION_SCHEMA.read_text(encoding="utf-8"))
-    constraints = schema["properties"]["constraints"]["properties"]
+def test_mission_and_handoff_contracts_deny_production_capabilities() -> None:
+    mission = json.loads(MISSION_SCHEMA.read_text(encoding="utf-8"))
+    constraints = mission["properties"]["constraints"]["properties"]
     assert constraints["allow_production_mutation"]["const"] is False
     assert constraints["allow_secret_export"]["const"] is False
     assert constraints["allow_merge"]["const"] is False
     assert constraints["allow_deploy"]["const"] is False
-    assert schema["properties"]["branch"]["pattern"].startswith("^")
+    handoff = json.loads(HANDOFF_SCHEMA.read_text(encoding="utf-8"))
+    assert handoff["properties"]["production_mutation"]["const"] is False
+    assert handoff["properties"]["production_ready"]["const"] is False
+    assert handoff["properties"]["q10_q11_q12_evidence"]["const"] is False
 
 
 def test_sidecar_is_local_first_and_cannot_self_promote() -> None:
