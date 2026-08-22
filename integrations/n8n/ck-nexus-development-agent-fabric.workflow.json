@@ -1,0 +1,95 @@
+{
+  "name": "CK-NEXUS Development Agent Fabric",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ck-nexus/dev-agent",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Development Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-900, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nconst request = String(body.request ?? body.prompt ?? '').trim();\nif (!request) throw new Error('request is required');\nconst requestedBranch = String(body.branch ?? 'post-p0/n8n-agent-work');\nconst forbidden = ['release/q10-q16-closure','main'];\nif (forbidden.includes(requestedBranch) || Number(body.pull_request ?? 0) === 14) {\n  throw new Error('CK Governor policy deny: protected production subject');\n}\nif (!/^(post-p0|feat|fix|dev)\\//.test(requestedBranch)) {\n  throw new Error('CK Governor policy deny: development branch prefix required');\n}\nreturn [{json:{request,requested_branch:requestedBranch,mode:'development_only',production_mutation:false,raw_secret_access:false}}];"
+      },
+      "id": "policy",
+      "name": "CK Governor Policy Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-660, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const req = $json.request;\nconst roles = [\n  ['orchestrator','Decompose goal, enforce policy, consolidate evidence'],\n  ['researcher','Find authoritative sources, standards, docs and comparable implementations'],\n  ['architect','Design interfaces, invariants, migration and failure boundaries'],\n  ['builder','Produce minimal development-only code or patch plan'],\n  ['verifier','Define and execute independent tests and evidence checks'],\n  ['security_reviewer','Review trust boundaries, secrets, injection, privilege and supply chain risk']\n];\nreturn roles.map(([role,mission],i)=>({json:{...$json,role,mission,sequence:i+1,role_prompt:`Goal: ${req}\\nRole: ${role}\\nMission: ${mission}\\nRules: development only; never mutate PR #14/main/release subject; never expose secrets; distinguish proposal/executed/verified.`}}));"
+      },
+      "id": "roles",
+      "name": "Spawn Specialist Roles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-420, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CK_NEXUS_AGENT_ENDPOINT }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name":"Content-Type","value":"application/json"},
+            {"name":"X-CK-NEXUS-Mode","value":"development-only"}
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ role: $json.role, mission: $json.mission, prompt: $json.role_prompt, branch: $json.requested_branch, authority: 'ck_nexus_governor', allow_production_mutation: false, allow_secret_export: false }) }}",
+        "options": {"timeout": 120000}
+      },
+      "id": "adapter",
+      "name": "CK-NEXUS Intelligence Adapter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-160, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst outputs = items.map((x,i)=>({sequence:i+1,result:x.json}));\nreturn [{json:{status:'DEVELOPMENT_RESULT',authority:'ck_nexus_governor',production_mutation:false,results:outputs,evidence_state:'UNVERIFIED_UNTIL_INDEPENDENT_CHECK'}}];"
+      },
+      "id": "aggregate",
+      "name": "Consolidate Agent Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [100, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {"responseCode": 200}
+      },
+      "id": "respond",
+      "name": "Return Governed Result",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [360, 0]
+    }
+  ],
+  "connections": {
+    "Development Request": {"main":[[{"node":"CK Governor Policy Gate","type":"main","index":0}]]},
+    "CK Governor Policy Gate": {"main":[[{"node":"Spawn Specialist Roles","type":"main","index":0}]]},
+    "Spawn Specialist Roles": {"main":[[{"node":"CK-NEXUS Intelligence Adapter","type":"main","index":0}]]},
+    "CK-NEXUS Intelligence Adapter": {"main":[[{"node":"Consolidate Agent Results","type":"main","index":0}]]},
+    "Consolidate Agent Results": {"main":[[{"node":"Return Governed Result","type":"main","index":0}]]}
+  },
+  "settings": {"executionOrder":"v1","saveManualExecutions":true,"saveExecutionProgress":true},
+  "active": false,
+  "versionId": "00000000-0000-4000-8000-000000000001",
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}
