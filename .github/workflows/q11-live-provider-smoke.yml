@@ -1,0 +1,127 @@
+name: Q11 live provider smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_runtime_sha:
+        description: 'Type the exact frozen runtime source SHA to continue'
+        required: true
+        type: string
+      smoke_model:
+        description: 'Optional OpenAI smoke model override'
+        required: false
+        default: 'gpt-5-mini'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: q11-live-provider-smoke
+  cancel-in-progress: false
+
+jobs:
+  q11:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout operator pack
+        uses: actions/checkout@v6
+        with:
+          path: operator
+          fetch-depth: 0
+
+      - name: Enforce Q10 native Deep Scan prerequisite
+        working-directory: operator
+        env:
+          CONFIRM_RUNTIME_SHA: ${{ inputs.confirm_runtime_sha }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          expected_sha='4cf17cd3befaafeaf64cd4c149739133aa220f73'
+          expected_subject='96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f'
+          assert os.environ['CONFIRM_RUNTIME_SHA'] == expected_sha, 'exact runtime confirmation mismatch'
+          q10=json.loads(Path('evidence/Q10_DEPENDENCY_AUDIT.json').read_text())
+          assert q10['source_sha'] == expected_sha
+          assert q10['release_subject_manifest_sha256'] == expected_subject
+          assert q10['component_result'] == 'PASS'
+          assert q10['gate_result'] == 'PASS'
+          assert q10['codex_security_deep_scan'] == 'PASS'
+          assert q10['production_promotion_allowed'] is True
+          for field in ('codex_security_scan_id','codex_security_report_sha256','codex_security_completed_at'):
+              assert q10.get(field), f'missing required Q10 evidence field: {field}'
+          print('Q10 prerequisite PASS')
+          PY
+
+      - name: Checkout exact frozen runtime
+        uses: actions/checkout@v6
+        with:
+          ref: 4cf17cd3befaafeaf64cd4c149739133aa220f73
+          path: runtime
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install exact runtime dependencies
+        working-directory: runtime
+        run: |
+          python -m pip install --upgrade pip uv
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+
+      - name: Run live provider sentinel smoke
+        working-directory: runtime
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_SMOKE_MODEL: ${{ inputs.smoke_model }}
+        run: |
+          test -n "$OPENAI_API_KEY" || { echo 'Q11 BLOCKED: OPENAI_API_KEY secret unavailable'; exit 2; }
+          set +e
+          .venv/bin/python scripts/test_openai_live.py > ../q11-smoke.log 2>&1
+          rc=$?
+          set -e
+          cat ../q11-smoke.log
+          test "$rc" -eq 0
+          grep -q 'P0-AI-001 PASS' ../q11-smoke.log
+
+      - name: Seal Q11 evidence artifact
+        env:
+          RUN_ID: ${{ github.run_id }}
+          SMOKE_MODEL: ${{ inputs.smoke_model }}
+        run: |
+          python - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          log=Path('q11-smoke.log').read_bytes()
+          runtime_sha='4cf17cd3befaafeaf64cd4c149739133aa220f73'
+          runtime_tree='dfe3888bb6adc9aebbb0351efe4a06006f4e0a48'
+          subject='96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f'
+          evidence={
+              'schema_version':4,
+              'gate':'Q11',
+              'result':'PASS',
+              'source_sha':runtime_sha,
+              'source_tree':runtime_tree,
+              'release_subject_manifest_sha256':subject,
+              'github_run_id':int(os.environ['RUN_ID']),
+              'credential_configured':True,
+              'credential_exposed':False,
+              'sentinel_observed':True,
+              'smoke_model':os.environ['SMOKE_MODEL'],
+              'smoke_log_sha256':'sha256:'+hashlib.sha256(log).hexdigest(),
+              'production_promotion_allowed':True,
+          }
+          Path('Q11_OPENAI_LIVE.json').write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(evidence,indent=2,sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: q11-live-${{ github.run_id }}
+          path: |
+            Q11_OPENAI_LIVE.json
+            q11-smoke.log
+          if-no-files-found: error
+          retention-days: 7
