@@ -99,7 +99,7 @@
       "authoritative": true,
       "tooling_source_pr": 123,
       "tooling_commit": null,
-      "workflow_path": ".github/workflows/q11-live-provider-smoke.yml",
+      "workflow_path": ".github/workflows/verify-q11-final-subject.yml",
       "workflow_definition_sha256": null,
       "workflow_run_id": null,
       "tooling_entrypoint": "scripts/test_openai_live.py",
@@ -112,7 +112,7 @@
         "live_network_call": null,
         "expected_sentinel": "CK-NEXUS-P0-SMOKE-PASS"
       },
-      "note": "PR #123 is preparation only and currently contains stale hard-coded source identity; pin a reconciled tooling commit before authoritative execution."
+      "note": "Authoritative verifier is branch verify/q11-final-subject. PR #123 is prep lineage only and its separate q11-live-provider-smoke workflow is stale for this frozen subject. Pin the actual verifier commit/run before PASS."
     },
     {
       "gate": "Q12",
@@ -144,7 +144,7 @@
       "authoritative": true,
       "tooling_source_pr": 121,
       "tooling_commit": null,
-      "workflow_path": null,
+      "workflow_path": ".github/workflows/verify-q12-final-subject.yml",
       "workflow_definition_sha256": null,
       "workflow_run_id": null,
       "tooling_entrypoint": "scripts/agnes_cgroup_v2_staging_gate.py",
@@ -160,7 +160,7 @@
         "escape_test_pass": null,
         "fail_closed_test_pass": null
       },
-      "note": "PR #121 is readiness tooling only. Authoritative execution must use the exact verifier workflow/runner and pin its workflow definition at run time."
+      "note": "Authoritative verifier is branch verify/q12-final-subject on [self-hosted, linux, cknexus-q12]. PR #121 is readiness lineage only. Pin the actual verifier commit/run before PASS."
     }
   ],
   "non_authoritative_parallel_work": [
