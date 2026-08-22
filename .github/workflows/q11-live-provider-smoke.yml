@@ -20,6 +20,11 @@ concurrency:
   group: q11-live-provider-smoke
   cancel-in-progress: false
 
+env:
+  Q11_RUNTIME_SHA: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
+  Q11_RUNTIME_TREE: 0525195934f703a8becf8a39f6397b2411e0bb2e
+  Q11_RUNTIME_SUBJECT: 89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52
+
 jobs:
   q11:
     runs-on: ubuntu-24.04
@@ -38,27 +43,34 @@ jobs:
           python - <<'PY'
           import json, os
           from pathlib import Path
-          expected_sha='4cf17cd3befaafeaf64cd4c149739133aa220f73'
-          expected_subject='96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f'
+          expected_sha=os.environ['Q11_RUNTIME_SHA']
+          expected_subject=os.environ['Q11_RUNTIME_SUBJECT']
           assert os.environ['CONFIRM_RUNTIME_SHA'] == expected_sha, 'exact runtime confirmation mismatch'
           q10=json.loads(Path('evidence/Q10_DEPENDENCY_AUDIT.json').read_text())
-          assert q10['source_sha'] == expected_sha
-          assert q10['release_subject_manifest_sha256'] == expected_subject
+          assert q10['source_sha'] == expected_sha, 'Q10 source SHA mismatch'
+          assert q10['release_subject_manifest_sha256'] == expected_subject, 'Q10 subject mismatch'
           assert q10['component_result'] == 'PASS'
           assert q10['gate_result'] == 'PASS'
           assert q10['codex_security_deep_scan'] == 'PASS'
           assert q10['production_promotion_allowed'] is True
           for field in ('codex_security_scan_id','codex_security_report_sha256','codex_security_completed_at'):
               assert q10.get(field), f'missing required Q10 evidence field: {field}'
-          print('Q10 prerequisite PASS')
+          print('Q10 prerequisite PASS on exact Q11 subject')
           PY
 
       - name: Checkout exact frozen runtime
         uses: actions/checkout@v6
         with:
-          ref: 4cf17cd3befaafeaf64cd4c149739133aa220f73
+          ref: ${{ env.Q11_RUNTIME_SHA }}
           path: runtime
           fetch-depth: 0
+
+      - name: Verify exact runtime commit and tree
+        working-directory: runtime
+        run: |
+          test "$(git rev-parse HEAD)" = "$Q11_RUNTIME_SHA"
+          test "$(git show -s --format=%T HEAD)" = "$Q11_RUNTIME_TREE"
+          echo "Q11 exact runtime identity verified"
 
       - uses: actions/setup-python@v6
         with:
@@ -95,16 +107,13 @@ jobs:
           import hashlib, json, os
           from pathlib import Path
           log=Path('q11-smoke.log').read_bytes()
-          runtime_sha='4cf17cd3befaafeaf64cd4c149739133aa220f73'
-          runtime_tree='dfe3888bb6adc9aebbb0351efe4a06006f4e0a48'
-          subject='96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f'
           evidence={
               'schema_version':4,
               'gate':'Q11',
               'result':'PASS',
-              'source_sha':runtime_sha,
-              'source_tree':runtime_tree,
-              'release_subject_manifest_sha256':subject,
+              'source_sha':os.environ['Q11_RUNTIME_SHA'],
+              'source_tree':os.environ['Q11_RUNTIME_TREE'],
+              'release_subject_manifest_sha256':os.environ['Q11_RUNTIME_SUBJECT'],
               'github_run_id':int(os.environ['RUN_ID']),
               'credential_configured':True,
               'credential_exposed':False,
