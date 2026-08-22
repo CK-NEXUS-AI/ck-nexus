@@ -1,0 +1,26 @@
+{
+  "schema_version":"1.0",
+  "name":"CK-NEXUS Development Tool Registry",
+  "mode":"development_only",
+  "tools":[
+    {"id":"github_read","risk":"low","capabilities":["read_repository","read_pr","read_issue"],"write":false},
+    {"id":"github_draft_write","risk":"medium","capabilities":["create_development_branch","open_draft_pull_request","comment_on_issue"],"write":true,"approval":"ck_governor_policy"},
+    {"id":"web_research","risk":"low","capabilities":["research_public_sources"],"write":false},
+    {"id":"test_runner","risk":"medium","capabilities":["run_tests","run_static_analysis"],"write":false},
+    {"id":"windows_dev_worker","risk":"medium","capabilities":["development_runtime_smoke","local_preview"],"write":true,"scope":"development_only"},
+    {"id":"evidence_draft","risk":"low","capabilities":["create_evidence_draft"],"write":true,"scope":"non_authoritative"}
+  ],
+  "blocked_tools":[
+    "production_deployer",
+    "production_secret_reader",
+    "protected_ref_writer",
+    "pr14_mutator",
+    "q10_native_result_fabricator"
+  ],
+  "rules": {
+    "external_write_default":"deny",
+    "development_write":"proposal_or_draft_only",
+    "secret_access":"credential_broker_reference_only",
+    "production_execution":"denied"
+  }
+}
