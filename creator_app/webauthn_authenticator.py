@@ -21,11 +21,15 @@ class PasskeyCredential:
 
 
 class PasskeyCredentialStore(Protocol):
+    def put(self, credential: PasskeyCredential) -> None: ...
+
     def get(self, *, credential_id: str, actor_id: str) -> PasskeyCredential | None: ...
 
     def update_sign_count(
         self, *, credential_id: str, actor_id: str, sign_count: int
     ) -> None: ...
+
+    def revoke(self, *, credential_id: str, actor_id: str) -> None: ...
 
 
 class WebAuthnBackend(Protocol):
@@ -43,6 +47,7 @@ class WebAuthnBackend(Protocol):
 
 class PyWebAuthnBackend:
     """Production backend using py_webauthn. Imports lazily for Termux portability."""
+
     def verify_authentication(
         self,
         *,
@@ -92,6 +97,22 @@ class InMemoryPasskeyStore:
                 rp_id=current.rp_id,
                 origin=current.origin,
                 revoked=current.revoked,
+            )
+        )
+
+    def revoke(self, *, credential_id: str, actor_id: str) -> None:
+        current = self.get(credential_id=credential_id, actor_id=actor_id)
+        if current is None:
+            raise KeyError(credential_id)
+        self.put(
+            PasskeyCredential(
+                credential_id=current.credential_id,
+                actor_id=current.actor_id,
+                public_key_b64=current.public_key_b64,
+                sign_count=current.sign_count,
+                rp_id=current.rp_id,
+                origin=current.origin,
+                revoked=True,
             )
         )
 
@@ -147,9 +168,13 @@ class SQLitePasskeyStore:
         if row is None:
             return None
         return PasskeyCredential(
-            credential_id=str(row["credential_id"]), actor_id=str(row["actor_id"]),
-            public_key_b64=str(row["public_key_b64"]), sign_count=int(row["sign_count"]),
-            rp_id=str(row["rp_id"]), origin=str(row["origin"]), revoked=bool(row["revoked"]),
+            credential_id=str(row["credential_id"]),
+            actor_id=str(row["actor_id"]),
+            public_key_b64=str(row["public_key_b64"]),
+            sign_count=int(row["sign_count"]),
+            rp_id=str(row["rp_id"]),
+            origin=str(row["origin"]),
+            revoked=bool(row["revoked"]),
         )
 
     def update_sign_count(
