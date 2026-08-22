@@ -1,0 +1,54 @@
+{
+  "schema": "cknexus.inter_chat.bus_manifest.v1.1",
+  "status": "DEVELOPMENT_ONLY",
+  "repository": "spinlnw10-art/ck-nexus",
+  "branch": "post-p0/inter-chat-communication-bus-v1",
+  "live_issue": 141,
+  "transport": {
+    "primary": "github_issue_comments",
+    "durability": "append_only",
+    "delivery": "at_least_once",
+    "ordering": "causal_best_effort",
+    "ack_supported": true,
+    "work_dispatch": true,
+    "claim_lease": true
+  },
+  "dispatcher": {
+    "participant_id": "dispatcher",
+    "routing": "capability_match",
+    "default_lease_seconds": 3600,
+    "max_lease_seconds": 14400,
+    "orphan_requeue": true,
+    "may_self_approve": false,
+    "may_merge": false,
+    "may_deploy": false,
+    "may_mutate_production": false
+  },
+  "participants": {
+    "dispatcher": {"role": "work_router", "authority": "coordination_only", "capabilities": ["routing", "lease-recovery", "handoff"]},
+    "chat-a": {"role": "core_runtime_backend", "authority": "advisory_development", "capabilities": ["runtime", "backend", "event-bus", "state-projector", "python", "api"]},
+    "chat-b": {"role": "ui_3d_windows", "authority": "advisory_development", "capabilities": ["ui", "browser", "windows", "threejs", "vrm", "accessibility"]},
+    "chat-c": {"role": "extensible_peer", "authority": "advisory_development", "capabilities": []},
+    "codex-security": {"role": "security_verifier", "authority": "evidence_provider_only", "capabilities": ["security-scan", "finding-validation", "attack-path"]},
+    "independent-verifier": {"role": "verification", "authority": "verification_only", "capabilities": ["verification", "evidence-review", "provenance"]},
+    "human-owner": {"role": "governed_owner", "authority": "separate_approval_required", "capabilities": ["approval"]}
+  },
+  "channels": ["coordination", "runtime", "ui", "security", "release", "ops"],
+  "message_types": ["ANNOUNCE", "REQUEST", "WORK_REQUEST", "CLAIM", "HEARTBEAT", "RELEASE", "EXPIRE", "HANDOFF", "RESULT", "BLOCKER", "COMPLETE", "ACK", "SUPERSEDE"],
+  "truth_classes": ["OBSERVED", "INFERRED", "SIMULATED", "VERIFIED"],
+  "forbidden_payloads": ["raw_credentials", "access_tokens", "passwords", "private_chain_of_thought"],
+  "production_boundary": {
+    "may_merge": false,
+    "may_deploy": false,
+    "may_promote_q10_q11_q12": false,
+    "may_rebind_release_evidence": false
+  },
+  "required_work_fields": ["message_id", "correlation_id", "from", "to", "type", "created_at", "repository", "subject_sha", "truth_class", "priority", "required_capabilities", "summary", "next_action"],
+  "claim_rules": {
+    "single_active_claim_per_correlation_id": true,
+    "winner": "earliest_accepted_claim",
+    "heartbeat_required_before_expiry": true,
+    "expired_claim_requeue": true,
+    "claim_is_approval": false
+  }
+}
