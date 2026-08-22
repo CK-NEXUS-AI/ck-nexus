@@ -12,33 +12,47 @@ check() {
   fi
 }
 
+current_cgroup_path() {
+  awk -F: '$1=="0" && $2=="" {print $3; exit}' /proc/self/cgroup
+}
+
 echo "CK-NEXUS Q12 Linux Host Preflight"
 echo "kernel=$(uname -srmo)"
 echo "uid=$(id -u) user=$(id -un)"
 echo "cgroup_fs=$(stat -fc %T /sys/fs/cgroup 2>/dev/null || echo unavailable)"
 
+check "non-root operator" test "$(id -u)" -ne 0
 check "systemd available" test -d /run/systemd/system
+check "unshare available" command -v unshare
+check "setpriv available" command -v setpriv
 check "cgroup v2 mounted" test "$(stat -fc %T /sys/fs/cgroup 2>/dev/null || true)" = "cgroup2fs"
-check "cgroup controllers file" test -r /sys/fs/cgroup/cgroup.controllers
-check "cpu controller" grep -qw cpu /sys/fs/cgroup/cgroup.controllers
-check "memory controller" grep -qw memory /sys/fs/cgroup/cgroup.controllers
-check "pids controller" grep -qw pids /sys/fs/cgroup/cgroup.controllers
-check "user namespace" unshare --user --map-root-user true
-check "mount namespace" unshare --mount true
-check "pid namespace" unshare --pid --fork true
-check "network namespace" unshare --net true
-check "no_new_privs support" sh -c 'command -v setpriv >/dev/null && setpriv --no-new-privs true'
+check "root controllers file" test -r /sys/fs/cgroup/cgroup.controllers
+check "cpu controller available" grep -qw cpu /sys/fs/cgroup/cgroup.controllers
+check "memory controller available" grep -qw memory /sys/fs/cgroup/cgroup.controllers
+check "pids controller available" grep -qw pids /sys/fs/cgroup/cgroup.controllers
 
-if [ -w /sys/fs/cgroup/cgroup.subtree_control ]; then
-  echo "PASS  cgroup subtree writable at current boundary"
+cg_rel="$(current_cgroup_path || true)"
+if [ -n "$cg_rel" ]; then
+  cg_abs="/sys/fs/cgroup${cg_rel}"
+  echo "cgroup_path=$cg_rel"
+  check "current cgroup exists" test -d "$cg_abs"
+  check "current cgroup subtree control exists" test -e "$cg_abs/cgroup.subtree_control"
+  check "current cgroup subtree writable" test -w "$cg_abs/cgroup.subtree_control"
 else
-  echo "FAIL  cgroup subtree not writable at current boundary"
+  echo "FAIL  current unified cgroup path unavailable"
   fail=1
 fi
 
+check "unprivileged user namespace" unshare --user --map-root-user true
+check "combined user+mount namespace" unshare --user --map-root-user --mount true
+check "combined user+pid namespace" unshare --user --map-root-user --pid --fork true
+check "combined user+network namespace" unshare --user --map-root-user --net true
+check "authoritative namespace stack" unshare --user --map-root-user --mount --pid --fork --net true
+check "no_new_privs support" setpriv --no-new-privs true
+
 if [ "$fail" -eq 0 ]; then
   echo "Q12_HOST_READINESS=PASS_CANDIDATE"
-  echo "NOTE=This is readiness only; authoritative Q12 execution evidence is still required."
+  echo "NOTE=Readiness only. It does not create Q12 PASS evidence or prove cgroup limits/escape resistance."
 else
   echo "Q12_HOST_READINESS=FAIL"
   exit 1
