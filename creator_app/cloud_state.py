@@ -50,7 +50,9 @@ class PostgresApprovalReplayStore:
                     (nonce, approval_id, actor_id, subject_digest, expires_at),
                 )
             except Exception as exc:
-                raise PermissionError("approval token already redeemed or persistence failed") from exc
+                raise PermissionError(
+                    "approval token already redeemed or persistence failed"
+                ) from exc
             connection.commit()
 
     def is_redeemed(self, nonce: str) -> bool:
