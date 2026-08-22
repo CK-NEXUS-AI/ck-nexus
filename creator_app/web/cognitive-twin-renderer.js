@@ -3,15 +3,30 @@
 
   const TRUTH = new Set(["OBSERVED", "INFERRED", "SIMULATED", "VERIFIED"]);
   const MOTION = new Set(["idle", "searching", "analyzing", "planning", "executing", "verifying", "waiting", "blocked", "evidence"]);
+  const SAFE_AGENT_ID = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
 
-  function normalizeTruth(value) {
+  function boundedString(value, maxLength = 128) {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.length > maxLength) return null;
+    return trimmed;
+  }
+
+  function normalizeTruth(value, evidenceBound = false) {
     const truth = String(value || "").toUpperCase();
-    return TRUTH.has(truth) ? truth : "INFERRED";
+    if (!TRUTH.has(truth)) return "INFERRED";
+    if (truth === "VERIFIED" && !evidenceBound) return "INFERRED";
+    return truth;
   }
 
   function normalizeMotion(value) {
     const motion = String(value || "idle").toLowerCase();
     return MOTION.has(motion) ? motion : "idle";
+  }
+
+  function evidenceReference(input) {
+    if (!input || typeof input !== "object") return null;
+    return boundedString(input.evidence_id || input.verification_id || input.evidence_ref, 160);
   }
 
   function canUseWebGL(env = globalThis) {
@@ -34,26 +49,31 @@
 
   function sanitizeAgent(agent) {
     if (!agent || typeof agent !== "object") return null;
-    const id = String(agent.id || "").trim();
-    if (!id) return null;
+    const id = boundedString(agent.id, 64);
+    if (!id || !SAFE_AGENT_ID.test(id)) return null;
+    const evidenceRef = evidenceReference(agent);
+    const truth = normalizeTruth(agent.truth, Boolean(evidenceRef));
     return {
       id,
-      truth: normalizeTruth(agent.truth),
+      truth,
       motion: normalizeMotion(agent.motion || agent.state),
       active: Boolean(agent.active),
-      verified: normalizeTruth(agent.truth) === "VERIFIED",
-      source: typeof agent.source === "string" ? agent.source : "runtime-projection",
+      verified: truth === "VERIFIED",
+      evidenceRef,
+      source: boundedString(agent.source, 160) || "runtime-projection",
     };
   }
 
   function sanitizeProjection(input) {
-    if (!input || typeof input !== "object") return { subject: null, agents: [], truth: "INFERRED" };
+    if (!input || typeof input !== "object") return { subject: null, agents: [], truth: "INFERRED", evidenceRef: null };
     const agents = Array.isArray(input.agents) ? input.agents.map(sanitizeAgent).filter(Boolean) : [];
+    const evidenceRef = evidenceReference(input);
     return {
-      subject: typeof input.subject === "string" ? input.subject : null,
-      taskId: typeof input.task_id === "string" ? input.task_id : null,
-      runId: typeof input.run_id === "string" ? input.run_id : null,
-      truth: normalizeTruth(input.truth),
+      subject: boundedString(input.subject, 160),
+      taskId: boundedString(input.task_id, 128),
+      runId: boundedString(input.run_id, 128),
+      truth: normalizeTruth(input.truth, Boolean(evidenceRef)),
+      evidenceRef,
       agents,
     };
   }
@@ -97,6 +117,7 @@
       const projection = sanitizeProjection(input);
       this.lastProjection = projection;
       if (projection.subject) this.scene.dataset.subject = projection.subject;
+      else delete this.scene.dataset.subject;
       this.scene.dataset.truth = projection.truth;
       projection.agents.forEach((agent) => {
         const node = this.scene.querySelector?.(`[data-agent="${agent.id}"]`);
@@ -116,6 +137,7 @@
         motion: this.motion,
         subject: this.lastProjection?.subject || null,
         truth: this.lastProjection?.truth || null,
+        evidenceRef: this.lastProjection?.evidenceRef || null,
         destroyed: this.destroyed,
       };
     }
