@@ -1,2 +1,0 @@
-CHAT B renderer candidate exact head before PR/CI: e4a5722fd33a5fb1bf17486ebfe56751573e8554
-Classification: Development-only / unmerged / Production NO-GO unchanged.
