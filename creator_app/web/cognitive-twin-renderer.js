@@ -13,6 +13,8 @@
     "evidence",
   ]);
   const PROJECTION_EVENT = "cknexus:projected-state";
+  const STATIC_ASSET_PREFIX = "/static/";
+  const AVATAR_EXTENSIONS = /\.(?:vrm|glb|gltf)$/i;
 
   function webglAvailable() {
     try {
@@ -27,15 +29,36 @@
   }
 
   function threeRuntimeAvailable() {
-    return Boolean(window.THREE && typeof window.THREE.Scene === "function");
+    const three = window.THREE;
+    return Boolean(
+      three
+      && typeof three.Scene === "function"
+      && typeof three.PerspectiveCamera === "function"
+      && typeof three.WebGLRenderer === "function"
+    );
+  }
+
+  function gltfRuntimeAvailable() {
+    return Boolean(threeRuntimeAvailable() && window.THREE.GLTFLoader);
   }
 
   function vrmRuntimeAvailable() {
-    return Boolean(
-      threeRuntimeAvailable()
-      && window.THREE.GLTFLoader
-      && window.VRMLoaderPlugin
-    );
+    return Boolean(gltfRuntimeAvailable() && window.VRMLoaderPlugin);
+  }
+
+  function normalizeAssetUrl(value) {
+    if (!value) throw new Error("avatar asset URL is required");
+    const url = new URL(String(value), window.location.href);
+    if (url.origin !== window.location.origin) {
+      throw new Error("cross-origin avatar assets are denied");
+    }
+    if (!url.pathname.startsWith(STATIC_ASSET_PREFIX)) {
+      throw new Error("avatar assets must be served from /static/");
+    }
+    if (!AVATAR_EXTENSIONS.test(url.pathname)) {
+      throw new Error("avatar asset must be VRM, GLB, or GLTF");
+    }
+    return url.href;
   }
 
   function normalizeTruth(value) {
@@ -92,6 +115,10 @@
       this.mode = "css-fallback";
       this.ready = false;
       this.lastState = null;
+      this.three = null;
+      this.avatars = new Map();
+      this.resizeObserver = null;
+      this.frameHandle = null;
     }
 
     initialize() {
@@ -100,10 +127,115 @@
       if (!webglAvailable()) return this.status("webgl-unavailable");
       if (!threeRuntimeAvailable()) return this.status("three-unavailable");
 
-      this.mode = vrmRuntimeAvailable() ? "three-vrm" : "three-basic";
+      try {
+        this.initializeThreeScene();
+      } catch (_) {
+        this.disposeThreeScene();
+        return this.status("three-init-failed");
+      }
+
+      this.mode = vrmRuntimeAvailable()
+        ? "three-vrm"
+        : gltfRuntimeAvailable() ? "three-gltf" : "three-basic";
       this.ready = true;
       this.scene.dataset.renderer = this.mode;
+      this.startRenderLoop();
       return this.status("ready");
+    }
+
+    initializeThreeScene() {
+      const THREE = window.THREE;
+      const stage = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+      camera.position.set(0, 1.5, 4.5);
+
+      const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      renderer.setPixelRatio(Math.min(Number(window.devicePixelRatio) || 1, 2));
+      renderer.domElement.classList.add("cognitive-twin-webgl");
+      renderer.domElement.setAttribute("aria-hidden", "true");
+      renderer.domElement.style.position = "absolute";
+      renderer.domElement.style.inset = "0";
+      renderer.domElement.style.width = "100%";
+      renderer.domElement.style.height = "100%";
+      renderer.domElement.style.pointerEvents = "none";
+      this.scene.prepend(renderer.domElement);
+
+      this.three = { THREE, stage, camera, renderer };
+      this.resize();
+      if (typeof ResizeObserver === "function") {
+        this.resizeObserver = new ResizeObserver(() => this.resize());
+        this.resizeObserver.observe(this.scene);
+      }
+    }
+
+    resize() {
+      if (!this.three || !this.scene) return;
+      const width = Math.max(1, this.scene.clientWidth || 1);
+      const height = Math.max(1, this.scene.clientHeight || 1);
+      this.three.camera.aspect = width / height;
+      this.three.camera.updateProjectionMatrix();
+      this.three.renderer.setSize(width, height, false);
+    }
+
+    startRenderLoop() {
+      if (!this.three || this.frameHandle) return;
+      const render = () => {
+        this.frameHandle = null;
+        if (!this.three) return;
+        if (document.visibilityState !== "hidden") {
+          this.three.renderer.render(this.three.stage, this.three.camera);
+        }
+        this.frameHandle = window.requestAnimationFrame(render);
+      };
+      this.frameHandle = window.requestAnimationFrame(render);
+    }
+
+    loadAvatar({ agentId, assetUrl }) {
+      if (!this.three || !gltfRuntimeAvailable()) {
+        return Promise.reject(new Error("GLTF runtime is unavailable"));
+      }
+      const id = String(agentId || "").trim();
+      if (!id) return Promise.reject(new Error("agentId is required"));
+      let url;
+      try {
+        url = normalizeAssetUrl(assetUrl);
+      } catch (error) {
+        return Promise.reject(error);
+      }
+
+      const loader = new window.THREE.GLTFLoader();
+      if (/\.vrm(?:$|[?#])/i.test(url) && vrmRuntimeAvailable()) {
+        loader.register((parser) => new window.VRMLoaderPlugin(parser));
+      }
+      return new Promise((resolve, reject) => {
+        loader.load(
+          url,
+          (gltf) => {
+            const vrm = gltf?.userData?.vrm || null;
+            const root = vrm?.scene || gltf?.scene;
+            if (!root) {
+              reject(new Error("avatar scene is missing"));
+              return;
+            }
+            const previous = this.avatars.get(id);
+            if (previous?.root) this.three.stage.remove(previous.root);
+            this.three.stage.add(root);
+            const avatar = Object.freeze({ id, url, root, vrm, format: vrm ? "vrm" : "gltf" });
+            this.avatars.set(id, avatar);
+            resolve(avatar);
+          },
+          undefined,
+          (error) => reject(error instanceof Error ? error : new Error("avatar load failed")),
+        );
+      });
+    }
+
+    applyProfileToAvatar(agentId, profile) {
+      const avatar = this.avatars.get(agentId);
+      if (!avatar?.root) return;
+      avatar.root.rotation.y = Number(profile.gaze || 0) * 0.08;
+      avatar.root.rotation.x = Number(profile.posture || 0) * -0.04;
+      avatar.root.position.y = Number(profile.micro || 0) * 0.025;
     }
 
     consume(projectedState) {
@@ -118,6 +250,7 @@
         this.scene.dataset.projectedTruth = truth;
         this.scene.dataset.projectedVerified = String(Boolean(state.verified));
       }
+      this.applyProfileToAvatar(state.agentId, profile);
       return this.lastState;
     }
 
@@ -127,6 +260,26 @@
       return null;
     }
 
+    disposeThreeScene() {
+      if (this.frameHandle) {
+        window.cancelAnimationFrame(this.frameHandle);
+        this.frameHandle = null;
+      }
+      if (this.resizeObserver) {
+        this.resizeObserver.disconnect();
+        this.resizeObserver = null;
+      }
+      if (this.three?.renderer) {
+        this.three.renderer.dispose();
+        this.three.renderer.domElement?.remove();
+      }
+      this.three = null;
+      this.avatars.clear();
+      this.mode = "css-fallback";
+      this.ready = false;
+      if (this.scene) this.scene.dataset.renderer = this.mode;
+    }
+
     status(reason = "unknown") {
       return Object.freeze({
         mode: this.mode,
@@ -134,7 +287,9 @@
         reason,
         webgl: webglAvailable(),
         three: threeRuntimeAvailable(),
+        gltf: gltfRuntimeAvailable(),
         vrm: vrmRuntimeAvailable(),
+        avatars: this.avatars.size,
       });
     }
   }
@@ -158,6 +313,7 @@
       return new CognitiveTwinRenderer(options);
     },
     normalizeProjectedState,
+    normalizeAssetUrl,
     motionProfile,
     projectionEvent: PROJECTION_EVENT,
     truthClasses: Object.freeze(Array.from(TRUTH_CLASSES)),
