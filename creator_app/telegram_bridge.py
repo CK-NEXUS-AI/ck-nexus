@@ -52,7 +52,7 @@ class TelegramBridgeConfig:
     ck_api_base: str = "http://127.0.0.1:8000"
     ck_access_token: str = ""
     allowed_chat_ids: frozenset[int] = frozenset()
-    default_agent_id: str = "general"
+    default_agent_id: str = "content-strategist"
 
     @classmethod
     def from_env(cls) -> TelegramBridgeConfig:
@@ -71,8 +71,8 @@ class TelegramBridgeConfig:
             ck_access_token=os.getenv("CKNEXUS_ACCESS_TOKEN", "").strip(),
             allowed_chat_ids=allowed,
             default_agent_id=(
-                os.getenv("CKNEXUS_TELEGRAM_AGENT_ID", "general").strip()
-                or "general"
+                os.getenv("CKNEXUS_TELEGRAM_AGENT_ID", "content-strategist").strip()
+                or "content-strategist"
             ),
         )
 
