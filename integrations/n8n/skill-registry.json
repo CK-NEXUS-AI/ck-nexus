@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "name": "CK-NEXUS Development Skill Registry",
+  "authority": "ck_nexus_governor",
+  "mode": "development_only",
+  "skills": [
+    {"id":"mission_decomposition","roles":["orchestrator","architect"],"risk":"low","requires_verification":true},
+    {"id":"repo_architecture_analysis","roles":["architect","builder","verifier"],"risk":"low","requires_verification":true},
+    {"id":"public_research","roles":["researcher","security_reviewer"],"risk":"low","requires_verification":true},
+    {"id":"standards_mapping","roles":["researcher","architect","security_reviewer"],"risk":"low","requires_verification":true},
+    {"id":"code_generation","roles":["builder"],"risk":"medium","requires_verification":true},
+    {"id":"test_generation","roles":["builder","verifier"],"risk":"medium","requires_verification":true},
+    {"id":"static_security_review","roles":["security_reviewer","verifier"],"risk":"medium","requires_verification":true},
+    {"id":"threat_modeling","roles":["security_reviewer","architect"],"risk":"medium","requires_verification":true},
+    {"id":"evidence_drafting","roles":["verifier","orchestrator"],"risk":"low","requires_verification":true},
+    {"id":"failure_analysis","roles":["verifier","builder","architect"],"risk":"low","requires_verification":true},
+    {"id":"recovery_planning","roles":["orchestrator","architect","verifier"],"risk":"medium","requires_verification":true},
+    {"id":"performance_analysis","roles":["architect","builder","verifier"],"risk":"low","requires_verification":true},
+    {"id":"ui_runtime_analysis","roles":["architect","builder","verifier"],"risk":"low","requires_verification":true},
+    {"id":"api_contract_review","roles":["architect","builder","security_reviewer"],"risk":"medium","requires_verification":true},
+    {"id":"dependency_review","roles":["builder","security_reviewer"],"risk":"medium","requires_verification":true}
+  ],
+  "forbidden_skills": [
+    "production_deploy",
+    "production_merge",
+    "secret_exfiltration",
+    "q10_self_promotion",
+    "production_evidence_rewrite",
+    "protected_ref_mutation"
+  ]
+}
