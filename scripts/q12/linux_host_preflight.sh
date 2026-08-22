@@ -16,6 +16,11 @@ current_cgroup_path() {
   awk -F: '$1=="0" && $2=="" {print $3; exit}' /proc/self/cgroup
 }
 
+enabled_controller() {
+  local file="$1" controller="$2"
+  tr ' ' '\n' < "$file" | sed 's/^[+-]//' | grep -qx "$controller"
+}
+
 echo "CK-NEXUS Q12 Linux Host Preflight"
 echo "kernel=$(uname -srmo)"
 echo "uid=$(id -u) user=$(id -un)"
@@ -36,8 +41,15 @@ if [ -n "$cg_rel" ]; then
   cg_abs="/sys/fs/cgroup${cg_rel}"
   echo "cgroup_path=$cg_rel"
   check "current cgroup exists" test -d "$cg_abs"
-  check "current cgroup subtree control exists" test -e "$cg_abs/cgroup.subtree_control"
-  check "current cgroup subtree writable" test -w "$cg_abs/cgroup.subtree_control"
+  check "delegated controllers readable" test -r "$cg_abs/cgroup.controllers"
+  check "delegated subtree control exists" test -e "$cg_abs/cgroup.subtree_control"
+  check "delegated subtree writable" test -w "$cg_abs/cgroup.subtree_control"
+  check "delegated cpu controller" enabled_controller "$cg_abs/cgroup.controllers" cpu
+  check "delegated memory controller" enabled_controller "$cg_abs/cgroup.controllers" memory
+  check "delegated pids controller" enabled_controller "$cg_abs/cgroup.controllers" pids
+  check "cpu enabled for child cgroups" enabled_controller "$cg_abs/cgroup.subtree_control" cpu
+  check "memory enabled for child cgroups" enabled_controller "$cg_abs/cgroup.subtree_control" memory
+  check "pids enabled for child cgroups" enabled_controller "$cg_abs/cgroup.subtree_control" pids
 else
   echo "FAIL  current unified cgroup path unavailable"
   fail=1
