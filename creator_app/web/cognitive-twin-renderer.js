@@ -12,6 +12,7 @@
     "blocked",
     "evidence",
   ]);
+  const PROJECTION_EVENT = "cknexus:projected-state";
 
   function webglAvailable() {
     try {
@@ -91,7 +92,6 @@
       this.mode = "css-fallback";
       this.ready = false;
       this.lastState = null;
-      this.canvas = null;
     }
 
     initialize() {
@@ -139,12 +139,37 @@
     }
   }
 
-  window.CKNexusTwinRenderer = Object.freeze({
+  function mountProjectionBridge() {
+    const scene = document.getElementById("scene");
+    if (!scene) return null;
+    const renderer = new CognitiveTwinRenderer({
+      scene,
+      reducedMotion: window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true,
+    });
+    renderer.initialize();
+    window.addEventListener(PROJECTION_EVENT, (event) => {
+      renderer.consume(event && event.detail);
+    });
+    return renderer;
+  }
+
+  const publicApi = {
     create(options) {
       return new CognitiveTwinRenderer(options);
     },
     normalizeProjectedState,
     motionProfile,
+    projectionEvent: PROJECTION_EVENT,
     truthClasses: Object.freeze(Array.from(TRUTH_CLASSES)),
-  });
+    active: null,
+  };
+  window.CKNexusTwinRenderer = publicApi;
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => {
+      publicApi.active = mountProjectionBridge();
+    }, { once: true });
+  } else {
+    publicApi.active = mountProjectionBridge();
+  }
 })();
