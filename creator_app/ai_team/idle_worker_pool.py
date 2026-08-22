@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum, IntEnum
+from enum import IntEnum, StrEnum
 
 
-class WorkState(str, Enum):
+class WorkState(StrEnum):
     QUEUED = "QUEUED"
     CLAIMED = "CLAIMED"
     WORKING = "WORKING"
@@ -15,7 +15,7 @@ class WorkState(str, Enum):
     SUPERSEDED = "SUPERSEDED"
 
 
-class TruthClass(str, Enum):
+class TruthClass(StrEnum):
     DISCOVERED = "DISCOVERED"
     OBSERVED = "OBSERVED"
     INFERRED = "INFERRED"
