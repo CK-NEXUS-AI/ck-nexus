@@ -48,6 +48,14 @@ def test_renderer_motion_layers_are_bounded_and_reduced_motion_aware() -> None:
     assert "locomotion: 0" in js
 
 
+def test_renderer_consumes_projection_event_without_owning_runtime_transport() -> None:
+    js = _read()
+    assert 'PROJECTION_EVENT = "cknexus:projected-state"' in js
+    assert "window.addEventListener(PROJECTION_EVENT" in js
+    assert "renderer.consume(event && event.detail)" in js
+    assert "mountProjectionBridge" in js
+
+
 def test_renderer_does_not_create_runtime_authority_or_mutation_paths() -> None:
     js = _read()
     forbidden = (
