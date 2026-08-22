@@ -1,0 +1,45 @@
+{
+  "schema": "cknexus.inter_chat.bus_manifest.v1",
+  "status": "DEVELOPMENT_ONLY",
+  "repository": "spinlnw10-art/ck-nexus",
+  "branch": "post-p0/inter-chat-communication-bus-v1",
+  "transport": {
+    "primary": "github_issue_comments",
+    "durability": "append_only",
+    "delivery": "at_least_once",
+    "ordering": "causal_best_effort",
+    "ack_supported": true
+  },
+  "participants": {
+    "chat-a": {"role": "core_runtime_backend", "authority": "advisory_development"},
+    "chat-b": {"role": "ui_3d_windows", "authority": "advisory_development"},
+    "chat-c": {"role": "extensible_peer", "authority": "advisory_development"},
+    "codex-security": {"role": "security_verifier", "authority": "evidence_provider_only"},
+    "independent-verifier": {"role": "verification", "authority": "verification_only"},
+    "human-owner": {"role": "governed_owner", "authority": "separate_approval_required"}
+  },
+  "channels": ["coordination", "runtime", "ui", "security", "release", "ops"],
+  "message_types": ["ANNOUNCE", "REQUEST", "HANDOFF", "RESULT", "BLOCKER", "ACK", "SUPERSEDE"],
+  "truth_classes": ["OBSERVED", "INFERRED", "SIMULATED", "VERIFIED"],
+  "forbidden_payloads": ["raw_credentials", "access_tokens", "passwords", "private_chain_of_thought"],
+  "production_boundary": {
+    "may_merge": false,
+    "may_deploy": false,
+    "may_promote_q10_q11_q12": false,
+    "may_rebind_release_evidence": false
+  },
+  "required_handoff_fields": [
+    "message_id",
+    "from",
+    "to",
+    "type",
+    "created_at",
+    "repository",
+    "subject_sha",
+    "truth_class",
+    "summary",
+    "blockers",
+    "next_owner",
+    "next_action"
+  ]
+}
