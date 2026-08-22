@@ -1,6 +1,8 @@
 name: CK-NEXUS Development CI
 
 on:
+  push:
+    branches: ['feat/**']
   pull_request:
   workflow_dispatch:
 
