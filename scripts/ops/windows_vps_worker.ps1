@@ -2,7 +2,8 @@ param(
     [string]$WorkerRoot = "C:\CKTools",
     [switch]$SkipRemoteAgent,
     [switch]$PersistRemoteAgent,
-    [switch]$InstallPythonToolchain
+    [switch]$InstallPythonToolchain,
+    [switch]$InstallGitToolchain
 )
 
 $ErrorActionPreference = "Stop"
@@ -88,6 +89,33 @@ function Ensure-Uv {
     return $uvExe
 }
 
+function Ensure-MinGit {
+    $gitDir = Join-Path $WorkerRoot "git"
+    $gitExe = Join-Path $gitDir "cmd\git.exe"
+    if (Test-Path $gitExe) { return $gitExe }
+
+    $headers = @{ "User-Agent" = "CK-NEXUS-worker" }
+    $release = Invoke-RestMethod -Headers $headers "https://api.github.com/repos/git-for-windows/git/releases/latest"
+    $asset = $release.assets | Where-Object { $_.name -match '^MinGit-.*-64-bit\.zip$' } | Select-Object -First 1
+    if (-not $asset) { throw "Unable to resolve MinGit x64 release asset." }
+    if (-not $asset.digest -or $asset.digest -notmatch '^sha256:[0-9a-fA-F]{64}$') {
+        throw "GitHub release asset is missing a SHA-256 digest."
+    }
+
+    $zip = Join-Path $env:TEMP ("mingit-" + [guid]::NewGuid().ToString("N") + ".zip")
+    Invoke-WebRequest -UseBasicParsing $asset.browser_download_url -OutFile $zip
+    $expected = ($asset.digest -replace '^sha256:','').ToLowerInvariant()
+    $actual = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
+    if ($actual -ne $expected) { throw "MinGit checksum mismatch." }
+
+    if (Test-Path $gitDir) { Remove-Item -Recurse -Force $gitDir }
+    New-Item -ItemType Directory -Force -Path $gitDir | Out-Null
+    Expand-Archive $zip -DestinationPath $gitDir -Force
+    Remove-Item -Force $zip
+    if (-not (Test-Path $gitExe)) { throw "git executable missing after extraction." }
+    return $gitExe
+}
+
 function Register-RemoteAgentTask([string]$nodeDir) {
     $deviceFile = Join-Path $env:USERPROFILE ".desktop-commander-device\device.json"
     if (-not (Test-Path $deviceFile)) {
@@ -121,6 +149,11 @@ if ($InstallPythonToolchain) {
     & $uvExe --version
     & $uvExe python install 3.12
     & $uvExe python find 3.12
+}
+
+if ($InstallGitToolchain) {
+    $gitExe = Ensure-MinGit
+    & $gitExe --version
 }
 
 Write-Output "SSHD=$((Get-Service sshd).Status)"
