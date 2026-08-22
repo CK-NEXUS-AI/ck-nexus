@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "mode": "development_only",
+  "parent_subject": "7c941616fb592947eb46b4d080f63369b5ff3d39",
+  "production_status": "NO-GO",
+  "chat_a": {
+    "name": "core-runtime-backend",
+    "owns": [
+      "event_bus",
+      "state_projector",
+      "agnes_runtime_events",
+      "read_only_runtime_api",
+      "evidence_projection",
+      "verifier_projection"
+    ],
+    "next_goal": "Define runtime event envelope and deterministic UI state projection"
+  },
+  "chat_b": {
+    "name": "ui-3d-windows-runtime",
+    "owns": [
+      "cognitive_digital_twin_ui",
+      "threejs_vrm_renderer",
+      "motion_gaze_viseme",
+      "agent_inspector",
+      "visual_language",
+      "windows_preview_runtime"
+    ],
+    "next_goal": "Prepare Windows preview host and renderer adapter against shared state contract"
+  },
+  "handoff_required_fields": [
+    "chat",
+    "status",
+    "subject_sha",
+    "changed_files",
+    "contracts",
+    "tests",
+    "security",
+    "blockers",
+    "next_owner",
+    "next_action"
+  ],
+  "truth_labels": ["OBSERVED", "INFERRED", "SIMULATED", "VERIFIED"]
+}
