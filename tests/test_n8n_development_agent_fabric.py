@@ -13,6 +13,9 @@ MEMORY = BASE / "memory-policy.json"
 RECOVERY = BASE / "recovery-policy.json"
 MISSION_SCHEMA = BASE / "mission-contract.schema.json"
 SIDECAR = BASE / "ck_nexus_agent_sidecar.mjs"
+START_N8N = BASE / "start_n8n_dev.ps1"
+START_STACK = BASE / "start_super_agent_stack.ps1"
+SMOKE = BASE / "smoke_super_agent.ps1"
 
 
 def test_policy_protects_production_subject_and_pr14() -> None:
@@ -98,3 +101,15 @@ def test_sidecar_is_local_first_and_cannot_self_promote() -> None:
     assert "q10_promotion_allowed: false" in text
     assert "CK_NEXUS_INTELLIGENCE_ENDPOINT" in text
     assert "PROPOSAL_ONLY" in text
+
+
+def test_windows_launchers_remain_local_only() -> None:
+    start_n8n = START_N8N.read_text(encoding="utf-8")
+    start_stack = START_STACK.read_text(encoding="utf-8")
+    smoke = SMOKE.read_text(encoding="utf-8")
+    assert "127.0.0.1" in start_n8n
+    assert "127.0.0.1" in start_stack
+    assert "http://127.0.0.1:8765/v1/agent" in start_n8n
+    assert "main" in smoke
+    assert "post-p0/n8n-super-agent-smoke" in smoke
+    assert "production_mutation_allowed" in smoke
