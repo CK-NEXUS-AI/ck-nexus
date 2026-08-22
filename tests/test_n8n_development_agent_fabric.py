@@ -1,4 +1,4 @@
-import json
+﻿import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -157,3 +157,19 @@ def test_installer_and_launchers_are_collision_aware_and_local_only() -> None:
     assert "main" in smoke
     assert "post-p0/n8n-super-agent-smoke" in smoke
     assert "production_mutation_allowed" in smoke
+
+
+def test_adaptive_resource_guard_and_n8n_memory_limits_are_bounded() -> None:
+    guard = (BASE / "adaptive_resource_guard.ps1").read_text(encoding="utf-8")
+    start_n8n = START_N8N.read_text(encoding="utf-8")
+    assert "pressure_state" in guard
+    assert "recommended_concurrency" in guard
+    assert "pagefile_configured" in guard
+    assert "production_mutation=$false" in guard
+    assert "FailOnCritical" in guard
+    assert "N8N_CONCURRENCY_PRODUCTION_LIMIT = '1'" in start_n8n
+    assert "EXECUTIONS_DATA_PRUNE = 'true'" in start_n8n
+    assert "EXECUTIONS_DATA_MAX_AGE = '168'" in start_n8n
+    assert "EXECUTIONS_DATA_PRUNE_MAX_COUNT = '1000'" in start_n8n
+    assert "--max-old-space-size=1024" in start_n8n
+    assert "adaptive_resource_guard.ps1" in start_n8n

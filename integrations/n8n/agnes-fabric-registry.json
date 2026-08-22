@@ -1,0 +1,45 @@
+{
+  "schema_version":"1.0",
+  "name":"AGNES Cognitive Execution Fabric",
+  "authority":"ck_nexus_governor",
+  "mode":"development_only",
+  "agent_modes":["solo","delegate","council","pipeline","map_reduce","review"],
+  "protocols":[
+    {"id":"native_http","status":"active","purpose":"internal deterministic services"},
+    {"id":"mcp","status":"contract_only","purpose":"tools and data interoperability"},
+    {"id":"a2a","status":"contract_only","purpose":"agent interoperability"},
+    {"id":"ag_ui","status":"contract_only","purpose":"agent UI streaming"},
+    {"id":"a2ui","status":"contract_only","purpose":"declarative generated UI"}
+  ],
+  "memory_layers":["working","session","episodic","semantic","procedural","knowledge_graph","evidence","strategy"],
+  "capabilities":[
+    {"id":"capability_retrieval","status":"active","risk":"low","keywords":["skill","capability","tool","route","เลือก","ค้น"]},
+    {"id":"resource_governance","status":"active","risk":"low","keywords":["ram","memory","cpu","resource","performance","แรม"]},
+    {"id":"checkpoint_resume","status":"active","risk":"low","keywords":["checkpoint","resume","recover","recovery","กู้คืน"]},
+    {"id":"trace_evidence","status":"active","risk":"low","keywords":["trace","evidence","audit","verify","หลักฐาน"]},
+    {"id":"agent_virtualization","status":"active","risk":"low","keywords":["agent","multi-agent","swarm","worker","เอเจนต์"]},
+    {"id":"failure_mining","status":"active","risk":"low","keywords":["failure","error","incident","debug","ผิดพลาด"]},
+    {"id":"mcp_gateway","status":"contract_only","risk":"medium","keywords":["mcp","connector","tools"]},
+    {"id":"a2a_gateway","status":"contract_only","risk":"medium","keywords":["a2a","agent card","remote agent"]},
+    {"id":"browser_fabric","status":"contract_only","risk":"medium","keywords":["browser","web","playwright"]},
+    {"id":"sandbox_broker","status":"contract_only","risk":"medium","keywords":["sandbox","container","isolation"]},
+    {"id":"memory_consolidation","status":"contract_only","risk":"medium","keywords":["memory","knowledge graph","consolidate"]}
+  ],
+  "resource_defaults":{
+    "memory_soft_mb":256,
+    "memory_hard_mb":512,
+    "max_concurrency":1,
+    "max_tool_steps":4,
+    "allow_browser":false,
+    "allow_large_binary":false,
+    "hibernatable":true
+  },
+  "pressure_policy":{
+    "GREEN":{"max_concurrency":3,"max_tool_steps":4},
+    "YELLOW":{"max_concurrency":2,"max_tool_steps":3},
+    "ORANGE":{"max_concurrency":1,"max_tool_steps":2},
+    "RED":{"max_concurrency":1,"max_tool_steps":1},
+    "CRITICAL":{"max_concurrency":0,"max_tool_steps":0}
+  },
+  "forbidden":["production_deploy","production_merge","secret_export","q10_self_promotion","protected_ref_mutation"]
+}
