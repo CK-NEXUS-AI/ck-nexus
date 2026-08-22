@@ -10,13 +10,13 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from .guards import CommandGuard, SandboxViolation
+from .policy import SandboxPolicy
+
 try:
     import resource as _resource
 except ImportError:  # pragma: no cover - exercised on non-Unix platforms
     _resource = None
-
-from .guards import CommandGuard, SandboxViolation
-from .policy import SandboxPolicy
 
 
 _IS_LINUX = sys.platform.startswith("linux")
