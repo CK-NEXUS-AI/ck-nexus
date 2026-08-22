@@ -1,1 +1,0 @@
-Chat B candidate remains development-only. Exact head will be read from GitHub after this commit and used for PR/CI verification. No merge or deploy is authorized.
