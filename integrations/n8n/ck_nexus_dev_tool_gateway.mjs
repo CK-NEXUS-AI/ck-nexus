@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 
 const HOST = process.env.CK_NEXUS_TOOL_HOST || '127.0.0.1';
 const PORT = Number(process.env.CK_NEXUS_TOOL_PORT || 8766);
+const TOOL_TOKEN = process.env.CK_NEXUS_TOOL_TOKEN || '';
 const REPO = path.resolve(process.env.CK_NEXUS_REPO_ROOT || process.cwd());
 const GIT = process.env.CK_NEXUS_GIT || 'git';
 const UV = process.env.CK_NEXUS_UV || 'uv';
@@ -16,6 +17,11 @@ const MAX_FILE = 256 * 1024;
 function respond(res, code, body) {
   res.writeHead(code, {'content-type':'application/json','cache-control':'no-store'});
   res.end(JSON.stringify(body));
+}
+
+function authorized(req) {
+  if (!TOOL_TOKEN) return false;
+  return String(req.headers['x-ck-nexus-tool-token'] || '') === TOOL_TOKEN;
 }
 
 function run(exe, args, timeoutMs = 120000) {
@@ -123,9 +129,10 @@ async function executeTool(input) {
 
 const server = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/health') {
-    return respond(res, 200, {ok:true, service:'ck-nexus-dev-tool-gateway', mode:'development_only', repo:REPO});
+    return respond(res, 200, {ok:true, service:'ck-nexus-dev-tool-gateway', mode:'development_only', repo:REPO, token_required:true});
   }
   if (req.method !== 'POST' || req.url !== '/v1/tool') return respond(res, 404, {error:'not_found'});
+  if (!authorized(req)) return respond(res, 401, {error:'tool_token_required', mode:'fail_closed'});
   let raw='';
   req.on('data', chunk => { raw += chunk; if (raw.length > 65536) req.destroy(); });
   req.on('end', async () => {
