@@ -14,6 +14,8 @@ RECOVERY = BASE / "recovery-policy.json"
 MISSION_SCHEMA = BASE / "mission-contract.schema.json"
 HANDOFF_SCHEMA = BASE / "assistant-handoff.schema.json"
 SIDECAR = BASE / "ck_nexus_agent_sidecar.mjs"
+TOOL_GATEWAY = BASE / "ck_nexus_dev_tool_gateway.mjs"
+INSTALLER = BASE / "install_n8n_windows.ps1"
 START_N8N = BASE / "start_n8n_dev.ps1"
 START_STACK = BASE / "start_super_agent_stack.ps1"
 SMOKE = BASE / "smoke_super_agent.ps1"
@@ -98,7 +100,7 @@ def test_mission_and_handoff_contracts_deny_production_capabilities() -> None:
     assert handoff["properties"]["q10_q11_q12_evidence"]["const"] is False
 
 
-def test_sidecar_is_local_first_and_cannot_self_promote() -> None:
+def test_sidecar_tool_loop_is_bounded_and_allowlisted() -> None:
     text = SIDECAR.read_text(encoding="utf-8")
     assert "127.0.0.1" in text
     assert "release/q10-q16-closure" in text
@@ -107,15 +109,35 @@ def test_sidecar_is_local_first_and_cannot_self_promote() -> None:
     assert "q10_promotion_allowed: false" in text
     assert "CK_NEXUS_INTELLIGENCE_ENDPOINT" in text
     assert "PROPOSAL_ONLY" in text
+    assert "MAX_TOOL_STEPS" in text
+    assert "APPROVED_TOOLS" in text
+    assert "tool_loop_limit" in text
 
 
-def test_windows_launchers_remain_local_only() -> None:
+def test_tool_gateway_requires_token_and_has_no_arbitrary_shell() -> None:
+    text = TOOL_GATEWAY.read_text(encoding="utf-8")
+    assert "CK_NEXUS_TOOL_TOKEN" in text
+    assert "x-ck-nexus-tool-token" in text
+    assert "tool_not_allowed" in text
+    assert "shell:false" in text
+    assert "read_tracked_file" in text
+    assert "run_test_file" in text
+    assert "release/q10-q16-closure" in text
+
+
+def test_installer_and_launchers_are_collision_aware_and_local_only() -> None:
+    installer = INSTALLER.read_text(encoding="utf-8")
     start_n8n = START_N8N.read_text(encoding="utf-8")
     start_stack = START_STACK.read_text(encoding="utf-8")
     smoke = SMOKE.read_text(encoding="utf-8")
+    assert ".install.lock" in installer
+    assert "MinimumFreeMemoryMB" in installer
+    assert "another npm install is running" in installer
     assert "127.0.0.1" in start_n8n
     assert "127.0.0.1" in start_stack
+    assert "CK_NEXUS_TOOL_TOKEN" in start_stack
     assert "http://127.0.0.1:8765/v1/agent" in start_n8n
+    assert "unauthenticated tool call denied" in smoke
     assert "main" in smoke
     assert "post-p0/n8n-super-agent-smoke" in smoke
     assert "production_mutation_allowed" in smoke
