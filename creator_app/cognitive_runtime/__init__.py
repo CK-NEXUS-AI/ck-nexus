@@ -11,6 +11,16 @@ from .triad_debate import (
     DebateContractError,
     DebateRound,
 )
+from .triad_evidence import (
+    EvidenceAssurance,
+    EvidenceEvaluationError,
+    EvidenceEvaluationPolicy,
+    EvidenceEvaluationReceipt,
+    EvidenceObservation,
+    EvidenceRelation,
+    EvidenceVerdict,
+    TriadEvidenceEvaluator,
+)
 from .triad_memory import (
     MemoryArtifactKind,
     TriadMemoryError,
@@ -36,6 +46,13 @@ __all__ = [
     "DebateContractError",
     "DebateRound",
     "EventContractError",
+    "EvidenceAssurance",
+    "EvidenceEvaluationError",
+    "EvidenceEvaluationPolicy",
+    "EvidenceEvaluationReceipt",
+    "EvidenceObservation",
+    "EvidenceRelation",
+    "EvidenceVerdict",
     "MemoryArtifactKind",
     "PersonalCognitiveRuntime",
     "Priority",
@@ -45,6 +62,7 @@ __all__ = [
     "SchedulePlan",
     "StateProjector",
     "TriadAssignment",
+    "TriadEvidenceEvaluator",
     "TriadMemoryError",
     "TriadMemoryRecord",
     "TriadMemorySnapshot",
