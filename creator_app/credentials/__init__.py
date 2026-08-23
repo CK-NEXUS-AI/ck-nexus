@@ -15,6 +15,7 @@ USER -> ACCESS -> GOVERNOR -> POLICY -> CREDENTIAL BROKER
 -> CAPABILITY ROUTER -> TOOL/API -> VERIFICATION -> EVIDENCE
 """
 
+from creator_app.credentials.anthropic_credit_telemetry import AnthropicCostBudgetAdapter
 from creator_app.credentials.capability_registry import (
     CANONICAL_CAPABILITIES,
     Capability,
@@ -78,6 +79,7 @@ __all__ = [
     "OpenRouterCreditsAdapter",
     "OpenAICostBudgetAdapter",
     "DeepSeekBalanceAdapter",
+    "AnthropicCostBudgetAdapter",
     "LocalOllamaRuntime",
     "ZeroCostRuntimeStatus",
     "ZeroCostRuntimeUnavailable",
