@@ -262,7 +262,7 @@ class FailureLedger:
         return "\n".join(lines) + ("\n" if lines else "")
 
     @classmethod
-    def from_jsonl(cls, content: str) -> "FailureLedger":
+    def from_jsonl(cls, content: str) -> FailureLedger:
         events: list[FailureEvent] = []
         for line_number, raw_line in enumerate(content.splitlines(), start=1):
             if not raw_line.strip():
