@@ -59,14 +59,27 @@ jobs:
           text=Path('.github/workflows/verify-q12-final-subject.yml').read_text(encoding='utf-8')
           required=(
             'workflow_dispatch:',
+            'expected_verifier_sha:',
+            'expected_verifier_tree:',
+            'required: true',
             'runs-on: [self-hosted, linux, cknexus-q12]',
-            'cgroup.subtree_control',
+            'Bind reviewed verifier harness identity before mutation',
+            'test "$actual_sha" = "$EXPECTED_VERIFIER_SHA"',
+            'test "$actual_tree" = "$EXPECTED_VERIFIER_TREE"',
+            'q12-expected-verifier-sha.txt',
+            'q12-expected-verifier-tree.txt',
             'q12-verifier-sha.txt',
             'q12-verifier-tree.txt',
+            'cgroup.subtree_control',
             'q12_active_cgroup_enforcement_probe.py',
+            "'expected_verifier_commit':",
+            "'expected_verifier_tree':",
+            "'verifier_identity_match': True",
             "'configured_limits_verified': configured_pass",
             "'active_kernel_enforcement': active_pass",
             "'actual_kernel_enforcement': active_pass",
+            "assert x['expected_verifier_commit'] == x['verifier_commit']",
+            "assert x['expected_verifier_tree'] == x['verifier_tree']",
             "assert x['configured_limits_verified'] is True",
             "assert x['active_kernel_enforcement'] is True",
           )
@@ -75,6 +88,11 @@ jobs:
             raise SystemExit(f'missing Q12 verifier requirements: {missing}')
           if '\n  push:' in text:
             raise SystemExit('authoritative Q12 verifier must be workflow_dispatch-only')
+          bind=text.index('Bind reviewed verifier harness identity before mutation')
+          boundary=text.index('Verify true delegated cgroup v2 boundary')
+          active=text.index('Prove active CPU, memory, and PID kernel enforcement')
+          if not bind < boundary < active:
+            raise SystemExit('verifier identity must fail closed before delegated-root checks and active probes')
           print('Q12_VERIFIER_CONTRACT=PASS')
           PY
       - name: Prove frozen runtime subject surface was not modified
