@@ -98,7 +98,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          python3 operator/scripts/q12/active_cgroup_enforcement_probe.py \
+          python3 operator/.github/release-tools/q12_active_cgroup_enforcement_probe.py \
             --root "$CKNEXUS_AGNES_CGROUP_ROOT" \
             >Q12_ACTIVE_ENFORCEMENT.json 2>q12-active-error.txt
           rc=$?
