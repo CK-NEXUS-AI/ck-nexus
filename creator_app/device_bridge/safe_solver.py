@@ -10,7 +10,7 @@ import hashlib
 import json
 import re
 from dataclasses import asdict, dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 _MAX_TEXT_BYTES = 32_768
@@ -127,7 +127,16 @@ class SafeProblemSolver:
             raise SolverPolicyError("path_invalid")
 
         supplied = Path(relative_path)
-        if supplied.is_absolute() or ".." in supplied.parts:
+        posix_supplied = PurePosixPath(relative_path)
+        windows_supplied = PureWindowsPath(relative_path)
+        if (
+            supplied.is_absolute()
+            or posix_supplied.is_absolute()
+            or windows_supplied.is_absolute()
+            or ".." in supplied.parts
+            or ".." in posix_supplied.parts
+            or ".." in windows_supplied.parts
+        ):
             raise SolverPolicyError("path_outside_workspace")
         if _is_sensitive_path(supplied):
             raise SolverPolicyError("sensitive_path_denied")
