@@ -8,16 +8,8 @@ permissions, execution and evidence.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
 
-from .contracts import AttestationState, ModelDescriptor, ModelRiskClass
-
-
-class ModelUseLane(StrEnum):
-    DEVELOPMENT = "development"
-    EVALUATION = "evaluation"
-    RED_TEAM = "red_team"
-    PRODUCTION = "production"
+from .contracts import AttestationState, ModelDescriptor, ModelRiskClass, ModelUseLane
 
 
 @dataclass(frozen=True, slots=True)
