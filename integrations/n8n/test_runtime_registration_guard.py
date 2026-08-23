@@ -1,10 +1,12 @@
 import json
 import sqlite3
+import sys
 from pathlib import Path
 
 import pytest
 
-from integrations.n8n.verify_runtime_registration import RegistrationError, verify
+sys.path.insert(0, str(Path(__file__).parent))
+from verify_runtime_registration import RegistrationError, verify
 
 
 def _workflow(path: Path, *, route: str, webhook_id: str) -> Path:
