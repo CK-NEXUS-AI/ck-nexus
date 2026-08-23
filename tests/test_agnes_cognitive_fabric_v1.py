@@ -76,6 +76,13 @@ def test_groq_stack_launcher_uses_dpapi_ephemeral_tokens_and_exact_identity():
     assert "CK_NEXUS_TOOL_TOKEN" in text
     assert "CK_NEXUS_INTELLIGENCE_TOKEN" in text
     assert "git -C $RepoRoot rev-parse HEAD" in text
+    assert "RequireClean" in text
+    assert "repo_identity" in text
+    assert "Tool Gateway repository identity mismatch" in text
+    assert "protected main negative control was not denied" in text
+    assert "EXECUTED_UNVERIFIED" in text
+    assert "UNVERIFIED_UNTIL_INDEPENDENT_CHECK" in text
+    assert "independent_verification='PENDING'" in text
     assert "production_mutation=$false" in text
     assert "production_ready=$false" in text
     assert "q10_q11_q12_evidence=$false" in text
