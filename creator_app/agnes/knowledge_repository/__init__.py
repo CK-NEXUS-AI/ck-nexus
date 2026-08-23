@@ -1,5 +1,6 @@
 from .catalog import KnowledgeCatalog
 from .control_fabric_snapshot import universal_control_catalog
+from .infrastructure_control_snapshot import infrastructure_control_catalog
 from .models import (
     AdoptionMode,
     EvidenceLevel,
@@ -29,6 +30,7 @@ __all__ = [
     "best_capability_matches",
     "collect_unknown",
     "enforce_two_strike",
+    "infrastructure_control_catalog",
     "initial_catalog",
     "predevelopment_search",
     "transition_status",
