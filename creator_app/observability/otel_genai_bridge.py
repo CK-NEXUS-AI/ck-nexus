@@ -17,13 +17,12 @@ _ALLOWED_OPERATIONS = {
     "text_completion",
 }
 
-_FORBIDDEN_CONTENT_KEYS = {
+_FORBIDDEN_CONTENT_MARKERS = {
     "prompt",
-    "input",
-    "output",
-    "messages",
+    "input.messages",
+    "output.messages",
     "system_instructions",
-    "retrieval_query",
+    "retrieval.query.text",
     "raw_content",
     "credential",
     "credentials",
@@ -97,7 +96,7 @@ class OTelGenAIBridge:
 
         for key, value in (extra_attributes or {}).items():
             lowered = key.lower()
-            if any(forbidden in lowered for forbidden in _FORBIDDEN_CONTENT_KEYS):
+            if any(marker in lowered for marker in _FORBIDDEN_CONTENT_MARKERS):
                 raise ValueError(f"sensitive_or_content_attribute_forbidden:{key}")
             if key.startswith("cknexus.") or key.startswith("gen_ai."):
                 attrs[key] = value
