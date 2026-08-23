@@ -256,11 +256,7 @@ class CreditTelemetryFabric:
             self.latest[snapshot.provider] = snapshot
             self._append_evidence(snapshot)
             if snapshot.state == "KNOWN" and snapshot.remaining_pct is not None:
-                self.pool.report_credit_remaining(
-                    snapshot.provider,
-                    snapshot.remaining_pct,
-                    source=snapshot.source,
-                )
+                self._apply_known_snapshot(snapshot)
 
         for provider in sorted(configured - set(collected)):
             snapshot = CreditSnapshot(
@@ -284,6 +280,18 @@ class CreditTelemetryFabric:
             "unknown_policy": "DO_NOT_GUESS",
             "evidence_path": self.evidence_path,
         }
+
+    def _apply_known_snapshot(self, snapshot: CreditSnapshot) -> None:
+        remaining = snapshot.remaining_pct
+        if remaining is None or remaining > self.pool.remaining_threshold_pct:
+            return
+        self.pool.activate_free_only(
+            reason=(
+                f"credit telemetry {snapshot.provider} remaining {remaining:.2f}% "
+                f"<= guard {self.pool.remaining_threshold_pct:.2f}% "
+                f"source={snapshot.source}"
+            )
+        )
 
     def _append_evidence(self, snapshot: CreditSnapshot) -> None:
         if not self.evidence_path:
