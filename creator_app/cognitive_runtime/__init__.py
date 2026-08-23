@@ -3,6 +3,7 @@
 from .event_bus import EventContractError, RuntimeEvent, RuntimeEventBus
 from .personal_runtime import CognitiveResponse, PersonalCognitiveRuntime
 from .state_projector import ProjectionError, StateProjector
+from .triad_dashboard import TriadDashboardError, TriadDashboardProjector
 from .triad_debate import (
     CandidateCritique,
     CandidateProposal,
@@ -89,6 +90,8 @@ __all__ = [
     "SchedulePlan",
     "StateProjector",
     "TriadAssignment",
+    "TriadDashboardError",
+    "TriadDashboardProjector",
     "TriadEvidenceEvaluator",
     "TriadLearningConsolidator",
     "TriadMemoryError",
