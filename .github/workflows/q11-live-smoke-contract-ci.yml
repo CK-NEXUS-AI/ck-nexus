@@ -40,7 +40,7 @@ jobs:
               '0525195934f703a8becf8a39f6397b2411e0bb2e',
               '89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52',
               'dff89dc7fa9cd6e40480c3344f688a75383ec798929efe23f3a29c79d1186cec',
-              '1c1077f49f7a92dfda206c5a00d7efd761ae7fb5',
+              'c8eef59ebe186454dec695983134096f2d6b405f',
               'permissions:\n  actions: read\n  contents: read',
               'gh run download "$Q10_RUN_ID"',
               'validate_q10_native_deep_scan_receipt.py',
@@ -57,6 +57,8 @@ jobs:
           missing = [item for item in required if item not in text]
           if missing:
               raise SystemExit(f'missing Q11 hardening requirements: {missing}')
+          if '1c1077f49f7a92dfda206c5a00d7efd761ae7fb5' in text:
+              raise SystemExit('stale Q10 validator pin must not authorize Q11')
           if 'evidence/Q10_DEPENDENCY_AUDIT.json' in text:
               raise SystemExit('committed Q10 status JSON must not authorize provider access')
           if 'cat ../q11-smoke.log' in text:
