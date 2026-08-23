@@ -11,9 +11,21 @@ param(
 
 $ErrorActionPreference='Stop'
 
-function Assert-PortFree([int]$Port) {
+function Get-EphemeralLoopbackPort {
+  $listener=[System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback,0)
+  try {
+    $listener.Start()
+    return ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
+  }
+  finally { $listener.Stop() }
+}
+
+function Resolve-DevelopmentPort([int]$Port) {
   $listener=Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-  if($listener){ throw "development port already in use: $Port" }
+  if(-not $listener){ return $Port }
+  $replacement=Get-EphemeralLoopbackPort
+  Write-Output "development port $Port already in use; using ephemeral port $replacement"
+  return $replacement
 }
 
 function Wait-Health([string]$Uri,[string]$Name) {
@@ -55,7 +67,9 @@ if(-not $allowedPrefix -or @('main','release/q10-q16-closure') -contains $branch
 }
 if($RequireClean -and -not $clean){ throw 'exact-source startup requires a clean worktree' }
 
-foreach($port in @($ToolPort,$IntelligencePort,$SidecarPort)){ Assert-PortFree $port }
+$ToolPort=Resolve-DevelopmentPort $ToolPort
+$IntelligencePort=Resolve-DevelopmentPort $IntelligencePort
+$SidecarPort=Resolve-DevelopmentPort $SidecarPort
 New-Item -ItemType Directory -Force -Path $logDir,$evidenceDir,$checkpointDir | Out-Null
 $node=(Get-Command node.exe -ErrorAction Stop).Source
 $toolToken=[guid]::NewGuid().ToString('N')
