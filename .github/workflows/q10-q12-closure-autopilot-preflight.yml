@@ -1,0 +1,100 @@
+name: Q10-Q12 Closure Autopilot Preflight
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [prep/q10-q12-closure-autopilot-v1]
+    paths:
+      - 'evidence/Q11_OPENAI_LIVE.json'
+      - 'evidence/Q12_CGROUP_V2.json'
+      - 'evidence/q10/Q10_SCAN_REQUEST_FINAL_SUBJECT.json'
+      - '.github/workflows/q10-q12-closure-autopilot-preflight.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: q10-q12-closure-autopilot-preflight
+  cancel-in-progress: true
+
+env:
+  EXPECTED_SOURCE_SHA: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
+  EXPECTED_SOURCE_TREE: 0525195934f703a8becf8a39f6397b2411e0bb2e
+  EXPECTED_RELEASE_SUBJECT: 89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52
+
+jobs:
+  classify:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout preparation branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+      - name: Classify closure blockers without promotion
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          expected_sha = '39f5c1adb9d761ab418cf088ff1f051b1ca731d1'
+          expected_tree = '0525195934f703a8becf8a39f6397b2411e0bb2e'
+          expected_subject = '89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52'
+
+          q10 = json.loads(Path('evidence/q10/Q10_SCAN_REQUEST_FINAL_SUBJECT.json').read_text())
+          q11 = json.loads(Path('evidence/Q11_OPENAI_LIVE.json').read_text())
+          q12 = json.loads(Path('evidence/Q12_CGROUP_V2.json').read_text())
+
+          for name, record in [('Q11', q11), ('Q12', q12)]:
+              assert record['source_sha'] == expected_sha, f'{name}: source SHA drift'
+              assert record['source_tree'] == expected_tree, f'{name}: source tree drift'
+              assert record['release_subject_manifest_sha256'] == expected_subject, f'{name}: release subject drift'
+
+          assert q10['target_sha'] == expected_sha, 'Q10: target SHA drift'
+          assert q10['target_tree_sha'] == expected_tree, 'Q10: target tree drift'
+          assert q10['release_subject_manifest_sha256'] == expected_subject, 'Q10: release subject drift'
+          assert q10['scan_mode'] == 'deep'
+          assert q10['required_executor'] == 'Codex Security Deep Security Scan'
+
+          q10_ready = q10.get('status') == 'PREPARED_NOT_EXECUTED'
+          q11_ready = q11.get('result') == 'PASS'
+          q12_ready = q12.get('result') == 'PASS' and q12.get('actual_kernel_enforcement') is True
+
+          blockers = []
+          if q10_ready:
+              blockers.append('Q10_NATIVE_DEEP_SCAN_REQUIRED')
+          elif q10.get('status') != 'PASS':
+              blockers.append('Q10_NOT_PASS')
+          if not q11_ready:
+              blockers.append('Q11_LIVE_PROVIDER_NOT_PASS')
+          if not q12_ready:
+              blockers.append('Q12_DELEGATED_CGROUP_V2_NOT_PASS')
+
+          summary = {
+              'schema_version': 1,
+              'source_sha': expected_sha,
+              'source_tree': expected_tree,
+              'release_subject_manifest_sha256': expected_subject,
+              'q10': q10.get('status'),
+              'q11': q11.get('result'),
+              'q12': q12.get('result'),
+              'blockers': blockers,
+              'production_eligible': not blockers,
+              'promotion_performed': False,
+              'next_actions': [
+                  'Run native Codex Security Deep Security Scan on exact frozen source for Q10',
+                  'Provide governed OpenAI credential and run verify/q11-final-subject for Q11',
+                  'Provide non-root delegated cgroup v2 self-hosted runner and run verify/q12-final-subject for Q12',
+                  'Reconcile provenance and build final checksummed package only after all three PASS',
+              ],
+          }
+          Path('q10-q12-closure-autopilot-summary.json').write_text(json.dumps(summary, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          PY
+      - name: Upload non-promoting preflight summary
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: q10-q12-closure-autopilot-preflight
+          path: q10-q12-closure-autopilot-summary.json
+          if-no-files-found: error
