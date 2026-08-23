@@ -12,6 +12,14 @@ from creator_app.connector_fabric.access_governance import (
 from creator_app.privacy_firewall.contracts import DataClassification, TrustLevel
 
 
+class StaticConsentValidator:
+    def __init__(self, active_refs: frozenset[str]) -> None:
+        self.active_refs = active_refs
+
+    def active(self, *, consent_ref: str, source: str, purpose: str) -> bool:
+        return bool(source and purpose and consent_ref in self.active_refs)
+
+
 def _request(**overrides: object) -> ExternalAccessRequest:
     values: dict[str, object] = {
         "request_id": "req-1",
@@ -33,12 +41,15 @@ def _connected_read(**overrides: object) -> ExternalAccessRequest:
         "classification": DataClassification.PERSONAL,
         "connector_authorized": True,
         "consent_ref": "consent-1",
-        "consent_active": True,
         "required_scopes": frozenset({"gmail.readonly"}),
         "granted_scopes": frozenset({"gmail.readonly"}),
     }
     values.update(overrides)
     return _request(**values)
+
+
+def _authorized_governor(*refs: str) -> ExternalAccessGovernor:
+    return ExternalAccessGovernor(StaticConsentValidator(frozenset(refs)))
 
 
 def test_bounded_public_read_is_allowed() -> None:
@@ -86,16 +97,23 @@ def test_raw_credential_request_is_always_denied() -> None:
     assert decision.reason == "raw_credentials_must_not_be_requested"
 
 
-def test_connected_read_requires_connector_consent_and_scopes() -> None:
-    governor = ExternalAccessGovernor()
+def test_connected_read_requires_trusted_consent_validator() -> None:
+    decision = ExternalAccessGovernor().evaluate(_connected_read())
+
+    assert decision.allowed is False
+    assert decision.reason == "trusted_consent_validator_required"
+
+
+def test_connected_read_requires_connector_active_consent_and_scopes() -> None:
+    governor = _authorized_governor("consent-1")
 
     no_connector = governor.evaluate(_connected_read(connector_authorized=False))
     assert no_connector.reason == "connected_source_authorization_required"
 
-    no_consent = governor.evaluate(_connected_read(consent_ref=None, consent_active=False))
+    no_consent = governor.evaluate(_connected_read(consent_ref=None))
     assert no_consent.reason == "active_consent_reference_required"
 
-    revoked = governor.evaluate(_connected_read(consent_active=False))
+    revoked = _authorized_governor().evaluate(_connected_read())
     assert revoked.reason == "active_consent_reference_required"
 
     wrong_scope = governor.evaluate(
@@ -109,14 +127,13 @@ def test_connected_read_requires_connector_consent_and_scopes() -> None:
 
 
 def test_connected_mutation_requires_separate_approval_and_privacy_decision() -> None:
-    governor = ExternalAccessGovernor()
+    governor = _authorized_governor("consent-1")
     base = {
         "access_class": ExternalAccessClass.AUTHORIZED_CONNECTED,
         "action": ExternalAction.SEND,
         "classification": DataClassification.PERSONAL,
         "connector_authorized": True,
         "consent_ref": "consent-1",
-        "consent_active": True,
         "required_scopes": frozenset({"gmail.send"}),
         "granted_scopes": frozenset({"gmail.send"}),
     }
@@ -139,14 +156,13 @@ def test_connected_mutation_requires_separate_approval_and_privacy_decision() ->
 
 
 def test_persistent_store_requires_retention_policy_reference() -> None:
-    governor = ExternalAccessGovernor()
+    governor = _authorized_governor("consent-1")
     base = {
         "access_class": ExternalAccessClass.AUTHORIZED_CONNECTED,
         "action": ExternalAction.STORE,
         "classification": DataClassification.PERSONAL,
         "connector_authorized": True,
         "consent_ref": "consent-1",
-        "consent_active": True,
         "approval_ref": "approval-1",
     }
 
@@ -183,7 +199,7 @@ def test_trusted_content_can_enter_processing_but_never_gains_authority() -> Non
 
 
 def test_evidence_is_deterministic_and_does_not_include_raw_credentials() -> None:
-    governor = ExternalAccessGovernor()
+    governor = _authorized_governor("consent-7")
     request = _connected_read(
         consent_ref="consent-7",
         granted_scopes=frozenset({"gmail.readonly", "profile"}),
