@@ -5,6 +5,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Protocol
 
 from creator_app.privacy_firewall.contracts import DataClassification, TrustLevel
 
@@ -36,6 +37,12 @@ class AccessOutcome(StrEnum):
     QUARANTINE = "quarantine"
 
 
+class ConsentValidator(Protocol):
+    """Trusted authority boundary for validating revocable consent references."""
+
+    def active(self, *, consent_ref: str, source: str, purpose: str) -> bool: ...
+
+
 _READ_ACTIONS = frozenset({ExternalAction.SEARCH, ExternalAction.READ, ExternalAction.INGEST})
 _MUTATING_ACTIONS = frozenset(
     {ExternalAction.STORE, ExternalAction.WRITE, ExternalAction.SEND, ExternalAction.DELETE}
@@ -55,7 +62,6 @@ class ExternalAccessRequest:
     required_scopes: frozenset[str] = field(default_factory=frozenset)
     granted_scopes: frozenset[str] = field(default_factory=frozenset)
     consent_ref: str | None = None
-    consent_active: bool = False
     approval_ref: str | None = None
     privacy_decision_ref: str | None = None
     retention_ref: str | None = None
@@ -84,9 +90,13 @@ class ExternalAccessDecision:
 class ExternalAccessGovernor:
     """Deterministic, fail-closed governor for external data access.
 
-    The governor has no network or credential capability. It decides whether a
-    separately governed browser, connector, MCP tool, or API adapter may act.
+    The governor has no network or credential capability. Connected private data
+    requires a trusted consent validator injected by the CK-NEXUS authority layer;
+    a model or connector cannot self-assert that consent is active.
     """
+
+    def __init__(self, consent_validator: ConsentValidator | None = None) -> None:
+        self._consent_validator = consent_validator
 
     def evaluate(self, request: ExternalAccessRequest) -> ExternalAccessDecision:
         outcome, reason = self._decide(request)
@@ -130,7 +140,19 @@ class ExternalAccessGovernor:
             return AccessOutcome.DENY, "unknown_access_class"
         if not request.connector_authorized:
             return AccessOutcome.DENY, "connected_source_authorization_required"
-        if not request.consent_ref or not request.consent_active:
+        if not request.consent_ref:
+            return AccessOutcome.DENY, "active_consent_reference_required"
+        if self._consent_validator is None:
+            return AccessOutcome.DENY, "trusted_consent_validator_required"
+        try:
+            consent_active = self._consent_validator.active(
+                consent_ref=request.consent_ref,
+                source=request.source,
+                purpose=request.purpose,
+            )
+        except (KeyError, TypeError, ValueError):
+            return AccessOutcome.DENY, "consent_validation_failed"
+        if not consent_active:
             return AccessOutcome.DENY, "active_consent_reference_required"
         if not request.required_scopes.issubset(request.granted_scopes):
             return AccessOutcome.DENY, "connector_scope_insufficient"
@@ -181,7 +203,6 @@ class ExternalAccessGovernor:
             "required_scopes": sorted(request.required_scopes),
             "granted_scope_count": len(request.granted_scopes),
             "consent_ref": request.consent_ref,
-            "consent_active": request.consent_active,
             "approval_ref": request.approval_ref,
             "privacy_decision_ref": request.privacy_decision_ref,
             "retention_ref": request.retention_ref,
