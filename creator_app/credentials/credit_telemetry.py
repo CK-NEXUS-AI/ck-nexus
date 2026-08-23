@@ -401,11 +401,19 @@ class CreditTelemetryFabric:
         evidence_path: str | None = None,
     ) -> None:
         self.pool = pool
-        self.adapters = adapters or [
-            OpenRouterCreditsAdapter(),
-            OpenAICostBudgetAdapter(),
-            DeepSeekBalanceAdapter(),
-        ]
+        if adapters is None:
+            from creator_app.credentials.anthropic_credit_telemetry import (
+                AnthropicCostBudgetAdapter,
+            )
+
+            self.adapters = [
+                OpenRouterCreditsAdapter(),
+                OpenAICostBudgetAdapter(),
+                DeepSeekBalanceAdapter(),
+                AnthropicCostBudgetAdapter(),
+            ]
+        else:
+            self.adapters = adapters
         self.evidence_path = evidence_path or os.getenv(
             "CKNEXUS_CREDIT_TELEMETRY_EVIDENCE_PATH",
             self.DEFAULT_EVIDENCE_PATH,
