@@ -26,6 +26,15 @@ def test_remote_endpoint_requires_https() -> None:
         )
 
 
+def test_endpoint_rejects_raw_credential_material() -> None:
+    with pytest.raises(ValueError, match="broker://"):
+        OpenAICompatibleEndpoint(
+            provider_id="remote",
+            base_url="https://example.com/v1",
+            credential_ref="raw-secret-value",
+        )
+
+
 def test_endpoint_rejects_embedded_credentials() -> None:
     with pytest.raises(ValueError, match="embedded"):
         OpenAICompatibleEndpoint(
