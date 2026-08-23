@@ -9,6 +9,7 @@ from .models import (
     KnowledgeStatus,
     SearchDecision,
 )
+from .reconciled_catalog import current_knowledge_catalog, superseded_item_ids
 from .research_snapshot import initial_catalog
 from .search_engine import (
     AttemptRecord,
@@ -30,11 +31,13 @@ __all__ = [
     "SearchDecision",
     "best_capability_matches",
     "collect_unknown",
+    "current_knowledge_catalog",
     "enforce_two_strike",
     "infrastructure_control_catalog",
     "initial_catalog",
     "predevelopment_search",
     "standards_catalog",
+    "superseded_item_ids",
     "transition_status",
     "universal_control_catalog",
 ]
