@@ -35,6 +35,7 @@ from creator_app.credentials.credit_telemetry import (
     CreditSnapshot,
     CreditTelemetryAdapter,
     CreditTelemetryFabric,
+    DeepSeekBalanceAdapter,
     OpenAICostBudgetAdapter,
     OpenRouterCreditsAdapter,
 )
@@ -76,6 +77,7 @@ __all__ = [
     "CreditTelemetryFabric",
     "OpenRouterCreditsAdapter",
     "OpenAICostBudgetAdapter",
+    "DeepSeekBalanceAdapter",
     "LocalOllamaRuntime",
     "ZeroCostRuntimeStatus",
     "ZeroCostRuntimeUnavailable",
