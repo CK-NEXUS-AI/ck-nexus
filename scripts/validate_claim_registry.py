@@ -122,8 +122,11 @@ def validate_claim(claim: dict[str, Any]) -> list[str]:
             from_state = entry.get("from_state")
             to_state = entry.get("to_state")
             if (from_state, to_state) not in VALID_TRANSITIONS:
+                transition = (
+                    f"{from_state!r} -> {to_state!r}"
+                )
                 errors.append(
-                    f"state_history[{index}] has forbidden transition {from_state!r} -> {to_state!r}"
+                    f"state_history[{index}] has forbidden transition {transition}"
                 )
             if index == 0 and (from_state, to_state) != (None, "TARGET"):
                 errors.append("first state_history entry must create TARGET from null")
@@ -134,7 +137,11 @@ def validate_claim(claim: dict[str, Any]) -> list[str]:
             if not _non_empty(entry.get("reason")):
                 errors.append(f"state_history[{index}].reason is required")
             previous_to_state = to_state
-        if history and isinstance(history[-1], dict) and history[-1].get("to_state") != state:
+        if (
+            history
+            and isinstance(history[-1], dict)
+            and history[-1].get("to_state") != state
+        ):
             errors.append("state must equal the final state_history.to_state")
 
     return errors
