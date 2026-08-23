@@ -3,6 +3,7 @@
 This package integrates:
 - Credential Broker (least-privilege credential leasing)
 - LLM Key Pool (auto-rotation on quota exhaustion)
+- Sticky Free Fallback Key Pool (85% remaining guard -> free/local-only)
 - Capability Router (provider selection with circuit breaker)
 - Capability Registry (canonical capability matrix)
 - Gmail OAuth Connector (OAuth2, no raw token extraction)
@@ -28,6 +29,7 @@ from creator_app.credentials.credential_broker import (
     PersistentCredentialStore,
     SecretLease,
 )
+from creator_app.credentials.free_fallback_keypool import FreeFallbackKeyPool
 from creator_app.credentials.gmail_oauth_connector import (
     GmailConfig,
     GmailConnector,
@@ -50,6 +52,7 @@ __all__ = [
     "CredentialStatus",
     "PersistentCredentialStore",
     "LlmKeyPool",
+    "FreeFallbackKeyPool",
     "LlmKeySelection",
     "LlmKeySpec",
     "LlmKeyStatus",
