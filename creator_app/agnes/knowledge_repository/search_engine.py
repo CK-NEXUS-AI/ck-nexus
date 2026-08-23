@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .catalog import KnowledgeCatalog
-from .models import KnowledgeItem, KnowledgeStatus, SearchDecision
+from .models import AdoptionMode, KnowledgeItem, KnowledgeStatus, SearchDecision
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,19 +19,20 @@ def predevelopment_search(catalog: KnowledgeCatalog, query: str) -> SearchDecisi
         item
         for item in matches
         if item.status in {KnowledgeStatus.ADOPTABLE, KnowledgeStatus.ADOPTED}
+        and item.adoption_mode in {AdoptionMode.ADOPT, AdoptionMode.WRAP}
     )
     if reusable:
         return SearchDecision(
             query=query,
             matches=reusable,
             build_new_allowed=False,
-            reason="Reusable proven capability exists. Adapt before building new.",
+            reason="Reusable adoptable or wrappable capability exists. Adapt before building new.",
         )
     return SearchDecision(
         query=query,
         matches=matches,
         build_new_allowed=True,
-        reason="No adoptable match is recorded. New work requires evidence and review.",
+        reason="No adoptable or wrappable match is recorded. New work requires evidence and review.",
     )
 
 
