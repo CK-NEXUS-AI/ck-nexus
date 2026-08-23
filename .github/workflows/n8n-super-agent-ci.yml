@@ -5,6 +5,7 @@ on:
     paths:
       - 'integrations/n8n/**'
       - 'tests/test_n8n_development_agent_fabric.py'
+      - 'tests/test_agnes_cognitive_fabric_v1.py'
       - '.github/workflows/n8n-super-agent-ci.yml'
   workflow_dispatch:
 
@@ -25,8 +26,11 @@ jobs:
       - name: Node syntax
         run: |
           node --check integrations/n8n/ck_nexus_agent_sidecar.mjs
+          node --check integrations/n8n/ck_nexus_agent_sidecar_v2.mjs
           node --check integrations/n8n/ck_nexus_dev_tool_gateway.mjs
           node --check integrations/n8n/ck_nexus_openai_dev_adapter.mjs
+          node --check integrations/n8n/ck_nexus_groq_dev_adapter.mjs
+          node --check integrations/n8n/agnes_fabric_runtime.mjs
       - name: JSON syntax and safety contract
         run: |
           python - <<'PY'
@@ -54,21 +58,31 @@ jobs:
           from pathlib import Path
           base=Path('integrations/n8n')
           side=(base/'ck_nexus_agent_sidecar.mjs').read_text()
+          side_v2=(base/'ck_nexus_agent_sidecar_v2.mjs').read_text()
           tools=(base/'ck_nexus_dev_tool_gateway.mjs').read_text()
-          adapter=(base/'ck_nexus_openai_dev_adapter.mjs').read_text()
+          openai_adapter=(base/'ck_nexus_openai_dev_adapter.mjs').read_text()
+          groq_adapter=(base/'ck_nexus_groq_dev_adapter.mjs').read_text()
           stack=(base/'start_super_agent_stack.ps1').read_text()
-          assert '127.0.0.1' in side and '127.0.0.1' in tools and '127.0.0.1' in adapter
+          for text in (side, side_v2, tools, openai_adapter, groq_adapter):
+              assert '127.0.0.1' in text
           assert 'CK_NEXUS_TOOL_TOKEN' in tools and 'CK_NEXUS_TOOL_TOKEN' in side
-          assert 'store:false' in adapter
-          assert 'OPENAI_API_KEY' in adapter
-          assert 'CK_NEXUS_INTELLIGENCE_TOKEN' in adapter and 'CK_NEXUS_INTELLIGENCE_TOKEN' in stack
+          assert 'OPENAI_API_KEY' in openai_adapter
+          assert 'GROQ_API_KEY' in groq_adapter
+          assert 'production_ready:false' in groq_adapter
+          assert 'allow_secret_export' in groq_adapter
+          assert 'CK_NEXUS_INTELLIGENCE_TOKEN' in openai_adapter
+          assert 'CK_NEXUS_INTELLIGENCE_TOKEN' in groq_adapter
+          assert 'CK_NEXUS_INTELLIGENCE_TOKEN' in stack
+          assert 'release/q10-q16-closure' in side_v2
+          assert 'production_mutation_denied' in side_v2
+          assert 'secret_export_denied' in side_v2
           assert 'shell:false' in tools
           print('local-only runtime contract PASS')
           PY
       - name: No embedded credential patterns
         shell: bash
         run: |
-          if grep -R -nE '(sk-proj-[A-Za-z0-9_-]+|-----BEGIN (RSA |OPENSSH |EC )?PRIVATE KEY-----)' integrations/n8n; then
+          if grep -R -nE '(sk-proj-[A-Za-z0-9_-]+|gsk_[A-Za-z0-9_-]+|-----BEGIN (RSA |OPENSSH |EC )?PRIVATE KEY-----)' integrations/n8n; then
             echo 'embedded credential material detected'
             exit 1
           fi
