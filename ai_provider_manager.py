@@ -32,8 +32,8 @@ from creator_app.core.auto_connect_manager import (
 )
 from creator_app.credentials import (
     CapabilityRegistry,
-    CreditTelemetryFabric,
     CredentialBroker,
+    CreditTelemetryFabric,
     FreeFallbackKeyPool,
 )
 
