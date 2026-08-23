@@ -63,3 +63,52 @@ def test_unknown_item_starts_pending_and_uses_explicit_transitions() -> None:
 
     with pytest.raises(ValueError):
         transition_status(item, KnowledgeStatus.ADOPTED)
+
+
+def test_market_snapshot_rejects_stale_langgraph_positioning() -> None:
+    item = initial_catalog().get("market.langgraph.2026")
+
+    assert item is not None
+    assert "checkpointing" in item.capabilities
+    assert "human_in_the_loop" in item.capabilities
+    assert any("Do not claim" in observation for observation in item.observations)
+
+
+def test_market_snapshot_tracks_current_microsoft_framework() -> None:
+    item = initial_catalog().get("market.microsoft.agent_framework.2026")
+
+    assert item is not None
+    assert "graph_workflow" in item.capabilities
+    assert "checkpointing" in item.capabilities
+    assert "AutoGen" in item.relevance
+    assert "Semantic Kernel" in item.relevance
+
+
+def test_gateway_market_snapshot_records_modern_governance() -> None:
+    catalog = initial_catalog()
+
+    portkey = catalog.get("market.portkey.2026")
+    openrouter = catalog.get("market.openrouter.2026")
+    aws = catalog.get("market.aws.agentcore.2026")
+
+    assert portkey is not None and "rbac" in portkey.capabilities
+    assert openrouter is not None and "zdr" in openrouter.capabilities
+    assert aws is not None and "deny_by_default" in aws.capabilities
+
+
+def test_thai_market_snapshot_treats_typhoon_as_reusable_provider() -> None:
+    item = initial_catalog().get("market.typhoon.2026")
+
+    assert item is not None
+    assert item.status is KnowledgeStatus.ADOPTABLE
+    assert "thai_language" in item.capabilities
+    assert "function_calling" in item.capabilities
+
+
+def test_assurance_market_wedge_is_explicitly_an_inference() -> None:
+    item = initial_catalog().get("market.assurance.wedge.2026")
+
+    assert item is not None
+    assert "evidence_by_construction" in item.capabilities
+    assert "independent_verification" in item.capabilities
+    assert any("market inference" in observation for observation in item.observations)
