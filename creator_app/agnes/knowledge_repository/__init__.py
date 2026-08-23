@@ -16,6 +16,7 @@ from .search_engine import (
     enforce_two_strike,
     predevelopment_search,
 )
+from .standards_snapshot import standards_catalog
 from .unknown_items import collect_unknown, transition_status
 
 __all__ = [
@@ -33,6 +34,7 @@ __all__ = [
     "infrastructure_control_catalog",
     "initial_catalog",
     "predevelopment_search",
+    "standards_catalog",
     "transition_status",
     "universal_control_catalog",
 ]
