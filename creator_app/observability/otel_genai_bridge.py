@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import collections.abc
-from dataclasses import dataclass
-from hashlib import sha256
+import dataclasses
+import hashlib
 
 
 _ALLOWED_OPERATIONS = {
@@ -34,7 +34,7 @@ _ALLOWED_EXTRA_ATTRIBUTES = frozenset(
 )
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class CKExecutionContext:
     task_id: str
     run_id: str
@@ -46,7 +46,7 @@ class CKExecutionContext:
     verifier_id: str | None = None
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class GenAISpanEnvelope:
     span_name: str
     attributes: collections.abc.Mapping[str, str | int | float | bool]
@@ -133,4 +133,4 @@ class OTelGenAIBridge:
 
 
 def _digest_ref(value: str) -> str:
-    return f"sha256:{sha256(value.encode('utf-8')).hexdigest()}"
+    return f"sha256:{hashlib.sha256(value.encode('utf-8')).hexdigest()}"
