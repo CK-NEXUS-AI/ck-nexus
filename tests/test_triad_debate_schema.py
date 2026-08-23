@@ -94,6 +94,64 @@ def test_revised_candidate_requires_parent() -> None:
         DebateRound("round-1", "task-1", SUBJECT, (bad,)).validate()
 
 
+def test_root_candidate_cannot_have_parent() -> None:
+    bad = candidate(parent_candidate_id="c0")
+    with pytest.raises(DebateContractError, match="root_candidate_parent_forbidden"):
+        DebateRound("round-1", "task-1", SUBJECT, (bad,)).validate()
+
+
+def test_revised_status_cannot_start_at_revision_one() -> None:
+    bad = candidate(status=CandidateStatus.REVISED)
+    with pytest.raises(DebateContractError, match="revised_candidate_revision_invalid"):
+        DebateRound("round-1", "task-1", SUBJECT, (bad,)).validate()
+
+
+def test_revision_parent_must_exist_in_same_round() -> None:
+    bad = candidate("c2", revision=2, status=CandidateStatus.REVISED, parent_candidate_id="missing")
+    with pytest.raises(DebateContractError, match="candidate_parent_missing"):
+        DebateRound("round-1", "task-1", SUBJECT, (bad,)).validate()
+
+
+def test_revision_cannot_self_parent() -> None:
+    bad = candidate("c2", revision=2, status=CandidateStatus.REVISED, parent_candidate_id="c2")
+    with pytest.raises(DebateContractError, match="candidate_self_parent"):
+        DebateRound("round-1", "task-1", SUBJECT, (bad,)).validate()
+
+
+def test_revision_must_be_sequential() -> None:
+    root = candidate("c1")
+    bad = candidate("c3", revision=3, status=CandidateStatus.REVISED, parent_candidate_id="c1")
+    with pytest.raises(DebateContractError, match="candidate_revision_not_sequential"):
+        DebateRound("round-1", "task-1", SUBJECT, (root, bad)).validate()
+
+
+def test_lineage_cycle_is_rejected_before_revision_arithmetic() -> None:
+    c1 = candidate("c1", revision=2, status=CandidateStatus.REVISED, parent_candidate_id="c3")
+    c2 = candidate("c2", revision=3, status=CandidateStatus.REVISED, parent_candidate_id="c1")
+    c3 = candidate("c3", revision=4, status=CandidateStatus.REVISED, parent_candidate_id="c2")
+    with pytest.raises(DebateContractError, match="candidate_lineage_cycle"):
+        DebateRound("round-1", "task-1", SUBJECT, (c1, c2, c3)).validate()
+
+
+def test_ambiguous_direct_revision_branch_is_rejected() -> None:
+    root = candidate("c1")
+    c2a = candidate("c2a", revision=2, status=CandidateStatus.REVISED, parent_candidate_id="c1")
+    c2b = candidate("c2b", revision=2, status=CandidateStatus.REVISED, parent_candidate_id="c1")
+    with pytest.raises(DebateContractError, match="candidate_lineage_ambiguous"):
+        DebateRound("round-1", "task-1", SUBJECT, (root, c2a, c2b)).validate()
+
+
+def test_valid_revision_chain_is_accepted_and_deterministic() -> None:
+    c1 = candidate("c1")
+    c2 = candidate("c2", revision=2, status=CandidateStatus.REVISED, parent_candidate_id="c1")
+    c3 = candidate("c3", revision=3, status=CandidateStatus.REVISED, parent_candidate_id="c2")
+    left = DebateRound("round-1", "task-1", SUBJECT, (c1, c2, c3))
+    right = DebateRound("round-1", "task-1", SUBJECT, (c3, c1, c2))
+    left.validate()
+    right.validate()
+    assert left.canonical_digest() == right.canonical_digest()
+
+
 def test_measured_candidate_requires_evidence() -> None:
     bad = candidate(status=CandidateStatus.MEASURED_NOT_VERIFIED)
     with pytest.raises(DebateContractError, match="measured_candidate_evidence_required"):
