@@ -26,6 +26,21 @@ def _request(**overrides: object) -> ExternalAccessRequest:
     return ExternalAccessRequest(**values)  # type: ignore[arg-type]
 
 
+def _connected_read(**overrides: object) -> ExternalAccessRequest:
+    values: dict[str, object] = {
+        "access_class": ExternalAccessClass.AUTHORIZED_CONNECTED,
+        "action": ExternalAction.READ,
+        "classification": DataClassification.PERSONAL,
+        "connector_authorized": True,
+        "consent_ref": "consent-1",
+        "consent_active": True,
+        "required_scopes": frozenset({"gmail.readonly"}),
+        "granted_scopes": frozenset({"gmail.readonly"}),
+    }
+    values.update(overrides)
+    return _request(**values)
+
+
 def test_bounded_public_read_is_allowed() -> None:
     decision = ExternalAccessGovernor().evaluate(_request())
 
@@ -73,54 +88,27 @@ def test_raw_credential_request_is_always_denied() -> None:
 
 def test_connected_read_requires_connector_consent_and_scopes() -> None:
     governor = ExternalAccessGovernor()
-    base = {
-        "access_class": ExternalAccessClass.AUTHORIZED_CONNECTED,
-        "action": ExternalAction.READ,
-        "classification": DataClassification.PERSONAL,
-        "required_scopes": frozenset({"gmail.readonly"}),
-    }
 
-    no_connector = governor.evaluate(
-        _request(
-            **base,
-            connector_authorized=False,
-            granted_scopes=frozenset({"gmail.readonly"}),
-        )
-    )
+    no_connector = governor.evaluate(_connected_read(connector_authorized=False))
     assert no_connector.reason == "connected_source_authorization_required"
 
-    no_consent = governor.evaluate(
-        _request(
-            **base,
-            connector_authorized=True,
-            granted_scopes=frozenset({"gmail.readonly"}),
-        )
-    )
+    no_consent = governor.evaluate(_connected_read(consent_ref=None, consent_active=False))
     assert no_consent.reason == "active_consent_reference_required"
 
+    revoked = governor.evaluate(_connected_read(consent_active=False))
+    assert revoked.reason == "active_consent_reference_required"
+
     wrong_scope = governor.evaluate(
-        _request(
-            **base,
-            connector_authorized=True,
-            consent_ref="consent-1",
-            granted_scopes=frozenset({"gmail.metadata"}),
-        )
+        _connected_read(granted_scopes=frozenset({"gmail.metadata"}))
     )
     assert wrong_scope.reason == "connector_scope_insufficient"
 
-    allowed = governor.evaluate(
-        _request(
-            **base,
-            connector_authorized=True,
-            consent_ref="consent-1",
-            granted_scopes=frozenset({"gmail.readonly"}),
-        )
-    )
+    allowed = governor.evaluate(_connected_read())
     assert allowed.allowed is True
     assert allowed.reason == "authorized_connected_read"
 
 
-def test_connected_mutation_requires_separate_approval() -> None:
+def test_connected_mutation_requires_separate_approval_and_privacy_decision() -> None:
     governor = ExternalAccessGovernor()
     base = {
         "access_class": ExternalAccessClass.AUTHORIZED_CONNECTED,
@@ -128,17 +116,45 @@ def test_connected_mutation_requires_separate_approval() -> None:
         "classification": DataClassification.PERSONAL,
         "connector_authorized": True,
         "consent_ref": "consent-1",
+        "consent_active": True,
         "required_scopes": frozenset({"gmail.send"}),
         "granted_scopes": frozenset({"gmail.send"}),
     }
 
     denied = governor.evaluate(_request(**base))
-    assert denied.allowed is False
     assert denied.reason == "explicit_mutation_approval_required"
 
-    allowed = governor.evaluate(_request(**base, approval_ref="approval-1"))
+    no_privacy = governor.evaluate(_request(**base, approval_ref="approval-1"))
+    assert no_privacy.reason == "privacy_disclosure_decision_required"
+
+    allowed = governor.evaluate(
+        _request(
+            **base,
+            approval_ref="approval-1",
+            privacy_decision_ref="privacy-1",
+        )
+    )
     assert allowed.allowed is True
     assert allowed.reason == "authorized_connected_mutation_with_approval"
+
+
+def test_persistent_store_requires_retention_policy_reference() -> None:
+    governor = ExternalAccessGovernor()
+    base = {
+        "access_class": ExternalAccessClass.AUTHORIZED_CONNECTED,
+        "action": ExternalAction.STORE,
+        "classification": DataClassification.PERSONAL,
+        "connector_authorized": True,
+        "consent_ref": "consent-1",
+        "consent_active": True,
+        "approval_ref": "approval-1",
+    }
+
+    denied = governor.evaluate(_request(**base))
+    assert denied.reason == "retention_policy_reference_required"
+
+    allowed = governor.evaluate(_request(**base, retention_ref="retention-30d"))
+    assert allowed.allowed is True
 
 
 def test_training_requires_separate_policy() -> None:
@@ -168,13 +184,9 @@ def test_trusted_content_can_enter_processing_but_never_gains_authority() -> Non
 
 def test_evidence_is_deterministic_and_does_not_include_raw_credentials() -> None:
     governor = ExternalAccessGovernor()
-    request = _request(
-        access_class=ExternalAccessClass.AUTHORIZED_CONNECTED,
-        connector_authorized=True,
+    request = _connected_read(
         consent_ref="consent-7",
-        required_scopes=frozenset({"gmail.readonly"}),
         granted_scopes=frozenset({"gmail.readonly", "profile"}),
-        classification=DataClassification.PERSONAL,
         content_digest=content_sha256("private content"),
     )
 
