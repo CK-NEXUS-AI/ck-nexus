@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: forbidden-unicode
+        name: forbidden-unicode
+        entry: python scripts/check_forbidden_unicode.py
+        language: system
+        types_or: [python, shell, yaml, json, toml, javascript, ts]
+        pass_filenames: true
