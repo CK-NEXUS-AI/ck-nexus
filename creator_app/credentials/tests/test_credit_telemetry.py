@@ -5,6 +5,7 @@ import json
 from creator_app.credentials.credit_telemetry import (
     CreditSnapshot,
     CreditTelemetryFabric,
+    DeepSeekBalanceAdapter,
     OpenAICostBudgetAdapter,
     OpenRouterCreditsAdapter,
 )
@@ -125,6 +126,7 @@ def test_openrouter_credit_endpoint_normalizes_remaining(monkeypatch) -> None:
 
     assert snapshot.state == "KNOWN"
     assert snapshot.remaining_pct == 85.0
+    assert snapshot.remaining_amount == 85.0
     assert snapshot.basis == "provider_credit"
 
 
@@ -160,6 +162,7 @@ def test_openai_costs_normalize_against_explicit_budget(monkeypatch) -> None:
     assert snapshot.state == "KNOWN"
     assert snapshot.used_amount == 15.0
     assert snapshot.total_amount == 100.0
+    assert snapshot.remaining_amount == 85.0
     assert snapshot.remaining_pct == 85.0
     assert snapshot.basis == "configured_budget"
 
@@ -172,6 +175,114 @@ def test_openai_without_admin_key_or_budget_is_unknown(monkeypatch) -> None:
 
     assert snapshot.state == "UNKNOWN"
     assert snapshot.remaining_pct is None
+
+
+def _deepseek_payload(balance: str = "85.00", currency: str = "USD") -> dict:
+    return {
+        "is_available": True,
+        "balance_infos": [
+            {
+                "currency": currency,
+                "total_balance": balance,
+                "granted_balance": "5.00",
+                "topped_up_balance": "80.00",
+            }
+        ],
+    }
+
+
+def test_deepseek_balance_without_basis_reports_amount_but_not_percent(monkeypatch) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-secret")
+    monkeypatch.delenv("CKNEXUS_DEEPSEEK_BALANCE_BASIS", raising=False)
+    monkeypatch.setenv("CKNEXUS_DEEPSEEK_BALANCE_CURRENCY", "USD")
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda request, timeout: FakeResponse(_deepseek_payload()),
+    )
+
+    snapshot = DeepSeekBalanceAdapter().collect()
+
+    assert snapshot.state == "UNKNOWN"
+    assert snapshot.remaining_amount == 85.0
+    assert snapshot.remaining_pct is None
+    assert snapshot.currency == "usd"
+    assert "not guessed" in (snapshot.detail or "")
+
+
+def test_deepseek_balance_with_basis_normalizes_remaining(monkeypatch) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-secret")
+    monkeypatch.setenv("CKNEXUS_DEEPSEEK_BALANCE_BASIS", "100")
+    monkeypatch.setenv("CKNEXUS_DEEPSEEK_BALANCE_CURRENCY", "USD")
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda request, timeout: FakeResponse(_deepseek_payload()),
+    )
+
+    snapshot = DeepSeekBalanceAdapter().collect()
+
+    assert snapshot.state == "KNOWN"
+    assert snapshot.remaining_pct == 85.0
+    assert snapshot.remaining_amount == 85.0
+    assert snapshot.used_amount == 15.0
+    assert snapshot.total_amount == 100.0
+    assert snapshot.basis == "configured_balance_basis"
+
+
+def test_deepseek_currency_mismatch_does_not_guess(monkeypatch) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-secret")
+    monkeypatch.setenv("CKNEXUS_DEEPSEEK_BALANCE_BASIS", "100")
+    monkeypatch.setenv("CKNEXUS_DEEPSEEK_BALANCE_CURRENCY", "USD")
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda request, timeout: FakeResponse(_deepseek_payload(currency="CNY")),
+    )
+
+    snapshot = DeepSeekBalanceAdapter().collect()
+
+    assert snapshot.state == "UNKNOWN"
+    assert snapshot.remaining_pct is None
+    assert snapshot.detail == "configured_currency_not_present"
+
+
+def test_deepseek_invalid_currency_fails_before_network(monkeypatch) -> None:
+    called = False
+
+    def unexpected_call(request, timeout):
+        nonlocal called
+        called = True
+        return FakeResponse({})
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-secret")
+    monkeypatch.setenv("CKNEXUS_DEEPSEEK_BALANCE_CURRENCY", "EUR")
+    monkeypatch.setattr("urllib.request.urlopen", unexpected_call)
+
+    snapshot = DeepSeekBalanceAdapter().collect()
+
+    assert snapshot.state == "ERROR"
+    assert snapshot.remaining_pct is None
+    assert called is False
+
+
+def test_deepseek_known_85_percent_activates_guard(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("TEST_CREDIT_KEY", "secret")
+    pool = _pool(tmp_path, provider="deepseek")
+    adapter = FakeAdapter(
+        CreditSnapshot(
+            provider="deepseek",
+            state="KNOWN",
+            source="deepseek.user.balance",
+            remaining_pct=85.0,
+            remaining_amount=85.0,
+            total_amount=100.0,
+            currency="usd",
+            basis="configured_balance_basis",
+        )
+    )
+    fabric = CreditTelemetryFabric(pool, adapters=[adapter], evidence_path="")
+
+    fabric.collect_once()
+
+    assert pool.free_only_mode is True
 
 
 def test_unsupported_configured_provider_is_recorded_unknown(monkeypatch, tmp_path) -> None:
