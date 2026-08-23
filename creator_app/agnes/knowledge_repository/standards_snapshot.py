@@ -171,11 +171,7 @@ def standards_catalog() -> KnowledgeCatalog:
                 _source(
                     "nist.ai.600-1",
                     "NIST AI RMF Generative AI Profile",
-                    (
-                        "https://www.nist.gov/publications/"
-                        "artificial-intelligence-risk-management-framework-"
-                        "generative-artificial-intelligence"
-                    ),
+                    "https://doi.org/10.6028/NIST.AI.600-1",
                     "standard_guidance",
                 ),
             ),
