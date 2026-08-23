@@ -51,7 +51,7 @@ env:
   Q11_RUNTIME_TREE: 0525195934f703a8becf8a39f6397b2411e0bb2e
   Q11_RUNTIME_SUBJECT: 89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52
   Q11_APPLICATION_SUBJECT: dff89dc7fa9cd6e40480c3344f688a75383ec798929efe23f3a29c79d1186cec
-  Q10_VALIDATOR_SHA: 1c1077f49f7a92dfda206c5a00d7efd761ae7fb5
+  Q10_VALIDATOR_SHA: c8eef59ebe186454dec695983134096f2d6b405f
 
 jobs:
   q11:
@@ -112,7 +112,6 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json
           import os
           from pathlib import Path
 
@@ -135,7 +134,8 @@ jobs:
           import os
           from pathlib import Path
 
-          receipt = json.loads(Path('.q10-receipt-path').read_text().strip() and Path(Path('.q10-receipt-path').read_text().strip()).read_text())
+          receipt_path = Path('.q10-receipt-path').read_text().strip()
+          receipt = json.loads(Path(receipt_path).read_text())
           fields = (
               'codex_security_scan_id',
               'codex_security_report_sha256',
