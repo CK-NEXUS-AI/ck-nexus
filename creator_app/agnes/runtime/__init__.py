@@ -5,6 +5,15 @@ claim or perform external execution by themselves.
 """
 
 from .durable import DurableCheckpoint, DurableRun, DurableRunState
+from .durable_controls import (
+    CompensationRecord,
+    CompensationState,
+    DurableControlPlane,
+    DurableSignal,
+    DurableTimer,
+    SignalState,
+    TimerState,
+)
 from .execution_receipt import ExecutionReceipt, VerificationState
 from .memory_quality import MemoryQualityEntry, MemoryQualityStatus
 from .sandbox_session import SandboxSession, SandboxSessionState
@@ -14,6 +23,13 @@ __all__ = [
     "DurableCheckpoint",
     "DurableRun",
     "DurableRunState",
+    "DurableControlPlane",
+    "DurableSignal",
+    "SignalState",
+    "DurableTimer",
+    "TimerState",
+    "CompensationRecord",
+    "CompensationState",
     "ExecutionReceipt",
     "VerificationState",
     "MemoryQualityEntry",
