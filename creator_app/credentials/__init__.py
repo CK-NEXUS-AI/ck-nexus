@@ -4,6 +4,7 @@ This package integrates:
 - Credential Broker (least-privilege credential leasing)
 - LLM Key Pool (auto-rotation on quota exhaustion)
 - Sticky Free Fallback Key Pool (85% remaining guard -> free/local-only)
+- Credit Telemetry Fabric (authoritative credit/cost normalization)
 - Capability Router (provider selection with circuit breaker)
 - Capability Registry (canonical capability matrix)
 - Gmail OAuth Connector (OAuth2, no raw token extraction)
@@ -19,6 +20,13 @@ from creator_app.credentials.capability_registry import (
     CapabilityRegistry,
     CapabilitySpec,
     ProviderCandidate,
+)
+from creator_app.credentials.credit_telemetry import (
+    CreditSnapshot,
+    CreditTelemetryAdapter,
+    CreditTelemetryFabric,
+    OpenAICostBudgetAdapter,
+    OpenRouterCreditsAdapter,
 )
 from creator_app.credentials.credential_broker import (
     CredentialAccessDenied,
@@ -57,6 +65,11 @@ __all__ = [
     "LlmKeySpec",
     "LlmKeyStatus",
     "KeyPoolError",
+    "CreditSnapshot",
+    "CreditTelemetryAdapter",
+    "CreditTelemetryFabric",
+    "OpenRouterCreditsAdapter",
+    "OpenAICostBudgetAdapter",
     "Capability",
     "CapabilityRegistry",
     "CapabilitySpec",
