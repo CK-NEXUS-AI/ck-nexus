@@ -32,7 +32,10 @@ def predevelopment_search(catalog: KnowledgeCatalog, query: str) -> SearchDecisi
         query=query,
         matches=matches,
         build_new_allowed=True,
-        reason="No adoptable or wrappable match is recorded. New work requires evidence and review.",
+        reason=(
+            "No adoptable or wrappable match is recorded. "
+            "New work requires evidence and review."
+        ),
     )
 
 
