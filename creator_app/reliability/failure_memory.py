@@ -342,6 +342,21 @@ class FailureLedger:
                 raise ValueError(f"failure event payload field {field} must be a string")
             _require_non_secret(value, field)
 
+        if event.event_type is FailureEventType.OBSERVED:
+            normalized_signature = normalize_failure_signature(
+                event.payload["normalized_signature"]
+            )
+            if event.payload["normalized_signature"] != normalized_signature:
+                raise ValueError("observed normalized_signature must be canonical")
+            expected_fingerprint = fingerprint_failure(
+                component=event.payload["component"],
+                operation=event.payload["operation"],
+                error_type=event.payload["error_type"],
+                safe_signature=normalized_signature,
+            )
+            if event.fingerprint != expected_fingerprint:
+                raise ValueError("observed failure fingerprint does not match payload")
+
         if event.event_type is FailureEventType.PROTECTED and not self._observations(
             event.fingerprint
         ):
