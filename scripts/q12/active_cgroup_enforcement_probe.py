@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import signal
@@ -29,7 +30,8 @@ def delta(after: dict[str, int], before: dict[str, int], key: str) -> int:
 
 
 def attached(group: Path, pid: int) -> bool:
-    return str(pid) in (group / "cgroup.procs").read_text(encoding="utf-8").split()
+    procs = (group / "cgroup.procs").read_text(encoding="utf-8").split()
+    return str(pid) in procs
 
 
 def make_group(root: Path, name: str) -> Path:
@@ -44,10 +46,8 @@ def kill_residual(group: Path) -> None:
     except OSError:
         return
     for pid in pids:
-        try:
+        with contextlib.suppress(ProcessLookupError, PermissionError):
             os.kill(pid, signal.SIGKILL)
-        except (ProcessLookupError, PermissionError):
-            pass
     time.sleep(0.05)
 
 
@@ -89,7 +89,11 @@ def cpu_probe(root: Path, token: str) -> dict[str, Any]:
             delta(after, before, "nr_throttled"),
             delta(after, before, "throttled_usec"),
         )
-        return {"pid_attached": pid_attached, "throttle_delta": throttled, "passed": pid_attached and throttled > 0}
+        return {
+            "pid_attached": pid_attached,
+            "throttle_delta": throttled,
+            "passed": pid_attached and throttled > 0,
+        }
     finally:
         if process is not None and process.poll() is None:
             process.kill()
@@ -132,7 +136,11 @@ def memory_probe(root: Path, token: str) -> dict[str, Any]:
             key: delta(after, before, key) for key in ("max", "oom", "oom_kill")
         }
         limited = any(value > 0 for value in event_delta.values())
-        return {"pid_attached": pid_attached, "event_delta": event_delta, "passed": pid_attached and limited}
+        return {
+            "pid_attached": pid_attached,
+            "event_delta": event_delta,
+            "passed": pid_attached and limited,
+        }
     finally:
         if process is not None and process.poll() is None:
             process.kill()
@@ -172,7 +180,11 @@ def pids_probe(root: Path, token: str) -> dict[str, Any]:
         process.wait(timeout=10)
         after = read_kv(group / "pids.events")
         max_delta = delta(after, before, "max")
-        return {"pid_attached": pid_attached, "max_event_delta": max_delta, "passed": pid_attached and max_delta > 0}
+        return {
+            "pid_attached": pid_attached,
+            "max_event_delta": max_delta,
+            "passed": pid_attached and max_delta > 0,
+        }
     finally:
         if process is not None and process.poll() is None:
             process.kill()
@@ -181,14 +193,17 @@ def pids_probe(root: Path, token: str) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Bounded active CK-NEXUS Q12 cgroup v2 enforcement probe")
+    parser = argparse.ArgumentParser(
+        description="Bounded active CK-NEXUS Q12 cgroup v2 enforcement probe"
+    )
     parser.add_argument("--root", required=True, type=Path)
     args = parser.parse_args()
     if os.getenv("CKNEXUS_ENVIRONMENT", "").strip().lower() != "staging":
         emit({"status": "BLOCKED", "reason": "CKNEXUS_ENVIRONMENT_must_be_staging"})
         return 2
     root = args.root.expanduser().resolve()
-    if root == Path("/sys/fs/cgroup") or not root.is_dir() or not os.access(root, os.W_OK):
+    unsafe_root = root == Path("/sys/fs/cgroup")
+    if unsafe_root or not root.is_dir() or not os.access(root, os.W_OK):
         emit({"status": "BLOCKED", "reason": "dedicated_delegated_root_required"})
         return 2
     token = f"{os.getpid()}-{time.time_ns()}"
@@ -200,7 +215,14 @@ def main() -> int:
         emit({"status": "FAIL", "reason": type(exc).__name__})
         return 1
     passed = bool(cpu["passed"] and memory["passed"] and pids["passed"])
-    emit({"status": "PASS" if passed else "FAIL", "cpu": cpu, "memory": memory, "pids": pids})
+    emit(
+        {
+            "status": "PASS" if passed else "FAIL",
+            "cpu": cpu,
+            "memory": memory,
+            "pids": pids,
+        }
+    )
     return 0 if passed else 1
 
 
