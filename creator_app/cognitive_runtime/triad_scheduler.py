@@ -72,8 +72,10 @@ class TriadParallelScheduler:
 
     The scheduler selects only auto-safe work, honors dependency completion,
     prevents duplicate capability work, and never fabricates work to satisfy
-    the minimum stream target. Builder, Critic, and Evidence Evaluator are
-    assigned together, but the evaluator cannot produce VERIFIED state.
+    the minimum stream target. Duplicate candidates are ranked before one is
+    selected, so input order cannot defeat a better candidate. Builder, Critic,
+    and Evidence Evaluator are assigned together, but the evaluator cannot
+    produce VERIFIED state.
     """
 
     def __init__(self, subject_sha: str, *, min_streams: int = 5, max_streams: int = 9) -> None:
@@ -96,7 +98,6 @@ class TriadParallelScheduler:
         deferred: list[str] = []
         candidates: list[WorkItem] = []
         seen_work_ids: set[str] = set()
-        seen_capabilities = set(active_capabilities)
 
         for item in work_items:
             if not item.work_id or not item.capability:
@@ -111,24 +112,23 @@ class TriadParallelScheduler:
             if any(dep not in completed_capabilities for dep in item.dependencies):
                 blocked.append(item.work_id)
                 continue
-            if item.capability in completed_capabilities or item.capability in seen_capabilities:
+            if item.capability in completed_capabilities or item.capability in active_capabilities:
                 deferred.append(item.work_id)
                 continue
-
             candidates.append(item)
-            seen_capabilities.add(item.capability)
 
-        ranked = sorted(
-            candidates,
-            key=lambda item: (
-                -self._score(item),
-                int(item.priority),
-                item.capability,
-                item.work_id,
-            ),
-        )
-        selected = ranked[: self.max_streams]
-        deferred.extend(item.work_id for item in ranked[self.max_streams :])
+        ranked = sorted(candidates, key=self._rank_key)
+        unique_ranked: list[WorkItem] = []
+        selected_capabilities: set[str] = set()
+        for item in ranked:
+            if item.capability in selected_capabilities:
+                deferred.append(item.work_id)
+                continue
+            selected_capabilities.add(item.capability)
+            unique_ranked.append(item)
+
+        selected = unique_ranked[: self.max_streams]
+        deferred.extend(item.work_id for item in unique_ranked[self.max_streams :])
 
         assignments = tuple(
             TriadAssignment(
@@ -155,6 +155,10 @@ class TriadParallelScheduler:
             underfilled=len(assignments) < self.min_streams,
             plan_digest=digest,
         )
+
+    @classmethod
+    def _rank_key(cls, item: WorkItem) -> tuple[int, int, str, str]:
+        return (-cls._score(item), int(item.priority), item.capability, item.work_id)
 
     @staticmethod
     def _score(item: WorkItem) -> int:
