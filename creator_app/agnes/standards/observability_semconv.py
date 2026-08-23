@@ -1,6 +1,21 @@
 from __future__ import annotations
 
-from typing import Mapping, Any
+from typing import Any, Mapping
+
+_SAFE_EXTRA_KEYS = frozenset(
+    {
+        "gen_ai.response.id",
+        "gen_ai.response.model",
+        "gen_ai.response.time_to_first_chunk",
+        "gen_ai.usage.reasoning.output_tokens",
+        "gen_ai.workflow.name",
+        "server.address",
+        "server.port",
+        "ck.correlation.id",
+        "ck.task.id",
+        "ck.workflow.id",
+    }
+)
 
 
 def build_genai_span_attributes(
@@ -20,7 +35,8 @@ def build_genai_span_attributes(
     """Build a privacy-minimal OpenTelemetry GenAI attribute set.
 
     Raw prompts, raw tool arguments, secrets and full provider payloads are excluded
-    by design. CK identifiers remain first-class correlation keys.
+    by design. CK identifiers remain first-class correlation keys. Optional extra
+    attributes are restricted to an explicit metadata allowlist.
     """
 
     attrs: dict[str, Any] = {
@@ -45,6 +61,6 @@ def build_genai_span_attributes(
         attrs["gen_ai.tool.type"] = tool_type
     if extra:
         for key, value in extra.items():
-            if key.startswith("gen_ai.") or key.startswith("ck."):
+            if key in _SAFE_EXTRA_KEYS:
                 attrs[key] = value
     return attrs
