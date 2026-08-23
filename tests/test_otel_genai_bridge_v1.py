@@ -1,6 +1,6 @@
 import pytest
 
-from creator_app.observability.otel_genai_bridge import CKExecutionContext, OTelGenAIBridge
+from creator_app.otel_genai_bridge import CKExecutionContext, OTelGenAIBridge
 
 
 def _context() -> CKExecutionContext:
