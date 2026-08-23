@@ -11,6 +11,7 @@ from creator_app.agnes.knowledge_repository import (
     best_capability_matches,
     collect_unknown,
     enforce_two_strike,
+    infrastructure_control_catalog,
     initial_catalog,
     predevelopment_search,
     transition_status,
@@ -200,3 +201,58 @@ def test_dapr_research_prevents_stale_evidence_uniqueness_claim() -> None:
     assert item is not None
     assert "durable_execution" in item.capabilities
     assert any("must not claim" in note for note in item.observations)
+
+
+def test_infrastructure_control_catalog_extends_beyond_ai_frameworks() -> None:
+    catalog = infrastructure_control_catalog()
+    items = catalog.all()
+
+    assert len(items) >= 12
+    assert len({item.item_id for item in items}) == len(items)
+    assert catalog.get("infra.control.kubernetes") is not None
+    assert catalog.get("infra.control.crossplane") is not None
+    assert catalog.get("infra.observability.opentelemetry") is not None
+    assert catalog.get("infra.secrets.openbao") is not None
+    assert catalog.get("infra.scaling.keda") is not None
+
+
+def test_crossplane_is_control_adapter_not_ck_authority() -> None:
+    item = infrastructure_control_catalog().get("infra.control.crossplane")
+
+    assert item is not None
+    assert item.adoption_mode is AdoptionMode.ADOPT
+    assert "universal_control_plane" in item.capabilities
+    assert any("CK-NEXUS approval" in note for note in item.observations)
+
+
+def test_secret_backends_never_replace_credential_broker_contract() -> None:
+    catalog = infrastructure_control_catalog()
+    openbao = catalog.get("infra.secrets.openbao")
+    vault = catalog.get("infra.secrets.vault")
+
+    assert openbao is not None and openbao.adoption_mode is AdoptionMode.ADOPT
+    assert vault is not None and vault.adoption_mode is AdoptionMode.WRAP
+    assert "dynamic_secrets" in openbao.capabilities
+    assert any("opaque credential references" in note for note in openbao.observations)
+
+
+def test_observability_and_events_are_inputs_not_verification_authority() -> None:
+    catalog = infrastructure_control_catalog()
+    otel = catalog.get("infra.observability.opentelemetry")
+    nats = catalog.get("infra.event.nats")
+
+    assert otel is not None
+    assert any("not automatic verification authority" in note for note in otel.observations)
+    assert nats is not None
+    assert any("does not itself prove" in note for note in nats.observations)
+
+
+def test_all_multi_system_catalog_entries_remain_unactivated_candidates() -> None:
+    items = (
+        *universal_control_catalog().all(),
+        *infrastructure_control_catalog().all(),
+    )
+
+    assert len(items) >= 42
+    assert all(item.status is KnowledgeStatus.ADOPTABLE for item in items)
+    assert all(item.status is not KnowledgeStatus.ADOPTED for item in items)
