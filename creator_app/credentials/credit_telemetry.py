@@ -19,6 +19,7 @@ class CreditSnapshot:
     state: str
     source: str
     remaining_pct: float | None = None
+    remaining_amount: float | None = None
     used_amount: float | None = None
     total_amount: float | None = None
     currency: str | None = None
@@ -31,6 +32,8 @@ class CreditSnapshot:
             object.__setattr__(self, "observed_at", datetime.now(UTC).isoformat())
         if self.remaining_pct is not None and not 0.0 <= self.remaining_pct <= 100.0:
             raise ValueError("remaining_pct must be between 0 and 100")
+        if self.remaining_amount is not None and self.remaining_amount < 0.0:
+            raise ValueError("remaining_amount must not be negative")
 
 
 class CreditTelemetryAdapter(Protocol):
@@ -93,11 +96,13 @@ class OpenRouterCreditsAdapter:
                 detail="invalid_response_schema",
             )
 
+        remaining = max(0.0, total - used)
         if total <= 0:
             return CreditSnapshot(
                 provider=self.provider,
                 state="UNKNOWN",
                 source="openrouter.credits",
+                remaining_amount=remaining,
                 used_amount=used,
                 total_amount=total,
                 currency="usd",
@@ -105,13 +110,13 @@ class OpenRouterCreditsAdapter:
                 detail="total_credits_not_positive",
             )
 
-        remaining = max(0.0, total - used)
         remaining_pct = min(100.0, (remaining / total) * 100.0)
         return CreditSnapshot(
             provider=self.provider,
             state="KNOWN",
             source="openrouter.credits",
             remaining_pct=remaining_pct,
+            remaining_amount=remaining,
             used_amount=used,
             total_amount=total,
             currency="usd",
@@ -218,10 +223,168 @@ class OpenAICostBudgetAdapter:
             state="KNOWN",
             source="openai.organization.costs",
             remaining_pct=remaining_pct,
+            remaining_amount=remaining,
             used_amount=spent,
             total_amount=budget,
             currency="usd",
             basis="configured_budget",
+        )
+
+
+class DeepSeekBalanceAdapter:
+    """Authoritative DeepSeek balance with an explicit operator-defined 100% basis.
+
+    DeepSeek publishes the current account balance but not an original/maximum
+    balance suitable for percentage calculation. The raw remaining amount is
+    therefore always preserved when available, while ``remaining_pct`` becomes
+    KNOWN only when the operator supplies a matching balance basis.
+    """
+
+    provider = "deepseek"
+    endpoint = "https://api.deepseek.com/user/balance"
+
+    def __init__(self, *, timeout: float = 8.0) -> None:
+        self.timeout = timeout
+
+    def collect(self) -> CreditSnapshot:
+        key = os.getenv("DEEPSEEK_API_KEY", "").strip()
+        if not key:
+            return CreditSnapshot(
+                provider=self.provider,
+                state="UNKNOWN",
+                source="deepseek.user.balance",
+                detail="DEEPSEEK_API_KEY is not configured",
+            )
+
+        currency = os.getenv("CKNEXUS_DEEPSEEK_BALANCE_CURRENCY", "USD").strip().upper()
+        if currency not in {"USD", "CNY"}:
+            return CreditSnapshot(
+                provider=self.provider,
+                state="ERROR",
+                source="deepseek.user.balance",
+                basis="configured_balance_basis",
+                detail="balance_currency_must_be_USD_or_CNY",
+            )
+
+        request = urllib.request.Request(
+            self.endpoint,
+            headers={"Accept": "application/json", "Authorization": f"Bearer {key}"},
+        )
+        try:
+            # B310 is safe here: endpoint is a class-owned, fixed HTTPS URL.
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # nosec B310
+                payload = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            return CreditSnapshot(
+                provider=self.provider,
+                state="ERROR",
+                source="deepseek.user.balance",
+                detail=f"http_{exc.code}",
+            )
+        except Exception as exc:
+            return CreditSnapshot(
+                provider=self.provider,
+                state="ERROR",
+                source="deepseek.user.balance",
+                detail=type(exc).__name__,
+            )
+
+        infos = payload.get("balance_infos")
+        if not isinstance(infos, list):
+            return CreditSnapshot(
+                provider=self.provider,
+                state="ERROR",
+                source="deepseek.user.balance",
+                detail="invalid_response_schema",
+            )
+
+        remaining: float | None = None
+        for info in infos:
+            if not isinstance(info, dict):
+                continue
+            if str(info.get("currency", "")).upper() != currency:
+                continue
+            try:
+                remaining = float(info["total_balance"])
+            except (KeyError, TypeError, ValueError):
+                return CreditSnapshot(
+                    provider=self.provider,
+                    state="ERROR",
+                    source="deepseek.user.balance",
+                    currency=currency.lower(),
+                    detail="invalid_total_balance",
+                )
+            break
+
+        if remaining is None:
+            return CreditSnapshot(
+                provider=self.provider,
+                state="UNKNOWN",
+                source="deepseek.user.balance",
+                currency=currency.lower(),
+                detail="configured_currency_not_present",
+            )
+        if remaining < 0:
+            return CreditSnapshot(
+                provider=self.provider,
+                state="ERROR",
+                source="deepseek.user.balance",
+                currency=currency.lower(),
+                detail="negative_total_balance",
+            )
+
+        basis_raw = os.getenv("CKNEXUS_DEEPSEEK_BALANCE_BASIS", "").strip()
+        if not basis_raw:
+            return CreditSnapshot(
+                provider=self.provider,
+                state="UNKNOWN",
+                source="deepseek.user.balance",
+                remaining_amount=remaining,
+                currency=currency.lower(),
+                basis="configured_balance_basis",
+                detail="CKNEXUS_DEEPSEEK_BALANCE_BASIS missing; percentage not guessed",
+            )
+
+        try:
+            basis = float(basis_raw)
+        except ValueError:
+            return CreditSnapshot(
+                provider=self.provider,
+                state="ERROR",
+                source="deepseek.user.balance",
+                remaining_amount=remaining,
+                currency=currency.lower(),
+                basis="configured_balance_basis",
+                detail="invalid_balance_basis",
+            )
+        if basis <= 0:
+            return CreditSnapshot(
+                provider=self.provider,
+                state="ERROR",
+                source="deepseek.user.balance",
+                remaining_amount=remaining,
+                currency=currency.lower(),
+                basis="configured_balance_basis",
+                detail="balance_basis_must_be_positive",
+            )
+
+        remaining_pct = min(100.0, (remaining / basis) * 100.0)
+        used = max(0.0, basis - remaining)
+        return CreditSnapshot(
+            provider=self.provider,
+            state="KNOWN",
+            source="deepseek.user.balance",
+            remaining_pct=remaining_pct,
+            remaining_amount=remaining,
+            used_amount=used,
+            total_amount=basis,
+            currency=currency.lower(),
+            basis="configured_balance_basis",
+            detail=(
+                "provider reports balance availability=false"
+                if payload.get("is_available") is False
+                else None
+            ),
         )
 
 
@@ -238,7 +401,11 @@ class CreditTelemetryFabric:
         evidence_path: str | None = None,
     ) -> None:
         self.pool = pool
-        self.adapters = adapters or [OpenRouterCreditsAdapter(), OpenAICostBudgetAdapter()]
+        self.adapters = adapters or [
+            OpenRouterCreditsAdapter(),
+            OpenAICostBudgetAdapter(),
+            DeepSeekBalanceAdapter(),
+        ]
         self.evidence_path = evidence_path or os.getenv(
             "CKNEXUS_CREDIT_TELEMETRY_EVIDENCE_PATH",
             self.DEFAULT_EVIDENCE_PATH,
