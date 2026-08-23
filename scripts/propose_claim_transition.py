@@ -109,7 +109,10 @@ def build_proposal(
             "from_state": "TARGET",
             "to_state": "MEASURED_NOT_VERIFIED",
             "at": captured_at,
-            "reason": "Physical-device benchmark evidence was captured; independent verification is still required.",
+            "reason": (
+                "Physical-device benchmark evidence was captured; independent "
+                "verification is still required."
+            ),
         },
     }
 
