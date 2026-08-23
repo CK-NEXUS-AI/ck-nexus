@@ -30,7 +30,9 @@ class OpenAICompatibleEndpoint:
         if not provider_id or not credential_ref or not runtime_id:
             raise ValueError("provider_id, credential_ref and runtime_id must not be empty")
         if not credential_ref.startswith("broker://"):
-            raise ValueError("credential_ref must be a broker:// reference, never raw secret material")
+            raise ValueError(
+                "credential_ref must be a broker:// reference, never raw secret material"
+            )
 
         parsed = urlsplit(self.base_url)
         if parsed.username or parsed.password:
