@@ -41,6 +41,19 @@ def test_sensitive_content_attributes_are_rejected() -> None:
         )
 
 
+def test_usage_token_metrics_are_allowed() -> None:
+    span = OTelGenAIBridge.build_span(
+        operation="chat",
+        context=_context(),
+        extra_attributes={
+            "gen_ai.usage.input_tokens": 10,
+            "gen_ai.usage.output_tokens": 4,
+        },
+    )
+    assert span.attributes["gen_ai.usage.input_tokens"] == 10
+    assert span.attributes["gen_ai.usage.output_tokens"] == 4
+
+
 def test_unscoped_attributes_are_rejected() -> None:
     with pytest.raises(ValueError, match="unscoped_attribute_forbidden"):
         OTelGenAIBridge.build_span(
