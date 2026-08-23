@@ -24,7 +24,7 @@ function Resolve-DevelopmentPort([int]$Port) {
   $listener=Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
   if(-not $listener){ return $Port }
   $replacement=Get-EphemeralLoopbackPort
-  Write-Output "development port $Port already in use; using ephemeral port $replacement"
+  Write-Verbose "development port $Port already in use; using ephemeral port $replacement"
   return $replacement
 }
 
