@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 import pytest
 
 from creator_app.agnes.knowledge_repository import (
+    AdoptionMode,
     AttemptRecord,
     EvidenceLevel,
     KnowledgeSource,
@@ -13,6 +14,7 @@ from creator_app.agnes.knowledge_repository import (
     initial_catalog,
     predevelopment_search,
     transition_status,
+    universal_control_catalog,
 )
 
 
@@ -112,3 +114,89 @@ def test_assurance_market_wedge_is_explicitly_an_inference() -> None:
     assert "evidence_by_construction" in item.capabilities
     assert "independent_verification" in item.capabilities
     assert any("market inference" in observation for observation in item.observations)
+
+
+def test_universal_control_catalog_has_broad_multi_system_coverage() -> None:
+    catalog = universal_control_catalog()
+    items = catalog.all()
+
+    assert len(items) >= 30
+    assert len({item.item_id for item in items}) == len(items)
+    categories = {item.category for item in items}
+    assert {
+        "durable_runtime",
+        "workflow_orchestration",
+        "policy_authorization",
+        "identity",
+        "interoperability_protocol",
+        "connector_fabric",
+        "observability_evaluation",
+        "memory_context",
+        "sandbox_execution",
+        "browser_execution",
+        "local_inference",
+    }.issubset(categories)
+
+
+def test_universal_control_catalog_uses_documented_sources_only() -> None:
+    for item in universal_control_catalog().all():
+        assert item.status is KnowledgeStatus.ADOPTABLE
+        assert item.status is not KnowledgeStatus.ADOPTED
+        assert item.sources
+        for source in item.sources:
+            assert source.evidence_level is EvidenceLevel.DOCUMENTED
+            assert source.url.startswith("https://")
+
+
+def test_universal_control_fabric_marks_core_spine_for_adoption() -> None:
+    catalog = universal_control_catalog()
+
+    expected = {
+        "control.runtime.dapr_agents",
+        "control.policy.opa",
+        "control.authorization.openfga",
+        "control.identity.spiffe_spire",
+        "control.protocol.mcp",
+        "control.protocol.a2a",
+        "control.protocol.agui",
+        "control.memory.graphiti",
+        "control.inference.ollama",
+        "control.inference.vllm",
+    }
+    for item_id in expected:
+        item = catalog.get(item_id)
+        assert item is not None
+        assert item.adoption_mode is AdoptionMode.ADOPT
+
+
+def test_external_systems_never_gain_ck_authority_by_catalog_presence() -> None:
+    catalog = universal_control_catalog()
+
+    dapr = catalog.get("control.runtime.dapr_agents")
+    graphiti = catalog.get("control.memory.graphiti")
+    browser = catalog.get("control.browser.browserbase")
+
+    assert dapr is not None
+    assert any("not production authority" in note for note in dapr.observations)
+    assert graphiti is not None
+    assert any("canonical history" in note for note in graphiti.observations)
+    assert browser is not None
+    assert any("must not" in note for note in browser.observations)
+
+
+def test_browser_automation_remains_bounded_by_access_governance() -> None:
+    item = universal_control_catalog().get("control.browser.browserbase")
+
+    assert item is not None
+    assert item.adoption_mode is AdoptionMode.WRAP
+    joined = " ".join(item.observations).casefold()
+    assert "captcha" in joined
+    assert "authorization" in joined
+
+
+def test_dapr_research_prevents_stale_evidence_uniqueness_claim() -> None:
+    item = universal_control_catalog().get("control.runtime.dapr_agents")
+
+    assert item is not None
+    assert "durable_execution" in item.capabilities
+    assert any("must not claim" in note for note in item.observations)
