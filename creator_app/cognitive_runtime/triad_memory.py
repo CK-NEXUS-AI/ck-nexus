@@ -4,8 +4,16 @@ import json
 from dataclasses import asdict, dataclass, replace
 from enum import StrEnum
 from hashlib import sha256
+from typing import Any
 
-from .triad_debate import CandidateCritique, CandidateProposal, DebateRound
+from .triad_debate import (
+    CandidateCritique,
+    CandidateProposal,
+    CandidateStatus,
+    CritiqueSeverity,
+    DebateRound,
+)
+from .triad_scheduler import TriadRole
 
 
 class TriadMemoryError(ValueError):
@@ -104,6 +112,95 @@ class TriadMemoryStore:
         raw = f"{kind.value}\0{artifact_id}\0{artifact_digest}"
         return f"triad-mem-{sha256(raw.encode('utf-8')).hexdigest()}"
 
+    @staticmethod
+    def _candidate_from_mapping(payload: dict[str, Any]) -> CandidateProposal:
+        try:
+            return CandidateProposal(
+                candidate_id=str(payload["candidate_id"]),
+                task_id=str(payload["task_id"]),
+                subject_sha=str(payload["subject_sha"]),
+                proposer_role=TriadRole(payload["proposer_role"]),
+                statement=str(payload["statement"]),
+                rationale=str(payload["rationale"]),
+                expected_delta=str(payload["expected_delta"]),
+                assumptions=tuple(str(item) for item in payload.get("assumptions", ())),
+                evidence_refs=tuple(str(item) for item in payload.get("evidence_refs", ())),
+                parent_candidate_id=str(payload.get("parent_candidate_id", "")),
+                revision=int(payload.get("revision", 1)),
+                status=CandidateStatus(payload.get("status", CandidateStatus.PROPOSED)),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise TriadMemoryError("candidate_payload_invalid") from exc
+
+    @staticmethod
+    def _critique_from_mapping(payload: dict[str, Any]) -> CandidateCritique:
+        try:
+            return CandidateCritique(
+                critique_id=str(payload["critique_id"]),
+                candidate_id=str(payload["candidate_id"]),
+                task_id=str(payload["task_id"]),
+                subject_sha=str(payload["subject_sha"]),
+                critic_role=TriadRole(payload["critic_role"]),
+                severity=CritiqueSeverity(payload["severity"]),
+                findings=tuple(str(item) for item in payload.get("findings", ())),
+                counter_evidence_refs=tuple(
+                    str(item) for item in payload.get("counter_evidence_refs", ())
+                ),
+                requested_changes=tuple(
+                    str(item) for item in payload.get("requested_changes", ())
+                ),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise TriadMemoryError("critique_payload_invalid") from exc
+
+    @classmethod
+    def _artifact_digest_from_payload(
+        cls,
+        kind: MemoryArtifactKind,
+        payload_json: str,
+    ) -> str:
+        try:
+            payload = json.loads(payload_json)
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise TriadMemoryError("artifact_payload_json_invalid") from exc
+        if not isinstance(payload, dict):
+            raise TriadMemoryError("artifact_payload_must_be_object")
+
+        if kind is MemoryArtifactKind.CANDIDATE:
+            candidate = cls._candidate_from_mapping(payload)
+            candidate.validate(candidate.subject_sha)
+            return candidate.canonical_digest()
+        if kind is MemoryArtifactKind.CRITIQUE:
+            critique = cls._critique_from_mapping(payload)
+            critique.validate(critique.subject_sha)
+            return critique.canonical_digest()
+        if kind is MemoryArtifactKind.ROUND:
+            try:
+                candidates_raw = payload["candidates"]
+                critiques_raw = payload.get("critiques", ())
+                if not isinstance(candidates_raw, list) or not isinstance(critiques_raw, list):
+                    raise TypeError("round child artifacts must be lists")
+                candidates = tuple(
+                    cls._candidate_from_mapping(item) for item in candidates_raw if isinstance(item, dict)
+                )
+                critiques = tuple(
+                    cls._critique_from_mapping(item) for item in critiques_raw if isinstance(item, dict)
+                )
+                if len(candidates) != len(candidates_raw) or len(critiques) != len(critiques_raw):
+                    raise TypeError("round child artifact must be an object")
+                debate_round = DebateRound(
+                    round_id=str(payload["round_id"]),
+                    task_id=str(payload["task_id"]),
+                    subject_sha=str(payload["subject_sha"]),
+                    candidates=candidates,
+                    critiques=critiques,
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise TriadMemoryError("round_payload_invalid") from exc
+            debate_round.validate()
+            return debate_round.canonical_digest()
+        raise TriadMemoryError("artifact_kind_invalid")
+
     def _append(
         self,
         *,
@@ -119,14 +216,14 @@ class TriadMemoryStore:
         parent_artifact_id: str = "",
         revision: int = 0,
     ) -> TriadMemoryRecord:
-        if len(self._records) >= self.max_records:
-            raise TriadMemoryError("memory_capacity_exceeded")
         if not all((task_id.strip(), round_id.strip(), artifact_id.strip(), correlation_id.strip())):
             raise TriadMemoryError("memory_identity_missing")
         if not artifact_digest.strip():
             raise TriadMemoryError("artifact_digest_required")
         if revision < 0:
             raise TriadMemoryError("revision_invalid")
+        if self._artifact_digest_from_payload(artifact_kind, payload_json) != artifact_digest:
+            raise TriadMemoryError("artifact_payload_digest_mismatch")
 
         key = (artifact_kind, artifact_id)
         existing = self._by_artifact.get(key)
@@ -134,6 +231,8 @@ class TriadMemoryStore:
             if existing.artifact_digest != artifact_digest:
                 raise TriadMemoryError(f"artifact_identity_conflict:{artifact_id}")
             return existing
+        if len(self._records) >= self.max_records:
+            raise TriadMemoryError("memory_capacity_exceeded")
 
         for linked_id, error in (
             (causation_memory_id, "causation_memory_missing"),
@@ -287,8 +386,9 @@ class TriadMemoryStore:
             records=self.records,
         )
 
-    @staticmethod
+    @classmethod
     def verify_snapshot(
+        cls,
         snapshot: TriadMemorySnapshot,
         *,
         expected_subject_sha: str,
@@ -307,10 +407,32 @@ class TriadMemoryStore:
                 raise TriadMemoryError("snapshot_sequence_invalid")
             if record.subject_sha != expected_subject_sha:
                 raise TriadMemoryError("record_subject_mismatch")
+            if not isinstance(record.artifact_kind, MemoryArtifactKind):
+                raise TriadMemoryError("record_artifact_kind_invalid")
+            if not all(
+                (
+                    record.memory_id,
+                    record.task_id,
+                    record.round_id,
+                    record.artifact_id,
+                    record.artifact_digest,
+                    record.correlation_id,
+                )
+            ):
+                raise TriadMemoryError("record_identity_missing")
             if record.previous_record_digest != previous:
                 raise TriadMemoryError("record_chain_broken")
-            if record.payload_digest != TriadMemoryStore._payload_digest(record.payload_json):
+            if record.payload_digest != cls._payload_digest(record.payload_json):
                 raise TriadMemoryError("record_payload_digest_mismatch")
+            if cls._artifact_digest_from_payload(record.artifact_kind, record.payload_json) != record.artifact_digest:
+                raise TriadMemoryError("record_artifact_digest_mismatch")
+            expected_memory_id = cls._memory_id(
+                record.artifact_kind,
+                record.artifact_id,
+                record.artifact_digest,
+            )
+            if record.memory_id != expected_memory_id:
+                raise TriadMemoryError("record_memory_id_mismatch")
             if record.record_digest != record.recompute_digest():
                 raise TriadMemoryError("record_digest_mismatch")
             if record.memory_id in seen_memory_ids:
@@ -318,12 +440,12 @@ class TriadMemoryStore:
             key = (record.artifact_kind, record.artifact_id)
             if key in seen_artifacts:
                 raise TriadMemoryError("duplicate_memory_artifact")
-            seen_memory_ids.add(record.memory_id)
-            seen_artifacts.add(key)
             if record.causation_memory_id and record.causation_memory_id not in seen_memory_ids:
                 raise TriadMemoryError("causation_not_prior")
             if record.supersedes_memory_id and record.supersedes_memory_id not in seen_memory_ids:
                 raise TriadMemoryError("supersession_not_prior")
+            seen_memory_ids.add(record.memory_id)
+            seen_artifacts.add(key)
             previous = record.record_digest
 
         calculated_head = snapshot.records[-1].record_digest if snapshot.records else ""
