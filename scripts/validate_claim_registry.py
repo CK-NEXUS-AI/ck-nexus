@@ -123,7 +123,8 @@ def validate_claim(claim: dict[str, Any]) -> list[str]:
             to_state = entry.get("to_state")
             if (from_state, to_state) not in VALID_TRANSITIONS:
                 errors.append(
-                    f"state_history[{index}] has forbidden transition {from_state!r} -> {to_state!r}"
+                    f"state_history[{index}] has forbidden transition "
+                    f"{from_state!r} -> {to_state!r}"
                 )
             if index == 0 and (from_state, to_state) != (None, "TARGET"):
                 errors.append("first state_history entry must create TARGET from null")
