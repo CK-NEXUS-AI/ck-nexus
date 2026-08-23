@@ -58,6 +58,13 @@ class ReasoningEffort(StrEnum):
     ADAPTIVE = "adaptive"
 
 
+class ModelUseLane(StrEnum):
+    DEVELOPMENT = "development"
+    EVALUATION = "evaluation"
+    RED_TEAM = "red_team"
+    PRODUCTION = "production"
+
+
 @dataclass(frozen=True, slots=True)
 class GenerationProfile:
     temperature: float | None = None
@@ -140,6 +147,7 @@ class GatewayRequest:
     prefer_local: bool = False
     allowed_providers: frozenset[str] = frozenset()
     denied_providers: frozenset[str] = frozenset()
+    model_use_lane: ModelUseLane = ModelUseLane.DEVELOPMENT
 
     def __post_init__(self) -> None:
         if not self.prompt.strip():
