@@ -2,6 +2,15 @@ name: Verify Q12 final release subject on delegated self-hosted Linux
 
 on:
   workflow_dispatch:
+    inputs:
+      expected_verifier_sha:
+        description: Exact reviewed verifier harness commit SHA to execute
+        required: true
+        type: string
+      expected_verifier_tree:
+        description: Exact reviewed verifier harness tree SHA to execute
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -36,14 +45,23 @@ jobs:
           path: operator
           fetch-depth: 0
 
-      - name: Bind verifier harness identity
+      - name: Bind reviewed verifier harness identity before mutation
+        env:
+          EXPECTED_VERIFIER_SHA: ${{ inputs.expected_verifier_sha }}
+          EXPECTED_VERIFIER_TREE: ${{ inputs.expected_verifier_tree }}
         shell: bash
         run: |
           set -euo pipefail
-          git -C operator rev-parse HEAD > q12-verifier-sha.txt
-          git -C operator rev-parse HEAD^{tree} > q12-verifier-tree.txt
-          test -s q12-verifier-sha.txt
-          test -s q12-verifier-tree.txt
+          test -n "$EXPECTED_VERIFIER_SHA"
+          test -n "$EXPECTED_VERIFIER_TREE"
+          actual_sha=$(git -C operator rev-parse HEAD)
+          actual_tree=$(git -C operator rev-parse HEAD^{tree})
+          test "$actual_sha" = "$EXPECTED_VERIFIER_SHA"
+          test "$actual_tree" = "$EXPECTED_VERIFIER_TREE"
+          printf '%s\n' "$EXPECTED_VERIFIER_SHA" > q12-expected-verifier-sha.txt
+          printf '%s\n' "$EXPECTED_VERIFIER_TREE" > q12-expected-verifier-tree.txt
+          printf '%s\n' "$actual_sha" > q12-verifier-sha.txt
+          printf '%s\n' "$actual_tree" > q12-verifier-tree.txt
 
       - name: Checkout exact frozen candidate
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -145,7 +163,7 @@ jobs:
               if value:
                   diagnostic_parts.append(value)
           evidence = {
-              'schema_version': 7,
+              'schema_version': 8,
               'gate': 'Q12',
               'source_sha': sha,
               'source_tree': tree,
@@ -157,8 +175,11 @@ jobs:
               'runner_arch': os.getenv('RUNNER_ARCH_VALUE'),
               'required_identity': 'non-root CK-NEXUS service identity',
               'runner_user': Path('q12-runner-user.txt').read_text(encoding='utf-8').strip(),
+              'expected_verifier_commit': Path('q12-expected-verifier-sha.txt').read_text(encoding='utf-8').strip(),
+              'expected_verifier_tree': Path('q12-expected-verifier-tree.txt').read_text(encoding='utf-8').strip(),
               'verifier_commit': Path('q12-verifier-sha.txt').read_text(encoding='utf-8').strip(),
               'verifier_tree': Path('q12-verifier-tree.txt').read_text(encoding='utf-8').strip(),
+              'verifier_identity_match': True,
               'delegated_root': os.environ['CKNEXUS_AGNES_CGROUP_ROOT'],
               'controllers': Path('q12-controllers.txt').read_text(encoding='utf-8').split(),
               'subtree_control': Path('q12-subtree-control.txt').read_text(encoding='utf-8').split(),
@@ -192,6 +213,8 @@ jobs:
             q12-controllers.txt
             q12-subtree-control.txt
             q12-runner-user.txt
+            q12-expected-verifier-sha.txt
+            q12-expected-verifier-tree.txt
             q12-verifier-sha.txt
             q12-verifier-tree.txt
             q12-gate-error.txt
@@ -203,6 +226,9 @@ jobs:
           python3 - <<'PY'
           import json
           x = json.load(open('Q12_CGROUP_V2.json', encoding='utf-8'))
+          assert x['verifier_identity_match'] is True
+          assert x['expected_verifier_commit'] == x['verifier_commit']
+          assert x['expected_verifier_tree'] == x['verifier_tree']
           assert x['configured_limits_verified'] is True
           assert x['active_kernel_enforcement'] is True
           assert x['actual_kernel_enforcement'] is True
