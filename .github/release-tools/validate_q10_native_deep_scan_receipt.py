@@ -75,10 +75,16 @@ def validate_receipt(
         "release_subject_manifest_sha256": contract["release_subject_manifest_sha256"],
         "application_subject_manifest_sha256": contract["application_subject_manifest_sha256"],
         "scan_mode": "deep",
+        "executor": contract["required_executor"],
+        "target_scope": contract["target_scope"],
     }
     for field, expected_value in expected.items():
         if receipt.get(field) != expected_value:
             raise ValueError(f"{field} mismatch")
+
+    lifecycle = receipt.get("native_lifecycle_completed")
+    if lifecycle != contract["native_lifecycle"]:
+        raise ValueError("native_lifecycle_completed mismatch")
 
     scan_id = receipt.get("codex_security_scan_id")
     if not isinstance(scan_id, str) or not scan_id.strip():
@@ -126,6 +132,9 @@ def _self_test(contract: dict[str, Any]) -> None:
                 "application_subject_manifest_sha256"
             ],
             "scan_mode": "deep",
+            "executor": contract["required_executor"],
+            "target_scope": contract["target_scope"],
+            "native_lifecycle_completed": contract["native_lifecycle"],
             "codex_security_scan_id": "scan-self-test",
             **artifact_names,
             **digests,
@@ -146,6 +155,24 @@ def _self_test(contract: dict[str, Any]) -> None:
         fabricated_digest = dict(receipt)
         fabricated_digest["codex_security_report_sha256"] = "sha256:" + "a" * 64
         tests.append((fabricated_digest, "fabricated artifact digest"))
+
+        wrong_executor = dict(receipt)
+        wrong_executor["executor"] = "Bandit"
+        tests.append((wrong_executor, "non-native executor"))
+
+        wrong_scope = dict(receipt)
+        wrong_scope["target_scope"] = "creator_app"
+        tests.append((wrong_scope, "partial target scope"))
+
+        incomplete_lifecycle = dict(receipt)
+        incomplete_lifecycle["native_lifecycle_completed"] = contract["native_lifecycle"][:-1]
+        tests.append((incomplete_lifecycle, "incomplete native lifecycle"))
+
+        reordered_lifecycle = dict(receipt)
+        reordered_lifecycle["native_lifecycle_completed"] = list(
+            reversed(contract["native_lifecycle"])
+        )
+        tests.append((reordered_lifecycle, "reordered native lifecycle"))
 
         for broken, label in tests:
             try:
