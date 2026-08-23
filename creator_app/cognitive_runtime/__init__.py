@@ -11,6 +11,13 @@ from .triad_debate import (
     DebateContractError,
     DebateRound,
 )
+from .triad_memory import (
+    MemoryArtifactKind,
+    TriadMemoryError,
+    TriadMemoryRecord,
+    TriadMemorySnapshot,
+    TriadMemoryStore,
+)
 from .triad_scheduler import (
     Priority,
     SchedulePlan,
@@ -29,6 +36,7 @@ __all__ = [
     "DebateContractError",
     "DebateRound",
     "EventContractError",
+    "MemoryArtifactKind",
     "PersonalCognitiveRuntime",
     "Priority",
     "ProjectionError",
@@ -37,6 +45,10 @@ __all__ = [
     "SchedulePlan",
     "StateProjector",
     "TriadAssignment",
+    "TriadMemoryError",
+    "TriadMemoryRecord",
+    "TriadMemorySnapshot",
+    "TriadMemoryStore",
     "TriadParallelScheduler",
     "TriadRole",
     "WorkItem",
