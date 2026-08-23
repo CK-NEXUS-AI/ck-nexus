@@ -17,18 +17,21 @@ _ALLOWED_OPERATIONS = {
     "text_completion",
 }
 
-_FORBIDDEN_CONTENT_MARKERS = {
-    "prompt",
-    "input.messages",
-    "output.messages",
-    "system_instructions",
-    "retrieval.query.text",
-    "raw_content",
-    "credential",
-    "credentials",
-    "api_key",
-    "authorization",
-}
+_ALLOWED_EXTRA_ATTRIBUTES = frozenset(
+    {
+        "gen_ai.response.id",
+        "gen_ai.response.model",
+        "gen_ai.response.time_to_first_chunk",
+        "gen_ai.usage.input_tokens",
+        "gen_ai.usage.output_tokens",
+        "gen_ai.usage.cache_read.input_tokens",
+        "gen_ai.usage.cache_creation.input_tokens",
+        "gen_ai.usage.reasoning.output_tokens",
+        "gen_ai.workflow.name",
+        "cknexus.workflow.id",
+        "cknexus.node.id",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -54,8 +57,9 @@ class OTelGenAIBridge:
     """Exporter-neutral metadata bridge for OpenTelemetry GenAI semantics.
 
     CK-NEXUS execution/evidence identities remain authoritative. This class only
-    creates correlation metadata and never exports telemetry by itself.
-    Prompt/output/message content and credentials are intentionally unsupported.
+    creates correlation metadata and never exports telemetry by itself. Prompt,
+    output, message content, credentials, and arbitrary extension attributes are
+    unsupported. Optional attributes use an explicit metadata allowlist.
     """
 
     @staticmethod
@@ -95,13 +99,9 @@ class OTelGenAIBridge:
             attrs["gen_ai.response.model"] = response_model
 
         for key, value in (extra_attributes or {}).items():
-            lowered = key.lower()
-            if any(marker in lowered for marker in _FORBIDDEN_CONTENT_MARKERS):
-                raise ValueError(f"sensitive_or_content_attribute_forbidden:{key}")
-            if key.startswith("cknexus.") or key.startswith("gen_ai."):
-                attrs[key] = value
-            else:
-                raise ValueError(f"unscoped_attribute_forbidden:{key}")
+            if key not in _ALLOWED_EXTRA_ATTRIBUTES:
+                raise ValueError(f"gen_ai_attribute_not_allowlisted:{key}")
+            attrs[key] = value
 
         links: dict[str, str] = {
             "task": _digest_ref(context.task_id),
