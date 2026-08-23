@@ -38,16 +38,38 @@ Legacy workflow: `POST /webhook/ck-nexus/dev-agent`.
 
 Super-Agent v2 workflow: `POST /webhook/ck-nexus/super-agent`.
 
-Both call `CK_NEXUS_AGENT_ENDPOINT`, which should normally point to the local CK-NEXUS n8n sidecar endpoint `/v1/agent`.
+Both call `CK_NEXUS_AGENT_ENDPOINT`, which should normally point to a local CK-NEXUS sidecar endpoint `/v1/agent`.
 
-The sidecar binds to `127.0.0.1:8765` by default. It validates branch/role/authority flags before forwarding specialist work. If `CK_NEXUS_INTELLIGENCE_ENDPOINT` is not configured, it returns `PROPOSAL_ONLY` instead of fabricating an executed result.
+Sidecar v1 binds to `127.0.0.1:8765` by default. AGNES Sidecar v2 may run on the development-isolated port `127.0.0.1:8776`. Both validate branch/role/authority flags before forwarding specialist work. If `CK_NEXUS_INTELLIGENCE_ENDPOINT` is not configured, the sidecar returns `PROPOSAL_ONLY` instead of fabricating an executed result.
 
 Optional runtime variables:
 - `CK_NEXUS_AGENT_ENDPOINT=http://127.0.0.1:8765/v1/agent`
 - `CK_NEXUS_INTELLIGENCE_ENDPOINT=<CK-NEXUS development intelligence endpoint>`
-- `CK_NEXUS_INTELLIGENCE_TOKEN=<brokered development token if required>`
+- `CK_NEXUS_INTELLIGENCE_TOKEN=<ephemeral brokered development token>`
+- `CK_NEXUS_TOOL_ENDPOINT=http://127.0.0.1:8766/v1/tool`
+- `CK_NEXUS_TOOL_TOKEN=<ephemeral brokered development token>`
 
 No API key or token is stored in this repository or workflow.
+
+## Groq development intelligence
+
+`ck_nexus_groq_dev_adapter.mjs` is the source-controlled Groq development adapter. It binds to localhost, uses `GROQ_API_KEY` only from the runtime environment, defaults to `openai/gpt-oss-120b`, returns sanitized upstream failure metadata, and hard-labels all results as non-production.
+
+On Windows, `start_agnes_groq_dev_stack.ps1` starts the governed AGNES development stack:
+
+- Tool Gateway: `127.0.0.1:8766`
+- Groq development adapter: `127.0.0.1:8767`
+- AGNES Sidecar v2: `127.0.0.1:8776`
+
+The launcher reads the Groq credential from a DPAPI-protected file (default `C:\CK-N8N\secure\groq-api-key.dpapi`) under the current Windows user, generates ephemeral internal tool/intelligence tokens, removes the decrypted key from the parent environment after the adapter starts, performs health checks, and writes non-secret startup evidence to `C:\CK-N8N\evidence\agnes-groq-runtime-startup-latest.json`.
+
+For scheduled startup, run the launcher under the same Windows user that created the DPAPI credential. Do not copy the encrypted credential to another user profile and assume it will decrypt.
+
+## Evidence states
+
+A model-generated `verdict: PASS` is not independent verification. Runtime execution should remain `EXECUTED_UNVERIFIED` / `UNVERIFIED_UNTIL_INDEPENDENT_CHECK` until exact source identity, tests, tool-path behavior, security review and evidence provenance are independently checked.
+
+`VERIFIED_DEVELOPMENT_CANDIDATE` is the maximum development promotion. It is not Production Ready and cannot alter Q10/Q11/Q12 state.
 
 ## Windows development install
 
