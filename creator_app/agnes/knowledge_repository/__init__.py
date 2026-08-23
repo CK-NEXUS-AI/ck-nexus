@@ -1,5 +1,7 @@
 from .catalog import KnowledgeCatalog
+from .control_fabric_snapshot import universal_control_catalog
 from .models import (
+    AdoptionMode,
     EvidenceLevel,
     KnowledgeItem,
     KnowledgeSource,
@@ -16,6 +18,7 @@ from .search_engine import (
 from .unknown_items import collect_unknown, transition_status
 
 __all__ = [
+    "AdoptionMode",
     "AttemptRecord",
     "EvidenceLevel",
     "KnowledgeCatalog",
@@ -29,4 +32,5 @@ __all__ = [
     "initial_catalog",
     "predevelopment_search",
     "transition_status",
+    "universal_control_catalog",
 ]
