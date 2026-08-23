@@ -3,9 +3,10 @@ from __future__ import annotations
 import http.client
 import json
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Callable, Protocol
+from typing import Protocol
 from urllib.parse import urlsplit
 
 
@@ -112,7 +113,11 @@ class LocalOllamaRuntime:
         if not self.model:
             return self._status(False, "OLLAMA_MODEL is not configured", checked_at)
         if self._looks_like_cloud_model(self.model):
-            return self._status(False, "cloud model names are forbidden in zero-cost mode", checked_at)
+            return self._status(
+                False,
+                "cloud model names are forbidden in zero-cost mode",
+                checked_at,
+            )
 
         endpoint = self._loopback_endpoint()
         if endpoint is None:
@@ -146,7 +151,9 @@ class LocalOllamaRuntime:
 
         selected_name = str(selected.get("name", ""))
         selected_model = str(selected.get("model", ""))
-        if self._looks_like_cloud_model(selected_name) or self._looks_like_cloud_model(selected_model):
+        if self._looks_like_cloud_model(selected_name) or self._looks_like_cloud_model(
+            selected_model
+        ):
             return self._status(False, "cloud model is forbidden in zero-cost mode", checked_at)
 
         digest = str(selected.get("digest", "")).strip()
