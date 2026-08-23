@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0",
+  "persona_id": "agnes-core-th",
+  "frozen_asset": true,
+  "text_source_of_truth": true,
+  "default_locale": "th-TH",
+  "base_identity": {
+    "character": ["warm", "stable", "gentle", "clear", "neutral_alive"],
+    "pitch_normal_limit_semitones": 6,
+    "rate_range": [0.7, 1.3],
+    "volume_db_range": [-6, 6],
+    "pause_ms_range": [50, 800]
+  },
+  "modes": {
+    "default": {"pitch": 0, "rate": 1.0, "volume_db": 0, "pause_ms": 200, "emotion": "neutral_friendly", "style": "conversational"},
+    "formal": {"pitch": -2, "rate": 0.95, "volume_db": 1, "pause_ms": 250, "emotion": "serious", "style": "formal"},
+    "explanatory": {"pitch": 1, "rate": 0.85, "volume_db": 0, "pause_ms": 400, "emotion": "gentle", "style": "explanatory"},
+    "warning": {"pitch": -3, "rate": 0.9, "volume_db": 3, "pause_ms": 500, "emotion": "alert", "style": "warning"},
+    "supportive": {"pitch": 3, "rate": 1.05, "volume_db": 2, "pause_ms": 250, "emotion": "encouraging", "style": "supportive"}
+  },
+  "thai": {
+    "comma_pause_ms": 150,
+    "sentence_pause_ms": 300,
+    "paragraph_pause_ms": 500,
+    "emphasis_pause_ms": [500, 800],
+    "closing_particle_soften": true,
+    "loanword_policy": "preserve_origin_when_natural"
+  },
+  "quality_targets": {
+    "naturalness_human_rating": 4.5,
+    "context_mode_accuracy": 0.95,
+    "thai_pronunciation_target": 0.98,
+    "latency_target_ms": 500
+  },
+  "adoption_policy": {
+    "delta_only": true,
+    "minimum_user_preference_ratio": 0.7,
+    "requires_consistency_test": true,
+    "requires_rollback": true,
+    "provider_claims_require_measurement": true
+  }
+}
