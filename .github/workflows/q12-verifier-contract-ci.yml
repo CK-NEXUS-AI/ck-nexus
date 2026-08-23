@@ -1,0 +1,84 @@
+name: Q12 Verifier Contract CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/release-tools/q12_active_cgroup_enforcement_probe.py'
+      - '.github/workflows/verify-q12-final-subject.yml'
+      - '.github/workflows/q12-verifier-contract-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Compile active-enforcement verifier
+        run: python -m py_compile .github/release-tools/q12_active_cgroup_enforcement_probe.py
+      - name: Prove active probe fails closed off staging
+        run: |
+          tmp=$(mktemp -d)
+          set +e
+          CKNEXUS_ENVIRONMENT=production python \
+            .github/release-tools/q12_active_cgroup_enforcement_probe.py \
+            --root "$tmp" > q12-negative-non-staging.json
+          rc=$?
+          set -e
+          test "$rc" -eq 2
+          python - <<'PY'
+          import json
+          x=json.load(open('q12-negative-non-staging.json',encoding='utf-8'))
+          assert x['status']=='BLOCKED'
+          PY
+      - name: Prove root cgroup mount is never an accepted delegated target
+        run: |
+          set +e
+          CKNEXUS_ENVIRONMENT=staging python \
+            .github/release-tools/q12_active_cgroup_enforcement_probe.py \
+            --root /sys/fs/cgroup > q12-negative-root.json
+          rc=$?
+          set -e
+          test "$rc" -eq 2
+          python - <<'PY'
+          import json
+          x=json.load(open('q12-negative-root.json',encoding='utf-8'))
+          assert x=={'reason':'dedicated_delegated_root_required','status':'BLOCKED'}
+          PY
+      - name: Validate authoritative workflow semantics
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text=Path('.github/workflows/verify-q12-final-subject.yml').read_text(encoding='utf-8')
+          required=(
+            'workflow_dispatch:',
+            'runs-on: [self-hosted, linux, cknexus-q12]',
+            'cgroup.subtree_control',
+            'q12-verifier-sha.txt',
+            'q12-verifier-tree.txt',
+            'q12_active_cgroup_enforcement_probe.py',
+            "'configured_limits_verified': configured_pass",
+            "'active_kernel_enforcement': active_pass",
+            "'actual_kernel_enforcement': active_pass",
+            "assert x['configured_limits_verified'] is True",
+            "assert x['active_kernel_enforcement'] is True",
+          )
+          missing=[item for item in required if item not in text]
+          if missing:
+            raise SystemExit(f'missing Q12 verifier requirements: {missing}')
+          if '\n  push:' in text:
+            raise SystemExit('authoritative Q12 verifier must be workflow_dispatch-only')
+          print('Q12_VERIFIER_CONTRACT=PASS')
+          PY
+      - name: Prove production evidence was not modified
+        if: github.event_name == 'pull_request'
+        run: |
+          git diff --exit-code "${{ github.event.pull_request.base.sha }}"...HEAD -- \
+            evidence/Q10_DEPENDENCY_AUDIT.json \
+            evidence/Q11_OPENAI_LIVE.json \
+            evidence/Q12_CGROUP_V2.json
