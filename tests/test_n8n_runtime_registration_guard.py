@@ -44,22 +44,30 @@ def _db(path: Path, rows: list[tuple[str, str, str, str, str | None]]) -> Path:
 
 
 def test_accepts_exact_short_registration(tmp_path: Path) -> None:
-    workflow = _workflow(tmp_path / "workflow.json", route="ck-nexus/super-agent", webhook_id="stable")
-    db = _db(tmp_path / "db.sqlite", [("wf", "ck-nexus/super-agent", "POST", "Mission Intake", None)])
+    workflow = _workflow(
+        tmp_path / "workflow.json", route="ck-nexus/super-agent", webhook_id="stable"
+    )
+    db = _db(
+        tmp_path / "db.sqlite", [("wf", "ck-nexus/super-agent", "POST", "Mission Intake", None)]
+    )
     result = verify(db, [workflow])
     assert result["ok"] is True
     assert result["stale"] == []
 
 
 def test_rejects_missing_short_registration(tmp_path: Path) -> None:
-    workflow = _workflow(tmp_path / "workflow.json", route="ck-nexus/super-agent", webhook_id="stable")
+    workflow = _workflow(
+        tmp_path / "workflow.json", route="ck-nexus/super-agent", webhook_id="stable"
+    )
     db = _db(tmp_path / "db.sqlite", [])
     with pytest.raises(RegistrationError, match="missing"):
         verify(db, [workflow])
 
 
 def test_rejects_stale_long_path(tmp_path: Path) -> None:
-    workflow = _workflow(tmp_path / "workflow.json", route="ck-nexus/super-agent", webhook_id="stable")
+    workflow = _workflow(
+        tmp_path / "workflow.json", route="ck-nexus/super-agent", webhook_id="stable"
+    )
     db = _db(
         tmp_path / "db.sqlite",
         [
