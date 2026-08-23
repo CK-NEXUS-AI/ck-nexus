@@ -7,9 +7,30 @@ on:
         description: 'Type the exact frozen runtime source SHA to continue'
         required: true
         type: string
+      confirm_runtime_tree:
+        description: 'Type the exact frozen runtime source tree to continue'
+        required: true
+        type: string
       confirm_runtime_subject:
         description: 'Type the exact frozen runtime subject digest to continue'
         required: true
+        type: string
+      confirm_application_subject:
+        description: 'Type the exact frozen application subject digest to continue'
+        required: true
+        type: string
+      q10_run_id:
+        description: 'Authoritative native Q10 Deep Security Scan GitHub Actions run ID'
+        required: true
+        type: string
+      q10_artifact_name:
+        description: 'Artifact name containing the authoritative native Q10 receipt and referenced artifacts'
+        required: true
+        type: string
+      q10_receipt_path:
+        description: 'Safe relative path to the native Q10 receipt inside the downloaded artifact'
+        required: true
+        default: 'Q10_NATIVE_DEEP_SCAN_RECEIPT.json'
         type: string
       smoke_model:
         description: 'Optional OpenAI smoke model override'
@@ -18,6 +39,7 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -28,6 +50,8 @@ env:
   Q11_RUNTIME_SHA: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
   Q11_RUNTIME_TREE: 0525195934f703a8becf8a39f6397b2411e0bb2e
   Q11_RUNTIME_SUBJECT: 89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52
+  Q11_APPLICATION_SUBJECT: dff89dc7fa9cd6e40480c3344f688a75383ec798929efe23f3a29c79d1186cec
+  Q10_VALIDATOR_SHA: 1c1077f49f7a92dfda206c5a00d7efd761ae7fb5
 
 jobs:
   q11:
@@ -40,39 +64,102 @@ jobs:
           path: operator
           fetch-depth: 0
 
-      - name: Enforce Q10 native Deep Scan prerequisite
-        working-directory: operator
+      - name: Confirm exact Q11 frozen identity
         env:
           CONFIRM_RUNTIME_SHA: ${{ inputs.confirm_runtime_sha }}
+          CONFIRM_RUNTIME_TREE: ${{ inputs.confirm_runtime_tree }}
           CONFIRM_RUNTIME_SUBJECT: ${{ inputs.confirm_runtime_subject }}
+          CONFIRM_APPLICATION_SUBJECT: ${{ inputs.confirm_application_subject }}
         run: |
+          set -euo pipefail
+          test "$CONFIRM_RUNTIME_SHA" = "$Q11_RUNTIME_SHA"
+          test "$CONFIRM_RUNTIME_TREE" = "$Q11_RUNTIME_TREE"
+          test "$CONFIRM_RUNTIME_SUBJECT" = "$Q11_RUNTIME_SUBJECT"
+          test "$CONFIRM_APPLICATION_SUBJECT" = "$Q11_APPLICATION_SUBJECT"
+
+      - name: Checkout pinned Q10 native receipt validator
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.Q10_VALIDATOR_SHA }}
+          path: q10-validator
+          fetch-depth: 1
+
+      - name: Verify pinned Q10 validator identity
+        working-directory: q10-validator
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$Q10_VALIDATOR_SHA"
+
+      - name: Download authoritative native Q10 artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          Q10_RUN_ID: ${{ inputs.q10_run_id }}
+          Q10_ARTIFACT_NAME: ${{ inputs.q10_artifact_name }}
+        run: |
+          set -euo pipefail
+          case "$Q10_RUN_ID" in (*[!0-9]*|'') echo 'Q10 run ID must be numeric'; exit 2;; esac
+          test -n "$Q10_ARTIFACT_NAME"
+          gh run download "$Q10_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "$Q10_ARTIFACT_NAME" \
+            --dir q10-artifact
+
+      - name: Validate native Q10 receipt and artifact bytes before provider access
+        env:
+          Q10_RUN_ID: ${{ inputs.q10_run_id }}
+          Q10_ARTIFACT_NAME: ${{ inputs.q10_artifact_name }}
+          Q10_RECEIPT_PATH: ${{ inputs.q10_receipt_path }}
+        run: |
+          set -euo pipefail
           python - <<'PY'
-          import datetime as dt
           import json
           import os
-          import re
           from pathlib import Path
 
-          expected_sha = os.environ['Q11_RUNTIME_SHA']
-          expected_subject = os.environ['Q11_RUNTIME_SUBJECT']
-          assert os.environ['CONFIRM_RUNTIME_SHA'] == expected_sha, 'exact runtime confirmation mismatch'
-          assert os.environ['CONFIRM_RUNTIME_SUBJECT'] == expected_subject, 'exact subject confirmation mismatch'
-          q10 = json.loads(Path('evidence/Q10_DEPENDENCY_AUDIT.json').read_text())
-          assert q10['source_sha'] == expected_sha, 'Q10 source SHA mismatch'
-          assert q10['release_subject_manifest_sha256'] == expected_subject, 'Q10 subject mismatch'
-          assert q10['component_result'] == 'PASS'
-          assert q10['gate_result'] == 'PASS'
-          assert q10['codex_security_deep_scan'] == 'PASS'
-          assert q10['production_promotion_allowed'] is True
-          scan_id = str(q10.get('codex_security_scan_id', '')).strip()
-          assert scan_id, 'missing required Q10 evidence field: codex_security_scan_id'
-          report_digest = str(q10.get('codex_security_report_sha256', '')).strip()
-          assert re.fullmatch(r'(?:sha256:)?[0-9a-f]{64}', report_digest), 'invalid Q10 report digest'
-          completed = str(q10.get('codex_security_completed_at', '')).strip()
-          parsed = dt.datetime.fromisoformat(completed.replace('Z', '+00:00'))
-          assert parsed.tzinfo is not None, 'Q10 completion timestamp must be timezone-aware'
-          print('Q10 prerequisite PASS on exact Q11 subject')
+          root = Path('q10-artifact').resolve()
+          relative = Path(os.environ['Q10_RECEIPT_PATH'])
+          if relative.is_absolute() or '..' in relative.parts:
+              raise SystemExit('Q10 receipt path must be safe and relative')
+          receipt_path = (root / relative).resolve()
+          if root not in receipt_path.parents and receipt_path != root:
+              raise SystemExit('Q10 receipt path escapes artifact root')
+          if not receipt_path.is_file():
+              raise SystemExit('authoritative Q10 receipt is missing')
+          Path('.q10-receipt-path').write_text(str(receipt_path) + '\n', encoding='utf-8')
           PY
+          receipt_path="$(cat .q10-receipt-path)"
+          python q10-validator/.github/release-tools/validate_q10_native_deep_scan_receipt.py \
+            "$receipt_path" --artifact-root q10-artifact
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          receipt = json.loads(Path('.q10-receipt-path').read_text().strip() and Path(Path('.q10-receipt-path').read_text().strip()).read_text())
+          fields = (
+              'codex_security_scan_id',
+              'codex_security_report_sha256',
+              'codex_security_manifest_sha256',
+              'codex_security_findings_sha256',
+              'codex_security_coverage_sha256',
+              'codex_security_completed_at',
+          )
+          authorization = {
+              'q10_run_id': int(os.environ['Q10_RUN_ID']),
+              'q10_artifact_name': os.environ['Q10_ARTIFACT_NAME'],
+              'q10_validator_sha': os.environ['Q10_VALIDATOR_SHA'],
+              'repository': os.environ['GITHUB_REPOSITORY'],
+              'source_sha': os.environ['Q11_RUNTIME_SHA'],
+              'source_tree': os.environ['Q11_RUNTIME_TREE'],
+              'release_subject_manifest_sha256': os.environ['Q11_RUNTIME_SUBJECT'],
+              'application_subject_manifest_sha256': os.environ['Q11_APPLICATION_SUBJECT'],
+              'receipt_validated_from_artifact_bytes': True,
+              **{field: receipt[field] for field in fields},
+          }
+          Path('q10-authorization.json').write_text(json.dumps(authorization, indent=2, sort_keys=True) + '\n')
+          print('Q10 authoritative receipt/artifact validation PASS')
+          PY
+          rm -f .q10-receipt-path
 
       - name: Checkout exact frozen runtime
         uses: actions/checkout@v6
@@ -108,6 +195,7 @@ jobs:
           OPENAI_SMOKE_MODEL: ${{ inputs.smoke_model }}
         run: |
           set -euo pipefail
+          test -s ../q10-authorization.json || { echo 'Q11 BLOCKED: validated Q10 authorization missing'; exit 2; }
           test -n "$OPENAI_API_KEY" || { echo 'Q11 BLOCKED: OPENAI_API_KEY secret unavailable'; exit 2; }
           set +e
           timeout 180s .venv/bin/python scripts/test_openai_live.py > ../q11-smoke.log 2>&1
@@ -150,13 +238,15 @@ jobs:
           if not match:
               raise SystemExit('safe PASS metadata missing from smoke output')
           actual_model, response_id = match.groups()
+          q10 = json.loads(Path('q10-authorization.json').read_text())
           evidence = {
-              'schema_version': 5,
+              'schema_version': 6,
               'gate': 'Q11',
               'result': 'PASS',
               'source_sha': os.environ['Q11_RUNTIME_SHA'],
               'source_tree': os.environ['Q11_RUNTIME_TREE'],
               'release_subject_manifest_sha256': os.environ['Q11_RUNTIME_SUBJECT'],
+              'application_subject_manifest_sha256': os.environ['Q11_APPLICATION_SUBJECT'],
               'github_run_id': int(os.environ['RUN_ID']),
               'provider': 'openai',
               'api_surface': 'responses',
@@ -170,6 +260,7 @@ jobs:
               'smoke_log_sha256': 'sha256:' + hashlib.sha256(log).hexdigest(),
               'response_id_sha256': 'sha256:' + hashlib.sha256(response_id.encode()).hexdigest(),
               'raw_provider_output_persisted': False,
+              'q10_authorization': q10,
               'production_promotion_allowed': True,
           }
           Path('Q11_OPENAI_LIVE.json').write_text(json.dumps(evidence, indent=2, sort_keys=True) + '\n')
@@ -180,6 +271,9 @@ jobs:
               'response_id_sha256': evidence['response_id_sha256'],
               'smoke_log_sha256': evidence['smoke_log_sha256'],
               'sentinel_observed': True,
+              'q10_run_id': q10['q10_run_id'],
+              'q10_scan_id': q10['codex_security_scan_id'],
+              'q10_report_sha256': q10['codex_security_report_sha256'],
           }, indent=2, sort_keys=True) + '\n')
           print(json.dumps(evidence, indent=2, sort_keys=True))
           Path('q11-smoke.log').unlink(missing_ok=True)
@@ -191,5 +285,6 @@ jobs:
           path: |
             Q11_OPENAI_LIVE.json
             Q11_SMOKE_SUMMARY.json
+            q10-authorization.json
           if-no-files-found: error
           retention-days: 7
