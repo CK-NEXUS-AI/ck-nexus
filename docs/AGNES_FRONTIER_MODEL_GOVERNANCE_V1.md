@@ -33,6 +33,16 @@ ModelDescriptor can bind model repository, revision SHA, weight digest, base mod
 
 Attestation states are CLAIMED, MEASURED and VERIFIED. Production-lane routing requires VERIFIED plus revision_sha and weight_digest.
 
+## Capability attestation
+
+Capability claims are not treated as verification. `attest_capabilities()` accepts explicit per-capability checks and produces a deterministic digest.
+
+- no passing checks -> CLAIMED
+- partial passing checks -> MEASURED
+- every claimed capability passing with evidence IDs -> VERIFIED
+
+A behavioral fingerprint is also bound to provider/model/runtime identity, revision, weight digest, quantization and measured scalar metrics. A changed revision or weight identity therefore produces a different fingerprint and should invalidate stale behavioral evidence.
+
 ## Risk classes
 
 - STANDARD
@@ -44,6 +54,22 @@ Attestation states are CLAIMED, MEASURED and VERIFIED. Production-lane routing r
 Known safety-removal identity markers such as abliterated/obliterated/uncensored are conservatively elevated to SAFETY_MODIFIED.
 
 Restricted models are denied from development/evaluation/production routing and can enter only the RED_TEAM lane, where quarantine remains required.
+
+## OpenAI-compatible provider boundary
+
+`OpenAICompatibleProviderAdapter` provides a provider-neutral boundary for OpenAI-compatible runtimes such as remote hosted services or local compatible servers.
+
+Security properties:
+
+- remote base URLs require HTTPS
+- embedded URL credentials are rejected
+- query/fragment credential patterns are rejected
+- local HTTP requires explicit loopback-only opt-in
+- model/provider/runtime identities must match the registered endpoint
+- unknown model IDs are rejected
+- the adapter carries only a `credential_ref`; raw secret material is resolved behind the injected transport / Credential Broker boundary
+
+The adapter does not read environment variables, API keys or secret stores directly.
 
 ## Qwen3.8 / OBLITERATED handling
 
