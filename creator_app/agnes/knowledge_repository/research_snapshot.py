@@ -104,6 +104,25 @@ def initial_catalog() -> KnowledgeCatalog:
             tags=frozenset({"voice", "cloud", "adapter_candidate"}),
         ),
         KnowledgeItem(
+            item_id="voice.openai",
+            name="OpenAI Audio speech",
+            category="voice",
+            summary="Hosted speech generation with instructions, speed control, and custom voices.",
+            usage="Use through the existing provider adapter rather than building a speech model.",
+            status=KnowledgeStatus.ADOPTABLE,
+            sources=(
+                _source(
+                    "openai.audio.speech",
+                    "OpenAI Audio API speech reference",
+                    "https://platform.openai.com/docs/api-reference/audio",
+                    "official_docs",
+                ),
+            ),
+            relevance=("AGNES voice persona", "prosody instructions", "provider routing"),
+            capabilities=("text_to_speech", "voice_instructions", "speed_control"),
+            tags=frozenset({"voice", "cloud", "adapter_candidate"}),
+        ),
+        KnowledgeItem(
             item_id="voice.piper",
             name="Piper text to speech",
             category="voice",
