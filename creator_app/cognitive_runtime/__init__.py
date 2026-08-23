@@ -21,6 +21,16 @@ from .triad_evidence import (
     EvidenceVerdict,
     TriadEvidenceEvaluator,
 )
+from .triad_learning import (
+    LearningCandidate,
+    LearningConsolidationError,
+    LearningConsolidationPolicy,
+    LearningConsolidationResult,
+    LearningDecision,
+    LearningLedgerRecord,
+    LearningLedgerSnapshot,
+    TriadLearningConsolidator,
+)
 from .triad_memory import (
     MemoryArtifactKind,
     TriadMemoryError,
@@ -62,6 +72,13 @@ __all__ = [
     "EvidenceObservation",
     "EvidenceRelation",
     "EvidenceVerdict",
+    "LearningCandidate",
+    "LearningConsolidationError",
+    "LearningConsolidationPolicy",
+    "LearningConsolidationResult",
+    "LearningDecision",
+    "LearningLedgerRecord",
+    "LearningLedgerSnapshot",
     "MemoryArtifactKind",
     "PersonalCognitiveRuntime",
     "Priority",
@@ -73,6 +90,7 @@ __all__ = [
     "StateProjector",
     "TriadAssignment",
     "TriadEvidenceEvaluator",
+    "TriadLearningConsolidator",
     "TriadMemoryError",
     "TriadMemoryRecord",
     "TriadMemorySnapshot",
