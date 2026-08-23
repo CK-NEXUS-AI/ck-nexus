@@ -1,4 +1,5 @@
 from dataclasses import replace
+from hashlib import sha256
 
 import pytest
 
@@ -15,6 +16,7 @@ from creator_app.cognitive_runtime.triad_evidence import (
     EvidenceObservation,
     EvidenceRelation,
     EvidenceVerdict,
+    PublisherAttestation,
     TriadEvidenceEvaluator,
 )
 from creator_app.cognitive_runtime.triad_memory import TriadMemoryStore
@@ -102,6 +104,23 @@ def supporting_evidence() -> tuple[EvidenceObservation, ...]:
     )
 
 
+def attestation(publisher_id: str, authority_id: str) -> PublisherAttestation:
+    digest = sha256(f"{publisher_id}:{authority_id}:{SUBJECT}".encode()).hexdigest()
+    return PublisherAttestation(
+        publisher_id=publisher_id,
+        authority_id=authority_id,
+        subject_sha=SUBJECT,
+        attestation_digest=digest,
+    )
+
+
+def independent_attestations() -> tuple[PublisherAttestation, ...]:
+    return (
+        attestation("publisher-a", "authority-a"),
+        attestation("publisher-b", "authority-b"),
+    )
+
+
 def test_evaluator_can_only_reach_measured_not_verified() -> None:
     memory = snapshot()
     evaluator = TriadEvidenceEvaluator(SUBJECT)
@@ -111,6 +130,7 @@ def test_evaluator_can_only_reach_measured_not_verified() -> None:
         expected_memory_head_digest=memory.head_digest,
         evidence=supporting_evidence(),
         evaluator_identity="triad-evaluator-1",
+        publisher_attestations=independent_attestations(),
     )
 
     assert receipt.verdict is EvidenceVerdict.MEASURED_NOT_VERIFIED
@@ -138,6 +158,7 @@ def test_contradiction_dominates_support_score() -> None:
         expected_memory_head_digest=memory.head_digest,
         evidence=evidence,
         evaluator_identity="triad-evaluator-1",
+        publisher_attestations=independent_attestations(),
     )
 
     assert receipt.verdict is EvidenceVerdict.CONTRADICTED
@@ -158,6 +179,7 @@ def test_safety_veto_rejects_candidate() -> None:
         expected_memory_head_digest=memory.head_digest,
         evidence=evidence,
         evaluator_identity="triad-evaluator-1",
+        publisher_attestations=independent_attestations(),
     )
 
     assert receipt.verdict is EvidenceVerdict.REJECTED
@@ -173,6 +195,7 @@ def test_missing_critique_blocks_promotion() -> None:
         expected_memory_head_digest=memory.head_digest,
         evidence=supporting_evidence(),
         evaluator_identity="triad-evaluator-1",
+        publisher_attestations=independent_attestations(),
     )
 
     assert receipt.verdict is EvidenceVerdict.BLOCKED
@@ -188,6 +211,7 @@ def test_blocking_critique_blocks_promotion() -> None:
         expected_memory_head_digest=memory.head_digest,
         evidence=supporting_evidence(),
         evaluator_identity="triad-evaluator-1",
+        publisher_attestations=independent_attestations(),
     )
 
     assert receipt.verdict is EvidenceVerdict.BLOCKED
@@ -207,6 +231,9 @@ def test_independent_publisher_quorum_is_required() -> None:
         expected_memory_head_digest=memory.head_digest,
         evidence=evidence,
         evaluator_identity="triad-evaluator-1",
+        publisher_attestations=(
+            attestation("same-publisher", "authority-one"),
+        ),
     )
 
     assert receipt.verdict is EvidenceVerdict.BLOCKED
@@ -230,6 +257,7 @@ def test_untrusted_support_does_not_count_as_support() -> None:
         expected_memory_head_digest=memory.head_digest,
         evidence=evidence,
         evaluator_identity="triad-evaluator-1",
+        publisher_attestations=independent_attestations(),
     )
 
     assert receipt.verdict is EvidenceVerdict.BLOCKED
@@ -263,6 +291,7 @@ def test_stale_memory_head_is_rejected() -> None:
             expected_memory_head_digest="0" * 64,
             evidence=supporting_evidence(),
             evaluator_identity="triad-evaluator-1",
+            publisher_attestations=independent_attestations(),
         )
 
 
@@ -280,18 +309,21 @@ def test_candidate_must_match_exact_memory_artifact() -> None:
             expected_memory_head_digest=memory.head_digest,
             evidence=supporting_evidence(),
             evaluator_identity="triad-evaluator-1",
+            publisher_attestations=independent_attestations(),
         )
 
 
 def test_receipt_digest_is_independent_of_evidence_input_order() -> None:
     memory = snapshot()
     evaluator = TriadEvidenceEvaluator(SUBJECT)
+    attestations = independent_attestations()
     left = evaluator.evaluate(
         candidate(),
         snapshot=memory,
         expected_memory_head_digest=memory.head_digest,
         evidence=supporting_evidence(),
         evaluator_identity="triad-evaluator-1",
+        publisher_attestations=attestations,
     )
     right = evaluator.evaluate(
         candidate(),
@@ -299,6 +331,7 @@ def test_receipt_digest_is_independent_of_evidence_input_order() -> None:
         expected_memory_head_digest=memory.head_digest,
         evidence=tuple(reversed(supporting_evidence())),
         evaluator_identity="triad-evaluator-1",
+        publisher_attestations=tuple(reversed(attestations)),
     )
 
     assert left == right
