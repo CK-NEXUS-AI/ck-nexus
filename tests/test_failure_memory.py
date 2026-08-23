@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from creator_app.reliability import (
@@ -175,4 +177,30 @@ def test_jsonl_rejects_protection_before_observation() -> None:
         + '}\n'
     )
     with pytest.raises(ValueError, match="before a matching failure observation"):
+        FailureLedger.from_jsonl(forged)
+
+
+def test_jsonl_rejects_observed_payload_fingerprint_mismatch() -> None:
+    ledger = FailureLedger()
+    ledger.observe(_observation())
+    row = json.loads(ledger.to_jsonl())
+    row["payload"]["component"] = "tampered_component"
+    forged = json.dumps(row, separators=(",", ":")) + "\n"
+    with pytest.raises(ValueError, match="fingerprint does not match payload"):
+        FailureLedger.from_jsonl(forged)
+
+
+def test_jsonl_rejects_noncanonical_normalized_signature() -> None:
+    ledger = FailureLedger()
+    ledger.observe(_observation())
+    row = json.loads(ledger.to_jsonl())
+    row["payload"]["normalized_signature"] = "TIMEOUT request 999"
+    row["fingerprint"] = fingerprint_failure(
+        component=row["payload"]["component"],
+        operation=row["payload"]["operation"],
+        error_type=row["payload"]["error_type"],
+        safe_signature=row["payload"]["normalized_signature"],
+    )
+    forged = json.dumps(row, separators=(",", ":")) + "\n"
+    with pytest.raises(ValueError, match="normalized_signature must be canonical"):
         FailureLedger.from_jsonl(forged)
