@@ -229,7 +229,7 @@ def test_same_semantic_delta_is_normalized_and_blocked_on_repeat() -> None:
     assert second.reasons == ("duplicate_learning_delta",)
 
 
-def test_supersession_requires_prior_learning_and_new_delta() -> None:
+def test_supersession_requires_prior_learning_and_preserves_history() -> None:
     snapshot, pulse = snapshot20()
     consolidator = TriadLearningConsolidator(SUBJECT)
 
@@ -247,20 +247,22 @@ def test_supersession_requires_prior_learning_and_new_delta() -> None:
 
     first = propose(consolidator, snapshot, pulse)
     assert first.candidate is not None
-    with pytest.raises(
-        LearningConsolidationError,
-        match="supersession_requires_new_delta",
-    ):
-        consolidator.consolidate(
-            snapshot=snapshot,
-            expected_pulse_head_digest=snapshot.head_digest,
-            source_pulse_id=pulse.pulse_id,
-            capability="different-capability",
-            insight="different insight",
-            expected_delta="different delta",
-            supersedes_learning_id=first.candidate.learning_id,
-            known_fingerprints=(),
-        )
+    second = propose(
+        consolidator,
+        snapshot,
+        pulse,
+        capability="retrieval-quality-v2",
+        insight="rerank evidence with explicit contradiction quarantine",
+        expected_delta="improve precision without hiding conflicting evidence",
+        supersedes_learning_id=first.candidate.learning_id,
+    )
+
+    assert second.decision is LearningDecision.PROPOSE
+    assert second.candidate is not None
+    ledger = consolidator.ledger_snapshot()
+    assert len(ledger.records) == 2
+    assert ledger.records[1].supersedes_learning_id == first.candidate.learning_id
+    assert ledger.records[0].learning_id == first.candidate.learning_id
 
 
 def test_ledger_is_append_only_and_tamper_evident() -> None:
