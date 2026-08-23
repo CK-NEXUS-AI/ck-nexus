@@ -10,7 +10,9 @@ from creator_app.reliability import (
 )
 
 
-def _observation(signature: str = "timeout request 123 on worker abcdef123456") -> FailureObservation:
+def _observation(
+    signature: str = "timeout request 123 on worker abcdef123456",
+) -> FailureObservation:
     return FailureObservation(
         component="ai_gateway",
         operation="invoke",
