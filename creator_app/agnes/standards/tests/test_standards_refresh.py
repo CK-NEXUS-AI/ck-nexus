@@ -1,10 +1,10 @@
 from creator_app.agnes.standards import (
-    ProtocolRegistry,
     CompatibilityResult,
+    ProtocolRegistry,
+    StandardStatus,
+    StandardsBaseline,
     ToolGuardrailCoverage,
     ToolKind,
-    StandardsBaseline,
-    StandardStatus,
     build_genai_span_attributes,
 )
 
@@ -61,3 +61,25 @@ def test_genai_attributes_do_not_require_raw_content():
     assert attrs["ck.run.id"] == "run-1"
     assert attrs["ck.evidence.id"] == "evd-1"
     assert all("prompt" not in key for key in attrs)
+
+
+def test_genai_extra_rejects_raw_content_and_unknown_ck_keys():
+    attrs = build_genai_span_attributes(
+        operation_name="chat",
+        provider_name="example",
+        model_name="model",
+        ck_run_id="run-1",
+        extra={
+            "gen_ai.input.messages": "raw private prompt",
+            "gen_ai.tool.arguments": "raw private arguments",
+            "ck.secret.value": "not allowed",
+            "gen_ai.response.id": "response-1",
+            "ck.correlation.id": "correlation-1",
+        },
+    )
+
+    assert "gen_ai.input.messages" not in attrs
+    assert "gen_ai.tool.arguments" not in attrs
+    assert "ck.secret.value" not in attrs
+    assert attrs["gen_ai.response.id"] == "response-1"
+    assert attrs["ck.correlation.id"] == "correlation-1"
