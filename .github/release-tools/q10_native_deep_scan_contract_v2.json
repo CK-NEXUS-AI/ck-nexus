@@ -18,9 +18,13 @@
   ],
   "required_receipt_fields": [
     "codex_security_scan_id",
+    "codex_security_report_artifact",
     "codex_security_report_sha256",
+    "codex_security_manifest_artifact",
     "codex_security_manifest_sha256",
+    "codex_security_findings_artifact",
     "codex_security_findings_sha256",
+    "codex_security_coverage_artifact",
     "codex_security_coverage_sha256",
     "codex_security_completed_at",
     "coverage_complete",
@@ -31,6 +35,7 @@
     "gate_result",
     "production_promotion_allowed"
   ],
+  "artifact_binding_rule": "All native report/manifest/findings/coverage digest fields must be recomputed from the referenced artifact bytes under a trusted artifact root (or equivalently reconciled to trusted server-side artifact digests) before any Q10 promotion decision.",
   "pass_invariants": {
     "coverage_complete": true,
     "release_policy_findings_resolved": true,
