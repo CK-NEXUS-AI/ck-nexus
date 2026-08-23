@@ -319,6 +319,34 @@ class FailureLedger:
         if not re.fullmatch(r"[0-9a-f]{64}", event.fingerprint):
             raise ValueError("failure fingerprint must be a lowercase SHA-256 digest")
         _require_non_secret(event.recorded_at, "recorded_at")
+
+        required_fields = {
+            FailureEventType.OBSERVED: (
+                "component", "operation", "error_type", "normalized_signature",
+                "subject_sha", "evidence_digest",
+            ),
+            FailureEventType.PROTECTED: (
+                "root_cause", "fix_ref", "regression_test_id", "verifier_id",
+                "verified_subject_sha", "proof_digest",
+            ),
+        }[event.event_type]
+        missing = [field for field in required_fields if field not in event.payload]
+        if missing:
+            raise ValueError(
+                f"{event.event_type.value} failure event missing required payload fields: "
+                + ", ".join(missing)
+            )
+        for field in required_fields:
+            value = event.payload[field]
+            if not isinstance(value, str):
+                raise ValueError(f"failure event payload field {field} must be a string")
+            _require_non_secret(value, field)
+
+        if event.event_type is FailureEventType.PROTECTED and not self._observations(
+            event.fingerprint
+        ):
+            raise ValueError("cannot replay protection before a matching failure observation")
+
         encoded_payload = json.dumps(event.payload, sort_keys=True, default=str)
         _require_non_secret(encoded_payload, "payload")
         self._events.append(event)
