@@ -17,6 +17,9 @@
     "generated_report_md"
   ],
   "required_receipt_fields": [
+    "executor",
+    "target_scope",
+    "native_lifecycle_completed",
     "codex_security_scan_id",
     "codex_security_report_artifact",
     "codex_security_report_sha256",
