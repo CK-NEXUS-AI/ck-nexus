@@ -21,6 +21,15 @@ class EvidenceLevel(StrEnum):
     VERIFIED = "verified"
 
 
+class AdoptionMode(StrEnum):
+    """How CK-NEXUS should consume a capability without granting runtime authority."""
+
+    ADOPT = "adopt"
+    WRAP = "wrap"
+    STUDY = "study"
+    AVOID = "avoid"
+
+
 @dataclass(frozen=True, slots=True)
 class KnowledgeSource:
     source_id: str
@@ -42,6 +51,7 @@ class KnowledgeItem:
     usage: str
     status: KnowledgeStatus
     sources: tuple[KnowledgeSource, ...]
+    adoption_mode: AdoptionMode = AdoptionMode.STUDY
     relevance: tuple[str, ...] = ()
     observations: tuple[str, ...] = ()
     capabilities: tuple[str, ...] = ()
