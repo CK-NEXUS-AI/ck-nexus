@@ -16,6 +16,7 @@ from .durable_controls import (
 )
 from .execution_receipt import ExecutionReceipt, VerificationState
 from .memory_quality import MemoryQualityEntry, MemoryQualityStatus
+from .progress_guard import NoProgressGuard, ProgressDecision, ProgressSample
 from .sandbox_session import SandboxSession, SandboxSessionState
 from .workload_identity import WorkloadIdentity
 
@@ -34,6 +35,9 @@ __all__ = [
     "VerificationState",
     "MemoryQualityEntry",
     "MemoryQualityStatus",
+    "NoProgressGuard",
+    "ProgressDecision",
+    "ProgressSample",
     "SandboxSession",
     "SandboxSessionState",
     "WorkloadIdentity",
