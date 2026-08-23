@@ -61,17 +61,17 @@ def test_scheduler_honors_dependencies_and_completed_capabilities() -> None:
     assert "done" in plan.deferred_work_ids
 
 
-def test_duplicate_capability_is_deferred_not_run_in_parallel() -> None:
+def test_best_duplicate_capability_candidate_wins_regardless_of_input_order() -> None:
     scheduler = TriadParallelScheduler(SUBJECT, min_streams=1, max_streams=9)
     plan = scheduler.plan(
         (
-            item("first", "same-cap", Priority.P1, evidence_gain=3),
-            item("second", "same-cap", Priority.P1),
+            item("lower", "same-cap", Priority.P1),
+            item("higher", "same-cap", Priority.P1, evidence_gain=3, unblock_gain=2),
         )
     )
     assert len(plan.assignments) == 1
-    assert plan.assignments[0].work_id == "first"
-    assert plan.deferred_work_ids == ("second",)
+    assert plan.assignments[0].work_id == "higher"
+    assert plan.deferred_work_ids == ("lower",)
 
 
 def test_active_capability_prevents_duplicate_workstream() -> None:
