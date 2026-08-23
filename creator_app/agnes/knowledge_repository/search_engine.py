@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from .catalog import KnowledgeCatalog
 from .models import AdoptionMode, KnowledgeItem, KnowledgeStatus, SearchDecision
 
+_LEGACY_REUSE_TAGS = frozenset({"reuse_first", "adapter_candidate"})
+
 
 @dataclass(frozen=True, slots=True)
 class AttemptRecord:
@@ -13,14 +15,17 @@ class AttemptRecord:
     last_reason: str = ""
 
 
+def _is_reusable(item: KnowledgeItem) -> bool:
+    if item.status not in {KnowledgeStatus.ADOPTABLE, KnowledgeStatus.ADOPTED}:
+        return False
+    if item.adoption_mode in {AdoptionMode.ADOPT, AdoptionMode.WRAP}:
+        return True
+    return bool(item.tags & _LEGACY_REUSE_TAGS)
+
+
 def predevelopment_search(catalog: KnowledgeCatalog, query: str) -> SearchDecision:
     matches = catalog.search(query)
-    reusable = tuple(
-        item
-        for item in matches
-        if item.status in {KnowledgeStatus.ADOPTABLE, KnowledgeStatus.ADOPTED}
-        and item.adoption_mode in {AdoptionMode.ADOPT, AdoptionMode.WRAP}
-    )
+    reusable = tuple(item for item in matches if _is_reusable(item))
     if reusable:
         return SearchDecision(
             query=query,
