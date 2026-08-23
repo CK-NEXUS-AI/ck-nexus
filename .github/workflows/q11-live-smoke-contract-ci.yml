@@ -30,33 +30,56 @@ jobs:
           required = (
               'workflow_dispatch:',
               'confirm_runtime_sha:',
+              'confirm_runtime_tree:',
               'confirm_runtime_subject:',
+              'confirm_application_subject:',
+              'q10_run_id:',
+              'q10_artifact_name:',
+              'q10_receipt_path:',
               '39f5c1adb9d761ab418cf088ff1f051b1ca731d1',
               '0525195934f703a8becf8a39f6397b2411e0bb2e',
               '89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52',
-              "codex_security_deep_scan'] == 'PASS'",
-              "production_promotion_allowed'] is True",
-              'codex_security_report_sha256',
+              'dff89dc7fa9cd6e40480c3344f688a75383ec798929efe23f3a29c79d1186cec',
+              '1c1077f49f7a92dfda206c5a00d7efd761ae7fb5',
+              'permissions:\n  actions: read\n  contents: read',
+              'gh run download "$Q10_RUN_ID"',
+              'validate_q10_native_deep_scan_receipt.py',
+              '--artifact-root q10-artifact',
+              "'receipt_validated_from_artifact_bytes': True",
+              'q10-authorization.json',
               'timeout 180s',
               "grep -q 'P0-AI-001 PASS'",
               "grep -q 'CK-NEXUS-P0-SMOKE-PASS'",
               'credential literal detected in captured smoke output',
               "raw_provider_output_persisted': False",
+              "'q10_authorization': q10",
           )
           missing = [item for item in required if item not in text]
           if missing:
               raise SystemExit(f'missing Q11 hardening requirements: {missing}')
+          if 'evidence/Q10_DEPENDENCY_AUDIT.json' in text:
+              raise SystemExit('committed Q10 status JSON must not authorize provider access')
           if 'cat ../q11-smoke.log' in text:
               raise SystemExit('raw provider output must not be echoed')
-          q10_index = text.index('Enforce Q10 native Deep Scan prerequisite')
+
+          confirmation_index = text.index('Confirm exact Q11 frozen identity')
+          download_index = text.index('Download authoritative native Q10 artifact')
+          q10_validation_index = text.index('Validate native Q10 receipt and artifact bytes before provider access')
+          runtime_index = text.index('Checkout exact frozen runtime')
           provider_index = text.index('Run live provider sentinel smoke')
-          if q10_index >= provider_index:
-              raise SystemExit('Q10 prerequisite must execute before provider access')
+          if not (confirmation_index < download_index < q10_validation_index < runtime_index < provider_index):
+              raise SystemExit('Q11 prerequisite ordering must fail closed before provider access')
+
+          provider_step = text[provider_index:]
+          if 'test -s ../q10-authorization.json' not in provider_step:
+              raise SystemExit('provider step must require validated Q10 authorization')
+
           upload = text.split('- uses: actions/upload-artifact@v4', maxsplit=1)[1]
           if 'q11-smoke.log' in upload:
               raise SystemExit('raw provider output must not be persisted as an artifact')
-          if 'Q11_SMOKE_SUMMARY.json' not in upload:
-              raise SystemExit('sanitized Q11 summary artifact is required')
+          for artifact in ('Q11_OPENAI_LIVE.json', 'Q11_SMOKE_SUMMARY.json', 'q10-authorization.json'):
+              if artifact not in upload:
+                  raise SystemExit(f'missing sanitized Q11 artifact: {artifact}')
           print('Q11_LIVE_SMOKE_CONTRACT=PASS')
           PY
       - name: Prove production evidence was not modified
