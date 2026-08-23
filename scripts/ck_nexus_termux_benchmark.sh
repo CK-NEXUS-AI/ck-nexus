@@ -40,6 +40,12 @@ require_command python
 require_command awk
 require_command sort
 require_command sha256sum
+require_command git
+
+if [ "$ROUNDS" -lt 3 ]; then
+  echo "ROUNDS must be at least 3 for claim evidence" >&2
+  exit 2
+fi
 
 if curl -fsS "$OLLAMA_URL/api/tags" >/dev/null 2>&1; then
   echo "ollama is already running; stop it before this benchmark to keep process measurements isolated" >&2
@@ -72,6 +78,17 @@ system_mem_used_mib() {
   ' /proc/meminfo
 }
 
+mem_total_kib() {
+  awk '/^MemTotal:/{print $2; exit}' /proc/meminfo
+}
+
+android_property() {
+  local key="$1"
+  if command -v getprop >/dev/null 2>&1; then
+    getprop "$key" 2>/dev/null || true
+  fi
+}
+
 wait_http() {
   local url="$1"
   local attempts="${2:-30}"
@@ -87,7 +104,7 @@ wait_http() {
 
 latency_stats() {
   local file="$1"
-  local avg median count
+  local avg median count worst
   count="$(wc -l < "$file" | tr -d ' ')"
   avg="$(awk '{sum+=$1} END {if(NR) printf "%.2f", sum/NR; else print "0"}' "$file")"
   median="$(sort -n "$file" | awk '
@@ -98,7 +115,8 @@ latency_stats() {
       else { printf "%.2f", (values[NR/2] + values[NR/2+1]) / 2 }
     }
   ')"
-  printf '%s,%s,%s\n' "$count" "$avg" "$median"
+  worst="$(sort -n "$file" | tail -n 1)"
+  printf '%s,%s,%s,%s\n' "$count" "$avg" "$median" "$worst"
 }
 
 http_post_timed() {
@@ -122,8 +140,16 @@ http_post_timed() {
   esac
 }
 
+SUBJECT_COMMIT="$(git rev-parse HEAD)"
+MEM_TOTAL_KIB="$(mem_total_kib)"
+ANDROID_RELEASE="$(android_property ro.build.version.release)"
+ANDROID_SDK="$(android_property ro.build.version.sdk)"
+DEVICE_MODEL="$(android_property ro.product.model)"
+DEVICE_MANUFACTURER="$(android_property ro.product.manufacturer)"
+
 printf '%s\n' "CK-NEXUS Termux benchmark" > "$RUN_DIR/README.txt"
-printf 'run_id=%s\nmodel=%s\nrounds=%s\nport=%s\n' "$RUN_ID" "$MODEL" "$ROUNDS" "$PORT" >> "$RUN_DIR/README.txt"
+printf 'run_id=%s\nmodel=%s\nrounds=%s\nport=%s\nsubject_commit=%s\n' \
+  "$RUN_ID" "$MODEL" "$ROUNDS" "$PORT" "$SUBJECT_COMMIT" >> "$RUN_DIR/README.txt"
 uname -a > "$RUN_DIR/uname.txt"
 cat /proc/meminfo > "$RUN_DIR/meminfo_before.txt"
 python --version > "$RUN_DIR/python_version.txt" 2>&1
@@ -166,7 +192,7 @@ while [ "$i" -le "$ROUNDS" ]; do
   i=$((i+1))
 done
 
-IFS=',' read -r OLLAMA_COUNT OLLAMA_AVG_MS OLLAMA_MEDIAN_MS <<EOF
+IFS=',' read -r OLLAMA_COUNT OLLAMA_AVG_MS OLLAMA_MEDIAN_MS OLLAMA_WORST_MS <<EOF
 $(latency_stats "$RUN_DIR/ollama_latency_ms.txt")
 EOF
 
@@ -227,7 +253,7 @@ while [ "$i" -le "$ROUNDS" ]; do
   i=$((i+1))
 done
 
-IFS=',' read -r CK_COUNT CK_AVG_MS CK_MEDIAN_MS <<EOF
+IFS=',' read -r CK_COUNT CK_AVG_MS CK_MEDIAN_MS CK_WORST_MS <<EOF
 $(latency_stats "$RUN_DIR/ck_latency_ms.txt")
 EOF
 
@@ -240,16 +266,25 @@ import json
 from pathlib import Path
 
 summary = {
-    "schema": "ck-nexus.termux-benchmark.v1",
-    "claim": "android_4gb_runtime",
+    "schema": "ck-nexus.termux-benchmark.v2",
+    "claim_id": "CLAIM-MOBILE-001",
     "claim_status": "MEASURED_NOT_VERIFIED",
     "run_id": "$RUN_ID",
+    "subject_commit": "$SUBJECT_COMMIT",
     "model": "$MODEL",
     "rounds": int("$ROUNDS"),
+    "device": {
+        "mem_total_kib": int("$MEM_TOTAL_KIB"),
+        "android_release": "$ANDROID_RELEASE",
+        "android_sdk": "$ANDROID_SDK",
+        "manufacturer": "$DEVICE_MANUFACTURER",
+        "model": "$DEVICE_MODEL",
+    },
     "endpoints": {
         "ollama": "$OLLAMA_URL/api/generate",
         "ck_nexus": "$CK_NEXUS_URL",
     },
+    "layers_completed": ["local_api", "integrated_local_provider"],
     "memory": {
         "baseline_system_used_mib": float("$BASELINE_SYSTEM_USED_MIB"),
         "ollama_only_rss_kib": int("$OLLAMA_ONLY_RSS_KIB"),
@@ -263,16 +298,21 @@ summary = {
     "latency_ms": {
         "ollama_direct_average": float("$OLLAMA_AVG_MS"),
         "ollama_direct_median": float("$OLLAMA_MEDIAN_MS"),
+        "ollama_direct_worst_case": float("$OLLAMA_WORST_MS"),
         "ck_nexus_average": float("$CK_AVG_MS"),
         "ck_nexus_median": float("$CK_MEDIAN_MS"),
+        "ck_nexus_worst_case": float("$CK_WORST_MS"),
         "average_overhead": float("$LATENCY_OVERHEAD_AVG_MS"),
     },
+    "measurement_method": "Visible process VmRSS plus /proc/meminfo system memory; latency from curl time_total after warm-up.",
     "limitations": [
         "Process RSS is not Android PSS and must not be presented as full-device memory consumption.",
         "Ollama RSS is summed from visible processes whose command contains ollama.",
         "The CK-NEXUS process RSS excludes Ollama model-process memory.",
+        "Termux and Android may restrict visibility of process metrics under /proc.",
         "A single device run cannot establish performance for all Android 4 GB devices.",
-        "Promotion to VERIFIED requires device identity, repeated runs, evidence digest, and independent review.",
+        "This run does not by itself prove network-off offline behavior.",
+        "Promotion to VERIFIED requires independent review and any additional protocol layers required by the claim scope.",
     ],
 }
 Path("$RUN_DIR/summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
