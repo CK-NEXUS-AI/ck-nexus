@@ -5,15 +5,16 @@
 - Universal Credential Broker
 - Sticky Free Fallback Key Pool (เหลือ <=85% -> FREE_ONLY)
 - Universal Credit Telemetry Fabric
+- Verified Zero-Cost Local Ollama Runtime
 - Capability Registry
 - Auto-Connect Manager
 - Gmail Universal Bridge
-- Local Ollama fallback when paid APIs are disabled
 
 วิธีใช้:
   python ai_provider_manager.py start    # เริ่มทุกระบบ + telemetry loop
   python ai_provider_manager.py status   # แสดงสถานะ
   python ai_provider_manager.py credit   # ดึง credit telemetry หนึ่งรอบ
+  python ai_provider_manager.py local    # ตรวจ zero-cost local runtime
   python ai_provider_manager.py scan     # สแกนอีเมล Gmailใหม่
 """
 
@@ -35,6 +36,8 @@ from creator_app.credentials import (
     CredentialBroker,
     CreditTelemetryFabric,
     FreeFallbackKeyPool,
+    LocalOllamaRuntime,
+    ZeroCostRuntimeUnavailable,
 )
 
 
@@ -47,6 +50,7 @@ class AIProviderManager:
         self.credit_telemetry = (
             CreditTelemetryFabric(self.keypool) if self.keypool is not None else None
         )
+        self.zero_cost_runtime = LocalOllamaRuntime.from_environment()
         self.registry = CapabilityRegistry()
         self.auto_connect = AutoConnectManager(
             config=AutoConnectConfig(
@@ -80,6 +84,12 @@ class AIProviderManager:
 
         if self.credit_telemetry:
             self.refresh_credit_telemetry()
+
+        local_status = self.zero_cost_runtime.status()
+        if local_status.ready:
+            print(f"🖥️ Zero-Cost Runtime: ✅ {local_status.model} — local verified")
+        else:
+            print(f"🖥️ Zero-Cost Runtime: ⚪ {local_status.reason}")
 
         gmail_id = os.getenv("GOOGLE_CLIENT_ID", "")
         gmail_refresh = os.getenv("GOOGLE_REFRESH_TOKEN", "")
@@ -131,14 +141,9 @@ class AIProviderManager:
         }
         return {"enabled": True, "providers": result}
 
-    def _local_fallback_ready(self) -> bool:
-        enabled = os.getenv("CKNEXUS_OLLAMA_ENABLED", "false").strip().lower()
-        return enabled in {"1", "true", "yes", "on"} and bool(
-            os.getenv("OLLAMA_MODEL", "").strip()
-        )
-
     def status(self) -> dict:
         """แสดงสถานะทุกระบบโดยไม่เปิดเผย credential."""
+        local_status = self.zero_cost_runtime.status()
         result = {
             "started": self._started,
             "gmail": {
@@ -151,9 +156,13 @@ class AIProviderManager:
             "providers": [],
             "auto_connect": self.auto_connect.status() if self.auto_connect else None,
             "local_fallback": {
-                "provider": "ollama",
-                "ready": self._local_fallback_ready(),
-                "model_configured": bool(os.getenv("OLLAMA_MODEL", "").strip()),
+                "provider": local_status.provider,
+                "enabled": local_status.enabled,
+                "ready": local_status.ready,
+                "model": local_status.model,
+                "local_only": local_status.local_only,
+                "reason": local_status.reason,
+                "checked_at": local_status.checked_at,
             },
             "credit_telemetry": (
                 self.credit_telemetry.status() if self.credit_telemetry else {"enabled": False}
@@ -204,6 +213,18 @@ class AIProviderManager:
 
         if self.keypool:
             print(f"\nCredit Guard mode: {self.keypool.policy_status()['mode']}")
+
+    def print_local_runtime(self) -> None:
+        status = self.zero_cost_runtime.status()
+        print("\n🖥️ CK-NEXUS Zero-Cost Runtime")
+        print("─" * 50)
+        print(f"provider: {status.provider}")
+        print(f"enabled: {status.enabled}")
+        print(f"ready: {status.ready}")
+        print(f"local_only: {status.local_only}")
+        print(f"model: {status.model or '-'}")
+        print(f"reason: {status.reason}")
+        print(f"checked_at: {status.checked_at}")
 
     def print_status(self) -> None:
         """พิมพ์แดชบอร์ดสถานะอย่างเต็มระบบ."""
@@ -256,13 +277,19 @@ class AIProviderManager:
                 "🧱 Remote free-tier in FREE_ONLY: "
                 + ("เปิด" if policy.get("allow_remote_free") else "ปิด (local-first)")
             )
-            print(
-                "🖥️ Local Ollama fallback: "
-                + ("✅ พร้อม" if status["local_fallback"]["ready"] else "⚠️ ยังไม่พร้อม")
-            )
+            local = status["local_fallback"]
+            if local["ready"]:
+                print(f"🖥️ Zero-Cost Ollama: ✅ พร้อม — {local['model']}")
+            else:
+                print(f"🖥️ Zero-Cost Ollama: ⚠️ {local['reason']}")
             print("🛡️ Security: Fail-Closed — paid API ถูกตัดออกเมื่อ FREE_ONLY ทำงาน")
         else:
             print("\n🔑 AI Providers: ใส่ API key ใน .env เพื่อเริ่มใช้งาน")
+            local = status["local_fallback"]
+            if local["ready"]:
+                print(f"🖥️ Zero-Cost Ollama: ✅ พร้อม — {local['model']}")
+            else:
+                print(f"🖥️ Zero-Cost Ollama: ⚠️ {local['reason']}")
 
         telemetry = status.get("credit_telemetry", {})
         if isinstance(telemetry, dict):
@@ -299,6 +326,12 @@ class AIProviderManager:
                 f"\n🔄 Credit Guard: {policy['mode']} — trigger ที่เหลือ "
                 f"{policy['remaining_threshold_pct']:.0f}%"
             )
+
+        local_status = self.zero_cost_runtime.status()
+        print(
+            "🖥️ Zero-Cost Ollama: "
+            + (f"✅ {local_status.model}" if local_status.ready else f"⚠️ {local_status.reason}")
+        )
         print("🛡️ Security: Fail-Closed")
         print()
 
@@ -329,26 +362,25 @@ class AIProviderManager:
 
         return {"scanned": len(emails)}
 
+    def _run_zero_cost_chat(self, prompt: str) -> str:
+        try:
+            answer = self.zero_cost_runtime.chat(prompt)
+        except (ZeroCostRuntimeUnavailable, ValueError) as exc:
+            return f"⚠️ Zero-Cost runtime unavailable — {exc}"
+        return answer
+
     def chat(self, prompt: str) -> str:
-        """เลือก provider ตาม Credit Guard; FREE_ONLY จะไม่คืน paid API key."""
+        """เลือก provider ตาม Credit Guard; FREE_ONLY รันเฉพาะ verified local runtime."""
         if not prompt.strip():
             return "❌ prompt ว่าง"
+
         if not self.keypool:
-            if self._local_fallback_ready():
-                return f"✅ ใช้ local Ollama (model: {os.getenv('OLLAMA_MODEL')}) — API credit = 0"
-            return "❌ ไม่มี AI provider หรือ local model ที่พร้อมใช้งาน"
+            return self._run_zero_cost_chat(prompt)
 
         selection = self.keypool.acquire()
         if selection is None:
-            if self.keypool.free_only_mode and self._local_fallback_ready():
-                return (
-                    f"✅ FREE_ONLY → local Ollama (model: {os.getenv('OLLAMA_MODEL')}) "
-                    "— paid API disabled"
-                )
-            if self.keypool.free_only_mode:
-                return "⚠️ FREE_ONLY ทำงานแล้ว — paid API disabled; local Ollama ยังไม่พร้อม"
-            if self.keypool.free_fallback:
-                return "⚠️ ไม่มีคีย์พร้อม — ต้องใช้ local/offline fallback"
+            if self.keypool.free_only_mode or self.keypool.free_fallback:
+                return self._run_zero_cost_chat(prompt)
             return "❌ ไม่มี AI provider พร้อมใช้งาน"
 
         return (
@@ -376,6 +408,11 @@ def main() -> int:
     if command == "credit":
         mgr = AIProviderManager()
         mgr.print_credit_telemetry()
+        return 0
+
+    if command == "local":
+        mgr = AIProviderManager()
+        mgr.print_local_runtime()
         return 0
 
     if command == "scan":
@@ -409,7 +446,7 @@ def main() -> int:
         return result.returncode
 
     print(f"Unknown command: {command}")
-    print("Available: start, status, dashboard, credit, scan, test")
+    print("Available: start, status, dashboard, credit, local, scan, test")
     return 1
 
 
