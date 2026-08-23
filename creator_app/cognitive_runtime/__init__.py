@@ -28,6 +28,15 @@ from .triad_memory import (
     TriadMemorySnapshot,
     TriadMemoryStore,
 )
+from .triad_pulse import (
+    PulseKind,
+    TriadPulseEngine,
+    TriadPulseError,
+    TriadPulseEvent,
+    TriadPulsePolicy,
+    TriadPulseRecord,
+    TriadPulseSnapshot,
+)
 from .triad_scheduler import (
     Priority,
     SchedulePlan,
@@ -57,6 +66,7 @@ __all__ = [
     "PersonalCognitiveRuntime",
     "Priority",
     "ProjectionError",
+    "PulseKind",
     "RuntimeEvent",
     "RuntimeEventBus",
     "SchedulePlan",
@@ -68,6 +78,12 @@ __all__ = [
     "TriadMemorySnapshot",
     "TriadMemoryStore",
     "TriadParallelScheduler",
+    "TriadPulseEngine",
+    "TriadPulseError",
+    "TriadPulseEvent",
+    "TriadPulsePolicy",
+    "TriadPulseRecord",
+    "TriadPulseSnapshot",
     "TriadRole",
     "WorkItem",
 ]
