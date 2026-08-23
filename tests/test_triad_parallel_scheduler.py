@@ -51,12 +51,13 @@ def test_scheduler_honors_dependencies_and_completed_capabilities() -> None:
     plan = scheduler.plan(
         (
             item("blocked", "cap-b", dependencies=("event-bus",)),
-            item("done", "event-bus"),
+            item("done", "state-projector"),
             item("ready", "cap-c", dependencies=("state-projector",)),
         ),
-        completed_capabilities=frozenset({"state-projector", "event-bus"}),
+        completed_capabilities=frozenset({"state-projector"}),
     )
-    assert [assignment.work_id for assignment in plan.assignments] == ["ready", "blocked"]
+    assert [assignment.work_id for assignment in plan.assignments] == ["ready"]
+    assert "blocked" in plan.blocked_work_ids
     assert "done" in plan.deferred_work_ids
 
 
