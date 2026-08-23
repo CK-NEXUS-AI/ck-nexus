@@ -1,0 +1,31 @@
+name: Q10 Native Deep Scan Contract CI
+
+on:
+  pull_request:
+    paths:
+      - '.github/release-tools/q10_native_deep_scan_contract_v2.json'
+      - '.github/release-tools/validate_q10_native_deep_scan_receipt.py'
+      - '.github/workflows/q10-native-deep-scan-contract-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Compile receipt validator
+        run: python -m py_compile .github/release-tools/validate_q10_native_deep_scan_receipt.py
+      - name: Run fail-closed contract self-test
+        run: python .github/release-tools/validate_q10_native_deep_scan_receipt.py --self-test
+      - name: Prove production evidence was not modified
+        run: |
+          git diff --exit-code "${{ github.event.pull_request.base.sha }}"...HEAD -- \
+            evidence/Q10_DEPENDENCY_AUDIT.json \
+            evidence/Q11_OPENAI_LIVE.json \
+            evidence/Q12_CGROUP_V2.json
