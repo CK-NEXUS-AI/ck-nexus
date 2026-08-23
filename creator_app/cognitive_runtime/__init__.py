@@ -39,6 +39,16 @@ from .triad_memory import (
     TriadMemorySnapshot,
     TriadMemoryStore,
 )
+from .triad_pipeline import (
+    CANONICAL_STAGE_ORDER,
+    TriadPipelineError,
+    TriadPipelineLedger,
+    TriadPipelineManifest,
+    TriadPipelineRecord,
+    TriadPipelineSnapshot,
+    TriadPipelineStage,
+    TriadStageBinding,
+)
 from .triad_pulse import (
     PulseKind,
     TriadPulseEngine,
@@ -58,6 +68,7 @@ from .triad_scheduler import (
 )
 
 __all__ = [
+    "CANONICAL_STAGE_ORDER",
     "CandidateCritique",
     "CandidateProposal",
     "CandidateStatus",
@@ -99,6 +110,12 @@ __all__ = [
     "TriadMemorySnapshot",
     "TriadMemoryStore",
     "TriadParallelScheduler",
+    "TriadPipelineError",
+    "TriadPipelineLedger",
+    "TriadPipelineManifest",
+    "TriadPipelineRecord",
+    "TriadPipelineSnapshot",
+    "TriadPipelineStage",
     "TriadPulseEngine",
     "TriadPulseError",
     "TriadPulseEvent",
@@ -106,5 +123,6 @@ __all__ = [
     "TriadPulseRecord",
     "TriadPulseSnapshot",
     "TriadRole",
+    "TriadStageBinding",
     "WorkItem",
 ]
