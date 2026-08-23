@@ -1,0 +1,53 @@
+{
+  "schema_version": 2,
+  "gate": "Q10",
+  "status": "PREPARED_NOT_EXECUTED",
+  "repository": "spinlnw10-art/ck-nexus",
+  "source_sha": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+  "source_tree": "0525195934f703a8becf8a39f6397b2411e0bb2e",
+  "release_subject_manifest_sha256": "89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52",
+  "application_subject_manifest_sha256": "dff89dc7fa9cd6e40480c3344f688a75383ec798929efe23f3a29c79d1186cec",
+  "target_scope": ".",
+  "scan_mode": "deep",
+  "required_executor": "Codex Security Deep Security Scan",
+  "native_lifecycle": [
+    "repeated_complete_standard_scans",
+    "canonical_parent_manifest_findings_coverage",
+    "single_completion_and_seal",
+    "generated_report_md"
+  ],
+  "required_receipt_fields": [
+    "codex_security_scan_id",
+    "codex_security_report_sha256",
+    "codex_security_manifest_sha256",
+    "codex_security_findings_sha256",
+    "codex_security_coverage_sha256",
+    "codex_security_completed_at",
+    "coverage_complete",
+    "release_policy_findings_resolved",
+    "source_mutated_during_scan",
+    "subject_changed",
+    "codex_security_deep_scan",
+    "gate_result",
+    "production_promotion_allowed"
+  ],
+  "pass_invariants": {
+    "coverage_complete": true,
+    "release_policy_findings_resolved": true,
+    "source_mutated_during_scan": false,
+    "subject_changed": false,
+    "codex_security_deep_scan": "PASS",
+    "gate_result": "PASS",
+    "production_promotion_allowed": true
+  },
+  "prohibited_substitutions": [
+    "bandit-only",
+    "secret-scan-only",
+    "dependency-audit-only",
+    "manual-review-only",
+    "ordinary-ci-only",
+    "opencode-only"
+  ],
+  "subject_change_rule": "Any valid remediation that changes the frozen source invalidates subject-bound Q10/Q11/Q12 evidence and restarts production closure from Q10.",
+  "note": "This contract prepares and validates a future native Codex Security receipt. It is not scan evidence and cannot promote Q10 by itself."
+}
