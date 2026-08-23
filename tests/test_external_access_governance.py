@@ -78,13 +78,24 @@ def test_connected_read_requires_connector_consent_and_scopes() -> None:
         "action": ExternalAction.READ,
         "classification": DataClassification.PERSONAL,
         "required_scopes": frozenset({"gmail.readonly"}),
-        "granted_scopes": frozenset({"gmail.readonly"}),
     }
 
-    no_connector = governor.evaluate(_request(**base, connector_authorized=False))
+    no_connector = governor.evaluate(
+        _request(
+            **base,
+            connector_authorized=False,
+            granted_scopes=frozenset({"gmail.readonly"}),
+        )
+    )
     assert no_connector.reason == "connected_source_authorization_required"
 
-    no_consent = governor.evaluate(_request(**base, connector_authorized=True))
+    no_consent = governor.evaluate(
+        _request(
+            **base,
+            connector_authorized=True,
+            granted_scopes=frozenset({"gmail.readonly"}),
+        )
+    )
     assert no_consent.reason == "active_consent_reference_required"
 
     wrong_scope = governor.evaluate(
@@ -102,6 +113,7 @@ def test_connected_read_requires_connector_consent_and_scopes() -> None:
             **base,
             connector_authorized=True,
             consent_ref="consent-1",
+            granted_scopes=frozenset({"gmail.readonly"}),
         )
     )
     assert allowed.allowed is True
