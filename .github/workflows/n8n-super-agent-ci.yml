@@ -63,6 +63,7 @@ jobs:
           openai_adapter=(base/'ck_nexus_openai_dev_adapter.mjs').read_text()
           groq_adapter=(base/'ck_nexus_groq_dev_adapter.mjs').read_text()
           stack=(base/'start_super_agent_stack.ps1').read_text()
+          agnes_stack=(base/'start_agnes_groq_dev_stack.ps1').read_text()
           for text in (side, side_v2, tools, openai_adapter, groq_adapter):
               assert '127.0.0.1' in text
           assert 'CK_NEXUS_TOOL_TOKEN' in tools and 'CK_NEXUS_TOOL_TOKEN' in side
@@ -73,6 +74,14 @@ jobs:
           assert 'CK_NEXUS_INTELLIGENCE_TOKEN' in openai_adapter
           assert 'CK_NEXUS_INTELLIGENCE_TOKEN' in groq_adapter
           assert 'CK_NEXUS_INTELLIGENCE_TOKEN' in stack
+          assert 'ck_nexus_agent_sidecar_v2.mjs' in agnes_stack
+          assert 'ck_nexus_groq_dev_adapter.mjs' in agnes_stack
+          assert 'ck_nexus_dev_tool_gateway.mjs' in agnes_stack
+          assert 'ConvertTo-SecureString' in agnes_stack
+          assert 'ZeroFreeBSTR' in agnes_stack
+          assert 'production_mutation=$false' in agnes_stack
+          assert 'production_ready=$false' in agnes_stack
+          assert 'q10_q11_q12_evidence=$false' in agnes_stack
           assert 'release/q10-q16-closure' in side_v2
           assert 'production_mutation_denied' in side_v2
           assert 'secret_export_denied' in side_v2
