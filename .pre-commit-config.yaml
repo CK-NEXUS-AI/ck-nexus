@@ -5,5 +5,5 @@ repos:
         name: forbidden-unicode
         entry: python scripts/check_forbidden_unicode.py
         language: system
-        types_or: [python, shell, yaml, json, toml, javascript, ts]
+        files: '\.(py|sh|ps1|yml|yaml|json|toml|js|jsx|ts|tsx|css|html|sql|ini|cfg)$'
         pass_filenames: true
