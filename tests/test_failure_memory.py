@@ -141,3 +141,38 @@ def test_release_blockers_only_returns_unprotected_or_recurrent_failures() -> No
 
     ledger.protect(first.fingerprint, _protection())
     assert ledger.release_blockers() == ()
+
+
+def test_jsonl_rejects_incomplete_protection_payload() -> None:
+    ledger = FailureLedger()
+    fingerprint = ledger.observe(_observation()).fingerprint
+    forged = ledger.to_jsonl() + (
+        '{"sequence":2,"event_type":"protected","fingerprint":"'
+        + fingerprint
+        + '","recorded_at":"2026-08-23T00:00:00+00:00","payload":{}}\n'
+    )
+    with pytest.raises(ValueError, match="missing required payload fields"):
+        FailureLedger.from_jsonl(forged)
+
+
+def test_jsonl_rejects_protection_before_observation() -> None:
+    fingerprint = fingerprint_failure(
+        component="gateway",
+        operation="route",
+        error_type="TimeoutError",
+        safe_signature="timeout 123",
+    )
+    payload = (
+        '{"root_cause":"timeout","fix_ref":"fix/retry","regression_test_id":"t1",'
+        '"verifier_id":"independent","verified_subject_sha":"subject-2",'
+        '"proof_digest":"proof-1"}'
+    )
+    forged = (
+        '{"sequence":1,"event_type":"protected","fingerprint":"'
+        + fingerprint
+        + '","recorded_at":"2026-08-23T00:00:00+00:00","payload":'
+        + payload
+        + '}\n'
+    )
+    with pytest.raises(ValueError, match="before a matching failure observation"):
+        FailureLedger.from_jsonl(forged)
