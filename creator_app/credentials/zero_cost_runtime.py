@@ -198,7 +198,7 @@ class LocalOllamaRuntime:
     ) -> dict[str, object]:
         connection = self._connection_factory(host, port, self.timeout)
         body = json.dumps(payload).encode("utf-8") if payload is not None else None
-        headers = {"Content-Type": "application/json"} if body is not None else None
+        headers = {"Content-Type": "application/json"} if body is not None else {}
         try:
             connection.request(method, path, body=body, headers=headers)
             response = connection.getresponse()
