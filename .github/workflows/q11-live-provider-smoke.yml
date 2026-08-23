@@ -7,6 +7,10 @@ on:
         description: 'Type the exact frozen runtime source SHA to continue'
         required: true
         type: string
+      confirm_runtime_subject:
+        description: 'Type the exact frozen runtime subject digest to continue'
+        required: true
+        type: string
       smoke_model:
         description: 'Optional OpenAI smoke model override'
         required: false
@@ -28,6 +32,7 @@ env:
 jobs:
   q11:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
       - name: Checkout operator pack
         uses: actions/checkout@v6
@@ -39,22 +44,33 @@ jobs:
         working-directory: operator
         env:
           CONFIRM_RUNTIME_SHA: ${{ inputs.confirm_runtime_sha }}
+          CONFIRM_RUNTIME_SUBJECT: ${{ inputs.confirm_runtime_subject }}
         run: |
           python - <<'PY'
-          import json, os
+          import datetime as dt
+          import json
+          import os
+          import re
           from pathlib import Path
-          expected_sha=os.environ['Q11_RUNTIME_SHA']
-          expected_subject=os.environ['Q11_RUNTIME_SUBJECT']
+
+          expected_sha = os.environ['Q11_RUNTIME_SHA']
+          expected_subject = os.environ['Q11_RUNTIME_SUBJECT']
           assert os.environ['CONFIRM_RUNTIME_SHA'] == expected_sha, 'exact runtime confirmation mismatch'
-          q10=json.loads(Path('evidence/Q10_DEPENDENCY_AUDIT.json').read_text())
+          assert os.environ['CONFIRM_RUNTIME_SUBJECT'] == expected_subject, 'exact subject confirmation mismatch'
+          q10 = json.loads(Path('evidence/Q10_DEPENDENCY_AUDIT.json').read_text())
           assert q10['source_sha'] == expected_sha, 'Q10 source SHA mismatch'
           assert q10['release_subject_manifest_sha256'] == expected_subject, 'Q10 subject mismatch'
           assert q10['component_result'] == 'PASS'
           assert q10['gate_result'] == 'PASS'
           assert q10['codex_security_deep_scan'] == 'PASS'
           assert q10['production_promotion_allowed'] is True
-          for field in ('codex_security_scan_id','codex_security_report_sha256','codex_security_completed_at'):
-              assert q10.get(field), f'missing required Q10 evidence field: {field}'
+          scan_id = str(q10.get('codex_security_scan_id', '')).strip()
+          assert scan_id, 'missing required Q10 evidence field: codex_security_scan_id'
+          report_digest = str(q10.get('codex_security_report_sha256', '')).strip()
+          assert re.fullmatch(r'(?:sha256:)?[0-9a-f]{64}', report_digest), 'invalid Q10 report digest'
+          completed = str(q10.get('codex_security_completed_at', '')).strip()
+          parsed = dt.datetime.fromisoformat(completed.replace('Z', '+00:00'))
+          assert parsed.tzinfo is not None, 'Q10 completion timestamp must be timezone-aware'
           print('Q10 prerequisite PASS on exact Q11 subject')
           PY
 
@@ -68,6 +84,7 @@ jobs:
       - name: Verify exact runtime commit and tree
         working-directory: runtime
         run: |
+          set -euo pipefail
           test "$(git rev-parse HEAD)" = "$Q11_RUNTIME_SHA"
           test "$(git show -s --format=%T HEAD)" = "$Q11_RUNTIME_TREE"
           echo "Q11 exact runtime identity verified"
@@ -79,51 +96,93 @@ jobs:
       - name: Install exact runtime dependencies
         working-directory: runtime
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip uv
           uv lock --check
           uv sync --all-extras --dev --frozen
 
-      - name: Run live provider sentinel smoke
+      - name: Run live provider sentinel smoke without echoing provider output
         working-directory: runtime
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_SMOKE_MODEL: ${{ inputs.smoke_model }}
         run: |
+          set -euo pipefail
           test -n "$OPENAI_API_KEY" || { echo 'Q11 BLOCKED: OPENAI_API_KEY secret unavailable'; exit 2; }
           set +e
-          .venv/bin/python scripts/test_openai_live.py > ../q11-smoke.log 2>&1
+          timeout 180s .venv/bin/python scripts/test_openai_live.py > ../q11-smoke.log 2>&1
           rc=$?
           set -e
-          cat ../q11-smoke.log
+          echo "Q11 smoke exit_code=$rc"
           test "$rc" -eq 0
           grep -q 'P0-AI-001 PASS' ../q11-smoke.log
+          grep -q 'CK-NEXUS-P0-SMOKE-PASS' ../q11-smoke.log
 
-      - name: Seal Q11 evidence artifact
+      - name: Prove credential literal is absent from captured output
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          secret = os.environ.get('OPENAI_API_KEY', '')
+          raw = Path('q11-smoke.log').read_bytes()
+          if secret and secret.encode() in raw:
+              raise SystemExit('credential literal detected in captured smoke output')
+          print('Q11 credential literal scan PASS')
+          PY
+
+      - name: Seal Q11 evidence without persisting raw provider output
         env:
           RUN_ID: ${{ github.run_id }}
           SMOKE_MODEL: ${{ inputs.smoke_model }}
         run: |
           python - <<'PY'
-          import hashlib, json, os
+          import hashlib
+          import json
+          import os
+          import re
           from pathlib import Path
-          log=Path('q11-smoke.log').read_bytes()
-          evidence={
-              'schema_version':4,
-              'gate':'Q11',
-              'result':'PASS',
-              'source_sha':os.environ['Q11_RUNTIME_SHA'],
-              'source_tree':os.environ['Q11_RUNTIME_TREE'],
-              'release_subject_manifest_sha256':os.environ['Q11_RUNTIME_SUBJECT'],
-              'github_run_id':int(os.environ['RUN_ID']),
-              'credential_configured':True,
-              'credential_exposed':False,
-              'sentinel_observed':True,
-              'smoke_model':os.environ['SMOKE_MODEL'],
-              'smoke_log_sha256':'sha256:'+hashlib.sha256(log).hexdigest(),
-              'production_promotion_allowed':True,
+
+          log = Path('q11-smoke.log').read_bytes()
+          text = log.decode('utf-8', errors='replace')
+          match = re.search(r'P0-AI-001 PASS model=([^\s]+) response_id=([^\s]+)', text)
+          if not match:
+              raise SystemExit('safe PASS metadata missing from smoke output')
+          actual_model, response_id = match.groups()
+          evidence = {
+              'schema_version': 5,
+              'gate': 'Q11',
+              'result': 'PASS',
+              'source_sha': os.environ['Q11_RUNTIME_SHA'],
+              'source_tree': os.environ['Q11_RUNTIME_TREE'],
+              'release_subject_manifest_sha256': os.environ['Q11_RUNTIME_SUBJECT'],
+              'github_run_id': int(os.environ['RUN_ID']),
+              'provider': 'openai',
+              'api_surface': 'responses',
+              'credential_configured': True,
+              'credential_exposed': False,
+              'credential_literal_scan_passed': True,
+              'sentinel_observed': True,
+              'sentinel': 'CK-NEXUS-P0-SMOKE-PASS',
+              'requested_smoke_model': os.environ['SMOKE_MODEL'],
+              'actual_smoke_model': actual_model,
+              'smoke_log_sha256': 'sha256:' + hashlib.sha256(log).hexdigest(),
+              'response_id_sha256': 'sha256:' + hashlib.sha256(response_id.encode()).hexdigest(),
+              'raw_provider_output_persisted': False,
+              'production_promotion_allowed': True,
           }
-          Path('Q11_OPENAI_LIVE.json').write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n')
-          print(json.dumps(evidence,indent=2,sort_keys=True))
+          Path('Q11_OPENAI_LIVE.json').write_text(json.dumps(evidence, indent=2, sort_keys=True) + '\n')
+          Path('Q11_SMOKE_SUMMARY.json').write_text(json.dumps({
+              'gate': 'Q11',
+              'result': 'PASS',
+              'actual_smoke_model': actual_model,
+              'response_id_sha256': evidence['response_id_sha256'],
+              'smoke_log_sha256': evidence['smoke_log_sha256'],
+              'sentinel_observed': True,
+          }, indent=2, sort_keys=True) + '\n')
+          print(json.dumps(evidence, indent=2, sort_keys=True))
+          Path('q11-smoke.log').unlink(missing_ok=True)
           PY
 
       - uses: actions/upload-artifact@v4
@@ -131,6 +190,6 @@ jobs:
           name: q11-live-${{ github.run_id }}
           path: |
             Q11_OPENAI_LIVE.json
-            q11-smoke.log
+            Q11_SMOKE_SUMMARY.json
           if-no-files-found: error
           retention-days: 7
