@@ -27,6 +27,11 @@ jobs:
           uv lock --check
           uv sync --all-extras --dev --frozen
           .venv/bin/python -c "import aiosqlite,asyncpg,psycopg,redis; print('Q04 PASS')"
+      - name: Forbidden Unicode gate
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: .venv/bin/python scripts/check_forbidden_unicode.py --changed-from "$BASE_SHA"
       - name: Compile and Ruff
         run: |
           .venv/bin/python -m compileall -q main.py creator_app services scripts
