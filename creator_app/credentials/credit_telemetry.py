@@ -63,7 +63,8 @@ class OpenRouterCreditsAdapter:
             headers={"Authorization": f"Bearer {key}"},
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            # B310 is safe here: endpoint is a class-owned, fixed HTTPS URL.
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # nosec B310
                 payload = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             return CreditSnapshot(
@@ -173,7 +174,8 @@ class OpenAICostBudgetAdapter:
             headers={"Authorization": f"Bearer {admin_key}"},
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            # B310 is safe here: base endpoint is fixed HTTPS; only numeric query values vary.
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # nosec B310
                 payload = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             return CreditSnapshot(
