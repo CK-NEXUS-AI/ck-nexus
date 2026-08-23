@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import collections.abc
 import dataclasses
 import hashlib
 
@@ -49,8 +48,8 @@ class CKExecutionContext:
 @dataclasses.dataclass(frozen=True)
 class GenAISpanEnvelope:
     span_name: str
-    attributes: collections.abc.Mapping[str, str | int | float | bool]
-    links: collections.abc.Mapping[str, str]
+    attributes: dict[str, str | int | float | bool]
+    links: dict[str, str]
 
 
 class OTelGenAIBridge:
@@ -70,7 +69,7 @@ class OTelGenAIBridge:
         provider_name: str | None = None,
         request_model: str | None = None,
         response_model: str | None = None,
-        extra_attributes: collections.abc.Mapping[str, str | int | float | bool] | None = None,
+        extra_attributes: dict[str, str | int | float | bool] | None = None,
     ) -> GenAISpanEnvelope:
         operation = operation.strip()
         if operation not in _ALLOWED_OPERATIONS:
@@ -120,7 +119,7 @@ class OTelGenAIBridge:
         )
 
     @staticmethod
-    def safe_baggage(context: CKExecutionContext) -> collections.abc.Mapping[str, str]:
+    def safe_baggage(context: CKExecutionContext) -> dict[str, str]:
         """Return only non-secret correlation identifiers suitable for propagation."""
         baggage = {
             "cknexus.task.id": context.task_id,
