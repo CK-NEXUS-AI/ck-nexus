@@ -61,3 +61,22 @@ def test_groq_adapter_is_fail_closed_and_development_only():
     assert "allow_secret_export" in text
     assert "production_mutation:false" in text
     assert "production_ready:false" in text
+
+
+def test_groq_stack_launcher_uses_dpapi_ephemeral_tokens_and_exact_identity():
+    text = (BASE / "start_agnes_groq_dev_stack.ps1").read_text(encoding="utf-8")
+    assert "groq-api-key.dpapi" in text
+    assert "ConvertTo-SecureString" in text
+    assert "SecureStringToBSTR" in text
+    assert "ZeroFreeBSTR" in text
+    assert "GROQ_API_KEY" in text
+    assert "ck_nexus_groq_dev_adapter.mjs" in text
+    assert "ck_nexus_agent_sidecar_v2.mjs" in text
+    assert "ck_nexus_dev_tool_gateway.mjs" in text
+    assert "CK_NEXUS_TOOL_TOKEN" in text
+    assert "CK_NEXUS_INTELLIGENCE_TOKEN" in text
+    assert "git -C $RepoRoot rev-parse HEAD" in text
+    assert "production_mutation=$false" in text
+    assert "production_ready=$false" in text
+    assert "q10_q11_q12_evidence=$false" in text
+    assert "gsk_" not in text
