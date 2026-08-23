@@ -3,9 +3,12 @@ from creator_app.agnes.knowledge_repository import (
     KnowledgeCatalog,
     KnowledgeItem,
     KnowledgeStatus,
+    current_knowledge_catalog,
     predevelopment_search,
     standards_catalog,
+    superseded_item_ids,
 )
+from creator_app.connector_fabric.mcp import MCP_PROTOCOL_VERSION
 
 
 def _item(*, mode: AdoptionMode) -> KnowledgeItem:
@@ -46,11 +49,12 @@ def test_wrap_entry_blocks_duplicate_build() -> None:
     assert decision.build_new_allowed is False
 
 
-def test_current_mcp_baseline_is_2026_07_28() -> None:
+def test_current_mcp_baseline_matches_runtime() -> None:
     item = standards_catalog().get("standard.mcp.2026_07_28")
 
     assert item is not None
     assert item.adoption_mode is AdoptionMode.ADOPT
+    assert MCP_PROTOCOL_VERSION == "2026-07-28"
     assert "stateless_protocol" in item.capabilities
     assert any("2025-06-18" in note and "stale" in note for note in item.observations)
 
@@ -90,3 +94,17 @@ def test_openai_agents_sdk_is_wrapped_not_made_authority() -> None:
     assert item is not None
     assert item.adoption_mode is AdoptionMode.WRAP
     assert any("do not self-approve" in note.lower() for note in item.observations)
+
+
+def test_current_catalog_excludes_superseded_protocol_snapshots() -> None:
+    current = current_knowledge_catalog()
+
+    assert "control.protocol.mcp" in superseded_item_ids()
+    assert "control.protocol.a2a" in superseded_item_ids()
+    assert "infra.observability.opentelemetry" in superseded_item_ids()
+    assert current.get("control.protocol.mcp") is None
+    assert current.get("control.protocol.a2a") is None
+    assert current.get("infra.observability.opentelemetry") is None
+    assert current.get("standard.mcp.2026_07_28") is not None
+    assert current.get("standard.a2a.v1_0") is not None
+    assert current.get("standard.opentelemetry.semconv.1_44") is not None
