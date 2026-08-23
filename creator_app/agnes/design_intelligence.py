@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Iterable
 
 
 class DesignVerdict(StrEnum):
@@ -60,11 +60,7 @@ def _non_empty(values: Iterable[str]) -> bool:
 
 
 def assess_design(proposal: DesignProposal) -> DesignAssessment:
-    """Evaluate a design proposal using CK-NEXUS/AGNES governed-design invariants.
-
-    This function is intentionally deterministic and side-effect free. It does not grant
-    deployment, merge, production, or mutation authority.
-    """
+    """Evaluate a proposal against deterministic governed-design invariants."""
 
     reasons: list[str] = []
     invariant_failures: list[str] = []
