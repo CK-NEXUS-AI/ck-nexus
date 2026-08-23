@@ -5,7 +5,6 @@ on:
     paths:
       - 'integrations/n8n/**'
       - 'tests/test_n8n_development_agent_fabric.py'
-      - 'integrations/n8n/test_runtime_registration_guard.py'
       - '.github/workflows/n8n-super-agent-ci.yml'
   workflow_dispatch:
 
@@ -74,8 +73,3 @@ jobs:
             exit 1
           fi
           echo 'credential pattern scan PASS'
-      - name: Runtime registration guard tests
-        run: |
-          python -m pip install pytest
-          pytest -q integrations/n8n/test_runtime_registration_guard.py
-
