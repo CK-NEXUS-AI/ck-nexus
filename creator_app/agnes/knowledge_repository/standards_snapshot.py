@@ -58,7 +58,10 @@ def standards_catalog() -> KnowledgeCatalog:
             relevance=("Connector Fabric", "Tool Fabric", "MCP Policy Gateway"),
             observations=(
                 "The repository runtime already pins MCP_PROTOCOL_VERSION 2026-07-28.",
-                "Older 2025-06-18 catalog references are stale for the current runtime baseline.",
+                (
+                    "Older 2025-06-18 catalog references are stale for the current runtime "
+                    "baseline."
+                ),
                 "MCP interoperability never bypasses CK-NEXUS authorization or evidence policy.",
             ),
             capabilities=(
@@ -135,8 +138,14 @@ def standards_catalog() -> KnowledgeCatalog:
             relevance=("Observability Plane", "agent tracing", "model telemetry"),
             observations=(
                 "Telemetry is evidence input and does not automatically verify a claim.",
-                "Do not rely on deprecated GenAI registry attributes after they move to the GenAI conventions repository.",
-                "Sensitive prompts, retrieved content, and tool data require separate privacy policy before capture.",
+                (
+                    "Do not rely on deprecated GenAI registry attributes after they move to "
+                    "the GenAI conventions repository."
+                ),
+                (
+                    "Sensitive prompts, retrieved content, and tool data require separate "
+                    "privacy policy before capture."
+                ),
             ),
             capabilities=(
                 "traces",
@@ -162,7 +171,11 @@ def standards_catalog() -> KnowledgeCatalog:
                 _source(
                     "nist.ai.600-1",
                     "NIST AI RMF Generative AI Profile",
-                    "https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence",
+                    (
+                        "https://www.nist.gov/publications/"
+                        "artificial-intelligence-risk-management-framework-"
+                        "generative-artificial-intelligence"
+                    ),
                     "standard_guidance",
                 ),
             ),
