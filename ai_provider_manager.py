@@ -3,10 +3,11 @@
 
 รวมทุกระบบเข้าด้วยกัน:
 - Universal Credential Broker
-- LLM Key Pool (อัตโอโมเติฟเมื่อใกล้หมดเครดิต 95%)
+- Sticky Free Fallback Key Pool (เหลือ <=85% -> FREE_ONLY)
 - Capability Registry
 - Auto-Connect Manager
 - Gmail Universal Bridge
+- Local Ollama fallback when paid APIs are disabled
 
 วิธีใช้:
   python ai_provider_manager.py start    # เริ่มทุกระบบ
@@ -31,7 +32,7 @@ from creator_app.core.auto_connect_manager import (
 from creator_app.credentials import (
     CapabilityRegistry,
     CredentialBroker,
-    LlmKeyPool,
+    FreeFallbackKeyPool,
 )
 
 
@@ -40,7 +41,7 @@ class AIProviderManager:
 
     def __init__(self) -> None:
         self.broker = CredentialBroker.from_environment()
-        self.keypool = LlmKeyPool.from_environment()
+        self.keypool = FreeFallbackKeyPool.from_environment()
         self.registry = CapabilityRegistry()
         self.auto_connect = AutoConnectManager(
             config=AutoConnectConfig(
@@ -58,7 +59,6 @@ class AIProviderManager:
         print("🚀 เริ่มต้น CK-NEXUS AI Provider Manager...")
         print()
 
-        # เชื่อม Auto-Connect สำหรับ AI providers
         if self.keypool:
             print(f"🔑 พบ {len(self.keypool.specs)} AI providers ที่ตั้งค่าแล้ว")
             for spec in self.keypool.specs:
@@ -66,16 +66,21 @@ class AIProviderManager:
                     spec.id, "สำรอง"
                 )
                 print(f"   • {spec.id} ({priority}) — model: {spec.model}")
+            policy = self.keypool.policy_status()
+            print(
+                "💸 Credit Guard: "
+                f"{policy['mode']} — trigger เมื่อเครดิต paid เหลือ <= "
+                f"{policy['remaining_threshold_pct']:.0f}%"
+            )
 
-        # ตรวจสอบ Gmail
         gmail_id = os.getenv("GOOGLE_CLIENT_ID", "")
         gmail_refresh = os.getenv("GOOGLE_REFRESH_TOKEN", "")
         if gmail_id and gmail_refresh:
             print("\n📧 Gmail: ✅ เชื่อมต่อ (spinlnw10@gmail.com)")
             from creator_app.credentials.gmail_oauth_connector import GmailConnector
+
             self._gmail_bridge = GmailConnector(self.broker)
 
-        # เริ่ม Auto-Connect
         await self.auto_connect.start()
         interval = int(self.auto_connect.config.health_check_interval_sec)
         print(f"\n🔌 Auto-Connect: เปิด — ตรวจสุขภาพทุก {interval}วินาที")
@@ -92,6 +97,10 @@ class AIProviderManager:
         self._started = False
         print("🛑 ระบบหยุดทำงานและบันทึกสถานะแล้ว")
 
+    def _local_fallback_ready(self) -> bool:
+        enabled = os.getenv("CKNEXUS_OLLAMA_ENABLED", "false").strip().lower()
+        return enabled in {"1", "true", "yes", "on"} and bool(os.getenv("OLLAMA_MODEL", "").strip())
+
     def status(self) -> dict:
         """แสดงสถานะทุกระบบ."""
         result = {
@@ -105,21 +114,29 @@ class AIProviderManager:
             },
             "providers": [],
             "auto_connect": self.auto_connect.status() if self.auto_connect else None,
+            "local_fallback": {
+                "provider": "ollama",
+                "ready": self._local_fallback_ready(),
+                "model_configured": bool(os.getenv("OLLAMA_MODEL", "").strip()),
+            },
         }
 
         if self.keypool:
             statuses = self.keypool.status()
             for s in statuses:
-                result["providers"].append({
-                    "id": s.key_id,
-                    "provider": s.provider,
-                    "free": s.free,
-                    "healthy": bool(s.healthy),
-                    "exhausted": s.exhausted,
-                    "quota_pct": s.quota_percentage_used,
-                    "source": s.source,
-                })
+                result["providers"].append(
+                    {
+                        "id": s.key_id,
+                        "provider": s.provider,
+                        "free": s.free,
+                        "healthy": bool(s.healthy),
+                        "exhausted": s.exhausted,
+                        "quota_pct": s.quota_percentage_used,
+                        "source": s.source,
+                    }
+                )
             result["free_fallback"] = self.keypool.free_fallback
+            result["credit_policy"] = self.keypool.policy_status()
 
         return result
 
@@ -131,17 +148,20 @@ class AIProviderManager:
         print("📊 CK-NEXUS Universal System — สถานะทั้งหมด")
         print("─" * 50)
 
-        # Gmail
         if status["gmail"]["connected"]:
             print("📧 Gmail (spinlnw10@gmail.com): ✅ เชื่อมต่อ")
         else:
             print("📧 Gmail: ❌ ยังไม่ได้ตั้งค่า")
 
-        # Providers
         if status["providers"]:
             print("\n🤖 AI Providers:")
-            priority_labels = {"groq": "หลัก", "openrouter": "สำรอง1", "openai": "สำรอง2", 
-                              "anthropic": "สำรอง3", "deepseek": "สำรอง4"}
+            priority_labels = {
+                "groq": "หลัก",
+                "openrouter": "สำรอง1",
+                "openai": "สำรอง2",
+                "anthropic": "สำรอง3",
+                "deepseek": "สำรอง4",
+            }
             for p in status["providers"]:
                 label = priority_labels.get(p["provider"], p["provider"])
                 if p["healthy"]:
@@ -153,15 +173,26 @@ class AIProviderManager:
 
                 quota = ""
                 if p["quota_pct"] is not None:
-                    if p["quota_pct"] >= 95:
-                        quota = f" ⚠️ ใช้ {p['quota_pct']:.0f}% → พร้อมสลับ"
-                    else:
-                        quota = f" เครดิตเหลือ {100 - p['quota_pct']:.0f}%"
+                    remaining = 100 - p["quota_pct"]
+                    quota = f" เครดิตเหลือ {remaining:.0f}%"
 
                 print(f"   {icon} {label:<10} {p['provider']:<12} (ฟรี: {p['free']}){quota}")
 
-            print("\n🔄 Auto-Rotation: เปิด — สลับเมื่อเหลือ 5%")
-            print("🛡️ Security: Fail-Closed — ทุกการเข้าถึงได้รับการตรวจสอบ")
+            policy = status.get("credit_policy", {})
+            print(
+                "\n🔄 Credit Guard: "
+                f"{policy.get('mode', 'UNKNOWN')} — FREE_ONLY เมื่อ paid credit เหลือ <= "
+                f"{policy.get('remaining_threshold_pct', 85):.0f}%"
+            )
+            print(
+                "🧱 Remote free-tier in FREE_ONLY: "
+                + ("เปิด" if policy.get("allow_remote_free") else "ปิด (local-first)")
+            )
+            print(
+                "🖥️ Local Ollama fallback: "
+                + ("✅ พร้อม" if status["local_fallback"]["ready"] else "⚠️ ยังไม่พร้อม")
+            )
+            print("🛡️ Security: Fail-Closed — paid API ถูกตัดออกเมื่อ FREE_ONLY ทำงาน")
         else:
             print("\n🔑 AI Providers: ใส่ API key ใน .env เพื่อเริ่มใช้งาน")
 
@@ -173,17 +204,18 @@ class AIProviderManager:
         print("📊 CK-NEXUS Universal System — สถานะทั้งหมด")
         print("─" * 50)
 
-        from creator_app.credentials.llm_keypool import LlmKeyPool
-
-        pool = LlmKeyPool.from_environment()
+        pool = FreeFallbackKeyPool.from_environment()
         if pool:
             statuses = pool.status()
             for s in statuses:
                 icon = "✅" if s.healthy else ("🔴" if s.exhausted else "⚠️")
                 pct = 100 - (s.quota_percentage_used or 0)
                 print(f"   {icon} {s.provider:<12} เครดิตเหลือ {pct:.0f}%")
-
-        print("\n🔄 Auto-Rotation: เปิด — ที่ 95%")
+            policy = pool.policy_status()
+            print(
+                f"\n🔄 Credit Guard: {policy['mode']} — trigger ที่เหลือ "
+                f"{policy['remaining_threshold_pct']:.0f}%"
+            )
         print("🛡️ Security: Fail-Closed")
         print()
 
@@ -196,7 +228,6 @@ class AIProviderManager:
             return {}
 
         bridge = GmailUniversalBridge()
-        import asyncio
         result = asyncio.run(bridge.authenticate())
         if not result:
             print("❌ ไม่สามารถเชื่อม Gmail ได้ — ตรวจสอบ credentials")
@@ -216,23 +247,37 @@ class AIProviderManager:
         return {"scanned": len(emails)}
 
     def chat(self, prompt: str) -> str:
-        """ส่ง prompt ไปยัง AI provider ที่ดีที่สุด."""
+        """เลือก provider ตาม Credit Guard; FREE_ONLY จะไม่คืน paid API key."""
+        if not prompt.strip():
+            return "❌ prompt ว่าง"
         if not self.keypool:
-            return "❌ ตั้งค่า API key ใน .env ก่อน"
+            if self._local_fallback_ready():
+                return f"✅ ใช้ local Ollama (model: {os.getenv('OLLAMA_MODEL')}) — API credit = 0"
+            return "❌ ไม่มี AI provider หรือ local model ที่พร้อมใช้งาน"
 
         selection = self.keypool.acquire()
         if selection is None:
+            if self.keypool.free_only_mode and self._local_fallback_ready():
+                return (
+                    f"✅ FREE_ONLY → local Ollama (model: {os.getenv('OLLAMA_MODEL')}) "
+                    "— paid API disabled"
+                )
+            if self.keypool.free_only_mode:
+                return "⚠️ FREE_ONLY ทำงานแล้ว — paid API disabled; local Ollama ยังไม่พร้อม"
             if self.keypool.free_fallback:
-                return "⚠️ ทุกคีย์ใช้หมด — ระบบเปลี่ยนเป็นโหมดออฟไลน์"
+                return "⚠️ ไม่มีคีย์พร้อม — ต้องใช้ local/offline fallback"
             return "❌ ไม่มี AI provider พร้อมใช้งาน"
 
-        return f"✅ ใช้ {selection.provider} (model: {selection.model}) — key_id: {selection.key_id}"
+        return (
+            f"✅ ใช้ {selection.provider} (model: {selection.model}) — "
+            f"key_id: {selection.key_id}; free={selection.free}"
+        )
 
 
 def main() -> int:
     import dotenv
-    dotenv.load_dotenv()
 
+    dotenv.load_dotenv()
     command = sys.argv[1] if len(sys.argv) > 1 else "status"
 
     if command == "status":
@@ -240,20 +285,20 @@ def main() -> int:
         mgr.print_status()
         return 0
 
-    elif command == "dashboard":
+    if command == "dashboard":
         mgr = AIProviderManager()
         mgr.print_dashboard()
         return 0
 
-    elif command == "scan":
+    if command == "scan":
         mgr = AIProviderManager()
         mgr.scan_gmail_emails()
         return 0
 
-    elif command == "start":
+    if command == "start":
         mgr = AIProviderManager()
 
-        async def run():
+        async def run() -> None:
             await mgr.start()
             try:
                 while True:
@@ -264,20 +309,19 @@ def main() -> int:
         asyncio.run(run())
         return 0
 
-    elif command == "test":
-        """ทดสอบระบบทั้งหมด."""
+    if command == "test":
         print("🧪 ทดสอบระบบ CK-NEXUS...")
         import subprocess
+
         result = subprocess.run(
             ["python", "-m", "pytest", "creator_app/credentials/tests/", "-v"],
             capture_output=False,
         )
         return result.returncode
 
-    else:
-        print(f"Unknown command: {command}")
-        print("Available: start, status, dashboard, scan, test")
-        return 1
+    print(f"Unknown command: {command}")
+    print("Available: start, status, dashboard, scan, test")
+    return 1
 
 
 if __name__ == "__main__":
