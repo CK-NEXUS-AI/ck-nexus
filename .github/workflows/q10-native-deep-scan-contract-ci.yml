@@ -24,6 +24,7 @@ jobs:
       - name: Run fail-closed contract self-test
         run: python .github/release-tools/validate_q10_native_deep_scan_receipt.py --self-test
       - name: Prove production evidence was not modified
+        if: github.event_name == 'pull_request'
         run: |
           git diff --exit-code "${{ github.event.pull_request.base.sha }}"...HEAD -- \
             evidence/Q10_DEPENDENCY_AUDIT.json \
