@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from enum import Enum
-from hashlib import sha256
 import json
-from typing import Iterable
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass
+from enum import StrEnum
+from hashlib import sha256
 
 
-class AdmissionStage(str, Enum):
+class AdmissionStage(StrEnum):
     DISCOVERED = "DISCOVERED"
     IDENTITY_CHECKED = "IDENTITY_CHECKED"
     PROVENANCE_CHECKED = "PROVENANCE_CHECKED"
@@ -22,7 +22,7 @@ class AdmissionStage(str, Enum):
     REJECTED = "REJECTED"
 
 
-class CandidateClass(str, Enum):
+class CandidateClass(StrEnum):
     AUTO_SAFE_RESEARCH = "AUTO_SAFE_RESEARCH"
     LOCAL_EVALUATE = "LOCAL_EVALUATE"
     APPROVAL_REQUIRED = "APPROVAL_REQUIRED"
