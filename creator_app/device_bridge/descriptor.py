@@ -8,7 +8,7 @@ import re
 import shlex
 from collections.abc import Iterable
 from dataclasses import dataclass
-from pathlib import PurePosixPath
+from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
 
 _TOOL_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{1,63}$")
@@ -126,8 +126,11 @@ def parse_descriptor(payload: str) -> ConnectionDescriptor:
 
     command = _parse_command(connection.get("command"))
     cwd = _require_text(connection.get("cwd"), "cwd", max_len=500)
-    cwd_path = PurePosixPath(cwd)
-    if not cwd_path.is_absolute() or ".." in cwd_path.parts:
+    posix_cwd = PurePosixPath(cwd)
+    windows_cwd = PureWindowsPath(cwd)
+    is_absolute = posix_cwd.is_absolute() or windows_cwd.is_absolute()
+    has_parent = ".." in posix_cwd.parts or ".." in windows_cwd.parts
+    if not is_absolute or has_parent:
         raise DescriptorError("cwd_must_be_absolute_clean_path")
 
     return ConnectionDescriptor(
