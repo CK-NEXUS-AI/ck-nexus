@@ -72,9 +72,11 @@ class CandidateProposal:
             raise DebateContractError("candidate_proposer_must_be_builder")
         if self.revision < 1:
             raise DebateContractError("candidate_revision_invalid")
-        if (
-            self.revision > 1 or self.status is CandidateStatus.REVISED
-        ) and not self.parent_candidate_id:
+        if self.revision == 1 and self.parent_candidate_id:
+            raise DebateContractError("root_candidate_parent_forbidden")
+        if self.status is CandidateStatus.REVISED and self.revision == 1:
+            raise DebateContractError("revised_candidate_revision_invalid")
+        if self.revision > 1 and not self.parent_candidate_id:
             raise DebateContractError("revised_candidate_parent_required")
         _require_unique_text(self.assumptions, "assumption")
         evidence_refs = _require_unique_text(self.evidence_refs, "evidence_ref")
@@ -139,6 +141,48 @@ class DebateRound:
     def verification_ceiling(self) -> str:
         return _VERIFICATION_CEILING
 
+    def _validate_lineage(self, candidates_by_id: dict[str, CandidateProposal]) -> None:
+        children_by_parent: dict[str, list[str]] = {}
+        for candidate in self.candidates:
+            parent_id = candidate.parent_candidate_id
+            if candidate.revision == 1:
+                continue
+            if parent_id == candidate.candidate_id:
+                raise DebateContractError("candidate_self_parent")
+            parent = candidates_by_id.get(parent_id)
+            if parent is None:
+                raise DebateContractError("candidate_parent_missing")
+            if parent.task_id != candidate.task_id:
+                raise DebateContractError("candidate_parent_task_mismatch")
+            if parent.subject_sha != candidate.subject_sha:
+                raise DebateContractError("candidate_parent_subject_mismatch")
+            children_by_parent.setdefault(parent_id, []).append(candidate.candidate_id)
+
+        for parent_id, children in children_by_parent.items():
+            if len(children) > 1:
+                raise DebateContractError(f"candidate_lineage_ambiguous:{parent_id}")
+
+        for candidate in self.candidates:
+            visited: set[str] = set()
+            current = candidate
+            while current.parent_candidate_id:
+                if current.candidate_id in visited:
+                    raise DebateContractError("candidate_lineage_cycle")
+                visited.add(current.candidate_id)
+                parent = candidates_by_id.get(current.parent_candidate_id)
+                if parent is None:
+                    break
+                current = parent
+            if current.candidate_id in visited:
+                raise DebateContractError("candidate_lineage_cycle")
+
+        for candidate in self.candidates:
+            if candidate.revision == 1:
+                continue
+            parent = candidates_by_id[candidate.parent_candidate_id]
+            if candidate.revision != parent.revision + 1:
+                raise DebateContractError("candidate_revision_not_sequential")
+
     def validate(self) -> None:
         _require_text(self.round_id, "round_id")
         _require_text(self.task_id, "task_id")
@@ -149,6 +193,7 @@ class DebateRound:
             raise DebateContractError("debate_candidate_limit_exceeded")
 
         candidate_ids: set[str] = set()
+        candidates_by_id: dict[str, CandidateProposal] = {}
         semantic_digests: set[str] = set()
         for candidate in self.candidates:
             candidate.validate(self.subject_sha)
@@ -160,7 +205,10 @@ class DebateRound:
             if semantic_digest in semantic_digests:
                 raise DebateContractError("duplicate_candidate_semantics")
             candidate_ids.add(candidate.candidate_id)
+            candidates_by_id[candidate.candidate_id] = candidate
             semantic_digests.add(semantic_digest)
+
+        self._validate_lineage(candidates_by_id)
 
         critique_ids: set[str] = set()
         for critique in self.critiques:
