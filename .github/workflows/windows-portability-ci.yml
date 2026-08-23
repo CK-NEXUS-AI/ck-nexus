@@ -6,6 +6,13 @@ on:
       - 'creator_app/agnes/execution/**'
       - 'creator_app/agnes/runtime/**'
       - 'creator_app/api/**'
+      - 'creator_app/council_authority/**'
+      - 'creator_app/device_bridge/**'
+      - 'tests/test_council_capability_authority.py'
+      - 'tests/test_credential_vault.py'
+      - 'tests/test_device_bridge_attestation.py'
+      - 'tests/test_device_bridge_mcp_v2.py'
+      - 'tests/test_device_bridge_safe_solver.py'
       - 'tests/test_windows_sandbox_platform_gate.py'
       - '.github/workflows/windows-portability-ci.yml'
   workflow_dispatch:
@@ -36,6 +43,13 @@ jobs:
         run: |
           .\.venv\Scripts\python.exe -c "import creator_app.agnes.execution.sandbox.runner; print('sandbox import PASS')"
           .\.venv\Scripts\python.exe -c "import creator_app.api; print('creator_app.api import PASS')"
-      - name: Windows sandbox fail-closed regression
+      - name: Windows portability regression
         shell: pwsh
-        run: .\.venv\Scripts\python.exe -m pytest -q tests/test_windows_sandbox_platform_gate.py
+        run: |
+          .\.venv\Scripts\python.exe -m pytest -q `
+            tests/test_windows_sandbox_platform_gate.py `
+            tests/test_council_capability_authority.py `
+            tests/test_credential_vault.py `
+            tests/test_device_bridge_safe_solver.py `
+            tests/test_device_bridge_attestation.py `
+            tests/test_device_bridge_mcp_v2.py
