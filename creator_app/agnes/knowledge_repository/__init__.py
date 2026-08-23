@@ -7,7 +7,12 @@ from .models import (
     SearchDecision,
 )
 from .research_snapshot import initial_catalog
-from .search_engine import AttemptRecord, best_capability_matches, enforce_two_strike, predevelopment_search
+from .search_engine import (
+    AttemptRecord,
+    best_capability_matches,
+    enforce_two_strike,
+    predevelopment_search,
+)
 from .unknown_items import collect_unknown, transition_status
 
 __all__ = [
