@@ -1,5 +1,6 @@
 from creator_app.connector_fabric.access_governance import (
     AccessOutcome,
+    ConsentValidator,
     ExternalAccessClass,
     ExternalAccessDecision,
     ExternalAccessGovernor,
@@ -28,6 +29,7 @@ from creator_app.connector_fabric.registry import ConnectorRegistry
 
 __all__ = [
     "AccessOutcome",
+    "ConsentValidator",
     "ConnectorConfig",
     "ConnectorEvidenceLedger",
     "ConnectorFabric",
