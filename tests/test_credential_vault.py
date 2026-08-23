@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -77,6 +78,7 @@ def test_vault_master_key_rotation_rewraps_all_records(tmp_path: Path) -> None:
         old.get(CredentialId.GITHUB_INSTALLATION_TOKEN)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX mode bits are not a Windows ACL")
 def test_vault_file_permissions_are_owner_only(tmp_path: Path) -> None:
     path = tmp_path / "credentials.db"
     EncryptedCredentialVault(path, Fernet.generate_key())

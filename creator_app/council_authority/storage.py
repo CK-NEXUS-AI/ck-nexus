@@ -6,6 +6,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 
@@ -16,10 +17,15 @@ class AuthorityStore:
         self._lock = threading.RLock()
         self._init()
 
+    @contextmanager
     def _db(self):
         db = sqlite3.connect(self.path, timeout=30, isolation_level=None)
         db.row_factory = sqlite3.Row
-        return db
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
 
     def _init(self):
         with self._db() as db:
