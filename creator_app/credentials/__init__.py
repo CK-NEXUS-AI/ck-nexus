@@ -5,6 +5,7 @@ This package integrates:
 - LLM Key Pool (auto-rotation on quota exhaustion)
 - Sticky Free Fallback Key Pool (85% remaining guard -> free/local-only)
 - Credit Telemetry Fabric (authoritative credit/cost normalization)
+- Zero-Cost Local Runtime (verified loopback Ollama, cloud models denied)
 - Capability Router (provider selection with circuit breaker)
 - Capability Registry (canonical capability matrix)
 - Gmail OAuth Connector (OAuth2, no raw token extraction)
@@ -50,6 +51,11 @@ from creator_app.credentials.llm_keypool import (
     LlmKeySpec,
     LlmKeyStatus,
 )
+from creator_app.credentials.zero_cost_runtime import (
+    LocalOllamaRuntime,
+    ZeroCostRuntimeStatus,
+    ZeroCostRuntimeUnavailable,
+)
 
 __all__ = [
     "CredentialBroker",
@@ -70,6 +76,9 @@ __all__ = [
     "CreditTelemetryFabric",
     "OpenRouterCreditsAdapter",
     "OpenAICostBudgetAdapter",
+    "LocalOllamaRuntime",
+    "ZeroCostRuntimeStatus",
+    "ZeroCostRuntimeUnavailable",
     "Capability",
     "CapabilityRegistry",
     "CapabilitySpec",
