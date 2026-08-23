@@ -181,22 +181,56 @@ def test_snapshot_replay_is_deterministic() -> None:
     )
 
 
-def test_snapshot_detects_tampered_receipt_payload() -> None:
+def test_snapshot_detects_outer_record_tampering_first() -> None:
     engine = TriadPulseEngine(SUBJECT)
     engine.ingest(receipt(1))
     snapshot = engine.snapshot()
     record = snapshot.records[0]
     tampered_record = replace(
         record,
-        receipt_json=record.receipt_json.replace('"score_bps":8000', '"score_bps":9000'),
+        receipt_json=record.receipt_json.replace(
+            '"score_bps":8000',
+            '"score_bps":9000',
+        ),
     )
     tampered = replace(snapshot, records=(tampered_record,))
+
+    with pytest.raises(TriadPulseError, match="record_digest_mismatch"):
+        TriadPulseEngine.verify_snapshot(
+            tampered,
+            expected_subject_sha=SUBJECT,
+            expected_head_digest=snapshot.head_digest,
+        )
+
+
+def test_snapshot_detects_inner_receipt_tamper_after_record_reseal() -> None:
+    engine = TriadPulseEngine(SUBJECT)
+    engine.ingest(receipt(1))
+    snapshot = engine.snapshot()
+    record = snapshot.records[0]
+    tampered_record = replace(
+        record,
+        receipt_json=record.receipt_json.replace(
+            '"score_bps":8000',
+            '"score_bps":9000',
+        ),
+        record_digest="",
+    )
+    tampered_record = replace(
+        tampered_record,
+        record_digest=tampered_record.recompute_digest(),
+    )
+    tampered = replace(
+        snapshot,
+        records=(tampered_record,),
+        head_digest=tampered_record.record_digest,
+    )
 
     with pytest.raises(TriadPulseError, match="receipt_payload_digest_mismatch"):
         TriadPulseEngine.verify_snapshot(
             tampered,
             expected_subject_sha=SUBJECT,
-            expected_head_digest=snapshot.head_digest,
+            expected_head_digest=tampered.head_digest,
         )
 
 
