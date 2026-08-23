@@ -1,4 +1,4 @@
-from creator_app.integrations.mcp_admission import (
+from creator_app.mcp_admission import (
     AdmissionStage,
     CandidateClass,
     MCPAdmissionController,
