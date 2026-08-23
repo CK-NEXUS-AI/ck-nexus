@@ -6,6 +6,7 @@ import hashlib
 import json
 
 from .contracts import AIProvider, DataClass, GatewayRequest, GatewayResponse, ModelDescriptor
+from .model_governance import authorize_model_use
 
 
 class NoEligibleModel(RuntimeError):
@@ -55,10 +56,15 @@ class AIGateway:
                     and not request.allow_external
                 ):
                     continue
+                governance = authorize_model_use(model, request.model_use_lane)
+                if not governance.allowed:
+                    continue
                 candidates.append(model)
 
         if not candidates:
-            raise NoEligibleModel("no model satisfies capability, privacy and cost policy")
+            raise NoEligibleModel(
+                "no model satisfies capability, privacy, cost and model-governance policy"
+            )
 
         def score(model: ModelDescriptor) -> tuple[int, int, int, str, str]:
             local_penalty = 0 if (request.prefer_local and model.local) else 1
@@ -76,14 +82,20 @@ class AIGateway:
         selected = self.route(request)
         provider = self._providers[selected.provider_id]
         output = provider.invoke(selected.model_id, request.prompt)
+        governance = authorize_model_use(selected, request.model_use_lane)
         evidence_payload = {
             "provider_id": selected.provider_id,
             "model_id": selected.model_id,
+            "runtime_id": selected.runtime_id,
             "required_capabilities": sorted(item.value for item in request.required_capabilities),
             "data_class": request.data_class.value,
             "external_allowed": request.allow_external,
             "selected_local": selected.local,
             "max_cost_tier": request.max_cost_tier,
+            "model_use_lane": request.model_use_lane.value,
+            "model_risk_class": governance.effective_risk.value,
+            "model_quarantine_required": governance.quarantine_required,
+            "model_attestation": selected.provenance.attestation.value,
             "authority": "CK-NEXUS",
             "credential_material_in_route": False,
             "model_catalog_source": "runtime_adapter_discovery",
@@ -106,4 +118,5 @@ class AIGateway:
             "provider_count": len(self._providers),
             "authority": "CK-NEXUS",
             "hard_coded_model_inventory": False,
+            "model_governance": "fail_closed",
         }
