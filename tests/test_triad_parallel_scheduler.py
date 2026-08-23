@@ -103,3 +103,15 @@ def test_plan_digest_is_deterministic() -> None:
         item("b", "cap-b", Priority.P2, evidence_gain=4),
     )
     assert scheduler.plan(work).plan_digest == scheduler.plan(work).plan_digest
+
+
+def test_lower_priority_gain_cannot_leapfrog_p0() -> None:
+    scheduler = TriadParallelScheduler(SUBJECT, min_streams=1, max_streams=1)
+    plan = scheduler.plan(
+        (
+            item("p0", "critical-p0", Priority.P0),
+            item("p1", "high-gain-p1", Priority.P1, unblock_gain=100),
+        )
+    )
+    assert [assignment.work_id for assignment in plan.assignments] == ["p0"]
+    assert plan.deferred_work_ids == ("p1",)

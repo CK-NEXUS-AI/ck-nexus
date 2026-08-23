@@ -158,7 +158,9 @@ class TriadParallelScheduler:
 
     @classmethod
     def _rank_key(cls, item: WorkItem) -> tuple[int, int, str, str]:
-        return (-cls._score(item), int(item.priority), item.capability, item.work_id)
+        # Priority is a hard scheduling boundary: no amount of lower-priority gain
+        # may leapfrog unfinished higher-priority work. Score only ranks peers.
+        return (int(item.priority), -cls._score(item), item.capability, item.work_id)
 
     @staticmethod
     def _score(item: WorkItem) -> int:
