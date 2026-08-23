@@ -33,11 +33,29 @@ def test_bridge_maps_ck_identity_to_genai_metadata_without_content() -> None:
 
 
 def test_sensitive_content_attributes_are_rejected() -> None:
-    with pytest.raises(ValueError, match="sensitive_or_content_attribute_forbidden"):
+    with pytest.raises(ValueError, match="gen_ai_attribute_not_allowlisted"):
         OTelGenAIBridge.build_span(
             operation="invoke_agent",
             context=_context(),
             extra_attributes={"gen_ai.input.messages": "secret content"},
+        )
+
+
+def test_arbitrary_genai_body_is_rejected_even_without_sensitive_marker() -> None:
+    with pytest.raises(ValueError, match="gen_ai_attribute_not_allowlisted"):
+        OTelGenAIBridge.build_span(
+            operation="invoke_agent",
+            context=_context(),
+            extra_attributes={"gen_ai.request.body": "private content"},
+        )
+
+
+def test_unknown_ck_namespace_is_rejected() -> None:
+    with pytest.raises(ValueError, match="gen_ai_attribute_not_allowlisted"):
+        OTelGenAIBridge.build_span(
+            operation="invoke_agent",
+            context=_context(),
+            extra_attributes={"cknexus.secret.value": "not allowed"},
         )
 
 
@@ -55,7 +73,7 @@ def test_usage_token_metrics_are_allowed() -> None:
 
 
 def test_unscoped_attributes_are_rejected() -> None:
-    with pytest.raises(ValueError, match="unscoped_attribute_forbidden"):
+    with pytest.raises(ValueError, match="gen_ai_attribute_not_allowlisted"):
         OTelGenAIBridge.build_span(
             operation="invoke_workflow",
             context=_context(),
