@@ -49,3 +49,15 @@ def test_resource_guard_remains_non_production():
     assert "recommended_concurrency" in text
     assert "production_mutation=$false" in text
     assert "FailOnCritical" in text
+
+
+def test_groq_adapter_is_fail_closed_and_development_only():
+    text = (BASE / "ck_nexus_groq_dev_adapter.mjs").read_text(encoding="utf-8")
+    assert "127.0.0.1" in text
+    assert "development_only" in text
+    assert "GROQ_API_KEY" in text
+    assert "openai/gpt-oss-120b" in text
+    assert "https://api.groq.com/openai/v1/chat/completions" in text
+    assert "allow_secret_export" in text
+    assert "production_mutation:false" in text
+    assert "production_ready:false" in text
