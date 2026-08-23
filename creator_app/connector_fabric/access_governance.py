@@ -99,7 +99,10 @@ class ExternalAccessGovernor:
         )
 
     def _decide(self, request: ExternalAccessRequest) -> tuple[AccessOutcome, str]:
-        if request.bypass_requested or request.access_class is ExternalAccessClass.PROHIBITED_BYPASS:
+        if (
+            request.bypass_requested
+            or request.access_class is ExternalAccessClass.PROHIBITED_BYPASS
+        ):
             return AccessOutcome.DENY, "authentication_or_access_control_bypass_forbidden"
         if request.action is ExternalAction.CREDENTIAL_REQUEST:
             return AccessOutcome.DENY, "raw_credentials_must_not_be_requested"
@@ -112,8 +115,14 @@ class ExternalAccessGovernor:
 
         if request.access_class is ExternalAccessClass.PUBLIC_WEB:
             if request.action in _READ_ACTIONS:
-                if request.action is ExternalAction.INGEST and request.trust is TrustLevel.UNTRUSTED:
-                    return AccessOutcome.QUARANTINE, "untrusted_external_content_requires_verification"
+                if (
+                    request.action is ExternalAction.INGEST
+                    and request.trust is TrustLevel.UNTRUSTED
+                ):
+                    return (
+                        AccessOutcome.QUARANTINE,
+                        "untrusted_external_content_requires_verification",
+                    )
                 return AccessOutcome.ALLOW, "bounded_public_read_authorized"
             return AccessOutcome.DENY, "public_source_mutation_requires_governed_connector"
 
@@ -127,8 +136,14 @@ class ExternalAccessGovernor:
             return AccessOutcome.DENY, "connector_scope_insufficient"
 
         if request.action in _READ_ACTIONS:
-            if request.action is ExternalAction.INGEST and request.trust is TrustLevel.UNTRUSTED:
-                return AccessOutcome.QUARANTINE, "untrusted_connected_content_requires_verification"
+            if (
+                request.action is ExternalAction.INGEST
+                and request.trust is TrustLevel.UNTRUSTED
+            ):
+                return (
+                    AccessOutcome.QUARANTINE,
+                    "untrusted_connected_content_requires_verification",
+                )
             return AccessOutcome.ALLOW, "authorized_connected_read"
 
         if request.action in _MUTATING_ACTIONS:
