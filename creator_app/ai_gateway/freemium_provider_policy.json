@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0",
+  "name": "CK-NEXUS Freemium Intelligence Provider Policy",
+  "mode": "development_only",
+  "authority": "ck_nexus_governor",
+  "goal": "zero-cost-first provider mesh with explicit user-authorized onboarding",
+  "onboarding_policy": {
+    "gmail_connector_is_not_web_oauth_session": true,
+    "silent_third_party_signup_forbidden": true,
+    "user_confirmation_required_for_external_account_authorization": true,
+    "raw_api_keys_in_chat_forbidden": true,
+    "credential_destination": "credential_broker_or_os_secret_store",
+    "key_rotation": "prefer_provider_management_api_when_supported",
+    "lifecycle": ["DISCOVERED", "CONNECTED", "EXECUTED_UNVERIFIED", "VERIFIED"]
+  },
+  "providers": [
+    {
+      "id": "groq",
+      "role": ["reasoning", "code", "realtime"],
+      "onboarding": "SEMI_AUTO",
+      "google_sign_in": true,
+      "programmatic_key_creation": false,
+      "default_model": "openai/gpt-oss-120b",
+      "status": "EXECUTED_UNVERIFIED",
+      "notes": "Google login supported; API key creation is documented through GroqCloud console. Existing live development E2E succeeded but exact-source verification remains pending."
+    },
+    {
+      "id": "openrouter",
+      "role": ["fallback", "model_diversity", "free_router", "long_context"],
+      "onboarding": "AUTO_AFTER_BOOTSTRAP",
+      "google_sign_in": true,
+      "programmatic_key_creation": true,
+      "bootstrap_requirement": "management_api_key",
+      "default_model": "openrouter/free",
+      "status": "DISCOVERED",
+      "notes": "Management API can create/list/rotate runtime API keys after one management key is created manually."
+    },
+    {
+      "id": "google_gemini",
+      "role": ["multimodal", "reasoning", "workspace_adjacent"],
+      "onboarding": "AUTO_OR_SEMI_AUTO",
+      "google_sign_in": true,
+      "programmatic_key_creation": true,
+      "bootstrap_requirement": "Google OAuth/IAM permissions and Terms acceptance",
+      "status": "DISCOVERED",
+      "notes": "AI Studio auto-creates a project/API key for new users; new keys are authorization keys. External CK-NEXUS use must broker the key or use Google Cloud IAM/API Keys APIs."
+    },
+    {
+      "id": "sambanova",
+      "role": ["reasoning", "code", "fallback"],
+      "onboarding": "MANUAL_BOOTSTRAP",
+      "programmatic_key_creation": false,
+      "status": "DISCOVERED",
+      "notes": "Portal key generation documented; keys are shown once and must be stored securely."
+    },
+    {
+      "id": "zai",
+      "role": ["reasoning", "code", "fallback"],
+      "onboarding": "MANUAL_BOOTSTRAP",
+      "programmatic_key_creation": false,
+      "status": "DISCOVERED",
+      "notes": "Open Platform requires login and API Keys page generation."
+    }
+  ],
+  "routing_modes": ["economy", "balanced", "quality", "private", "realtime", "council", "offline"],
+  "quality_policy": {
+    "quality_or_council_requires_cross_provider_verifier_when_available": true,
+    "model_self_verdict_is_not_independent_verification": true,
+    "production_mutation": false,
+    "production_ready": false,
+    "q10_q11_q12_evidence": false
+  }
+}
