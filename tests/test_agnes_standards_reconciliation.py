@@ -78,13 +78,15 @@ def test_opentelemetry_tracks_genai_conventions_separately() -> None:
 
 def test_management_guidance_does_not_block_new_runtime_work() -> None:
     catalog = standards_catalog()
-
     nist = catalog.get("standard.nist.ai_rmf_genai")
     iso = catalog.get("standard.iso.iec.42001")
+
     assert nist is not None and nist.adoption_mode is AdoptionMode.STUDY
     assert iso is not None and iso.adoption_mode is AdoptionMode.STUDY
 
-    decision = predevelopment_search(catalog, "AI management governance")
+    study_only = KnowledgeCatalog((nist, iso))
+    decision = predevelopment_search(study_only, "governance risk management")
+    assert decision.matches
     assert decision.build_new_allowed is True
 
 
