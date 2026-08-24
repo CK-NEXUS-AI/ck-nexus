@@ -52,6 +52,9 @@ env:
   Q11_RUNTIME_SUBJECT: 89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52
   Q11_APPLICATION_SUBJECT: dff89dc7fa9cd6e40480c3344f688a75383ec798929efe23f3a29c79d1186cec
   Q10_VALIDATOR_SHA: c8eef59ebe186454dec695983134096f2d6b405f
+  Q11_CHECKOUT_ACTION_SHA: d23441a48e516b6c34aea4fa41551a30e30af803
+  Q11_SETUP_PYTHON_ACTION_SHA: ece7cb06caefa5fff74198d8649806c4678c61a1
+  Q11_UPLOAD_ARTIFACT_ACTION_SHA: ea165f8d65b6e75b540449e92b4886f43607fa02
 
 jobs:
   q11:
@@ -59,7 +62,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout operator pack
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           path: operator
           fetch-depth: 0
@@ -78,7 +81,7 @@ jobs:
           test "$CONFIRM_APPLICATION_SUBJECT" = "$Q11_APPLICATION_SUBJECT"
 
       - name: Checkout pinned Q10 native receipt validator
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ env.Q10_VALIDATOR_SHA }}
           path: q10-validator
@@ -162,7 +165,7 @@ jobs:
           rm -f .q10-receipt-path
 
       - name: Checkout exact frozen runtime
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ env.Q11_RUNTIME_SHA }}
           path: runtime
@@ -176,7 +179,7 @@ jobs:
           test "$(git show -s --format=%T HEAD)" = "$Q11_RUNTIME_TREE"
           echo "Q11 exact runtime identity verified"
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
 
@@ -240,7 +243,7 @@ jobs:
           actual_model, response_id = match.groups()
           q10 = json.loads(Path('q10-authorization.json').read_text())
           evidence = {
-              'schema_version': 6,
+              'schema_version': 7,
               'gate': 'Q11',
               'result': 'PASS',
               'source_sha': os.environ['Q11_RUNTIME_SHA'],
@@ -261,6 +264,11 @@ jobs:
               'response_id_sha256': 'sha256:' + hashlib.sha256(response_id.encode()).hexdigest(),
               'raw_provider_output_persisted': False,
               'q10_authorization': q10,
+              'workflow_action_identities': {
+                  'actions/checkout': os.environ['Q11_CHECKOUT_ACTION_SHA'],
+                  'actions/setup-python': os.environ['Q11_SETUP_PYTHON_ACTION_SHA'],
+                  'actions/upload-artifact': os.environ['Q11_UPLOAD_ARTIFACT_ACTION_SHA'],
+              },
               'production_promotion_allowed': True,
           }
           Path('Q11_OPENAI_LIVE.json').write_text(json.dumps(evidence, indent=2, sort_keys=True) + '\n')
@@ -274,12 +282,13 @@ jobs:
               'q10_run_id': q10['q10_run_id'],
               'q10_scan_id': q10['codex_security_scan_id'],
               'q10_report_sha256': q10['codex_security_report_sha256'],
+              'workflow_action_identities': evidence['workflow_action_identities'],
           }, indent=2, sort_keys=True) + '\n')
           print(json.dumps(evidence, indent=2, sort_keys=True))
           Path('q11-smoke.log').unlink(missing_ok=True)
           PY
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: q11-live-${{ github.run_id }}
           path: |
