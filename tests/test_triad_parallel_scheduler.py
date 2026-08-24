@@ -24,6 +24,18 @@ def test_scheduler_prefers_higher_priority_and_unblock_gain() -> None:
     assert [assignment.work_id for assignment in plan.assignments] == ["p0-high", "p0-low"]
 
 
+def test_lower_priority_gain_cannot_leapfrog_p0() -> None:
+    scheduler = TriadParallelScheduler(SUBJECT, min_streams=1, max_streams=1)
+    plan = scheduler.plan(
+        (
+            item("p0", "critical-p0", Priority.P0),
+            item("p1", "high-gain-p1", Priority.P1, unblock_gain=100),
+        )
+    )
+    assert [assignment.work_id for assignment in plan.assignments] == ["p0"]
+    assert plan.deferred_work_ids == ("p1",)
+
+
 def test_scheduler_never_fabricates_to_reach_minimum() -> None:
     scheduler = TriadParallelScheduler(SUBJECT, min_streams=5, max_streams=9)
     plan = scheduler.plan((item("one", "only-capability"),))
