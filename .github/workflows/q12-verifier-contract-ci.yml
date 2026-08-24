@@ -61,6 +61,13 @@ jobs:
             'workflow_dispatch:',
             'expected_verifier_sha:',
             'expected_verifier_tree:',
+            'confirm_application_subject:',
+            'Q12_APPLICATION_SUBJECT: dff89dc7fa9cd6e40480c3344f688a75383ec798929efe23f3a29c79d1186cec',
+            'CONFIRM_APPLICATION_SUBJECT: ${{ inputs.confirm_application_subject }}',
+            'test "$CONFIRM_APPLICATION_SUBJECT" = "$Q12_APPLICATION_SUBJECT"',
+            'q12-application-subject.txt',
+            "'application_subject_manifest_sha256': application_subject",
+            "assert x['application_subject_manifest_sha256'] == 'dff89dc7fa9cd6e40480c3344f688a75383ec798929efe23f3a29c79d1186cec'",
             'required: true',
             'runs-on: [self-hosted, linux, cknexus-q12]',
             'Bind reviewed verifier harness identity before mutation',
@@ -89,10 +96,11 @@ jobs:
           if '\n  push:' in text:
             raise SystemExit('authoritative Q12 verifier must be workflow_dispatch-only')
           bind=text.index('Bind reviewed verifier harness identity before mutation')
+          app_bind=text.index('test "$CONFIRM_APPLICATION_SUBJECT" = "$Q12_APPLICATION_SUBJECT"')
           boundary=text.index('Verify true delegated cgroup v2 boundary')
           active=text.index('Prove active CPU, memory, and PID kernel enforcement')
-          if not bind < boundary < active:
-            raise SystemExit('verifier identity must fail closed before delegated-root checks and active probes')
+          if not bind <= app_bind < boundary < active:
+            raise SystemExit('application subject and verifier identity must fail closed before delegated-root checks and active probes')
           print('Q12_VERIFIER_CONTRACT=PASS')
           PY
       - name: Prove frozen runtime subject surface was not modified
