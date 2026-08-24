@@ -121,8 +121,8 @@ class TriadParallelScheduler:
         ranked = sorted(
             candidates,
             key=lambda item: (
-                -self._score(item),
                 int(item.priority),
+                -self._score(item),
                 item.capability,
                 item.work_id,
             ),
