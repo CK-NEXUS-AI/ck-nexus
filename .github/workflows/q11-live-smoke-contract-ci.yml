@@ -23,10 +23,14 @@ jobs:
       - name: Validate fail-closed Q11 workflow contract
         run: |
           python - <<'PY'
+          import re
           from pathlib import Path
 
           path = Path('.github/workflows/q11-live-provider-smoke.yml')
           text = path.read_text(encoding='utf-8')
+          checkout_sha = 'd23441a48e516b6c34aea4fa41551a30e30af803'
+          setup_python_sha = 'ece7cb06caefa5fff74198d8649806c4678c61a1'
+          upload_artifact_sha = 'ea165f8d65b6e75b540449e92b4886f43607fa02'
           required = (
               'workflow_dispatch:',
               'confirm_runtime_sha:',
@@ -41,6 +45,12 @@ jobs:
               '89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52',
               'dff89dc7fa9cd6e40480c3344f688a75383ec798929efe23f3a29c79d1186cec',
               'c8eef59ebe186454dec695983134096f2d6b405f',
+              checkout_sha,
+              setup_python_sha,
+              upload_artifact_sha,
+              'Q11_CHECKOUT_ACTION_SHA:',
+              'Q11_SETUP_PYTHON_ACTION_SHA:',
+              'Q11_UPLOAD_ARTIFACT_ACTION_SHA:',
               'permissions:\n  actions: read\n  contents: read',
               'gh run download "$Q10_RUN_ID"',
               'validate_q10_native_deep_scan_receipt.py',
@@ -53,6 +63,7 @@ jobs:
               'credential literal detected in captured smoke output',
               "raw_provider_output_persisted': False",
               "'q10_authorization': q10",
+              "'workflow_action_identities': {",
           )
           missing = [item for item in required if item not in text]
           if missing:
@@ -63,6 +74,19 @@ jobs:
               raise SystemExit('committed Q10 status JSON must not authorize provider access')
           if 'cat ../q11-smoke.log' in text:
               raise SystemExit('raw provider output must not be echoed')
+
+          mutable_refs = re.findall(r'^\s*uses:\s*[^\s#]+@v[^\s#]*', text, flags=re.MULTILINE)
+          if mutable_refs:
+              raise SystemExit(f'mutable action refs forbidden in authoritative Q11 workflow: {mutable_refs}')
+
+          for action, sha in (
+              ('actions/checkout', checkout_sha),
+              ('actions/setup-python', setup_python_sha),
+              ('actions/upload-artifact', upload_artifact_sha),
+          ):
+              expected = f'uses: {action}@{sha}'
+              if expected not in text:
+                  raise SystemExit(f'authoritative Q11 action is not immutably pinned: {action}')
 
           confirmation_index = text.index('Confirm exact Q11 frozen identity')
           download_index = text.index('Download authoritative native Q10 artifact')
@@ -76,7 +100,8 @@ jobs:
           if 'test -s ../q10-authorization.json' not in provider_step:
               raise SystemExit('provider step must require validated Q10 authorization')
 
-          upload = text.split('- uses: actions/upload-artifact@v4', maxsplit=1)[1]
+          upload_marker = f'- uses: actions/upload-artifact@{upload_artifact_sha}'
+          upload = text.split(upload_marker, maxsplit=1)[1]
           if 'q11-smoke.log' in upload:
               raise SystemExit('raw provider output must not be persisted as an artifact')
           for artifact in ('Q11_OPENAI_LIVE.json', 'Q11_SMOKE_SUMMARY.json', 'q10-authorization.json'):
