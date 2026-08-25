@@ -20,14 +20,35 @@ class ExpertRegistry:
 def default_registry() -> ExpertRegistry:
     """Map domain expertise onto agents that already exist in CK-NEXUS."""
     profiles = (
-        ExpertProfile("director", "DirectorAgent", ("architecture", "business", "cross_domain")),
-        ExpertProfile("engineer", "EngineerAgent", ("backend", "frontend", "data", "ai_ml", "devops")),
-        ExpertProfile("guardian", "GuardianAgent", ("security", "reliability", "compliance")),
-        ExpertProfile("analyst", "AnalystAgent", ("analysis", "data", "finance", "observability")),
+        ExpertProfile(
+            "director",
+            "DirectorAgent",
+            ("architecture", "business", "cross_domain"),
+        ),
+        ExpertProfile(
+            "engineer",
+            "EngineerAgent",
+            ("backend", "frontend", "data", "ai_ml", "devops"),
+        ),
+        ExpertProfile(
+            "guardian",
+            "GuardianAgent",
+            ("security", "reliability", "compliance"),
+        ),
+        ExpertProfile(
+            "analyst",
+            "AnalystAgent",
+            ("analysis", "data", "finance", "observability"),
+        ),
         ExpertProfile("researcher", "ResearcherAgent", ("research", "legal", "standards")),
         ExpertProfile("designer", "DesignerAgent", ("ux", "frontend")),
         ExpertProfile("connector", "ConnectorAgent", ("integrations", "devops")),
         # This is an independent role contract, not an execution agent and not self-approval.
-        ExpertProfile("independent_verifier", "IndependentVerifier", ("verification",), may_verify=True),
+        ExpertProfile(
+            "independent_verifier",
+            "IndependentVerifier",
+            ("verification",),
+            may_verify=True,
+        ),
     )
     return ExpertRegistry(profiles)
