@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import re
 from collections.abc import Iterable
+import re
 
 from .models import ExpertRoute, RiskClass
 from .registry import ExpertRegistry, default_registry
@@ -29,8 +29,18 @@ _DOMAIN_TERMS: dict[str, tuple[str, ...]] = {
 
 _PRODUCTION_TERMS = ("production", "deploy", "release", "merge", "pr #14", "prod")
 _HIGH_RISK_TERMS = (
-    "delete", "destroy", "payment", "purchase", "credential", "secret", "private key",
-    "send email", "external write", "permission", "authorize", "production mutation",
+    "delete",
+    "destroy",
+    "payment",
+    "purchase",
+    "credential",
+    "secret",
+    "private key",
+    "send email",
+    "external write",
+    "permission",
+    "authorize",
+    "production mutation",
 )
 
 _PRIMARY_BY_DOMAIN = {
@@ -101,14 +111,18 @@ class ExpertRouter:
         risk = self.classify_risk(task, domains)
 
         primary = _PRIMARY_BY_DOMAIN.get(routed_domains[0], "director")
-        support = [_PRIMARY_BY_DOMAIN.get(domain, "director") for domain in routed_domains[1:]]
+        support = [
+            _PRIMARY_BY_DOMAIN.get(domain, "director") for domain in routed_domains[1:]
+        ]
 
         if len(routed_domains) > 1 and primary != "director":
             support.append("director")
         if needs_discovery:
             support.append("researcher")
 
-        independent_required = risk in {RiskClass.HIGH, RiskClass.PRODUCTION} or "verification" in domains
+        independent_required = (
+            risk in {RiskClass.HIGH, RiskClass.PRODUCTION} or "verification" in domains
+        )
         if independent_required and primary != "independent_verifier":
             support.append("independent_verifier")
         if risk in {RiskClass.HIGH, RiskClass.PRODUCTION} and primary != "guardian":
@@ -123,7 +137,10 @@ class ExpertRouter:
             for capability in self.registry.get(expert_id).capabilities
         )
 
-        rationale = [f"domains={','.join(domains) if domains else 'unknown'}", f"risk={risk.value}"]
+        rationale = [
+            f"domains={','.join(domains) if domains else 'unknown'}",
+            f"risk={risk.value}",
+        ]
         if needs_discovery:
             rationale.append("unknown-domain: research before execution")
         if approval_required:
