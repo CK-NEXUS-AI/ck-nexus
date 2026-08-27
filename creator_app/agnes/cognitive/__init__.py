@@ -4,6 +4,12 @@ These modules are advisory and orchestration-oriented. They never grant executio
 authority, credentials, approvals, or production readiness.
 """
 
+from .authzen import (
+    AUTHZEN_ACCESS_EVALUATION_PATH,
+    AUTHZEN_SPEC_VERSION,
+    AuthZENAdapter,
+    AuthZENEnforcementResult,
+)
 from .blackboard import BlackboardEntry, BlackboardEntryType, CognitiveBlackboard
 from .capabilities import CapabilityFamily, CapabilityRegistry, default_capability_registry
 from .context import CompiledContext, ContextCompiler, ContextItem
@@ -29,7 +35,11 @@ from .tasks import DurableTask, DurableTaskRuntime, TaskState
 from .verification import PassEngine, PassResult, VerificationEvidence, VerificationSubject
 
 __all__ = [
+    "AUTHZEN_ACCESS_EVALUATION_PATH",
+    "AUTHZEN_SPEC_VERSION",
     "ActionProposal",
+    "AuthZENAdapter",
+    "AuthZENEnforcementResult",
     "BlackboardEntry",
     "BlackboardEntryType",
     "CapabilityFamily",
