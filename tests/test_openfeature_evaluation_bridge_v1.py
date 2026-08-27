@@ -1,3 +1,5 @@
+import pytest
+
 from creator_app.feature_flags import (
     OPENFEATURE_SPEC_VERSION,
     NoOpProvider,
@@ -56,6 +58,10 @@ class ErrorDetailsProvider(WorkingProvider):
         )
 
 
+class MissingResolverProvider:
+    metadata = ProviderMetadata("missing-resolver-provider")
+
+
 def test_openfeature_spec_version_is_current_v090() -> None:
     assert OPENFEATURE_SPEC_VERSION == "0.9.0"
 
@@ -108,6 +114,31 @@ def test_type_mismatch_returns_default() -> None:
     assert details.error_code == "TYPE_MISMATCH"
 
 
+def test_invalid_context_returns_default_without_escaping() -> None:
+    bridge = OpenFeatureEvaluationBridge(WorkingProvider())
+    details = bridge.get_boolean_details("feature-x", False, {"bad": object()})
+    assert details.value is False
+    assert details.default_used is True
+    assert details.error_code == "INVALID_CONTEXT"
+
+
+def test_missing_provider_resolver_returns_default_without_escaping() -> None:
+    bridge = OpenFeatureEvaluationBridge(MissingResolverProvider())
+    details = bridge.get_boolean_details("feature-x", False)
+    assert details.value is False
+    assert details.default_used is True
+    assert details.provider_name == "missing-resolver-provider"
+    assert details.error_code == "GENERAL"
+
+
+def test_invalid_flag_key_returns_default_without_escaping() -> None:
+    details = OpenFeatureEvaluationBridge(WorkingProvider()).get_boolean_details("", False)
+    assert details.value is False
+    assert details.default_used is True
+    assert details.flag_key == "<invalid>"
+    assert details.error_code == "INVALID_CONTEXT"
+
+
 def test_flag_result_never_grants_ck_authority() -> None:
     bridge = OpenFeatureEvaluationBridge(WorkingProvider())
     details = bridge.get_boolean_details("production_mutation", False)
@@ -128,9 +159,5 @@ def test_evidence_digest_is_deterministic_and_context_bound() -> None:
 
 
 def test_provider_metadata_name_is_required() -> None:
-    try:
+    with pytest.raises(ValueError, match="provider name"):
         ProviderMetadata("   ")
-    except ValueError as exc:
-        assert "provider name" in str(exc)
-    else:
-        raise AssertionError("empty provider name must fail")
