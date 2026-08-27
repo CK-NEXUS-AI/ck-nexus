@@ -27,6 +27,36 @@ A2A_RELEASE_VERSION = "1.0.0"
 A2A_PROTOCOL_VERSION = "1.0"
 A2A_AGENT_CARD_WELL_KNOWN_PATH = "/.well-known/agent-card.json"
 _CORE_BINDINGS = frozenset({"JSONRPC", "GRPC", "HTTP+JSON"})
+_CARD_FIELDS = frozenset(
+    {
+        "name",
+        "description",
+        "supportedInterfaces",
+        "provider",
+        "version",
+        "documentationUrl",
+        "capabilities",
+        "securitySchemes",
+        "securityRequirements",
+        "defaultInputModes",
+        "defaultOutputModes",
+        "skills",
+        "signatures",
+        "iconUrl",
+    }
+)
+_SKILL_FIELDS = frozenset(
+    {
+        "id",
+        "name",
+        "description",
+        "tags",
+        "examples",
+        "inputModes",
+        "outputModes",
+        "securityRequirements",
+    }
+)
 
 
 class A2AAdmissionStatus(StrEnum):
@@ -36,12 +66,12 @@ class A2AAdmissionStatus(StrEnum):
 
 
 class AgentCardSignatureVerifier(Protocol):
-    """Trusted JWS verifier boundary supplied by the CK Verification Plane."""
+    """Trusted RFC 8785/JWS verifier boundary supplied by CK Verification."""
 
     def verify(
         self,
         *,
-        unsigned_card: bytes,
+        unsigned_card: Mapping[str, object],
         signatures: tuple[dict[str, object], ...],
     ) -> bool: ...
 
@@ -65,6 +95,13 @@ class A2AAdmissionResult:
     verification_upgrade_allowed: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class _ValidatedCard:
+    normalized: dict[str, object]
+    unsigned_card: dict[str, object]
+    signatures: tuple[dict[str, object], ...]
+
+
 class A2AAgentCardAdmission:
     """Admit A2A Agent Cards as non-executable discovery candidates only."""
 
@@ -83,11 +120,91 @@ class A2AAgentCardAdmission:
         expected_host: str,
         user_authorized: bool,
     ) -> A2AAdmissionResult:
-        expected_host = expected_host.strip().lower()
-        if not expected_host:
+        host = expected_host.strip().lower()
+        if not host:
             raise ValueError("expected_host must not be empty")
 
-        access_request = ExternalAccessRequest(
+        access = self._external_access(card, expected_host=host, user_authorized=user_authorized)
+        if access.outcome is not AccessOutcome.ALLOW:
+            return self._result(
+                status=A2AAdmissionStatus.REJECTED,
+                reason=f"external_access_denied:{access.reason}",
+                access=access,
+            )
+
+        try:
+            validated = self._validate_card(card, expected_host=host)
+        except (TypeError, ValueError) as exc:
+            return self._result(
+                status=A2AAdmissionStatus.REJECTED,
+                reason=f"invalid_agent_card:{exc}",
+                access=access,
+            )
+
+        signature_state = "ABSENT"
+        if validated.signatures:
+            signature_state, terminal = self._verify_signatures(validated, access)
+            if terminal is not None:
+                return terminal
+
+        required_extensions = validated.normalized["required_extensions"]
+        if required_extensions:
+            return self._result(
+                status=A2AAdmissionStatus.QUARANTINED,
+                reason="required_a2a_extension_requires_explicit_ck_admission",
+                access=access,
+                normalized=validated.normalized,
+                signature_state=signature_state,
+            )
+
+        return self._result(
+            status=A2AAdmissionStatus.DISCOVERED_CANDIDATE,
+            reason="agent_card_valid_for_non_executable_discovery",
+            access=access,
+            normalized=validated.normalized,
+            signature_state=signature_state,
+        )
+
+    def _verify_signatures(
+        self,
+        validated: _ValidatedCard,
+        access: ExternalAccessDecision,
+    ) -> tuple[str, A2AAdmissionResult | None]:
+        if self._signature_verifier is None:
+            result = self._result(
+                status=A2AAdmissionStatus.QUARANTINED,
+                reason="agent_card_signature_present_but_no_trusted_verifier",
+                access=access,
+                normalized=validated.normalized,
+                signature_state="UNVERIFIED",
+            )
+            return "UNVERIFIED", result
+        try:
+            valid = self._signature_verifier.verify(
+                unsigned_card=validated.unsigned_card,
+                signatures=validated.signatures,
+            )
+        except (KeyError, TypeError, ValueError):
+            valid = False
+        if not valid:
+            result = self._result(
+                status=A2AAdmissionStatus.REJECTED,
+                reason="agent_card_signature_verification_failed",
+                access=access,
+                normalized=validated.normalized,
+                signature_state="FAILED",
+            )
+            return "FAILED", result
+        return "VERIFIED_BY_TRUSTED_BOUNDARY", None
+
+    def _external_access(
+        self,
+        card: Mapping[str, object],
+        *,
+        expected_host: str,
+        user_authorized: bool,
+    ) -> ExternalAccessDecision:
+        request = ExternalAccessRequest(
             request_id=self._request_id(card),
             source=f"https://{expected_host}{A2A_AGENT_CARD_WELL_KNOWN_PATH}",
             access_class=ExternalAccessClass.PUBLIC_WEB,
@@ -95,105 +212,20 @@ class A2AAgentCardAdmission:
             purpose="a2a-agent-card-discovery",
             user_authorized=user_authorized,
         )
-        access_decision = self._access_governor.evaluate(access_request)
-        if access_decision.outcome is not AccessOutcome.ALLOW:
-            return self._result(
-                status=A2AAdmissionStatus.REJECTED,
-                reason=f"external_access_denied:{access_decision.reason}",
-                access_decision=access_decision,
-            )
-
-        try:
-            normalized = self._validate_card(card, expected_host=expected_host)
-        except (TypeError, ValueError) as exc:
-            return self._result(
-                status=A2AAdmissionStatus.REJECTED,
-                reason=f"invalid_agent_card:{exc}",
-                access_decision=access_decision,
-            )
-
-        signatures = normalized.pop("signatures", ())
-        signature_state = "ABSENT"
-        if signatures:
-            if self._signature_verifier is None:
-                return self._result(
-                    status=A2AAdmissionStatus.QUARANTINED,
-                    reason="agent_card_signature_present_but_no_trusted_verifier",
-                    access_decision=access_decision,
-                    normalized=normalized,
-                    signature_state="UNVERIFIED",
-                )
-            unsigned = self._canonical_json(normalized)
-            try:
-                signature_ok = self._signature_verifier.verify(
-                    unsigned_card=unsigned,
-                    signatures=signatures,
-                )
-            except (KeyError, TypeError, ValueError):
-                signature_ok = False
-            if not signature_ok:
-                return self._result(
-                    status=A2AAdmissionStatus.REJECTED,
-                    reason="agent_card_signature_verification_failed",
-                    access_decision=access_decision,
-                    normalized=normalized,
-                    signature_state="FAILED",
-                )
-            signature_state = "VERIFIED_BY_TRUSTED_BOUNDARY"
-
-        if normalized["required_extensions"]:
-            return self._result(
-                status=A2AAdmissionStatus.QUARANTINED,
-                reason="required_a2a_extension_requires_explicit_ck_admission",
-                access_decision=access_decision,
-                normalized=normalized,
-                signature_state=signature_state,
-            )
-
-        return self._result(
-            status=A2AAdmissionStatus.DISCOVERED_CANDIDATE,
-            reason="agent_card_valid_for_non_executable_discovery",
-            access_decision=access_decision,
-            normalized=normalized,
-            signature_state=signature_state,
-        )
+        return self._access_governor.evaluate(request)
 
     @staticmethod
     def _validate_card(
         card: Mapping[str, object],
         *,
         expected_host: str,
-    ) -> dict[str, object]:
+    ) -> _ValidatedCard:
         if not isinstance(card, Mapping):
             raise TypeError("Agent Card must be an object")
-        allowed = {
-            "name",
-            "description",
-            "supportedInterfaces",
-            "provider",
-            "version",
-            "documentationUrl",
-            "capabilities",
-            "securitySchemes",
-            "securityRequirements",
-            "defaultInputModes",
-            "defaultOutputModes",
-            "skills",
-            "signatures",
-            "iconUrl",
-        }
-        unknown = set(card) - allowed
+        unknown = set(card) - _CARD_FIELDS
         if unknown:
             raise ValueError(f"unsupported Agent Card fields: {sorted(unknown)}")
 
-        name = A2AAgentCardAdmission._required_string(card, "name")
-        description = A2AAgentCardAdmission._required_string(card, "description")
-        version = A2AAgentCardAdmission._required_string(card, "version")
-        input_modes = A2AAgentCardAdmission._string_list(card.get("defaultInputModes"), "defaultInputModes")
-        output_modes = A2AAgentCardAdmission._string_list(
-            card.get("defaultOutputModes"),
-            "defaultOutputModes",
-        )
         interfaces, bindings = A2AAgentCardAdmission._interfaces(
             card.get("supportedInterfaces"),
             expected_host=expected_host,
@@ -205,18 +237,23 @@ class A2AAgentCardAdmission:
         signatures = A2AAgentCardAdmission._signatures(card.get("signatures"))
 
         normalized: dict[str, object] = {
-            "name": name,
-            "description": description,
+            "name": A2AAgentCardAdmission._required_string(card, "name"),
+            "description": A2AAgentCardAdmission._required_string(card, "description"),
             "supportedInterfaces": interfaces,
-            "version": version,
+            "version": A2AAgentCardAdmission._required_string(card, "version"),
             "capabilities": capabilities,
-            "defaultInputModes": input_modes,
-            "defaultOutputModes": output_modes,
+            "defaultInputModes": A2AAgentCardAdmission._string_list(
+                card.get("defaultInputModes"),
+                "defaultInputModes",
+            ),
+            "defaultOutputModes": A2AAgentCardAdmission._string_list(
+                card.get("defaultOutputModes"),
+                "defaultOutputModes",
+            ),
             "skills": skills,
             "skill_ids": skill_ids,
             "interface_bindings": bindings,
             "required_extensions": required_extensions,
-            "signatures": signatures,
         }
         for optional in (
             "provider",
@@ -227,8 +264,15 @@ class A2AAgentCardAdmission:
         ):
             if optional in card:
                 normalized[optional] = card[optional]
-        json.dumps(normalized, ensure_ascii=False, sort_keys=True)
-        return normalized
+
+        unsigned_card = dict(card)
+        unsigned_card.pop("signatures", None)
+        json.dumps(unsigned_card, ensure_ascii=False, sort_keys=True)
+        return _ValidatedCard(
+            normalized=normalized,
+            unsigned_card=unsigned_card,
+            signatures=signatures,
+        )
 
     @staticmethod
     def _interfaces(
@@ -243,7 +287,8 @@ class A2AAgentCardAdmission:
         for raw in value:
             if not isinstance(raw, Mapping):
                 raise ValueError("AgentInterface must be an object")
-            unknown = set(raw) - {"url", "protocolBinding", "tenant", "protocolVersion"}
+            allowed = {"url", "protocolBinding", "tenant", "protocolVersion"}
+            unknown = set(raw) - allowed
             if unknown:
                 raise ValueError(f"unsupported AgentInterface fields: {sorted(unknown)}")
             url = A2AAgentCardAdmission._required_string(raw, "url")
@@ -280,7 +325,7 @@ class A2AAgentCardAdmission:
             try:
                 host, port_text = url.rsplit(":", 1)
                 port = int(port_text)
-            except (ValueError, TypeError):
+            except (TypeError, ValueError):
                 raise ValueError("GRPC interface must use valid host:port") from None
             if host.lower() != expected_host or not 1 <= port <= 65535:
                 raise ValueError("GRPC interface host/port is outside admitted origin")
@@ -303,6 +348,9 @@ class A2AAgentCardAdmission:
         for raw in value:
             if not isinstance(raw, Mapping):
                 raise ValueError("AgentSkill must be an object")
+            unknown = set(raw) - _SKILL_FIELDS
+            if unknown:
+                raise ValueError(f"unsupported AgentSkill fields: {sorted(unknown)}")
             required = {"id", "name", "description", "tags"}
             if not required.issubset(raw):
                 raise ValueError("AgentSkill requires id/name/description/tags")
@@ -331,10 +379,10 @@ class A2AAgentCardAdmission:
         if unknown:
             raise ValueError(f"unsupported capabilities fields: {sorted(unknown)}")
         normalized = dict(value)
-        required_extensions: list[str] = []
         extensions = value.get("extensions", [])
         if not isinstance(extensions, list):
             raise ValueError("capabilities.extensions must be a list")
+        required_extensions: list[str] = []
         for extension in extensions:
             if not isinstance(extension, Mapping):
                 raise ValueError("AgentExtension must be an object")
@@ -355,16 +403,16 @@ class A2AAgentCardAdmission:
         if not isinstance(value, list):
             raise ValueError("signatures must be a list")
         normalized: list[dict[str, object]] = []
-        for signature in value:
-            if not isinstance(signature, Mapping):
+        for raw in value:
+            if not isinstance(raw, Mapping):
                 raise ValueError("AgentCardSignature must be an object")
-            protected = signature.get("protected")
-            encoded = signature.get("signature")
+            protected = raw.get("protected")
+            signature = raw.get("signature")
             if not isinstance(protected, str) or not protected:
                 raise ValueError("AgentCardSignature protected is required")
-            if not isinstance(encoded, str) or not encoded:
+            if not isinstance(signature, str) or not signature:
                 raise ValueError("AgentCardSignature signature is required")
-            normalized.append(dict(signature))
+            normalized.append(dict(raw))
         return tuple(normalized)
 
     @staticmethod
@@ -384,6 +432,7 @@ class A2AAgentCardAdmission:
 
     @staticmethod
     def _canonical_json(value: object) -> bytes:
+        """Deterministic CK evidence encoding; not an RFC 8785/JWS implementation."""
         return json.dumps(
             value,
             ensure_ascii=False,
@@ -404,7 +453,7 @@ class A2AAgentCardAdmission:
         *,
         status: A2AAdmissionStatus,
         reason: str,
-        access_decision: ExternalAccessDecision,
+        access: ExternalAccessDecision,
         normalized: Mapping[str, object] | None = None,
         signature_state: str = "NOT_EVALUATED",
     ) -> A2AAdmissionResult:
@@ -419,26 +468,26 @@ class A2AAgentCardAdmission:
             "skill_ids": normalized.get("skill_ids", ()),
             "interface_bindings": normalized.get("interface_bindings", ()),
             "signature_state": signature_state,
-            "access_reason": access_decision.reason,
+            "access_reason": access.reason,
             "authority": "CK-NEXUS",
             "execution_allowed": False,
             "production_mutation_allowed": False,
             "verification_upgrade_allowed": False,
         }
         digest = hashlib.sha256(A2AAgentCardAdmission._canonical_json(digest_payload)).hexdigest()
+        name = normalized.get("name")
+        version = normalized.get("version")
         return A2AAdmissionResult(
             status=status,
             discovered=status is not A2AAdmissionStatus.REJECTED,
             admitted_candidate=status is A2AAdmissionStatus.DISCOVERED_CANDIDATE,
             execution_allowed=False,
             reason=reason,
-            agent_name=normalized.get("name") if isinstance(normalized.get("name"), str) else None,
-            agent_version=(
-                normalized.get("version") if isinstance(normalized.get("version"), str) else None
-            ),
+            agent_name=name if isinstance(name, str) else None,
+            agent_version=version if isinstance(version, str) else None,
             skill_ids=tuple(normalized.get("skill_ids", ())),
             interface_bindings=tuple(normalized.get("interface_bindings", ())),
             signature_state=signature_state,
             card_digest=digest,
-            access_decision=access_decision,
+            access_decision=access,
         )
