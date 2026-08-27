@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import re
 
-from . import models, registry as expert_registry
+import creator_app.expert_fabric.models as expert_models
+import creator_app.expert_fabric.registry as expert_registry
 
 
 _DOMAIN_TERMS: dict[str, tuple[str, ...]] = {
@@ -90,19 +91,19 @@ class ExpertRouter:
         ]
         return tuple(matches)
 
-    def classify_risk(self, task: str, domains: tuple[str, ...]) -> models.RiskClass:
+    def classify_risk(self, task: str, domains: tuple[str, ...]) -> expert_models.RiskClass:
         text = task.casefold()
         if any(_contains(text, term) for term in _PRODUCTION_TERMS):
-            return models.RiskClass.PRODUCTION
+            return expert_models.RiskClass.PRODUCTION
         if any(_contains(text, term) for term in _HIGH_RISK_TERMS):
-            return models.RiskClass.HIGH
+            return expert_models.RiskClass.HIGH
         if {"security", "legal", "compliance"}.intersection(domains):
-            return models.RiskClass.HIGH
+            return expert_models.RiskClass.HIGH
         if len(domains) > 1:
-            return models.RiskClass.MEDIUM
-        return models.RiskClass.LOW
+            return expert_models.RiskClass.MEDIUM
+        return expert_models.RiskClass.LOW
 
-    def route(self, task: str) -> models.ExpertRoute:
+    def route(self, task: str) -> expert_models.ExpertRoute:
         domains = self.classify_domains(task)
         needs_discovery = not domains
         routed_domains = domains or ("cross_domain",)
@@ -119,16 +120,30 @@ class ExpertRouter:
             support.append("researcher")
 
         independent_required = (
-            risk in {models.RiskClass.HIGH, models.RiskClass.PRODUCTION}
+            risk
+            in {
+                expert_models.RiskClass.HIGH,
+                expert_models.RiskClass.PRODUCTION,
+            }
             or "verification" in domains
         )
         if independent_required and primary != "independent_verifier":
             support.append("independent_verifier")
-        if risk in {models.RiskClass.HIGH, models.RiskClass.PRODUCTION} and primary != "guardian":
+        if (
+            risk
+            in {
+                expert_models.RiskClass.HIGH,
+                expert_models.RiskClass.PRODUCTION,
+            }
+            and primary != "guardian"
+        ):
             support.append("guardian")
 
         supporting = tuple(x for x in _unique(support) if x != primary)
-        approval_required = risk in {models.RiskClass.HIGH, models.RiskClass.PRODUCTION}
+        approval_required = risk in {
+            expert_models.RiskClass.HIGH,
+            expert_models.RiskClass.PRODUCTION,
+        }
 
         capabilities = _unique(
             capability
@@ -147,7 +162,7 @@ class ExpertRouter:
         if independent_required:
             rationale.append("no-self-approval: independent verification required")
 
-        return models.ExpertRoute(
+        return expert_models.ExpertRoute(
             domains=domains,
             primary_expert=primary,
             supporting_experts=supporting,
