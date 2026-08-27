@@ -151,5 +151,7 @@ class SubjectGapAnalyzer:
             rerun_scopes=(),
             authoritative_reuse_allowed=True,
             historical_reference_allowed=True,
-            reasons=("exact subject, valid ledger, complete fresh evidence and valid verifier separation",),
+            reasons=(
+                "exact subject, valid ledger, complete fresh evidence and valid verifier separation",
+            ),
         )
