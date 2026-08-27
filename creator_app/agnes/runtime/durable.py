@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from copy import deepcopy
-from dataclasses import dataclass, field
-from enum import Enum
 import hashlib
 import json
 import re
+from copy import deepcopy
+from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Iterable
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
