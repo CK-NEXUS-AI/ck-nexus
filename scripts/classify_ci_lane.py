@@ -41,7 +41,11 @@ def _is_development_ref(ref_name: str) -> bool:
 
 
 def _is_release_ref(ref_name: str) -> bool:
-    return ref_name == "main" or ref_name.startswith(_RELEASE_BOUND_PREFIXES) or ref_name.startswith("fix/q")
+    return (
+        ref_name == "main"
+        or ref_name.startswith(_RELEASE_BOUND_PREFIXES)
+        or ref_name.startswith("fix/q")
+    )
 
 
 def classify_ci_lane(
