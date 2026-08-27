@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -91,7 +91,7 @@ def test_signal_delivery_is_idempotent_and_conflicts_fail_closed() -> None:
 
 def test_timer_fires_only_when_explicit_clock_is_due() -> None:
     controls = DurableControlPlane()
-    due = datetime(2026, 8, 27, 4, 0, tzinfo=timezone.utc)
+    due = datetime(2026, 8, 27, 4, 0, tzinfo=UTC)
     controls.schedule_timer("timer-1", due)
     assert controls.fire_due_timers(due - timedelta(seconds=1)) == ()
     assert controls.fire_due_timers(due) == ("timer-1",)
