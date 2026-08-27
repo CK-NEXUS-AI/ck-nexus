@@ -15,34 +15,33 @@ jobs:
   package-frozen-source:
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout exact frozen Q10 subject
+      - name: Checkout helper history read-only
         uses: actions/checkout@v4
         with:
-          repository: spinlnw10-art/ck-nexus
-          ref: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
           fetch-depth: 0
-          path: source
 
-      - name: Verify exact SHA and tree
+      - name: Verify frozen subject exists and tree matches
         shell: bash
         run: |
           set -euo pipefail
-          HEAD_SHA="$(git -C source rev-parse HEAD)"
-          TREE_SHA="$(git -C source rev-parse 'HEAD^{tree}')"
-          test "$HEAD_SHA" = "39f5c1adb9d761ab418cf088ff1f051b1ca731d1"
-          test "$TREE_SHA" = "0525195934f703a8becf8a39f6397b2411e0bb2e"
+          TARGET_SHA="39f5c1adb9d761ab418cf088ff1f051b1ca731d1"
+          EXPECTED_TREE="0525195934f703a8becf8a39f6397b2411e0bb2e"
+          git cat-file -e "${TARGET_SHA}^{commit}"
+          TREE_SHA="$(git rev-parse "${TARGET_SHA}^{tree}")"
+          test "$TREE_SHA" = "$EXPECTED_TREE"
           {
             echo "repository=spinlnw10-art/ck-nexus"
-            echo "target_sha=$HEAD_SHA"
+            echo "target_sha=$TARGET_SHA"
             echo "target_tree_sha=$TREE_SHA"
-            echo "materialization_mode=github-actions-read-only"
+            echo "materialization_mode=git-archive-from-read-only-actions-checkout"
           } > q10-source-identity.txt
 
-      - name: Package exact source without Git metadata
+      - name: Archive exact frozen subject
         shell: bash
         run: |
           set -euo pipefail
-          tar --exclude='.git' -czf q10-frozen-source-39f5c1adb9d7.tar.gz -C source .
+          TARGET_SHA="39f5c1adb9d761ab418cf088ff1f051b1ca731d1"
+          git archive --format=tar.gz --output=q10-frozen-source-39f5c1adb9d7.tar.gz "$TARGET_SHA"
           sha256sum q10-frozen-source-39f5c1adb9d7.tar.gz | tee q10-frozen-source.sha256
 
       - name: Upload frozen source artifact
