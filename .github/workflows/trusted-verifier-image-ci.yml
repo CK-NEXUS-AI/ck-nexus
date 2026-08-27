@@ -22,7 +22,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: trusted-verifier-${{ github.ref }}
@@ -35,10 +34,14 @@ env:
 jobs:
   verify-image:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') && 'write' || 'read' }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Verify exact pinned base image digest
         shell: bash
