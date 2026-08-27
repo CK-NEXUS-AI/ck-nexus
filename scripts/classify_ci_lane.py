@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import argparse
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 
-class CiLane(str, Enum):
+class CiLane(StrEnum):
     DEVELOPMENT = "DEVELOPMENT"
     RELEASE_EVIDENCE = "RELEASE_EVIDENCE"
     BLOCKED_UNKNOWN = "BLOCKED_UNKNOWN"
