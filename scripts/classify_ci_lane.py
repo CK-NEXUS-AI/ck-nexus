@@ -1,0 +1,106 @@
+from __future__ import annotations
+
+import argparse
+from enum import Enum
+from pathlib import Path
+
+
+class CiLane(str, Enum):
+    DEVELOPMENT = "DEVELOPMENT"
+    RELEASE_EVIDENCE = "RELEASE_EVIDENCE"
+    BLOCKED_UNKNOWN = "BLOCKED_UNKNOWN"
+
+
+_DEVELOPMENT_HEAD_PREFIXES = (
+    "post-p0/",
+    "feat/",
+    "research/",
+    "dev/",
+    "docs/",
+    "ui/",
+    "arch/",
+    "ci/",
+)
+
+_RELEASE_BOUND_PREFIXES = (
+    "release/",
+    "verify/",
+    "prepare/",
+    "prep/",
+    "q10/",
+    "ops/",
+)
+
+
+def _clean(value: str | None) -> str:
+    return (value or "").strip()
+
+
+def classify_ci_lane(
+    *,
+    event_name: str,
+    head_ref: str = "",
+    base_ref: str = "",
+    ref_name: str = "",
+) -> CiLane:
+    """Classify CI evidence semantics without guessing unknown branches."""
+
+    event_name = _clean(event_name)
+    head_ref = _clean(head_ref)
+    base_ref = _clean(base_ref)
+    ref_name = _clean(ref_name)
+
+    if event_name != "pull_request":
+        if ref_name == "main" or ref_name.startswith("release/"):
+            return CiLane.RELEASE_EVIDENCE
+        return CiLane.BLOCKED_UNKNOWN
+
+    if base_ref.startswith("post-p0/"):
+        return CiLane.DEVELOPMENT
+
+    if head_ref.startswith(_DEVELOPMENT_HEAD_PREFIXES):
+        return CiLane.DEVELOPMENT
+
+    if head_ref.startswith("fix/pr46-"):
+        return CiLane.DEVELOPMENT
+
+    if base_ref.startswith("release/"):
+        return CiLane.RELEASE_EVIDENCE
+
+    if head_ref.startswith(_RELEASE_BOUND_PREFIXES):
+        return CiLane.RELEASE_EVIDENCE
+
+    if head_ref.startswith("fix/q"):
+        return CiLane.RELEASE_EVIDENCE
+
+    return CiLane.BLOCKED_UNKNOWN
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Classify CK-NEXUS CI evidence lane")
+    parser.add_argument("--event", required=True)
+    parser.add_argument("--head", default="")
+    parser.add_argument("--base", default="")
+    parser.add_argument("--ref", default="")
+    parser.add_argument("--github-output")
+    return parser
+
+
+def main() -> int:
+    args = _parser().parse_args()
+    lane = classify_ci_lane(
+        event_name=args.event,
+        head_ref=args.head,
+        base_ref=args.base,
+        ref_name=args.ref,
+    )
+    print(lane.value)
+    if args.github_output:
+        output_path = Path(args.github_output)
+        with output_path.open("a", encoding="utf-8") as handle:
+            handle.write(f"lane={lane.value}\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
