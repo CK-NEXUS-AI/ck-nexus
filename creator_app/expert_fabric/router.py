@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import collections.abc
 import re
 
 from .models import ExpertRoute, RiskClass
@@ -68,7 +67,7 @@ def _contains(text: str, term: str) -> bool:
     return re.search(r"(?<!\w)" + re.escape(term) + r"(?!\w)", text, re.IGNORECASE) is not None
 
 
-def _unique(values: collections.abc.Iterable[str]) -> tuple[str, ...]:
+def _unique(values) -> tuple[str, ...]:
     return tuple(dict.fromkeys(values))
 
 
