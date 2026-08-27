@@ -5,7 +5,6 @@ import re
 import creator_app.expert_fabric.models as expert_models
 import creator_app.expert_fabric.registry as expert_registry
 
-
 _DOMAIN_TERMS: dict[str, tuple[str, ...]] = {
     "security": ("security", "vulnerability", "threat", "secret", "credential", "auth", "owasp"),
     "architecture": ("architecture", "system design", "distributed", "scalability"),
