@@ -162,14 +162,31 @@
     let assistants = [];
     let categories = [];
 
+    const stringValue = (value) => value == null ? '' : String(value);
+    const safeDomId = (prefix, value) => `${prefix}-${stringValue(value).replace(/[^A-Za-z0-9_-]/g, '_')}`;
+    function safeExternalUrl(value) {
+      try {
+        const url = new URL(stringValue(value), window.location.origin);
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+        return url.href;
+      } catch { return null; }
+    }
+    function appendTextElement(parent, tag, className, text) {
+      const el = document.createElement(tag);
+      if (className) el.className = className;
+      el.textContent = stringValue(text);
+      parent.appendChild(el);
+      return el;
+    }
+
     async function init() {
       try {
         const [aRes, cRes] = await Promise.all([
           fetch(`${API}`).then(r => r.json()),
           fetch(`${API}/categories`).then(r => r.json())
         ]);
-        assistants = aRes;
-        categories = cRes;
+        assistants = Array.isArray(aRes) ? aRes : [];
+        categories = Array.isArray(cRes) ? cRes : [];
       } catch { assistants = [], categories = []; }
       populateCategories();
       renderAssistants();
@@ -180,86 +197,120 @@
       const sel = document.getElementById('catFilter');
       categories.forEach(c => {
         const o = document.createElement('option');
-        o.value = c.name;
-        o.textContent = `${c.icon.replace(/./g,'')} ${c.name} (${c.count})`;
+        o.value = stringValue(c.name);
+        o.textContent = `${stringValue(c.name)} (${Number.isFinite(Number(c.count)) ? Number(c.count) : 0})`;
         sel.appendChild(o);
       });
     }
 
     function renderAssistants(list = assistants) {
       const g = document.getElementById('assistantGrid');
-      if (!list.length) { g.innerHTML = '<p style="color:#6b6b8a;text-align:center;padding:2rem;">No assistants found</p>'; return; }
-      g.innerHTML = list.map(a => `
-        <div class="as-card" id="card-${a.slug}">
-          <div class="as-card-header">
-            <span class="as-card-icon">${a.icon}</span>
-            <div><strong>${a.name}</strong>
-              <span class="as-card-tier as-tier-${a.tier}">${a.tier}</span>
-            </div>
-          </div>
-          <div class="as-card-desc">${a.description}</div>
-          <div class="as-card-caps">
-            ${(a.capabilities||[]).map(c => `<span class="as-cap">${c}</span>`).join('')}
-          </div>
-          <div class="as-card-status">
-            <span class="as-status-dot" id="dot-${a.slug}"></span>
-            <span id="lbl-${a.slug}">Checking...</span>
-          </div>
-          <div style="margin-top:0.5rem;display:flex;gap:0.3rem;">
-            <a href="${a.url}" target="_blank" class="as-btn">🔗 Open</a>
-            <button class="as-btn" onclick="validateOne('${a.slug}')">✅ Validate</button>
-          </div>
-        </div>
-      `).join('');
+      g.replaceChildren();
+      if (!list.length) {
+        const empty = appendTextElement(g, 'p', '', 'No assistants found');
+        empty.style.cssText = 'color:#6b6b8a;text-align:center;padding:2rem;';
+        return;
+      }
+
+      list.forEach(a => {
+        const slug = stringValue(a.slug);
+        const card = document.createElement('div');
+        card.className = 'as-card';
+        card.id = safeDomId('card', slug);
+
+        const header = document.createElement('div');
+        header.className = 'as-card-header';
+        appendTextElement(header, 'span', 'as-card-icon', a.icon);
+        const nameWrap = document.createElement('div');
+        appendTextElement(nameWrap, 'strong', '', a.name);
+        const tier = appendTextElement(nameWrap, 'span', 'as-card-tier', a.tier);
+        const normalizedTier = stringValue(a.tier).toLowerCase();
+        if (/^[a-z0-9_-]+$/.test(normalizedTier)) tier.classList.add(`as-tier-${normalizedTier}`);
+        header.appendChild(nameWrap);
+        card.appendChild(header);
+
+        appendTextElement(card, 'div', 'as-card-desc', a.description);
+        const caps = document.createElement('div');
+        caps.className = 'as-card-caps';
+        (Array.isArray(a.capabilities) ? a.capabilities : []).forEach(cap => appendTextElement(caps, 'span', 'as-cap', cap));
+        card.appendChild(caps);
+
+        const status = document.createElement('div');
+        status.className = 'as-card-status';
+        const dot = document.createElement('span');
+        dot.className = 'as-status-dot';
+        dot.id = safeDomId('dot', slug);
+        status.appendChild(dot);
+        const label = appendTextElement(status, 'span', '', 'Checking...');
+        label.id = safeDomId('lbl', slug);
+        card.appendChild(status);
+
+        const actions = document.createElement('div');
+        actions.style.cssText = 'margin-top:0.5rem;display:flex;gap:0.3rem;';
+        const href = safeExternalUrl(a.url);
+        if (href) {
+          const link = appendTextElement(actions, 'a', 'as-btn', '🔗 Open');
+          link.href = href;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+        }
+        const validate = appendTextElement(actions, 'button', 'as-btn', '✅ Validate');
+        validate.type = 'button';
+        validate.addEventListener('click', () => validateOne(slug));
+        card.appendChild(actions);
+
+        g.appendChild(card);
+      });
     }
 
     function filterAssistants(q) {
-      q = q.toLowerCase();
+      q = stringValue(q).toLowerCase();
       renderAssistants(assistants.filter(a =>
-        a.name.toLowerCase().includes(q) || a.slug.toLowerCase().includes(q) ||
-        (a.capabilities||[]).some(c => c.toLowerCase().includes(q))
+        stringValue(a.name).toLowerCase().includes(q) || stringValue(a.slug).toLowerCase().includes(q) ||
+        (Array.isArray(a.capabilities) ? a.capabilities : []).some(c => stringValue(c).toLowerCase().includes(q))
       ));
     }
 
     function filterByCategory() {
       const cat = document.getElementById('catFilter').value;
       if (!cat || cat === 'all') { renderAssistants(); return; }
-      renderAssistants(assistants.filter(a => a.category === cat));
+      renderAssistants(assistants.filter(a => stringValue(a.category) === cat));
     }
 
     async function scanAll() {
       try {
         const r = await fetch(`${API}/scan`);
         const data = await r.json();
+        if (!Array.isArray(data)) return;
         data.forEach(d => {
-          const dot = document.getElementById(`dot-${d.slug}`);
-          const lbl = document.getElementById(`lbl-${d.slug}`);
-          const card = document.getElementById(`card-${d.slug}`);
-          if (!dot) return;
-          dot.classList.toggle('active', d.has_key);
-          lbl.textContent = d.has_key ? `✅ Key: ${d.key_preview}` : '❌ No key';
-          if (card) card.classList.toggle('active', d.has_key);
+          const slug = stringValue(d.slug);
+          const dot = document.getElementById(safeDomId('dot', slug));
+          const lbl = document.getElementById(safeDomId('lbl', slug));
+          const card = document.getElementById(safeDomId('card', slug));
+          if (!dot || !lbl) return;
+          dot.classList.toggle('active', Boolean(d.has_key));
+          lbl.textContent = d.has_key ? `✅ Key: ${stringValue(d.key_preview)}` : '❌ No key';
+          if (card) card.classList.toggle('active', Boolean(d.has_key));
         });
-        document.getElementById('statTotal').textContent = data.length;
-        document.getElementById('statActive').textContent = data.filter(d => d.has_key).length;
+        document.getElementById('statTotal').textContent = String(data.length);
+        document.getElementById('statActive').textContent = String(data.filter(d => d.has_key).length);
       } catch {}
     }
 
     async function validateOne(slug) {
-      const lbl = document.getElementById(`lbl-${slug}`);
-      const dot = document.getElementById(`dot-${slug}`);
+      const safeSlug = stringValue(slug);
+      const lbl = document.getElementById(safeDomId('lbl', safeSlug));
+      const dot = document.getElementById(safeDomId('dot', safeSlug));
+      if (!lbl || !dot) return;
       lbl.textContent = '⏳';
       try {
-        const r = await fetch(`${API}/${slug}/validate`);
+        const r = await fetch(`${API}/${encodeURIComponent(safeSlug)}/validate`);
         const v = await r.json();
-        // Fallback: check env directly
         if (!v || !v.valid) {
-          const key = '${slug}';
-          // Try simple validation
           lbl.textContent = '✅ Ready (check console)';
           dot.classList.add('active');
         } else {
-          lbl.textContent = `✅ ${v.key_preview}`;
+          lbl.textContent = `✅ ${stringValue(v.key_preview)}`;
           dot.classList.add('active');
         }
       } catch { lbl.textContent = '❌ Error'; dot.classList.remove('active'); }
