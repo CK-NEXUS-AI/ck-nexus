@@ -56,7 +56,7 @@ jobs:
           done
 
           printf '\n  ]\n}\n' >> export/source-manifest.json
-          sha256sum export/source-manifest.json >> export/SHA256SUMS
+          (cd export && sha256sum source-manifest.json) >> export/SHA256SUMS
           cat export/source-manifest.json
           cat export/SHA256SUMS
 
