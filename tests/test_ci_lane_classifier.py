@@ -77,6 +77,16 @@ def test_release_push_remains_release_evidence_bound() -> None:
     )
 
 
+def test_manual_development_ref_stays_development() -> None:
+    assert (
+        classify_ci_lane(
+            event_name="workflow_dispatch",
+            ref_name="post-p0/ci-lane-classifier-v2",
+        )
+        is CiLane.DEVELOPMENT
+    )
+
+
 def test_unexpected_non_pr_ref_fails_closed() -> None:
     assert (
         classify_ci_lane(event_name="workflow_dispatch", ref_name="random-branch")
