@@ -4,8 +4,8 @@ import hashlib
 import json
 from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 
 
@@ -20,7 +20,7 @@ def _require_text(value: str, field_name: str) -> str:
     return value
 
 
-class SignalState(str, Enum):
+class SignalState(StrEnum):
     PENDING = "PENDING"
     CONSUMED = "CONSUMED"
 
@@ -50,7 +50,7 @@ class DurableSignal:
         )
 
 
-class TimerState(str, Enum):
+class TimerState(StrEnum):
     SCHEDULED = "SCHEDULED"
     FIRED = "FIRED"
     CANCELLED = "CANCELLED"
@@ -66,14 +66,14 @@ class DurableTimer:
         self.timer_id = _require_text(self.timer_id, "timer_id")
         if not isinstance(self.due_at, datetime) or self.due_at.tzinfo is None:
             raise ValueError("due_at must be timezone-aware")
-        self.due_at = self.due_at.astimezone(timezone.utc)
+        self.due_at = self.due_at.astimezone(UTC)
 
     def fire_if_due(self, now: datetime) -> bool:
         if not isinstance(now, datetime) or now.tzinfo is None:
             raise ValueError("now must be timezone-aware")
         if self.state is not TimerState.SCHEDULED:
             return False
-        if now.astimezone(timezone.utc) < self.due_at:
+        if now.astimezone(UTC) < self.due_at:
             return False
         self.state = TimerState.FIRED
         return True
@@ -84,7 +84,7 @@ class DurableTimer:
         self.state = TimerState.CANCELLED
 
 
-class CompensationState(str, Enum):
+class CompensationState(StrEnum):
     REGISTERED = "REGISTERED"
     COMPENSATED = "COMPENSATED"
 
