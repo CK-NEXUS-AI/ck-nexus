@@ -1,3 +1,12 @@
+from creator_app.connector_fabric.a2a_admission import (
+    A2A_AGENT_CARD_WELL_KNOWN_PATH,
+    A2A_PROTOCOL_VERSION,
+    A2A_RELEASE_VERSION,
+    A2AAdmissionResult,
+    A2AAdmissionStatus,
+    A2AAgentCardAdmission,
+    AgentCardSignatureVerifier,
+)
 from creator_app.connector_fabric.access_governance import (
     AccessOutcome,
     ConsentValidator,
@@ -28,7 +37,14 @@ from creator_app.connector_fabric.openapi import OpenAPIClient
 from creator_app.connector_fabric.registry import ConnectorRegistry
 
 __all__ = [
+    "A2A_AGENT_CARD_WELL_KNOWN_PATH",
+    "A2A_PROTOCOL_VERSION",
+    "A2A_RELEASE_VERSION",
+    "A2AAdmissionResult",
+    "A2AAdmissionStatus",
+    "A2AAgentCardAdmission",
     "AccessOutcome",
+    "AgentCardSignatureVerifier",
     "ConsentValidator",
     "ConnectorConfig",
     "ConnectorEvidenceLedger",
