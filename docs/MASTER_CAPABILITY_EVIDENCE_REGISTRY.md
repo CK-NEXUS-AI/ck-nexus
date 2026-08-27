@@ -38,20 +38,34 @@ It **does not replace**:
 The registry enforces: **CI success != VERIFIED**, **VERIFIED != Production GO**, and
 **Development PR != canonical**.
 
+### Exact-subject hardening
+
+The pre-verification review of PR #189 found that offline M3 validation originally required a
+successful measurement record but did not independently prove that a listed GitHub Actions success
+belonged to the exact `record.sha`. The registry now has a separate online GitHub evidence checker.
+For every `M3_MEASURED` development PR it queries GitHub Actions by exact head SHA and fails closed
+when no successful run exists on that exact subject. Explicit numeric run IDs, when present in the
+registry evidence reference, must also belong to the exact subject.
+
+M4 and M6 evidence is stricter: `INDEPENDENT_VERIFIER` and `PRODUCTION_GATE` evidence must carry a
+`subject_sha` that exactly equals the record subject. A wrong-subject receipt cannot promote truth.
+
+Existing M5 records with `verification=CANONICAL_PRESENT` are treated only as grandfathered
+baseline-canonical presence projections. New/non-baseline M5 adoption requires independent
+verification and exact-subject verifier evidence first.
+
+Fragment paths are confined to the repository root; absolute paths, `..`, duplicate fragment paths,
+and symlink fragment targets fail closed.
+
 ## Current reconciliation highlights
 
 - Production closure remains blocked by Q10, Q11 and Q12.
-- PR #181 Expert Fabric is implemented but the current exact-head CK-NEXUS CI is failing while
-  Security Attack Regression is successful; it is `M2_IMPLEMENTED_PARTIAL / BLOCKED_MEASUREMENT`.
-- PR #182 capability research map remains research-only and its exact-head CK-NEXUS CI is failing.
-- PRs #183-#188 have captured exact-head successful measurement evidence, but remain
-  `M3_MEASURED / MEASURED_NOT_VERIFIED`, Draft/Open/Unmerged.
-- Corrected AGNES Triad subjects (#168/#169/#174/#175/#177/#178/#179/#180) are tracked by their
-  corrected/latest exact subjects rather than stale predecessor wording.
-- Conversation-only Verifier Pro UI and Council runtime history are explicitly capped at M1 until
-  repository/runtime evidence exists.
-- OSV, Semgrep, Trivy, ZAP, Toxiproxy, gVisor, AuthZEN, A2A, Sigstore/SLSA and SPIFFE/SPIRE are
-  research candidates here; the registry does not claim they are installed or verified.
+- PR #181 Expert Fabric is implemented but its reconciled status remains below verified adoption.
+- PR #182 capability research map remains research-only.
+- PRs #183-#188 have measured development evidence but remain independently unverified and unmerged.
+- Corrected AGNES Triad subjects are tracked by corrected/latest exact subjects rather than stale predecessor wording.
+- Conversation-only Verifier Pro UI and Council runtime history are capped at M1 until repository/runtime evidence exists.
+- OSV, Semgrep, Trivy, ZAP, Toxiproxy, gVisor, AuthZEN, A2A, Sigstore/SLSA and SPIFFE/SPIRE are research candidates; presence here is not installation or verification.
 
 ## Files
 
@@ -63,12 +77,18 @@ fragments by SHA-256 and count. The combined canonical record sequence is separa
 
 ```bash
 python scripts/validate_master_capability_evidence_registry.py
+GITHUB_TOKEN=... python scripts/verify_master_registry_github_evidence.py
 pytest -q tests/test_master_capability_evidence_registry.py
 ```
 
 The regression suite deliberately attempts forbidden promotions and requires rejection:
 - measured M3 -> VERIFIED/M4 without independent-verifier evidence,
-- Production qualification without canonical adoption and Production-gate evidence,
+- wrong-subject independent-verifier evidence,
+- non-baseline M5 adoption without independent verification,
+- Production qualification without canonical adoption and exact-subject Production-gate evidence,
+- stale GitHub success from another subject,
+- listed GitHub run IDs not belonging to the exact subject,
+- fragment path traversal,
 - chat-context promotion,
 - duplicate IDs,
 - unsealed record edits.
@@ -76,6 +96,6 @@ The regression suite deliberately attempts forbidden promotions and requires rej
 ## Authority boundary
 
 This registry is a **projection of evidence**, never a source of permission or truth escalation.
-It cannot execute Q10/Q11/Q12, grant credentials, approve its own records, merge, deploy, or mutate
-Production. Stronger status must originate from the appropriate CK-NEXUS authority and exact-subject
-evidence.
+Its dedicated workflow is measurement infrastructure, not independent-verifier authority. It cannot
+execute Q10/Q11/Q12, grant credentials, approve its own records, merge, deploy, or mutate Production.
+Stronger status must originate from the appropriate CK-NEXUS authority and exact-subject evidence.
