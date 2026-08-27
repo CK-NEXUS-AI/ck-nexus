@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Protocol
 
 OPENFEATURE_SPEC_VERSION = "0.9.0"
 
@@ -133,8 +134,9 @@ class NoOpProvider:
 class OpenFeatureEvaluationBridge:
     """Typed flag evaluation with OpenFeature-compatible fail-safe defaults.
 
-    Provider errors and type mismatches never escape from evaluation calls. The
-    supplied default is returned instead, and the details object records why.
+    Provider lookup, metadata access, context errors, provider errors and type
+    mismatches are contained by the evaluation boundary. The caller receives the
+    supplied default plus error details instead of an escaping provider failure.
     """
 
     def __init__(self, provider: FeatureProvider | None = None) -> None:
@@ -152,7 +154,7 @@ class OpenFeatureEvaluationBridge:
             flag_key,
             default_value,
             context,
-            self._provider.resolve_boolean_value,
+            "resolve_boolean_value",
             self._is_bool,
         )
 
@@ -168,7 +170,7 @@ class OpenFeatureEvaluationBridge:
             flag_key,
             default_value,
             context,
-            self._provider.resolve_string_value,
+            "resolve_string_value",
             self._is_string,
         )
 
@@ -184,7 +186,7 @@ class OpenFeatureEvaluationBridge:
             flag_key,
             default_value,
             context,
-            self._provider.resolve_number_value,
+            "resolve_number_value",
             self._is_number,
         )
 
@@ -200,7 +202,7 @@ class OpenFeatureEvaluationBridge:
             flag_key,
             default_value,
             context,
-            self._provider.resolve_object_value,
+            "resolve_object_value",
             self._is_object,
         )
 
@@ -249,21 +251,31 @@ class OpenFeatureEvaluationBridge:
         flag_key: str,
         default_value: object,
         context: dict[str, object] | None,
-        resolver: Any,
-        validator: Any,
+        resolver_name: str,
+        validator: Callable[[object], bool],
     ) -> FlagEvaluationDetails:
-        if not isinstance(flag_key, str) or not flag_key.strip():
-            raise ValueError("flag_key must be a non-empty string")
-        normalized_context = self._normalize_context(context)
-        provider_name = self._provider.metadata.name
+        safe_flag_key = flag_key if isinstance(flag_key, str) and flag_key.strip() else "<invalid>"
+        normalized_context: dict[str, object] = {}
+        provider_name = "unknown-provider"
 
         try:
-            resolution = resolver(flag_key, default_value, normalized_context)
+            if safe_flag_key == "<invalid>":
+                raise ValueError("flag_key must be a non-empty string")
+            normalized_context = self._normalize_context(context)
+            metadata = self._provider.metadata
+            if not isinstance(metadata, ProviderMetadata):
+                raise TypeError("provider metadata must be ProviderMetadata")
+            provider_name = metadata.name
+            resolver = getattr(self._provider, resolver_name)
+            if not callable(resolver):
+                raise TypeError(f"provider resolver is not callable: {resolver_name}")
+
+            resolution = resolver(safe_flag_key, default_value, normalized_context)
             if not isinstance(resolution, ResolutionDetails):
                 raise TypeError("provider returned invalid resolution details")
             if resolution.error_code:
                 return self._fallback(
-                    flag_key,
+                    safe_flag_key,
                     default_value,
                     provider_name,
                     normalized_context,
@@ -272,7 +284,7 @@ class OpenFeatureEvaluationBridge:
                 )
             if not validator(resolution.value):
                 return self._fallback(
-                    flag_key,
+                    safe_flag_key,
                     default_value,
                     provider_name,
                     normalized_context,
@@ -280,7 +292,7 @@ class OpenFeatureEvaluationBridge:
                     reason="ERROR",
                 )
             return self._details(
-                flag_key=flag_key,
+                flag_key=safe_flag_key,
                 value=resolution.value,
                 default_value=default_value,
                 provider_name=provider_name,
@@ -290,9 +302,9 @@ class OpenFeatureEvaluationBridge:
                 default_used=resolution.value == default_value,
                 context=normalized_context,
             )
-        except Exception as exc:  # evaluation must fail safe to the supplied default
+        except Exception as exc:  # fail safe to default for abnormal evaluation
             return self._fallback(
-                flag_key,
+                safe_flag_key,
                 default_value,
                 provider_name,
                 normalized_context,
@@ -392,9 +404,6 @@ class OpenFeatureEvaluationBridge:
 
     @staticmethod
     def _error_code(exc: Exception) -> str:
-        name = type(exc).__name__.upper()
-        if "TIMEOUT" in name:
-            return "GENERAL"
         if isinstance(exc, (TypeError, ValueError)):
             return "INVALID_CONTEXT"
         return "GENERAL"
