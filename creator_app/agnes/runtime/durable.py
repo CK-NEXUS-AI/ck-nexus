@@ -3,10 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Iterable
 from copy import deepcopy
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Iterable
+from enum import StrEnum
+from typing import Any
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -29,7 +30,7 @@ def _canonical_json(payload: dict[str, Any]) -> str:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-class DurableRunState(str, Enum):
+class DurableRunState(StrEnum):
     PENDING = "PENDING"
     RUNNING = "RUNNING"
     PAUSED = "PAUSED"
@@ -55,7 +56,7 @@ class DurableCheckpoint:
         *,
         parent_digest: str | None = None,
         pending_writes: dict[str, Any] | None = None,
-    ) -> "DurableCheckpoint":
+    ) -> DurableCheckpoint:
         run_id = _require_text(run_id, "run_id")
         if not isinstance(step_index, int) or step_index < 0:
             raise ValueError("step_index must be a non-negative integer")
@@ -192,7 +193,7 @@ class DurableRun:
         self,
         new_run_id: str,
         checkpoint: DurableCheckpoint | None = None,
-    ) -> "DurableRun":
+    ) -> DurableRun:
         new_run_id = _require_text(new_run_id, "new_run_id")
         if new_run_id == self.run_id:
             raise ValueError("fork must use a new run_id")
