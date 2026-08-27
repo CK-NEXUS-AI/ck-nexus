@@ -91,7 +91,10 @@ def _has_subject_evidence(record: dict[str, Any], kind: str, status: str) -> boo
 def _has_measurement(record: dict[str, Any]) -> bool:
     subject_sha = record.get("sha")
     for evidence in record.get("evidence", []):
-        if evidence.get("status") != "SUCCESS" or evidence.get("kind") not in MEASUREMENT_KINDS:
+        if (
+            evidence.get("status") != "SUCCESS"
+            or evidence.get("kind") not in MEASUREMENT_KINDS
+        ):
             continue
         if evidence.get("kind") == "GITHUB_ACTIONS":
             # Exact GitHub head binding is revalidated online by the dedicated CI checker.
@@ -108,7 +111,8 @@ def _has_legacy_canonical_presence(record: dict[str, Any]) -> bool:
         ("MERGED_PR", "MERGED"),
     }
     return any(
-        (e.get("kind"), e.get("status")) in accepted for e in record.get("evidence", [])
+        (e.get("kind"), e.get("status")) in accepted
+        for e in record.get("evidence", [])
     )
 
 
@@ -187,7 +191,8 @@ def validate_registry(data: dict[str, Any]) -> list[str]:
                 errors.append(f"{prefix} M4 requires an exact subject sha")
             if not _has_subject_evidence(record, "INDEPENDENT_VERIFIER", "SUCCESS"):
                 errors.append(
-                    f"{prefix} M4 requires independent-verifier evidence bound to exact subject"
+                    f"{prefix} M4 requires independent-verifier evidence "
+                    "bound to exact subject"
                 )
 
         if maturity == "M5_ADOPTED_CANONICAL":
@@ -202,13 +207,19 @@ def validate_registry(data: dict[str, Any]) -> list[str]:
             if not legacy_baseline:
                 if record.get("verification") != "INDEPENDENTLY_VERIFIED":
                     errors.append(
-                        f"{prefix} non-baseline M5 requires independent verification before adoption"
+                        f"{prefix} non-baseline M5 requires independent verification "
+                        "before adoption"
                     )
                 if not isinstance(sha, str) or not SHA1_RE.fullmatch(sha):
-                    errors.append(f"{prefix} non-baseline M5 requires an exact subject sha")
-                if not _has_subject_evidence(record, "INDEPENDENT_VERIFIER", "SUCCESS"):
                     errors.append(
-                        f"{prefix} non-baseline M5 requires exact-subject independent-verifier evidence"
+                        f"{prefix} non-baseline M5 requires an exact subject sha"
+                    )
+                if not _has_subject_evidence(
+                    record, "INDEPENDENT_VERIFIER", "SUCCESS"
+                ):
+                    errors.append(
+                        f"{prefix} non-baseline M5 requires exact-subject "
+                        "independent-verifier evidence"
                     )
 
         if record.get("truth") == "VERIFIED":
@@ -216,7 +227,8 @@ def validate_registry(data: dict[str, Any]) -> list[str]:
                 errors.append(f"{prefix} VERIFIED requires M4+")
             if not _has_subject_evidence(record, "INDEPENDENT_VERIFIER", "SUCCESS"):
                 errors.append(
-                    f"{prefix} VERIFIED requires independent-verifier evidence bound to exact subject"
+                    f"{prefix} VERIFIED requires independent-verifier evidence "
+                    "bound to exact subject"
                 )
 
         if production or maturity == "M6_PRODUCTION_QUALIFIED":
@@ -230,10 +242,14 @@ def validate_registry(data: dict[str, Any]) -> list[str]:
                 errors.append(f"{prefix} Production requires an exact subject sha")
             if not _has_subject_evidence(record, "INDEPENDENT_VERIFIER", "SUCCESS"):
                 errors.append(
-                    f"{prefix} Production requires exact-subject independent-verifier evidence"
+                    f"{prefix} Production requires exact-subject "
+                    "independent-verifier evidence"
                 )
             if not _has_subject_evidence(record, "PRODUCTION_GATE", "SUCCESS"):
-                errors.append(f"{prefix} Production requires exact-subject production-gate evidence")
+                errors.append(
+                    f"{prefix} Production requires exact-subject "
+                    "production-gate evidence"
+                )
     return errors
 
 
