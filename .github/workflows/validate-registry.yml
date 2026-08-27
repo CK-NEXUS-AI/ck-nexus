@@ -48,7 +48,7 @@ jobs:
       - name: Run exact-head GitHub evidence binding
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: python scripts/verify_master_registry_github_evidence.py
+        run: python -m scripts.verify_master_registry_github_evidence
 
       - name: Run registry regression tests
         run: python -m pytest tests/test_master_capability_evidence_registry.py -v
