@@ -22,7 +22,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: trusted-verifier-${{ github.ref }}
@@ -39,6 +38,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Verify exact pinned base image digest
         shell: bash
@@ -116,6 +116,9 @@ jobs:
 
       - name: Publish exact commit image to GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        permissions:
+          contents: read
+          packages: write
         shell: bash
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
