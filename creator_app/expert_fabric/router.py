@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
 import re
+from collections.abc import Iterable
 
 from .models import ExpertRoute, RiskClass
 from .registry import ExpertRegistry, default_registry
