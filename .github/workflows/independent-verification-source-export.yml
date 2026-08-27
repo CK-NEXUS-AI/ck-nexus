@@ -1,0 +1,73 @@
+name: Independent Verification Source Export
+
+on:
+  push:
+    branches:
+      - ops/independent-verification-source-export-v1
+    paths:
+      - .github/workflows/independent-verification-source-export.yml
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout export workflow branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch repository refs read-only
+        run: git fetch --all --prune --tags
+
+      - name: Build exact-subject source archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p export
+
+          subjects=(
+            "pr189:f26ce305d49c6daa6e28203cb7b71080856dabeb"
+            "pr192:10540e405887aafdf1ec5e278a047ca486fc8d93"
+            "pr193:53ff8a0d7a1b0f05df813ffb59838d6d2b42aaa6"
+          )
+
+          : > export/SHA256SUMS
+          printf '{\n  "schema_version": "1.0",\n  "production_authorized": false,\n  "subjects": [\n' > export/source-manifest.json
+
+          first=1
+          for item in "${subjects[@]}"; do
+            name="${item%%:*}"
+            sha="${item##*:}"
+            git cat-file -e "${sha}^{commit}"
+            tree="$(git rev-parse "${sha}^{tree}")"
+            archive="ck-nexus-${name}-${sha}.tar.gz"
+            git archive --format=tar.gz --prefix="ck-nexus-${name}/" -o "export/${archive}" "${sha}"
+            digest="$(sha256sum "export/${archive}" | awk '{print $1}')"
+            printf '%s  %s\n' "$digest" "$archive" >> export/SHA256SUMS
+
+            if [ "$first" -eq 0 ]; then printf ',\n' >> export/source-manifest.json; fi
+            first=0
+            printf '    {"name":"%s","subject_sha":"%s","tree_sha":"%s","archive":"%s","archive_sha256":"%s"}' \
+              "$name" "$sha" "$tree" "$archive" "$digest" >> export/source-manifest.json
+          done
+
+          printf '\n  ]\n}\n' >> export/source-manifest.json
+          sha256sum export/source-manifest.json >> export/SHA256SUMS
+          cat export/source-manifest.json
+          cat export/SHA256SUMS
+
+      - name: Verify archive manifest
+        working-directory: export
+        run: sha256sum -c SHA256SUMS
+
+      - name: Upload exact-subject verification sources
+        uses: actions/upload-artifact@v4
+        with:
+          name: ck-nexus-independent-verification-sources
+          path: export/
+          if-no-files-found: error
+          retention-days: 14
