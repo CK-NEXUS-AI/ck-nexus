@@ -36,6 +36,14 @@ def _clean(value: str | None) -> str:
     return (value or "").strip()
 
 
+def _is_development_ref(ref_name: str) -> bool:
+    return ref_name.startswith(_DEVELOPMENT_HEAD_PREFIXES) or ref_name.startswith("fix/pr46-")
+
+
+def _is_release_ref(ref_name: str) -> bool:
+    return ref_name == "main" or ref_name.startswith(_RELEASE_BOUND_PREFIXES) or ref_name.startswith("fix/q")
+
+
 def classify_ci_lane(
     *,
     event_name: str,
@@ -51,26 +59,22 @@ def classify_ci_lane(
     ref_name = _clean(ref_name)
 
     if event_name != "pull_request":
-        if ref_name == "main" or ref_name.startswith("release/"):
+        if _is_development_ref(ref_name):
+            return CiLane.DEVELOPMENT
+        if _is_release_ref(ref_name):
             return CiLane.RELEASE_EVIDENCE
         return CiLane.BLOCKED_UNKNOWN
 
     if base_ref.startswith("post-p0/"):
         return CiLane.DEVELOPMENT
 
-    if head_ref.startswith(_DEVELOPMENT_HEAD_PREFIXES):
-        return CiLane.DEVELOPMENT
-
-    if head_ref.startswith("fix/pr46-"):
+    if _is_development_ref(head_ref):
         return CiLane.DEVELOPMENT
 
     if base_ref.startswith("release/"):
         return CiLane.RELEASE_EVIDENCE
 
-    if head_ref.startswith(_RELEASE_BOUND_PREFIXES):
-        return CiLane.RELEASE_EVIDENCE
-
-    if head_ref.startswith("fix/q"):
+    if _is_release_ref(head_ref):
         return CiLane.RELEASE_EVIDENCE
 
     return CiLane.BLOCKED_UNKNOWN
