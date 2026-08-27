@@ -1,0 +1,45 @@
+name: Q10 read-only materialize
+
+on:
+  push:
+    branches: [ops/q10-readonly-materialize-20260827]
+
+permissions:
+  contents: read
+
+jobs:
+  materialize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact frozen Q10 subject
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact subject and tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "39f5c1adb9d761ab418cf088ff1f051b1ca731d1"
+          test "$(git rev-parse HEAD^{tree})" = "0525195934f703a8becf8a39f6397b2411e0bb2e"
+          test -z "$(git status --porcelain)"
+          printf '%s\n' "$(git rev-parse HEAD)" > q10-subject-sha.txt
+          printf '%s\n' "$(git rev-parse HEAD^{tree})" > q10-tree-sha.txt
+      - name: Package immutable source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar --exclude=.git -czf ck-nexus-q10-source-39f5c1ad.tar.gz .
+          sha256sum ck-nexus-q10-source-39f5c1ad.tar.gz > source.sha256
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ck-nexus-q10-source-39f5c1ad
+          path: |
+            ck-nexus-q10-source-39f5c1ad.tar.gz
+            source.sha256
+            q10-subject-sha.txt
+            q10-tree-sha.txt
+          if-no-files-found: error
+          retention-days: 1
