@@ -10,6 +10,7 @@ on:
       - 'config/master_capability_evidence_registry.v1.json'
       - 'config/master-capability-evidence/*.json'
       - 'scripts/validate_master_capability_evidence_registry.py'
+      - 'scripts/verify_master_registry_github_evidence.py'
       - 'tests/test_master_capability_evidence_registry.py'
   pull_request:
     branches: [main]
@@ -18,11 +19,13 @@ on:
       - 'config/master_capability_evidence_registry.v1.json'
       - 'config/master-capability-evidence/*.json'
       - 'scripts/validate_master_capability_evidence_registry.py'
+      - 'scripts/verify_master_registry_github_evidence.py'
       - 'tests/test_master_capability_evidence_registry.py'
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   validate:
@@ -41,6 +44,11 @@ jobs:
 
       - name: Run fail-closed registry validator
         run: python scripts/validate_master_capability_evidence_registry.py
+
+      - name: Run exact-head GitHub evidence binding
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/verify_master_registry_github_evidence.py
 
       - name: Run registry regression tests
         run: python -m pytest tests/test_master_capability_evidence_registry.py -v
