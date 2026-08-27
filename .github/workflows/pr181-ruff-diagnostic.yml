@@ -1,0 +1,22 @@
+name: PR181 Ruff Import Diagnostic
+
+on:
+  push:
+    branches:
+      - diag/pr181-ruff-import-v1
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install exact Ruff
+        run: python -m pip install --disable-pip-version-check ruff==0.16.1
+      - name: Show Ruff import autofix diff
+        run: ruff check creator_app/expert_fabric/router.py --select I001 --fix --diff
