@@ -77,7 +77,7 @@ fragments by SHA-256 and count. The combined canonical record sequence is separa
 
 ```bash
 python scripts/validate_master_capability_evidence_registry.py
-GITHUB_TOKEN=... python scripts/verify_master_registry_github_evidence.py
+GITHUB_TOKEN=... python -m scripts.verify_master_registry_github_evidence
 pytest -q tests/test_master_capability_evidence_registry.py
 ```
 
