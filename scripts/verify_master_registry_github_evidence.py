@@ -9,8 +9,9 @@ import os
 import re
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from scripts.validate_master_capability_evidence_registry import SHA1_RE, load_registry
 
@@ -38,23 +39,36 @@ def validate_exact_head_runs(
             if run.get("head_sha") == sha and run.get("conclusion") == "success"
         ]
         if not successful:
-            errors.append(f"{rid}: no successful GitHub Actions run bound to exact subject {sha}")
+            errors.append(
+                f"{rid}: no successful GitHub Actions run bound to exact subject {sha}"
+            )
             continue
 
-        exact_ids = {int(run["id"]) for run in successful if run.get("id") is not None}
+        exact_ids = {
+            int(run["id"]) for run in successful if run.get("id") is not None
+        }
         for evidence in record.get("evidence", []):
-            if evidence.get("kind") != "GITHUB_ACTIONS" or evidence.get("status") != "SUCCESS":
+            if (
+                evidence.get("kind") != "GITHUB_ACTIONS"
+                or evidence.get("status") != "SUCCESS"
+            ):
                 continue
-            ids = {int(match) for match in RUN_ID_RE.findall(str(evidence.get("ref", "")))}
+            ids = {
+                int(match)
+                for match in RUN_ID_RE.findall(str(evidence.get("ref", "")))
+            }
             if ids and not ids.issubset(exact_ids):
                 missing = sorted(ids - exact_ids)
                 errors.append(
-                    f"{rid}: listed successful run id(s) not bound to exact subject {sha}: {missing}"
+                    f"{rid}: listed successful run id(s) not bound to exact "
+                    f"subject {sha}: {missing}"
                 )
     return errors
 
 
-def _github_runs_fetcher(repo: str, token: str) -> Callable[[str], list[dict[str, Any]]]:
+def _github_runs_fetcher(
+    repo: str, token: str
+) -> Callable[[str], list[dict[str, Any]]]:
     cache: dict[str, list[dict[str, Any]]] = {}
 
     def fetch(sha: str) -> list[dict[str, Any]]:
