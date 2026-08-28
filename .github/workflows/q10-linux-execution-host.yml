@@ -1,6 +1,9 @@
 name: Q10 Linux Execution Host
 
 on:
+  push:
+    branches:
+      - ops/q10-linux-execution-20260829
   workflow_dispatch:
 
 permissions:
