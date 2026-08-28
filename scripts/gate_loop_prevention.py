@@ -11,6 +11,11 @@ class UnsafeBaseUrl(ValueError):
     pass
 
 
+class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise UnsafeBaseUrl("loop-prevention probe refuses HTTP redirects")
+
+
 def validate_base_url(value: str) -> str:
     raw = value.rstrip("/")
     parsed = urlsplit(raw)
@@ -38,7 +43,8 @@ def post(url: str, data: object) -> object:
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=10) as response:
+    opener = urllib.request.build_opener(NoRedirectHandler())
+    with opener.open(req, timeout=10) as response:
         return json.load(response)
 
 
