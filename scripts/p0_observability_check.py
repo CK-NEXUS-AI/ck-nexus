@@ -11,6 +11,11 @@ class UnsafeBaseUrl(ValueError):
     pass
 
 
+class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise UnsafeBaseUrl("observability probe refuses HTTP redirects")
+
+
 def validate_base_url(value: str) -> str:
     raw = value.rstrip("/")
     parsed = urlsplit(raw)
@@ -32,7 +37,8 @@ def fetch(url: str, *, token: str = "") -> str:
     request = urllib.request.Request(url)
     if token:
         request.add_header("Authorization", f"Bearer {token}")
-    with urllib.request.urlopen(request, timeout=5) as response:
+    opener = urllib.request.build_opener(NoRedirectHandler())
+    with opener.open(request, timeout=5) as response:
         return response.read().decode("utf-8")
 
 
