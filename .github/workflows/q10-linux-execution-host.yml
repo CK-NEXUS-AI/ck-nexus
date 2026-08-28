@@ -1,0 +1,66 @@
+name: Q10 Linux Execution Host
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  q10-linux-host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      Q10_SUBJECT: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
+      Q10_TREE: 0525195934f703a8becf8a39f6397b2411e0bb2e
+    steps:
+      - name: Checkout workflow branch
+        uses: actions/checkout@v4
+
+      - name: Materialize frozen Q10 subject
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.Q10_SUBJECT }}
+          path: frozen-source
+          fetch-depth: 1
+
+      - name: Verify frozen subject binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_subject="$(git -C frozen-source rev-parse HEAD)"
+          actual_tree="$(git -C frozen-source rev-parse HEAD^{tree})"
+          test "$actual_subject" = "$Q10_SUBJECT"
+          test "$actual_tree" = "$Q10_TREE"
+          test -z "$(git -C frozen-source status --porcelain)"
+          printf 'subject=%s\ntree=%s\nstatus=VERIFIED\n' "$actual_subject" "$actual_tree" | tee q10-subject-binding.txt
+
+      - name: Probe Linux sandbox capabilities
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap
+          {
+            echo "kernel=$(uname -srmo)"
+            echo "bwrap=$(bwrap --version)"
+            test -e /sys/fs/cgroup/cgroup.controllers && echo "cgroup_v2=YES"
+            unshare -Ur true && echo "user_namespace=YES"
+            bwrap --ro-bind / / --proc /proc --dev /dev true && echo "bubblewrap_basic=YES"
+          } | tee q10-linux-capabilities.txt
+
+      - name: Hash evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum q10-subject-binding.txt q10-linux-capabilities.txt | tee SHA256SUMS
+
+      - name: Upload Q10 Linux host evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: q10-linux-host-evidence
+          path: |
+            q10-subject-binding.txt
+            q10-linux-capabilities.txt
+            SHA256SUMS
+          if-no-files-found: error
