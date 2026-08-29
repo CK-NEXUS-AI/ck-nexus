@@ -21,6 +21,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify authoritative Linux runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x ops/q10-runner-preflight.sh
+          ops/q10-runner-preflight.sh | tee q10-runner-preflight.txt
+
       - name: Materialize exact frozen subject
         shell: bash
         run: |
@@ -103,5 +110,6 @@ jobs:
           path: |
             q10-aux/
             q10-pytest.txt
+            q10-runner-preflight.txt
           if-no-files-found: error
           retention-days: 30
