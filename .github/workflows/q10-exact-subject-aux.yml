@@ -1,0 +1,107 @@
+name: Q10 Exact Subject Auxiliary Closure
+
+on:
+  push:
+    branches: [ops/q10-exact-subject-closure-20260829]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  q10-aux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      FROZEN_SHA: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
+      FROZEN_TREE: 0525195934f703a8becf8a39f6397b2411e0bb2e
+    steps:
+      - name: Checkout workflow branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Materialize exact frozen subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout --detach "$FROZEN_SHA"
+          test "$(git rev-parse HEAD)" = "$FROZEN_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$FROZEN_TREE"
+          test -z "$(git status --porcelain)"
+          printf 'subject=%s\ntree=%s\n' "$FROZEN_SHA" "$FROZEN_TREE"
+
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Install frozen-project and auxiliary scanners
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip uv
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+          python -m pip install 'ruff==0.16.4' 'bandit==1.9.4' 'pip-audit==2.10.1' 'darker==3.0.0' 'semgrep==1.175.0'
+
+      - name: Baseline regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          .venv/bin/python -m compileall -q main.py creator_app services scripts
+          .venv/bin/pytest -q --ignore=tests/test_agnes_execution_kernel_phase2.py --ignore=tests/test_agnes_execution_kernel_phase3.py | tee q10-pytest.txt
+
+      - name: Auxiliary scans
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p q10-aux
+          ruff check main.py creator_app services tests scripts --output-format=json > q10-aux/ruff.json
+          bandit -r creator_app services main.py -f json -o q10-aux/bandit.json
+          pip-audit --format json --output q10-aux/pip-audit.json
+          darker --check --diff --no-color --revision "$FROZEN_SHA".."$FROZEN_SHA" . > q10-aux/darker.txt
+          semgrep scan --config p/python --json --output q10-aux/semgrep.json creator_app services main.py
+
+      - name: Build auxiliary evidence manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, pathlib, platform, subprocess, time
+          root = pathlib.Path('q10-aux')
+          files = {}
+          for p in sorted(root.iterdir()):
+              if p.is_file():
+                  files[p.name] = {
+                      'sha256': hashlib.sha256(p.read_bytes()).hexdigest(),
+                      'bytes': p.stat().st_size,
+                  }
+          manifest = {
+              'schema_version': 1,
+              'classification': 'AUXILIARY_ONLY_NOT_CANONICAL_CODEX_SECURITY',
+              'gate': 'Q10',
+              'subject_sha': '39f5c1adb9d761ab418cf088ff1f051b1ca731d1',
+              'tree_sha': '0525195934f703a8becf8a39f6397b2411e0bb2e',
+              'runner': platform.platform(),
+              'completed_at_epoch': int(time.time()),
+              'files': files,
+              'limitations': [
+                  'Does not replace native Codex Security identification/validation/remediation evidence.',
+                  'Does not constitute independent reviewer attestation.',
+                  'Darker is formatting/change-scope evidence, not a security scanner.'
+              ],
+          }
+          pathlib.Path('q10-aux/aux-manifest.json').write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n')
+          PY
+          sha256sum q10-aux/* | tee q10-aux/SHA256SUMS.txt
+
+      - name: Upload auxiliary evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: q10-aux-exact-subject-${{ env.FROZEN_SHA }}
+          path: |
+            q10-aux/
+            q10-pytest.txt
+          if-no-files-found: error
+          retention-days: 30
