@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   q10-aux:
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, q10-linux]
     timeout-minutes: 45
     env:
       FROZEN_SHA: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
@@ -68,7 +68,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import hashlib, json, pathlib, platform, subprocess, time
+          import hashlib, json, pathlib, platform, time
           root = pathlib.Path('q10-aux')
           files = {}
           for p in sorted(root.iterdir()):
