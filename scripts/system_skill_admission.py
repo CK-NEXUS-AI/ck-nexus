@@ -7,7 +7,14 @@ from pathlib import Path
 from typing import Any
 
 CATALOG = Path(__file__).resolve().parents[1] / "capabilities" / "system-skills.catalog.json"
-VALID_DECISIONS = {"REUSE", "EXTEND", "NEW_SKILL", "EVALUATE", "BLOCKED_BY_EVIDENCE", "REJECT"}
+VALID_DECISIONS = {
+    "REUSE",
+    "EXTEND",
+    "NEW_SKILL",
+    "EVALUATE",
+    "BLOCKED_BY_EVIDENCE",
+    "REJECT",
+}
 AUTO_SAFE_RISKS = {"read_only", "local_reversible"}
 
 
@@ -41,13 +48,37 @@ def decide(skill: dict[str, Any]) -> AdmissionDecision:
     risk = str(skill.get("risk", "guarded"))
     skill_id = str(skill["id"])
     if decision in {"BLOCKED_BY_EVIDENCE", "REJECT"}:
-        return AdmissionDecision(skill_id, decision, False, "STOP", "evidence or policy blocks adoption")
+        return AdmissionDecision(
+            skill_id,
+            decision,
+            False,
+            "STOP",
+            "evidence or policy blocks adoption",
+        )
     if decision == "REUSE":
-        return AdmissionDecision(skill_id, decision, risk in AUTO_SAFE_RISKS, "REUSE_CANONICAL", "canonical capability already exists")
+        return AdmissionDecision(
+            skill_id,
+            decision,
+            risk in AUTO_SAFE_RISKS,
+            "REUSE_CANONICAL",
+            "canonical capability already exists",
+        )
     if decision == "EXTEND":
-        return AdmissionDecision(skill_id, decision, risk in AUTO_SAFE_RISKS, "EXTEND_IN_DEV", "extend existing capability without replacement")
+        return AdmissionDecision(
+            skill_id,
+            decision,
+            risk in AUTO_SAFE_RISKS,
+            "EXTEND_IN_DEV",
+            "extend existing capability without replacement",
+        )
     if decision in {"NEW_SKILL", "EVALUATE"}:
-        return AdmissionDecision(skill_id, decision, risk in AUTO_SAFE_RISKS, "EVALUATE_IN_DEV", "must prove measurable delta before canonical adoption")
+        return AdmissionDecision(
+            skill_id,
+            decision,
+            risk in AUTO_SAFE_RISKS,
+            "EVALUATE_IN_DEV",
+            "must prove measurable delta before canonical adoption",
+        )
     return AdmissionDecision(skill_id, decision, False, "STOP", "unknown state")
 
 
@@ -68,7 +99,9 @@ def main() -> int:
         if not decisions:
             raise SystemExit(f"unknown skill: {args.skill}")
     if args.auto_safe:
-        decisions = [item for item in decisions if item.auto_safe and item.next_action != "STOP"]
+        decisions = [
+            item for item in decisions if item.auto_safe and item.next_action != "STOP"
+        ]
     print(json.dumps([asdict(item) for item in decisions], indent=2, sort_keys=True))
     return 0
 
