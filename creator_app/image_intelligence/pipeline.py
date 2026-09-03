@@ -46,6 +46,8 @@ class ImageIntelligencePipeline:
             return CandidateDecision.REUSE
         if duplicate_found:
             return CandidateDecision.DUPLICATE
+        if claim.requires_external_verification:
+            return CandidateDecision.VERIFY
 
         if claim.kind in {
             ClaimKind.FACT,
@@ -82,6 +84,8 @@ class ImageIntelligencePipeline:
         reusable_existing_capability: bool = False,
         existing_capability_refs: tuple[str, ...] = (),
     ) -> CapabilityCandidate:
+        if claim.source_asset_id != insight.asset.asset_id:
+            raise ValueError("claim source_asset_id does not match insight asset")
         decision = self.decision_for_claim(
             claim,
             duplicate_found=duplicate_found,
