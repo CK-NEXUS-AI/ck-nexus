@@ -1,0 +1,109 @@
+name: Dependency Check Mirrored NVD 2026-09-04
+
+on:
+  push:
+    branches:
+      - ops/canonical-export-20260904
+    paths:
+      - .github/workflows/dependency-check-mirrored-nvd-20260904.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SUBJECT_SHA: b4146db8e23dff49520cbbc9d0194a15bcc5872d
+  SUBJECT_TREE: 25d9c74db2b553667ad085172f8ac7beff4146aa
+
+jobs:
+  dependency-check-mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SUBJECT_SHA }}
+          fetch-depth: 1
+
+      - name: Verify exact subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SUBJECT_TREE"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Prepare isolated evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/dependency-check-mirror"
+          mkdir -p "$OUT/report" "$OUT/data"
+          chmod -R 0777 "$OUT"
+          echo "TOOL_OUT=$OUT" >> "$GITHUB_ENV"
+          printf '%s\n' "$SUBJECT_SHA" > "$OUT/subject-sha.txt"
+          printf '%s\n' "$SUBJECT_TREE" > "$OUT/subject-tree.txt"
+
+      - name: Run OWASP Dependency-Check using project NVD cache mirror
+        shell: bash
+        continue-on-error: true
+        run: |
+          set +e
+          IMAGE=owasp/dependency-check:latest
+          docker pull "$IMAGE" > "$TOOL_OUT/pull.txt" 2>&1
+          pull_rc=$?
+          docker image inspect "$IMAGE" --format '{{json .RepoDigests}}' > "$TOOL_OUT/image-digest.json" 2>&1
+          inspect_rc=$?
+          docker run --rm \
+            -v "$PWD:/src:ro" \
+            -v "$TOOL_OUT/report:/report" \
+            -v "$TOOL_OUT/data:/usr/share/dependency-check/data" \
+            "$IMAGE" \
+            --project CK-NEXUS \
+            --scan /src \
+            --format JSON \
+            --out /report \
+            --nvdDatafeed 'https://dependency-check.github.io/DependencyCheck_Builder/nvd_cache/nvdcve-{0}.json.gz' \
+            > "$TOOL_OUT/stdout.txt" 2> "$TOOL_OUT/stderr.txt"
+          scan_rc=$?
+          printf 'pull_rc=%s\ninspect_rc=%s\nscan_rc=%s\n' "$pull_rc" "$inspect_rc" "$scan_rc" > "$TOOL_OUT/exit-codes.txt"
+          exit 0
+
+      - name: Summarize without status inflation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, pathlib
+          out = pathlib.Path(os.environ['TOOL_OUT'])
+          report = out / 'report' / 'dependency-check-report.json'
+          summary = {
+              'classification': 'DEVELOPMENT_SECURITY_PREFLIGHT',
+              'q10_status': 'NOT_VERIFIED',
+              'report_exists': report.exists(),
+          }
+          if report.exists():
+              data = json.loads(report.read_text(encoding='utf-8'))
+              deps = data.get('dependencies', [])
+              vulns = [v for dep in deps for v in dep.get('vulnerabilities', [])]
+              summary['dependencies'] = len(deps)
+              summary['vulnerabilities'] = len(vulns)
+              summary['highest_cvss'] = max(
+                  [float(v.get('cvssv3', {}).get('baseScore') or v.get('cvssv2', {}).get('score') or 0) for v in vulns] or [0]
+              )
+          (out / 'summary.json').write_text(json.dumps(summary, sort_keys=True, indent=2) + '\n', encoding='utf-8')
+          PY
+
+      - name: Hash evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$TOOL_OUT"
+          find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-check-mirrored-nvd
+          path: ${{ env.TOOL_OUT }}
+          if-no-files-found: error
