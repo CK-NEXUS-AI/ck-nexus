@@ -1,0 +1,52 @@
+name: VPS External Connectivity Probe 2026-09-04
+
+on:
+  push:
+    branches:
+      - ops/q10-host-qualification-20260904
+    paths:
+      - .github/workflows/vps-external-connectivity-probe-20260904.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Probe TCP 22 without credentials
+        shell: bash
+        run: |
+          set +e
+          HOST=149.13.58.181
+          PORT=22
+          {
+            echo "timestamp_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "host=$HOST"
+            echo "port=$PORT"
+            timeout 5 bash -c "</dev/tcp/$HOST/$PORT"
+            echo "tcp22_rc=$?"
+            timeout 8 ssh-keyscan -T 5 -p "$PORT" "$HOST" > ssh-hostkeys.txt 2>ssh-keyscan.stderr
+            echo "ssh_keyscan_rc=$?"
+            echo "ssh_hostkey_lines=$(wc -l < ssh-hostkeys.txt)"
+          } | tee probe-summary.txt
+
+      - name: Hash probe evidence
+        if: always()
+        shell: bash
+        run: |
+          sha256sum probe-summary.txt ssh-hostkeys.txt ssh-keyscan.stderr 2>/dev/null | tee SHA256SUMS || true
+
+      - name: Upload probe evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vps-external-connectivity-probe
+          path: |
+            probe-summary.txt
+            ssh-hostkeys.txt
+            ssh-keyscan.stderr
+            SHA256SUMS
+          if-no-files-found: warn
