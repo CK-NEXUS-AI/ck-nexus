@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from dataclasses import asdict
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from creator_app.runtime_binding import (
@@ -125,6 +126,8 @@ class PostgresKnowledgeRepository:
 
     async def store_claim(self, claim: KnowledgeClaim) -> None:
         payload = _json_payload(claim)
+        observed_at = _postgres_timestamp(claim.observed_at)
+        fresh_until = _postgres_timestamp(claim.fresh_until)
         async with acquire_db_connection(self._pool, self._runtime_config) as conn:
             async with conn.transaction():
                 if await conn.fetchval(
@@ -195,8 +198,8 @@ class PostgresKnowledgeRepository:
                     claim.subject,
                     claim.predicate,
                     claim.claim_class.value,
-                    claim.observed_at,
-                    claim.fresh_until,
+                    observed_at,
+                    fresh_until,
                     claim.confidence,
                     payload,
                 )
@@ -478,3 +481,12 @@ def _claim_from_payload(
 
 def _optional_str(value: Any) -> str | None:
     return None if value is None else str(value)
+
+
+def _postgres_timestamp(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
