@@ -145,7 +145,11 @@ async def test_store_source_inserts_tenant_scoped_payload(
 
     assert inserted is True
     assert any("INSERT INTO knowledge_sources" in sql for sql, _args in conn.executed)
-    insert_args = next(args for sql, args in conn.executed if "INSERT INTO knowledge_sources" in sql)
+    insert_args = next(
+        args
+        for sql, args in conn.executed
+        if "INSERT INTO knowledge_sources" in sql
+    )
     assert insert_args[:2] == ("tenant-a", "s1")
 
 
