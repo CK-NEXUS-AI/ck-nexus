@@ -1,0 +1,122 @@
+name: OSV Offline Cross-check 2026-09-04
+
+on:
+  push:
+    branches:
+      - ops/canonical-export-20260904
+    paths:
+      - .github/workflows/osv-offline-crosscheck-20260904.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SUBJECT_SHA: b4146db8e23dff49520cbbc9d0194a15bcc5872d
+  SUBJECT_TREE: 25d9c74db2b553667ad085172f8ac7beff4146aa
+
+jobs:
+  osv-offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SUBJECT_SHA }}
+          fetch-depth: 1
+
+      - name: Verify exact subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SUBJECT_TREE"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Prepare isolated evidence and cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/osv-offline"
+          CACHE="$RUNNER_TEMP/osv-db"
+          mkdir -p "$OUT" "$CACHE"
+          chmod -R 0777 "$OUT" "$CACHE"
+          echo "TOOL_OUT=$OUT" >> "$GITHUB_ENV"
+          echo "OSV_DB=$CACHE" >> "$GITHUB_ENV"
+          printf '%s\n' "$SUBJECT_SHA" > "$OUT/subject-sha.txt"
+          printf '%s\n' "$SUBJECT_TREE" > "$OUT/subject-tree.txt"
+
+      - name: Pull OSV Scanner and record digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE=ghcr.io/google/osv-scanner:latest
+          docker pull "$IMAGE" > "$TOOL_OUT/pull.txt" 2>&1
+          docker image inspect "$IMAGE" --format '{{json .RepoDigests}}' > "$TOOL_OUT/image-digest.json"
+          docker run --rm "$IMAGE" --version > "$TOOL_OUT/version.txt" 2>&1 || true
+
+      - name: Download local vulnerability databases without scanning source
+        shell: bash
+        continue-on-error: true
+        run: |
+          set +e
+          IMAGE=ghcr.io/google/osv-scanner:latest
+          docker run --rm \
+            -e OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY=/cache \
+            -v "$OSV_DB:/cache" \
+            -v "$PWD:/src:ro" \
+            "$IMAGE" --offline-vulnerabilities --download-offline-databases scan source --recursive /src \
+            > "$TOOL_OUT/download-and-seed.json" 2> "$TOOL_OUT/download.stderr.txt"
+          printf 'seed_rc=%s\n' "$?" > "$TOOL_OUT/seed-exit.txt"
+          exit 0
+
+      - name: Run network-disabled offline vulnerability scan
+        shell: bash
+        continue-on-error: true
+        run: |
+          set +e
+          IMAGE=ghcr.io/google/osv-scanner:latest
+          docker run --rm --network none \
+            -e OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY=/cache \
+            -v "$OSV_DB:/cache:ro" \
+            -v "$PWD:/src:ro" \
+            "$IMAGE" --offline scan source --recursive --format json /src \
+            > "$TOOL_OUT/osv-offline.json" 2> "$TOOL_OUT/offline.stderr.txt"
+          printf 'offline_scan_rc=%s\n' "$?" > "$TOOL_OUT/offline-exit.txt"
+          exit 0
+
+      - name: Summarize evidence conservatively
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, pathlib
+          out = pathlib.Path(os.environ['TOOL_OUT'])
+          result = out / 'osv-offline.json'
+          summary = {
+              'classification': 'DEVELOPMENT_SECURITY_PREFLIGHT',
+              'q10_status': 'NOT_VERIFIED',
+              'offline_report_exists': result.exists() and result.stat().st_size > 0,
+          }
+          if summary['offline_report_exists']:
+              try:
+                  data = json.loads(result.read_text(encoding='utf-8'))
+                  summary['results_count'] = len(data.get('results', [])) if isinstance(data, dict) else None
+              except Exception as exc:
+                  summary['parse_error'] = type(exc).__name__
+          (out / 'summary.json').write_text(json.dumps(summary, sort_keys=True, indent=2) + '\n', encoding='utf-8')
+          PY
+
+      - name: Hash evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$TOOL_OUT"
+          find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: osv-offline-crosscheck
+          path: ${{ env.TOOL_OUT }}
+          if-no-files-found: error
