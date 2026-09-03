@@ -88,18 +88,20 @@ async def test_postgres_knowledge_repository_round_trip() -> None:
         await repository.store_memory_proposal(proposal)
     finally:
         if schema_verified:
-            async with pool.acquire() as conn:
-                async with conn.transaction():
-                    await conn.execute(
-                        "DELETE FROM knowledge_memory_proposals WHERE tenant_id = $1",
-                        tenant_id,
-                    )
-                    await conn.execute(
-                        "DELETE FROM knowledge_claims WHERE tenant_id = $1",
-                        tenant_id,
-                    )
-                    await conn.execute(
-                        "DELETE FROM knowledge_sources WHERE tenant_id = $1",
-                        tenant_id,
-                    )
+            async with (
+                pool.acquire() as conn,
+                conn.transaction(),
+            ):
+                await conn.execute(
+                    "DELETE FROM knowledge_memory_proposals WHERE tenant_id = $1",
+                    tenant_id,
+                )
+                await conn.execute(
+                    "DELETE FROM knowledge_claims WHERE tenant_id = $1",
+                    tenant_id,
+                )
+                await conn.execute(
+                    "DELETE FROM knowledge_sources WHERE tenant_id = $1",
+                    tenant_id,
+                )
         await pool.close()
