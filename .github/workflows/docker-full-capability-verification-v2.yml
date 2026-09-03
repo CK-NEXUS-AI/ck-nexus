@@ -1,0 +1,197 @@
+name: Docker Full Capability Verification V2
+
+on:
+  push:
+    branches:
+      - verify/docker-full-capability-20260903
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-full-capability-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker-verification-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Prepare corrected probe and evidence directory
+        run: |
+          mkdir -p docker-evidence-v2/standalone docker-evidence-v2/compose
+          python scripts/prepare_docker_probe_v2.py /tmp/docker_capability_probe_v2.py
+          python -m py_compile /tmp/docker_capability_probe_v2.py
+          git rev-parse HEAD | tee docker-evidence-v2/subject-sha.txt
+          git rev-parse HEAD^{tree} | tee docker-evidence-v2/subject-tree.txt
+
+      - name: Build and run standalone Docker image
+        run: |
+          set -o pipefail
+          start=$(date +%s)
+          docker build --progress=plain -t ck-nexus:docker-capability-v2 . 2>&1 \
+            | tee docker-evidence-v2/standalone/docker-build.log
+          end=$(date +%s)
+          echo $((end-start)) > docker-evidence-v2/standalone/build-seconds.txt
+          docker image inspect -f '{{.Size}}' ck-nexus:docker-capability-v2 \
+            > docker-evidence-v2/standalone/image-size-bytes.txt
+          docker image inspect -f '{{.Config.User}}' ck-nexus:docker-capability-v2 \
+            > docker-evidence-v2/standalone/image-user.txt
+          test "$(cat docker-evidence-v2/standalone/image-user.txt)" = "cknexus"
+          docker run -d --name cknexus-v2 \
+            -p 127.0.0.1:18000:8000 \
+            -e CKNEXUS_MOCK_AI=true \
+            -e CKNEXUS_ACCESS_TOKEN=docker-smoke-token \
+            -e CKNEXUS_DEV_TEAM_ENABLED=false \
+            -e CKNEXUS_CODEX_ENABLED=false \
+            -e CKNEXUS_CONNECTOR_FABRIC_ENABLED=false \
+            ck-nexus:docker-capability-v2
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:18000/health >/dev/null; then break; fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:18000/health >/dev/null
+          python /tmp/docker_capability_probe_v2.py \
+            --base-url http://127.0.0.1:18000 \
+            --token docker-smoke-token \
+            --expect-mode mock \
+            --report docker-evidence-v2/standalone/capability-report.json \
+            | tee docker-evidence-v2/standalone/capability-probe.log
+          uid=$(docker exec cknexus-v2 id -u)
+          echo "runtime_uid=$uid" > docker-evidence-v2/standalone/runtime-security.txt
+          test "$uid" != "0"
+          if docker exec cknexus-v2 sh -lc 'test -w /app/creator_app/api.py'; then
+            echo "application_source_writable=true" >> docker-evidence-v2/standalone/runtime-security.txt
+          else
+            echo "application_source_writable=false" >> docker-evidence-v2/standalone/runtime-security.txt
+          fi
+          docker logs cknexus-v2 > docker-evidence-v2/standalone/container.log 2>&1
+          docker rm -f cknexus-v2
+
+      - name: Prepare Compose runtime override
+        run: |
+          cat >/tmp/cknexus-v2.override.yml <<'YAML'
+          services:
+            app:
+              environment:
+                CKNEXUS_MOCK_AI: "true"
+                CKNEXUS_DEV_TEAM_ENABLED: "false"
+                CKNEXUS_CODEX_ENABLED: "false"
+                CKNEXUS_CONNECTOR_FABRIC_ENABLED: "false"
+                CKNEXUS_RUNTIME_BINDING_ENABLED: "true"
+                DATABASE_URL: postgresql://cknexus:docker-test-password@db:5432/cknexus
+                REDIS_URL: redis://redis:6379/0
+                CKNEXUS_ENVIRONMENT: docker-verification-v2
+          YAML
+          cp /tmp/cknexus-v2.override.yml docker-evidence-v2/compose/compose-override.yml
+
+      - name: Start Compose stack and verify database bindings
+        env:
+          CKNEXUS_DB_PASSWORD: docker-test-password
+          CKNEXUS_EMAIL_WEBHOOK_TOKEN: docker-email-token
+          CKNEXUS_ACCESS_TOKEN: docker-smoke-token
+          CKNEXUS_PORT: "18001"
+          COMPOSE_PROJECT_NAME: cknexus-docker-v2
+        run: |
+          set -o pipefail
+          docker compose -f docker-compose.p0.yml -f /tmp/cknexus-v2.override.yml \
+            --profile queue up -d db redis
+          for i in $(seq 1 60); do
+            db=0; rd=0
+            docker compose -f docker-compose.p0.yml -f /tmp/cknexus-v2.override.yml \
+              --profile queue exec -T db pg_isready -U cknexus -d cknexus >/dev/null 2>&1 && db=1
+            docker compose -f docker-compose.p0.yml -f /tmp/cknexus-v2.override.yml \
+              --profile queue exec -T redis redis-cli ping 2>/dev/null | grep -q PONG && rd=1
+            if [ "$db" = 1 ] && [ "$rd" = 1 ]; then break; fi
+            sleep 2
+          done
+          docker compose -f docker-compose.p0.yml -f /tmp/cknexus-v2.override.yml \
+            --profile queue up -d --build migrate app 2>&1 | tee docker-evidence-v2/compose/compose-up.log
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:18001/health >/dev/null; then break; fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:18001/health >/dev/null
+          docker compose -f docker-compose.p0.yml -f /tmp/cknexus-v2.override.yml \
+            --profile queue exec -T app python -m creator_app.runtime_binding --verify \
+            | tee docker-evidence-v2/compose/runtime-binding.log
+
+      - name: Probe Compose runtime and Email Gateway
+        run: |
+          python /tmp/docker_capability_probe_v2.py \
+            --base-url http://127.0.0.1:18001 \
+            --token docker-smoke-token \
+            --webhook-token docker-email-token \
+            --expect-mode mock \
+            --expect-email \
+            --expect-runtime-binding \
+            --report docker-evidence-v2/compose/capability-report.json \
+            | tee docker-evidence-v2/compose/capability-probe.log
+
+      - name: Capture Compose persistence and logs
+        if: always()
+        env:
+          CKNEXUS_DB_PASSWORD: docker-test-password
+          CKNEXUS_EMAIL_WEBHOOK_TOKEN: docker-email-token
+          CKNEXUS_ACCESS_TOKEN: docker-smoke-token
+          CKNEXUS_PORT: "18001"
+          COMPOSE_PROJECT_NAME: cknexus-docker-v2
+        run: |
+          set +e
+          docker compose -f docker-compose.p0.yml -f /tmp/cknexus-v2.override.yml \
+            --profile queue ps -a > docker-evidence-v2/compose/compose-ps.txt
+          docker compose -f docker-compose.p0.yml -f /tmp/cknexus-v2.override.yml \
+            --profile queue logs --no-color > docker-evidence-v2/compose/compose.log 2>&1
+          docker compose -f docker-compose.p0.yml -f /tmp/cknexus-v2.override.yml \
+            --profile queue exec -T db psql -U cknexus -d cknexus \
+            -c "SELECT COUNT(*) AS creator_runs FROM creator_runs;" \
+            > docker-evidence-v2/compose/postgres-run-count.txt 2>&1
+          docker compose -f docker-compose.p0.yml -f /tmp/cknexus-v2.override.yml \
+            --profile queue exec -T db psql -U cknexus -d cknexus \
+            -c "SELECT COUNT(*) AS email_journal FROM email_journal;" \
+            > docker-evidence-v2/compose/postgres-email-count.txt 2>&1
+
+      - name: Build combined summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          out = {"subject": {}}
+          p = Path("docker-evidence-v2")
+          out["subject"]["sha"] = (p / "subject-sha.txt").read_text().strip()
+          out["subject"]["tree"] = (p / "subject-tree.txt").read_text().strip()
+          for name in ("standalone", "compose"):
+              report = p / name / "capability-report.json"
+              if report.exists():
+                  out[name] = json.loads(report.read_text())
+              else:
+                  out[name] = {"summary": {"overall": "NOT_COMPLETED"}}
+          (p / "combined-summary.json").write_text(json.dumps(out, indent=2) + "\n")
+          print(json.dumps({k: v.get("summary", {}) for k, v in out.items() if isinstance(v, dict)}, indent=2))
+          PY
+
+      - name: Upload V2 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ck-nexus-docker-full-capability-v2
+          path: docker-evidence-v2
+          if-no-files-found: error
+
+      - name: Tear down
+        if: always()
+        env:
+          CKNEXUS_DB_PASSWORD: docker-test-password
+          CKNEXUS_EMAIL_WEBHOOK_TOKEN: docker-email-token
+          CKNEXUS_ACCESS_TOKEN: docker-smoke-token
+          CKNEXUS_PORT: "18001"
+          COMPOSE_PROJECT_NAME: cknexus-docker-v2
+        run: |
+          docker rm -f cknexus-v2 2>/dev/null || true
+          docker compose -f docker-compose.p0.yml -f /tmp/cknexus-v2.override.yml \
+            --profile queue down -v --remove-orphans || true
