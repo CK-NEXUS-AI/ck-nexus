@@ -125,6 +125,8 @@ jobs:
         run: |
           set +e
           cd "$RUNNER_TEMP/cs0124"
+          npm pkg set "dependencies.@openai/codex-security=$CS_VERSION"
+          npm install --package-lock-only --ignore-scripts >/dev/null 2>&1
           npm audit --omit=dev --json > "$GITHUB_WORKSPACE/npm-audit-codex-security-0124.json"
           audit_rc=$?
           printf 'npm_audit_rc=%s\n' "$audit_rc" | tee "$GITHUB_WORKSPACE/npm-audit-status.txt"
@@ -137,7 +139,7 @@ jobs:
           cd "$RUNNER_TEMP/cs0124"
           codex_bin="./node_modules/.bin/codex"
           set +e
-          "$codex_bin" sandbox linux /usr/bin/true > "$GITHUB_WORKSPACE/sandbox-default.txt" 2>&1
+          "$codex_bin" sandbox /usr/bin/true > "$GITHUB_WORKSPACE/sandbox-default.txt" 2>&1
           default_rc=$?
           set -e
           printf 'default_rc=%s\n' "$default_rc" | tee "$GITHUB_WORKSPACE/sandbox-status.txt"
@@ -145,7 +147,7 @@ jobs:
             echo 'sandbox_path=DEFAULT_PASS' | tee -a "$GITHUB_WORKSPACE/sandbox-status.txt"
           else
             set +e
-            "$codex_bin" --enable use_legacy_landlock sandbox linux /usr/bin/true > "$GITHUB_WORKSPACE/sandbox-landlock.txt" 2>&1
+            "$codex_bin" sandbox --enable use_legacy_landlock /usr/bin/true > "$GITHUB_WORKSPACE/sandbox-landlock.txt" 2>&1
             landlock_rc=$?
             set -e
             printf 'landlock_rc=%s\n' "$landlock_rc" | tee -a "$GITHUB_WORKSPACE/sandbox-status.txt"
