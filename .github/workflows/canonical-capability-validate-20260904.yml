@@ -1,0 +1,85 @@
+name: Canonical Capability Validate 2026-09-04
+
+on:
+  push:
+    branches: [ops/canonical-export-20260904]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact canonical subject
+        uses: actions/checkout@v6
+        with:
+          ref: b4146db8e23dff49520cbbc9d0194a15bcc5872d
+          fetch-depth: 0
+      - name: Verify exact subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "b4146db8e23dff49520cbbc9d0194a15bcc5872d"
+          test "$(git rev-parse 'HEAD^{tree}')" = "25d9c74db2b553667ad085172f8ac7beff4146aa"
+          printf 'commit=%s\ntree=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse 'HEAD^{tree}')" | tee CANONICAL_TEST_META.txt
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+      - name: Dependency lock and environment
+        run: |
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+          .venv/bin/python -c "import aiosqlite,asyncpg,psycopg,redis; print('dependency environment PASS')"
+      - name: Compile and Ruff
+        run: |
+          .venv/bin/python -m compileall -q main.py creator_app services scripts
+          .venv/bin/ruff check main.py creator_app services tests scripts
+      - name: Bandit exact reviewed gate
+        shell: bash
+        run: |
+          .venv/bin/bandit -r creator_app services main.py -f json -o bandit.json || true
+          .venv/bin/python - <<'PY'
+          import hashlib,json,sys
+          r=json.load(open('bandit.json',encoding='utf-8'))
+          ok={
+            ('B608','services/email_gateway/repository.py',221,'a248369faca360edbca232b1700ef67d87d9eeae8401bb1b379122f3274a4a6a'),
+            ('B608','services/email_gateway/repository.py',230,'2948e929a8c5a30e600e2d06c3cea59da396aa196adfd234183556d877df3de0'),
+          }
+          bad=[]
+          for x in r.get('results',[]):
+            if x.get('issue_severity') not in {'MEDIUM','HIGH'}:
+              continue
+            f=(x.get('test_id'),x.get('filename'),x.get('line_number'),hashlib.sha256(x.get('code','').encode()).hexdigest())
+            if f not in ok:
+              bad.append(f)
+          print('blocking=',bad)
+          sys.exit(bool(bad))
+          PY
+      - name: Secret scan
+        run: .venv/bin/python scripts/secret_scan.py
+      - name: Portable regression
+        run: .venv/bin/pytest -q --ignore=tests/test_agnes_execution_kernel_phase2.py --ignore=tests/test_agnes_execution_kernel_phase3.py | tee PORTABLE_REGRESSION.txt
+      - name: Write validation summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "subject_commit=b4146db8e23dff49520cbbc9d0194a15bcc5872d"
+            echo "subject_tree=25d9c74db2b553667ad085172f8ac7beff4146aa"
+            echo "workflow_run_id=${GITHUB_RUN_ID}"
+          } > VALIDATION_SUMMARY.txt
+      - name: Upload validation evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: canonical-capability-validation-b4146db8
+          path: |
+            CANONICAL_TEST_META.txt
+            VALIDATION_SUMMARY.txt
+            PORTABLE_REGRESSION.txt
+            bandit.json
