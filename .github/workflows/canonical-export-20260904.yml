@@ -79,3 +79,104 @@ jobs:
             CANONICAL_SHA256SUMS
             CANONICAL_ARCHIVE_SHA256.txt
             CK_NEXUS_CANONICAL_b4146db8.tar.gz
+
+  codex-security-0124-compatibility-preflight:
+    name: Codex Security 0.1.24 Compatibility Preflight (Development Only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      Q10_SUBJECT: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
+      Q10_TREE: 0525195934f703a8becf8a39f6397b2411e0bb2e
+      CS_VERSION: 0.1.24
+    steps:
+      - name: Checkout frozen Q10 subject
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.Q10_SUBJECT }}
+          path: frozen-source
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact frozen binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C frozen-source rev-parse HEAD)" = "$Q10_SUBJECT"
+          test "$(git -C frozen-source rev-parse HEAD^{tree})" = "$Q10_TREE"
+          test -z "$(git -C frozen-source status --porcelain)"
+          printf 'subject=%s\ntree=%s\nbinding=PASS\n' "$Q10_SUBJECT" "$Q10_TREE" | tee subject-binding.txt
+
+      - name: Install exact published Codex Security package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cs0124"
+          cd "$RUNNER_TEMP/cs0124"
+          npm init -y >/dev/null
+          npm view "@openai/codex-security@$CS_VERSION" version dist.integrity dist.tarball --json | tee "$GITHUB_WORKSPACE/npm-package-metadata.json"
+          npm install --no-save "@openai/codex-security@$CS_VERSION"
+          ./node_modules/.bin/codex-security --version | tee "$GITHUB_WORKSPACE/codex-security-version.txt"
+          test "$(cat "$GITHUB_WORKSPACE/codex-security-version.txt" | tr -d '\r\n')" = "$CS_VERSION"
+
+      - name: Test supported legacy Landlock sandbox path
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/cs0124"
+          codex_js="node_modules/@openai/codex-security/node_modules/@openai/codex/bin/codex.js"
+          test -f "$codex_js"
+          set +e
+          node "$codex_js" sandbox linux /usr/bin/true > "$GITHUB_WORKSPACE/sandbox-default.txt" 2>&1
+          default_rc=$?
+          set -e
+          printf 'default_rc=%s\n' "$default_rc" | tee "$GITHUB_WORKSPACE/sandbox-status.txt"
+          if [ "$default_rc" -eq 0 ]; then
+            echo 'sandbox_path=DEFAULT_PASS' | tee -a "$GITHUB_WORKSPACE/sandbox-status.txt"
+          else
+            set +e
+            node "$codex_js" --enable use_legacy_landlock sandbox linux /usr/bin/true > "$GITHUB_WORKSPACE/sandbox-landlock.txt" 2>&1
+            landlock_rc=$?
+            set -e
+            printf 'landlock_rc=%s\n' "$landlock_rc" | tee -a "$GITHUB_WORKSPACE/sandbox-status.txt"
+            test "$landlock_rc" -eq 0
+            echo 'sandbox_path=SUPPORTED_LEGACY_LANDLOCK_PASS' | tee -a "$GITHUB_WORKSPACE/sandbox-status.txt"
+          fi
+
+      - name: Test exact 0.1.24 external-provider dry-run
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cs0124-output"
+          cd "$RUNNER_TEMP/cs0124"
+          ./node_modules/.bin/codex-security scan "$GITHUB_WORKSPACE/frozen-source" \
+            --provider openrouter \
+            --model anthropic/claude-sonnet-4.5 \
+            --output-dir "$RUNNER_TEMP/cs0124-output/openrouter" \
+            --dry-run > "$GITHUB_WORKSPACE/provider-openrouter-dry-run.txt" 2>&1
+          printf 'provider_openrouter_dry_run=PASS\ncredential_used=NO\nmodel_request_started=NO\n' | tee provider-status.txt
+
+      - name: Record compatibility classification
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'classification=TECHNICAL_COMPATIBILITY_PREFLIGHT_ONLY\nscanner=codex-security\nscanner_version=0.1.24\ndeep_scan_started=NO\ncredential_used=NO\nquota_consumption_intended=NO\nauthority=NONE\nq10_status=NOT_VERIFIED\nproduction=NO_GO\n' | tee classification.txt
+          for f in subject-binding.txt npm-package-metadata.json codex-security-version.txt sandbox-default.txt sandbox-landlock.txt sandbox-status.txt provider-openrouter-dry-run.txt provider-status.txt classification.txt; do [ -f "$f" ] && sha256sum "$f"; done | tee SHA256SUMS-COMPATIBILITY
+
+      - name: Upload compatibility preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-security-0124-compatibility-preflight-development-only
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            subject-binding.txt
+            npm-package-metadata.json
+            codex-security-version.txt
+            sandbox-default.txt
+            sandbox-landlock.txt
+            sandbox-status.txt
+            provider-openrouter-dry-run.txt
+            provider-status.txt
+            classification.txt
+            SHA256SUMS-COMPATIBILITY
