@@ -17,7 +17,6 @@ from creator_app.runtime import CreatorRuntime
 from creator_app.schemas import RunRequest
 from services.email_gateway.repository import EmailGatewayRepository
 
-
 _TRUSTED_IMAGE = (
     "ghcr.io/spinlnw10-art/ck-nexus-verifier-python@sha256:"
     "f495574f3076eea84467f486ee6eb3ebb0136d7e41322429eb0bc435561ad751"
