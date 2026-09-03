@@ -1,0 +1,94 @@
+name: Docker SBOM and Vulnerability Cross-check 2026-09-04
+
+on:
+  push:
+    branches:
+      - ops/canonical-export-20260904
+    paths:
+      - .github/workflows/docker-sbom-vuln-crosscheck-20260904.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SUBJECT_SHA: b4146db8e23dff49520cbbc9d0194a15bcc5872d
+  SUBJECT_TREE: 25d9c74db2b553667ad085172f8ac7beff4146aa
+
+jobs:
+  sbom-vuln:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SUBJECT_SHA }}
+          fetch-depth: 0
+
+      - name: Verify exact subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SUBJECT_TREE"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Prepare isolated evidence directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/cknexus-tool-evidence"
+          mkdir -p "$OUT"
+          chmod 0777 "$OUT"
+          printf '%s\n' "$SUBJECT_SHA" > "$OUT/subject-sha.txt"
+          printf '%s\n' "$SUBJECT_TREE" > "$OUT/subject-tree.txt"
+          printf '%s\n' "$OUT" >> "$GITHUB_ENV"
+          echo "TOOL_OUT=$OUT" >> "$GITHUB_ENV"
+
+      - name: Generate CycloneDX SBOM with Syft
+        shell: bash
+        continue-on-error: true
+        run: |
+          set +e
+          IMAGE=anchore/syft:latest
+          docker pull "$IMAGE" > "$TOOL_OUT/syft-pull.txt" 2>&1
+          pull_rc=$?
+          docker image inspect "$IMAGE" --format '{{json .RepoDigests}}' > "$TOOL_OUT/syft-image-digest.json" 2>&1
+          inspect_rc=$?
+          docker run --rm -v "$PWD:/src:ro" -v "$TOOL_OUT:/out" "$IMAGE" dir:/src -o cyclonedx-json=/out/sbom.cdx.json > "$TOOL_OUT/syft-stdout.txt" 2> "$TOOL_OUT/syft-stderr.txt"
+          scan_rc=$?
+          docker run --rm "$IMAGE" version > "$TOOL_OUT/syft-version.txt" 2>&1
+          version_rc=$?
+          printf 'pull_rc=%s\ninspect_rc=%s\nscan_rc=%s\nversion_rc=%s\n' "$pull_rc" "$inspect_rc" "$scan_rc" "$version_rc" > "$TOOL_OUT/syft-exit-codes.txt"
+          exit 0
+
+      - name: Cross-check vulnerabilities with Grype
+        shell: bash
+        continue-on-error: true
+        run: |
+          set +e
+          IMAGE=anchore/grype:latest
+          docker pull "$IMAGE" > "$TOOL_OUT/grype-pull.txt" 2>&1
+          pull_rc=$?
+          docker image inspect "$IMAGE" --format '{{json .RepoDigests}}' > "$TOOL_OUT/grype-image-digest.json" 2>&1
+          inspect_rc=$?
+          docker run --rm -v "$PWD:/src:ro" -v "$TOOL_OUT:/out" "$IMAGE" dir:/src -o json > "$TOOL_OUT/grype.json" 2> "$TOOL_OUT/grype-stderr.txt"
+          scan_rc=$?
+          docker run --rm "$IMAGE" version > "$TOOL_OUT/grype-version.txt" 2>&1
+          version_rc=$?
+          printf 'pull_rc=%s\ninspect_rc=%s\nscan_rc=%s\nversion_rc=%s\n' "$pull_rc" "$inspect_rc" "$scan_rc" "$version_rc" > "$TOOL_OUT/grype-exit-codes.txt"
+          exit 0
+
+      - name: Hash isolated tool evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$TOOL_OUT"
+          find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: docker-helper-sbom-vuln-crosscheck
+          path: ${{ env.TOOL_OUT }}
+          if-no-files-found: error
