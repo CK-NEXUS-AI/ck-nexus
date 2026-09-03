@@ -53,11 +53,12 @@ jobs:
           .venv/bin/pytest -q tests/test_agnes_execution_kernel_phase2.py \
             -k workspace_requires_full_commit_and_rejects_symlinks
 
-      - name: Compile and lint proof delta
+      - name: Show Ruff-required import diff
         shell: bash
         run: |
           set -euo pipefail
           .venv/bin/python -m compileall -q tests/test_semgrep_exact_findings_regression.py
+          .venv/bin/ruff check --fix --diff tests/test_semgrep_exact_findings_regression.py || true
           .venv/bin/ruff check tests/test_semgrep_exact_findings_regression.py
 
       - name: Record proof boundary
