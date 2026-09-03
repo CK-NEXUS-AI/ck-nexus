@@ -1,0 +1,274 @@
+name: Docker Full Capability Verification
+
+on:
+  push:
+    branches:
+      - verify/docker-full-capability-20260903
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-full-capability-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  standalone-docker:
+    name: Standalone Docker / SQLite / Mock AI
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact development branch
+        uses: actions/checkout@v6
+
+      - name: Record Docker environment
+        run: |
+          mkdir -p docker-evidence/standalone
+          docker version | tee docker-evidence/standalone/docker-version.txt
+          docker compose version | tee docker-evidence/standalone/docker-compose-version.txt
+          git rev-parse HEAD | tee docker-evidence/standalone/subject-sha.txt
+          git rev-parse HEAD^{tree} | tee docker-evidence/standalone/subject-tree.txt
+
+      - name: Build CK-NEXUS image from repository Dockerfile
+        run: |
+          set -o pipefail
+          start=$(date +%s)
+          docker build --progress=plain -t ck-nexus:docker-capability . 2>&1 \
+            | tee docker-evidence/standalone/docker-build.log
+          end=$(date +%s)
+          echo $((end-start)) > docker-evidence/standalone/build-seconds.txt
+          docker image inspect ck-nexus:docker-capability \
+            > docker-evidence/standalone/image-inspect.json
+          docker image inspect -f '{{.Size}}' ck-nexus:docker-capability \
+            > docker-evidence/standalone/image-size-bytes.txt
+          user=$(docker image inspect -f '{{.Config.User}}' ck-nexus:docker-capability)
+          echo "$user" | tee docker-evidence/standalone/image-user.txt
+          test "$user" = "cknexus"
+
+      - name: Start standalone runtime
+        run: |
+          docker run -d --name cknexus-standalone \
+            -p 127.0.0.1:18000:8000 \
+            -e CKNEXUS_MOCK_AI=true \
+            -e CKNEXUS_ACCESS_TOKEN=docker-smoke-token \
+            -e CKNEXUS_DEV_TEAM_ENABLED=false \
+            -e CKNEXUS_CODEX_ENABLED=false \
+            -e CKNEXUS_CONNECTOR_FABRIC_ENABLED=false \
+            ck-nexus:docker-capability
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:18000/health >/dev/null; then
+              exit 0
+            fi
+            if ! docker ps --format '{{.Names}}' | grep -qx cknexus-standalone; then
+              docker logs cknexus-standalone
+              exit 1
+            fi
+            sleep 2
+          done
+          docker logs cknexus-standalone
+          exit 1
+
+      - name: Probe functional runtime
+        run: |
+          python scripts/docker_capability_probe.py \
+            --base-url http://127.0.0.1:18000 \
+            --token docker-smoke-token \
+            --expect-mode mock \
+            --report docker-evidence/standalone/capability-report.json \
+            | tee docker-evidence/standalone/capability-probe.log
+
+      - name: Inspect runtime security posture
+        if: always()
+        run: |
+          set +e
+          uid=$(docker exec cknexus-standalone id -u 2>/dev/null)
+          echo "runtime_uid=$uid" | tee docker-evidence/standalone/runtime-security.txt
+          if [ "$uid" = "0" ]; then
+            echo "non_root=FAIL" | tee -a docker-evidence/standalone/runtime-security.txt
+          else
+            echo "non_root=PASS" | tee -a docker-evidence/standalone/runtime-security.txt
+          fi
+          if docker exec cknexus-standalone sh -lc 'test -w /app/creator_app/api.py'; then
+            echo "application_source_writable=true" | tee -a docker-evidence/standalone/runtime-security.txt
+          else
+            echo "application_source_writable=false" | tee -a docker-evidence/standalone/runtime-security.txt
+          fi
+          docker inspect cknexus-standalone > docker-evidence/standalone/container-inspect.json
+          docker logs cknexus-standalone > docker-evidence/standalone/container.log 2>&1
+
+      - name: Upload standalone Docker evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ck-nexus-docker-standalone-evidence
+          path: docker-evidence/standalone
+          if-no-files-found: error
+
+      - name: Stop standalone runtime
+        if: always()
+        run: docker rm -f cknexus-standalone || true
+
+  compose-runtime:
+    name: Compose / PostgreSQL / Redis / Email Gateway
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact development branch
+        uses: actions/checkout@v6
+
+      - name: Prepare evidence and runtime-binding override
+        run: |
+          mkdir -p docker-evidence/compose
+          git rev-parse HEAD | tee docker-evidence/compose/subject-sha.txt
+          git rev-parse HEAD^{tree} | tee docker-evidence/compose/subject-tree.txt
+          cat >/tmp/cknexus-docker-probe.override.yml <<'YAML'
+          services:
+            app:
+              environment:
+                CKNEXUS_MOCK_AI: "true"
+                CKNEXUS_DEV_TEAM_ENABLED: "false"
+                CKNEXUS_CODEX_ENABLED: "false"
+                CKNEXUS_CONNECTOR_FABRIC_ENABLED: "false"
+                CKNEXUS_RUNTIME_BINDING_ENABLED: "true"
+                DATABASE_URL: postgresql://cknexus:docker-test-password@db:5432/cknexus
+                REDIS_URL: redis://redis:6379/0
+                CKNEXUS_ENVIRONMENT: docker-verification
+          YAML
+          cat /tmp/cknexus-docker-probe.override.yml \
+            > docker-evidence/compose/compose-override.yml
+
+      - name: Start PostgreSQL and Redis
+        env:
+          CKNEXUS_DB_PASSWORD: docker-test-password
+          CKNEXUS_EMAIL_WEBHOOK_TOKEN: docker-email-token
+          CKNEXUS_ACCESS_TOKEN: docker-smoke-token
+          CKNEXUS_PORT: "18001"
+          COMPOSE_PROJECT_NAME: cknexus-docker-probe
+        run: |
+          docker compose -f docker-compose.p0.yml \
+            -f /tmp/cknexus-docker-probe.override.yml \
+            --profile queue up -d db redis
+          for i in $(seq 1 60); do
+            db_ok=0
+            redis_ok=0
+            docker compose -f docker-compose.p0.yml \
+              -f /tmp/cknexus-docker-probe.override.yml \
+              --profile queue exec -T db pg_isready -U cknexus -d cknexus >/dev/null 2>&1 \
+              && db_ok=1
+            docker compose -f docker-compose.p0.yml \
+              -f /tmp/cknexus-docker-probe.override.yml \
+              --profile queue exec -T redis redis-cli ping 2>/dev/null | grep -q PONG \
+              && redis_ok=1
+            if [ "$db_ok" = 1 ] && [ "$redis_ok" = 1 ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f docker-compose.p0.yml \
+            -f /tmp/cknexus-docker-probe.override.yml \
+            --profile queue ps
+          exit 1
+
+      - name: Run migrations and start application
+        env:
+          CKNEXUS_DB_PASSWORD: docker-test-password
+          CKNEXUS_EMAIL_WEBHOOK_TOKEN: docker-email-token
+          CKNEXUS_ACCESS_TOKEN: docker-smoke-token
+          CKNEXUS_PORT: "18001"
+          COMPOSE_PROJECT_NAME: cknexus-docker-probe
+        run: |
+          set -o pipefail
+          docker compose -f docker-compose.p0.yml \
+            -f /tmp/cknexus-docker-probe.override.yml \
+            --profile queue up -d --build migrate app 2>&1 \
+            | tee docker-evidence/compose/compose-up.log
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:18001/health >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f docker-compose.p0.yml \
+            -f /tmp/cknexus-docker-probe.override.yml \
+            --profile queue ps
+          docker compose -f docker-compose.p0.yml \
+            -f /tmp/cknexus-docker-probe.override.yml \
+            --profile queue logs app migrate
+          exit 1
+
+      - name: Verify PostgreSQL and Redis application bindings
+        env:
+          CKNEXUS_DB_PASSWORD: docker-test-password
+          CKNEXUS_EMAIL_WEBHOOK_TOKEN: docker-email-token
+          CKNEXUS_ACCESS_TOKEN: docker-smoke-token
+          CKNEXUS_PORT: "18001"
+          COMPOSE_PROJECT_NAME: cknexus-docker-probe
+        run: |
+          docker compose -f docker-compose.p0.yml \
+            -f /tmp/cknexus-docker-probe.override.yml \
+            --profile queue exec -T app \
+            python -m creator_app.runtime_binding --verify \
+            | tee docker-evidence/compose/runtime-binding.log
+
+      - name: Probe Compose runtime and Email Gateway
+        run: |
+          python scripts/docker_capability_probe.py \
+            --base-url http://127.0.0.1:18001 \
+            --token docker-smoke-token \
+            --webhook-token docker-email-token \
+            --expect-mode mock \
+            --expect-email \
+            --expect-runtime-binding \
+            --report docker-evidence/compose/capability-report.json \
+            | tee docker-evidence/compose/capability-probe.log
+
+      - name: Inspect database persistence and Compose state
+        if: always()
+        env:
+          CKNEXUS_DB_PASSWORD: docker-test-password
+          CKNEXUS_EMAIL_WEBHOOK_TOKEN: docker-email-token
+          CKNEXUS_ACCESS_TOKEN: docker-smoke-token
+          CKNEXUS_PORT: "18001"
+          COMPOSE_PROJECT_NAME: cknexus-docker-probe
+        run: |
+          set +e
+          docker compose -f docker-compose.p0.yml \
+            -f /tmp/cknexus-docker-probe.override.yml \
+            --profile queue ps -a \
+            | tee docker-evidence/compose/compose-ps.txt
+          docker compose -f docker-compose.p0.yml \
+            -f /tmp/cknexus-docker-probe.override.yml \
+            --profile queue logs --no-color \
+            > docker-evidence/compose/compose.log 2>&1
+          docker compose -f docker-compose.p0.yml \
+            -f /tmp/cknexus-docker-probe.override.yml \
+            --profile queue exec -T db psql -U cknexus -d cknexus \
+            -c "SELECT COUNT(*) AS creator_runs FROM creator_runs;" \
+            > docker-evidence/compose/postgres-run-count.txt 2>&1
+          docker compose -f docker-compose.p0.yml \
+            -f /tmp/cknexus-docker-probe.override.yml \
+            --profile queue exec -T db psql -U cknexus -d cknexus \
+            -c "SELECT COUNT(*) AS email_journal FROM email_journal;" \
+            > docker-evidence/compose/postgres-email-count.txt 2>&1
+
+      - name: Upload Compose Docker evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ck-nexus-docker-compose-evidence
+          path: docker-evidence/compose
+          if-no-files-found: error
+
+      - name: Tear down Compose runtime
+        if: always()
+        env:
+          CKNEXUS_DB_PASSWORD: docker-test-password
+          CKNEXUS_EMAIL_WEBHOOK_TOKEN: docker-email-token
+          CKNEXUS_ACCESS_TOKEN: docker-smoke-token
+          CKNEXUS_PORT: "18001"
+          COMPOSE_PROJECT_NAME: cknexus-docker-probe
+        run: |
+          docker compose -f docker-compose.p0.yml \
+            -f /tmp/cknexus-docker-probe.override.yml \
+            --profile queue down -v --remove-orphans || true
