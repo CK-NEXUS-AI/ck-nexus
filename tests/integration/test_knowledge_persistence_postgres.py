@@ -33,9 +33,11 @@ async def test_postgres_knowledge_repository_round_trip() -> None:
         redis_url="redis://127.0.0.1:1/0",
     )
     repository = PostgresKnowledgeRepository(pool, config)
+    schema_verified = False
 
     try:
         await repository.verify_schema()
+        schema_verified = True
         source = SourceRecord(
             source_id=source_id,
             source_class=SourceClass.RESEARCH,
@@ -85,18 +87,19 @@ async def test_postgres_knowledge_repository_round_trip() -> None:
         )
         await repository.store_memory_proposal(proposal)
     finally:
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.execute(
-                    "DELETE FROM knowledge_memory_proposals WHERE tenant_id = $1",
-                    tenant_id,
-                )
-                await conn.execute(
-                    "DELETE FROM knowledge_claims WHERE tenant_id = $1",
-                    tenant_id,
-                )
-                await conn.execute(
-                    "DELETE FROM knowledge_sources WHERE tenant_id = $1",
-                    tenant_id,
-                )
+        if schema_verified:
+            async with pool.acquire() as conn:
+                async with conn.transaction():
+                    await conn.execute(
+                        "DELETE FROM knowledge_memory_proposals WHERE tenant_id = $1",
+                        tenant_id,
+                    )
+                    await conn.execute(
+                        "DELETE FROM knowledge_claims WHERE tenant_id = $1",
+                        tenant_id,
+                    )
+                    await conn.execute(
+                        "DELETE FROM knowledge_sources WHERE tenant_id = $1",
+                        tenant_id,
+                    )
         await pool.close()
