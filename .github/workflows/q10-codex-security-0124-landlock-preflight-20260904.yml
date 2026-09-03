@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - ops/q10-host-qualification-20260904
-    paths:
-      - .github/workflows/q10-codex-security-0124-landlock-preflight-20260904.yml
   workflow_dispatch:
 
 permissions:
@@ -80,15 +78,7 @@ PY
         run: |
           set -euo pipefail
           seccomp="$GITHUB_WORKSPACE/codex-security-source/docker/codex-security-seccomp.json"
-          command=(
-            docker run --rm
-            --cap-drop ALL
-            --security-opt no-new-privileges
-            --security-opt "seccomp=$seccomp"
-            --entrypoint node
-            "$LOCAL_IMAGE"
-            /usr/local/lib/node_modules/@openai/codex-security/node_modules/@openai/codex/bin/codex.js
-          )
+          command=(docker run --rm --cap-drop ALL --security-opt no-new-privileges --security-opt "seccomp=$seccomp" --entrypoint node "$LOCAL_IMAGE" /usr/local/lib/node_modules/@openai/codex-security/node_modules/@openai/codex/bin/codex.js)
           set +e
           output="$("${command[@]}" sandbox /usr/bin/true 2>&1)"
           default_rc=$?
@@ -117,35 +107,14 @@ PY
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/provider-dry-run"
-          docker run --rm \
-            --volume "$GITHUB_WORKSPACE/frozen-source:/input/repository:ro" \
-            --volume "$RUNNER_TEMP/provider-dry-run:/output" \
-            "$LOCAL_IMAGE" \
-            scan /input/repository \
-            --provider openrouter \
-            --model anthropic/claude-sonnet-4.5 \
-            --output-dir /output/openrouter \
-            --dry-run > provider-openrouter-dry-run.txt 2>&1
-          echo 'provider_openrouter_dry_run=PASS' | tee provider-status.txt
-          echo 'credential_used=NO' | tee -a provider-status.txt
-          echo 'network_scan_started=NO' | tee -a provider-status.txt
+          docker run --rm --volume "$GITHUB_WORKSPACE/frozen-source:/input/repository:ro" --volume "$RUNNER_TEMP/provider-dry-run:/output" "$LOCAL_IMAGE" scan /input/repository --provider openrouter --model anthropic/claude-sonnet-4.5 --output-dir /output/openrouter --dry-run > provider-openrouter-dry-run.txt 2>&1
+          printf 'provider_openrouter_dry_run=PASS\ncredential_used=NO\nnetwork_scan_started=NO\n' | tee provider-status.txt
 
       - name: Record classification
         shell: bash
         run: |
           set -euo pipefail
-          {
-            echo 'classification=TECHNICAL_COMPATIBILITY_PREFLIGHT_ONLY'
-            echo 'scanner=codex-security'
-            echo 'scanner_version=0.1.24'
-            echo 'scanner_source=d4b7d29a87cb86c9072f7905ba867d02385d8fd3'
-            echo 'deep_scan_started=NO'
-            echo 'credential_used=NO'
-            echo 'quota_consumption_intended=NO'
-            echo 'authority=NONE'
-            echo 'q10_status=NOT_VERIFIED'
-            echo 'production=NO_GO'
-          } | tee classification.txt
+          printf 'classification=TECHNICAL_COMPATIBILITY_PREFLIGHT_ONLY\nscanner=codex-security\nscanner_version=0.1.24\nscanner_source=%s\ndeep_scan_started=NO\ncredential_used=NO\nquota_consumption_intended=NO\nauthority=NONE\nq10_status=NOT_VERIFIED\nproduction=NO_GO\n' "$CODEX_SECURITY_SOURCE" | tee classification.txt
 
       - name: Hash evidence
         if: always()
