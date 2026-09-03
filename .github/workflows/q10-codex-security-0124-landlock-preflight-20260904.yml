@@ -1,0 +1,142 @@
+name: Q10 Codex Security 0.1.24 Landlock Preflight 2026-09-04
+
+on:
+  push:
+    branches:
+      - ops/q10-host-qualification-20260904
+    paths:
+      - .github/workflows/q10-codex-security-0124-landlock-preflight-20260904.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  landlock-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      Q10_SUBJECT: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
+      Q10_TREE: 0525195934f703a8becf8a39f6397b2411e0bb2e
+      CODEX_SECURITY_IMAGE: ghcr.io/openai/codex-security:0.1.24
+      CODEX_SECURITY_SOURCE: d4b7d29
+    steps:
+      - name: Checkout workflow branch
+        uses: actions/checkout@v4
+
+      - name: Materialize frozen Q10 subject
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.Q10_SUBJECT }}
+          path: frozen-source
+          fetch-depth: 1
+
+      - name: Verify exact frozen subject binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_subject="$(git -C frozen-source rev-parse HEAD)"
+          actual_tree="$(git -C frozen-source rev-parse HEAD^{tree})"
+          test "$actual_subject" = "$Q10_SUBJECT"
+          test "$actual_tree" = "$Q10_TREE"
+          test -z "$(git -C frozen-source status --porcelain)"
+          printf 'subject=%s\ntree=%s\nbinding=PASS\n' "$actual_subject" "$actual_tree" | tee subject-binding.txt
+
+      - name: Pull exact Codex Security release image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull "$CODEX_SECURITY_IMAGE"
+          docker image inspect "$CODEX_SECURITY_IMAGE" --format '{{json .RepoDigests}}' | tee image-repodigests.json
+          docker run --rm "$CODEX_SECURITY_IMAGE" --version | tee codex-security-version.txt
+
+      - name: Fetch release-matched seccomp profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSLo codex-security-seccomp.json \
+            "https://raw.githubusercontent.com/openai/codex-security/${CODEX_SECURITY_SOURCE}/docker/codex-security-seccomp.json"
+          sha256sum codex-security-seccomp.json | tee seccomp-sha256.txt
+
+      - name: Verify official hardened sandbox fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          command=(
+            docker run --rm
+            --cap-drop ALL
+            --security-opt no-new-privileges
+            --security-opt "seccomp=$GITHUB_WORKSPACE/codex-security-seccomp.json"
+            --entrypoint node
+            "$CODEX_SECURITY_IMAGE"
+            /usr/local/lib/node_modules/@openai/codex-security/node_modules/@openai/codex/bin/codex.js
+          )
+
+          set +e
+          output="$("${command[@]}" sandbox /usr/bin/true 2>&1)"
+          bwrap_rc=$?
+          set -e
+          printf '%s\n' "$output" > sandbox-default.txt
+          printf 'default_sandbox_rc=%s\n' "$bwrap_rc" | tee sandbox-status.txt
+
+          if [ "$bwrap_rc" -eq 0 ]; then
+            echo 'sandbox_path=BUBBLEWRAP_OR_DEFAULT_PASS' | tee -a sandbox-status.txt
+          elif grep -Eq 'bwrap: (Failed to make / slave: Permission denied|loopback: Failed RTM_NEW(ADDR|LINK): Operation not permitted|setting up uid map: Permission denied|No permissions to create a new namespace)' <<< "$output"; then
+            set +e
+            landlock_output="$("${command[@]}" sandbox --enable use_legacy_landlock /usr/bin/true 2>&1)"
+            landlock_rc=$?
+            set -e
+            printf '%s\n' "$landlock_output" > sandbox-landlock.txt
+            printf 'landlock_rc=%s\n' "$landlock_rc" | tee -a sandbox-status.txt
+            test "$landlock_rc" -eq 0
+            echo 'sandbox_path=SUPPORTED_LEGACY_LANDLOCK_PASS' | tee -a sandbox-status.txt
+          else
+            printf '%s\n' "$output" >&2
+            echo 'sandbox_path=UNEXPECTED_FAILURE' | tee -a sandbox-status.txt
+            exit 1
+          fi
+
+      - name: Record preflight classification
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo 'classification=TECHNICAL_COMPATIBILITY_PREFLIGHT_ONLY'
+            echo 'authority=NONE'
+            echo 'deep_scan_started=NO'
+            echo 'quota_consumption_intended=NO'
+            echo 'q10_status=NOT_VERIFIED'
+            echo 'production=NO_GO'
+            echo 'note=Passing this preflight only proves Codex Security 0.1.24 sandbox compatibility on this runner; it does not authorize canonical Q10 evidence.'
+          } | tee classification.txt
+
+      - name: Hash preflight evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum \
+            subject-binding.txt \
+            image-repodigests.json \
+            codex-security-version.txt \
+            codex-security-seccomp.json \
+            seccomp-sha256.txt \
+            sandbox-default.txt \
+            sandbox-status.txt \
+            classification.txt \
+            sandbox-landlock.txt 2>/dev/null | tee SHA256SUMS
+
+      - name: Upload preflight evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: q10-codex-security-0124-landlock-preflight
+          path: |
+            subject-binding.txt
+            image-repodigests.json
+            codex-security-version.txt
+            seccomp-sha256.txt
+            sandbox-default.txt
+            sandbox-landlock.txt
+            sandbox-status.txt
+            classification.txt
+            SHA256SUMS
+          if-no-files-found: error
