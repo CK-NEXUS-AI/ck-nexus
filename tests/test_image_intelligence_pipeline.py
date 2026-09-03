@@ -88,3 +88,36 @@ def test_policy_rejects_auto_merge_and_publish() -> None:
             pass
         else:
             raise AssertionError("unsafe automatic authority must fail closed")
+
+
+def test_external_verification_flag_forces_verify() -> None:
+    claim = ExtractedClaim(
+        text="New capability claim from an infographic",
+        kind=ClaimKind.CAPABILITY,
+        confidence=0.7,
+        source_asset_id="pin-001",
+        requires_external_verification=True,
+    )
+    pipeline = ImageIntelligencePipeline()
+    assert pipeline.decision_for_claim(claim) == CandidateDecision.VERIFY
+
+
+def test_candidate_rejects_mismatched_image_provenance() -> None:
+    insight = ImageInsight(
+        asset=_asset(),
+        summary="Image suggests a workflow.",
+    )
+    claim = ExtractedClaim(
+        text="Workflow from another image",
+        kind=ClaimKind.WORKFLOW,
+        confidence=0.8,
+        source_asset_id="pin-999",
+        requires_external_verification=False,
+    )
+    pipeline = ImageIntelligencePipeline()
+    try:
+        pipeline.candidate_from_claim(insight, claim)
+    except ValueError as exc:
+        assert "source_asset_id" in str(exc)
+    else:
+        raise AssertionError("mismatched image provenance must fail closed")
