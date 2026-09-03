@@ -28,12 +28,14 @@ Current authority state:
 |---|---|---|---|---|
 | Servermall SSH endpoint refuses TCP/22 | Another admitted native Linux host | `SUBSTITUTE_CANDIDATE` | Servermall host remains provisioned but connectivity is not admitted | Keep Servermall remediation open; do not make Q10 depend on it exclusively |
 | Native Bubblewrap/user namespace unavailable on GitHub-hosted Ubuntu | Plain GitHub-hosted native bwrap path | `NO_SAFE_SUBSTITUTE` | Run `33799692581`: exact frozen binding PASS, cgroups v2 PASS, Docker sandbox PASS, but `unshare -Ur` and bwrap uid-map failed | Do not repeat this exact native-bwrap probe unless runner image/security policy materially changes |
-| Native Bubblewrap/user namespace unavailable | Codex / Codex Security supported legacy Landlock fallback | `SUBSTITUTE_CANDIDATE` | OpenAI Codex and Codex Security 0.1.24 source include explicit `use_legacy_landlock` fallback for restricted Ubuntu hosts; CK-NEXUS exact-source preflight is in progress | Build exact Codex Security 0.1.24 source and run quota-free hardened sandbox smoke |
-| Need a Linux-like host from an existing Windows VPS | WSL2 on Windows Server/VM with nested virtualization | `SUBSTITUTE_CANDIDATE` | Codex supports WSL2 Linux bubblewrap path; CK-NEXUS already has `infra/windows-vps-worker-bootstrap-v1` | Reuse existing Windows worker branch if a suitable host becomes available; verify nested virtualization before admission |
+| Native Bubblewrap/user namespace unavailable | Codex / Codex Security supported legacy Landlock fallback | `SUBSTITUTE_CANDIDATE` | OpenAI Codex and exact Codex Security 0.1.24 source include explicit `use_legacy_landlock` support for restricted Ubuntu hosts | Run exact 0.1.24 source-build hardened sandbox preflight; no deep scan or credentials |
+| Need a Linux-like host from an existing Windows VPS | WSL2 on Windows Server/VM with nested virtualization | `SUBSTITUTE_CANDIDATE` | Codex supports WSL2 Linux sandbox path; CK-NEXUS already has `infra/windows-vps-worker-bootstrap-v1` | Reuse existing Windows worker branch if a suitable host becomes available; verify nested virtualization before admission |
 | Dependency-Check cold NVD database timeout | OWASP mirrored NVD datafeed | `SUBSTITUTE_CONFIRMED` for Development | Run `33799837854` completed successfully; 289 dependencies scanned, 0 vulnerabilities, rc=0 | Use mirrored feed for repeatable Development scans; separately decide Q10 evidence policy |
-| Need security feedback while canonical Q10 scan is pending | Docker helper farm: Semgrep, Trivy, Checkov, Gitleaks, ShellCheck, Hadolint, Syft, Grype | `PARTIAL_SUBSTITUTE` | Exact canonical Development scans generated isolated artifacts; Syft 178 components, Grype 0 matches | Continue remediation/triage; never promote these automatically to Q10 canonical evidence |
+| Need security feedback while canonical Q10 scan is pending | Docker helper farm: Semgrep, Trivy, Checkov, Gitleaks, ShellCheck, Hadolint, Syft, Grype | `PARTIAL_SUBSTITUTE` | Exact canonical Development scans generated isolated artifacts; Syft 178 components, Grype 0 matches | Continue remediation/triage; never promote automatically to Q10 canonical evidence |
 | Need SBOM and vulnerability cross-check | Syft + Grype | `SUBSTITUTE_CONFIRMED` for Development cross-check | Run `33798212118` success, artifact digest `sha256:e8fa8efd5b045d3650b82c166d23a49ea3107474a96337909907c2209502ed82` | Keep as parallel SCA evidence; do not claim external certification |
-| Codex Security 0.1.24 authoritative deep-scan quota | Free scanner replacement | `NO_SAFE_SUBSTITUTE` proven so far | Other scanners improve coverage but do not reproduce native Codex Security authority/artifacts | Research official credential/quota routes; do not spend or switch authoritative scanner without approval |
+| Codex Security 0.1.24 ChatGPT quota | Exact 0.1.24 `--auth api-key` with `OPENAI_API_KEY`/`CODEX_API_KEY` | `SUBSTITUTE_CANDIDATE` | Exact 0.1.24 documentation supports CI API-key auth; this may use separate API billing/quota | Do not run until Owner explicitly approves any possible paid usage and credential handling |
+| Codex Security 0.1.24 ChatGPT quota | Exact 0.1.24 external provider (`openrouter`, `fireworks`, `amazon-bedrock`) | `SUBSTITUTE_CANDIDATE` | Exact 0.1.24 documentation exposes native `--provider` and `--model` options; dry-run/provider plumbing test planned with no key/network | Determine whether provider/model change is acceptable for canonical Q10 authority; no spend without approval |
+| Codex Security authoritative scan requirement | Replace scanner with Semgrep/Trivy/other scanner | `NO_SAFE_SUBSTITUTE` | Other scanners improve coverage but do not reproduce native Codex Security scan semantics/artifacts | Keep them supplemental only |
 | Darker/manual verification | ZAP/fuzzing/Nuclei/static analysis preflight | `PARTIAL_SUBSTITUTE` | Automated tools can reduce unknowns but do not equal an explicitly required manual/independent verification authority | Use automation before reviewer handoff, retain manual gate |
 | Independent HUMAN review | AI review / automated reviewer | `AUTHORITY_GATE_CANNOT_BE_SUBSTITUTED` | Separation-of-duties rule | Prepare reviewer pack only; human must decide |
 | Owner HUMAN sign-off | AI/automation sign-off | `AUTHORITY_GATE_CANNOT_BE_SUBSTITUTED` | Owner authority rule | Human owner signs final state transition |
@@ -46,11 +48,13 @@ Attempt 1 used `ghcr.io/openai/codex-security:0.1.24` and failed before sandbox 
 The replacement test follows the upstream-supported source-build route:
 - exact upstream release commit: `d4b7d29a87cb86c9072f7905ba867d02385d8fd3`
 - upstream commit message: `release: bump Codex Security to 0.1.24 (#723)`
+- package version confirmed: `0.1.24`
 - build target: `scanner`
 - no deep scan
 - no credentials
 - no intended quota consumption
 - hardened container controls retained
+- OpenRouter CLI plumbing checked only through `--dry-run`, without credentials or model traffic
 
 ## Rules for future substitutes
 
