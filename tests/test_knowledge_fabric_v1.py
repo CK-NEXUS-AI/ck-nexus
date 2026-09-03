@@ -6,6 +6,7 @@ from idea_engine.knowledge_fabric import (
     ClaimClass,
     KnowledgeClaim,
     KnowledgeFabric,
+    RetentionClass,
     SourceClass,
     SourceRecord,
     VerificationState,
@@ -13,7 +14,13 @@ from idea_engine.knowledge_fabric import (
 )
 
 
-def source(source_id: str, value: float = 0.9) -> SourceRecord:
+def source(
+    source_id: str,
+    value: float = 0.9,
+    *,
+    tenant_id: str = "default",
+    source_hash: str | None = None,
+) -> SourceRecord:
     return SourceRecord(
         source_id=source_id,
         source_class=SourceClass.RESEARCH,
@@ -21,6 +28,8 @@ def source(source_id: str, value: float = 0.9) -> SourceRecord:
         title=source_id,
         retrieved_at="2026-09-03T00:00:00Z",
         trust_score=value,
+        tenant_id=tenant_id,
+        source_hash=source_hash,
         language="en",
     )
 
@@ -31,6 +40,10 @@ def claim(
     *,
     source_id: str = "s1",
     claim_class: ClaimClass = ClaimClass.FACT,
+    tenant_id: str = "default",
+    fresh_until: str | None = None,
+    contradicts: tuple[str, ...] = (),
+    supersedes: tuple[str, ...] = (),
 ) -> KnowledgeClaim:
     return KnowledgeClaim(
         claim_id=claim_id,
@@ -41,7 +54,11 @@ def claim(
         source_ids=(source_id,),
         confidence=0.8,
         observed_at="2026-09-03T00:00:00Z",
+        tenant_id=tenant_id,
         verification=VerificationState.OBSERVED,
+        fresh_until=fresh_until,
+        contradicts=contradicts,
+        supersedes=supersedes,
     )
 
 
@@ -80,6 +97,7 @@ def test_conflict_detection_preserves_both_claims() -> None:
     conflicts = fabric.conflict_groups()
 
     assert len(conflicts) == 1
+    assert conflicts[0].tenant_id == "default"
     assert conflicts[0].claim_ids == ("c1", "c2")
     assert set(conflicts[0].values) == {"working", "blocked"}
 
@@ -108,6 +126,7 @@ def test_memory_write_is_proposal_not_self_approval() -> None:
 
     assert proposal.consent_required is True
     assert proposal.auto_approved is False
+    assert proposal.retention_class is RetentionClass.OPERATIONAL
 
 
 def test_memory_write_cannot_mutate_protected_authority_scope() -> None:
@@ -135,3 +154,102 @@ def test_claim_maps_into_existing_idea_graph_model() -> None:
     assert node.type == "evidence"
     assert node.source_refs == ["s1"]
     assert "knowledge-fabric" in node.tags
+    assert "tenant:default" in node.tags
+
+
+def test_unchanged_source_reingestion_is_idempotent_by_content_hash() -> None:
+    fabric = KnowledgeFabric()
+    first = source("s1", source_hash="abc")
+    second = source("s1", source_hash="abc")
+
+    assert fabric.add_source(first) is first
+    assert fabric.add_source(second) is first
+
+
+def test_changed_source_requires_new_source_identity() -> None:
+    fabric = KnowledgeFabric()
+    fabric.add_source(source("s1", source_hash="abc"))
+
+    with pytest.raises(ValueError, match="different content"):
+        fabric.add_source(source("s1", source_hash="def"))
+
+
+def test_tenant_boundary_is_applied_before_retrieval_and_conflict() -> None:
+    fabric = KnowledgeFabric()
+    fabric.add_source(source("a-source", tenant_id="tenant-a"))
+    fabric.add_source(source("b-source", tenant_id="tenant-b"))
+    fabric.add_claim(claim("a", "working", source_id="a-source", tenant_id="tenant-a"))
+    fabric.add_claim(claim("b", "blocked", source_id="b-source", tenant_id="tenant-b"))
+
+    now = datetime(2026, 9, 3, 1, tzinfo=UTC)
+    tenant_a = fabric.retrieval_candidates(tenant_id="tenant-a", now=now)
+
+    assert [item.claim_id for item in tenant_a] == ["a"]
+    assert fabric.conflict_groups() == ()
+
+
+def test_claim_cannot_reference_source_from_another_tenant() -> None:
+    fabric = KnowledgeFabric()
+    fabric.add_source(source("s1", tenant_id="tenant-a"))
+
+    with pytest.raises(ValueError, match="another tenant"):
+        fabric.add_claim(claim("c1", "working", source_id="s1", tenant_id="tenant-b"))
+
+
+def test_revoked_source_is_removed_from_retrieval_until_restored() -> None:
+    fabric = KnowledgeFabric()
+    fabric.add_source(source("s1"))
+    fabric.add_claim(claim("c1", "working"))
+    now = datetime(2026, 9, 3, 1, tzinfo=UTC)
+
+    assert [item.claim_id for item in fabric.retrieval_candidates(tenant_id="default", now=now)] == [
+        "c1"
+    ]
+    fabric.revoke_source("s1")
+    assert fabric.retrieval_candidates(tenant_id="default", now=now) == ()
+    assert fabric.source_weight(fabric.claims["c1"], now=now) == 0.0
+    fabric.restore_source("s1")
+    assert [item.claim_id for item in fabric.retrieval_candidates(tenant_id="default", now=now)] == [
+        "c1"
+    ]
+
+
+def test_stale_claim_is_not_retrieval_eligible() -> None:
+    fabric = KnowledgeFabric()
+    fabric.add_source(source("s1"))
+    item = fabric.add_claim(
+        claim("c1", "working", fresh_until="2026-09-03T00:30:00Z")
+    )
+    now = datetime(2026, 9, 3, 1, tzinfo=UTC)
+
+    assert fabric.claim_is_fresh(item, now=now) is False
+    assert fabric.retrieval_candidates(tenant_id="default", now=now) == ()
+
+
+def test_explicit_supersession_preserves_prior_claim() -> None:
+    fabric = KnowledgeFabric()
+    fabric.add_source(source("s1"))
+    fabric.add_source(source("s2"))
+    fabric.add_claim(claim("old", "candidate", source_id="s1"))
+    fabric.add_claim(
+        claim("new", "measured", source_id="s2", supersedes=("old",))
+    )
+
+    assert "old" in fabric.claims
+    assert fabric.claims["new"].supersedes == ("old",)
+
+
+def test_memory_proposal_cannot_cross_tenant_boundary() -> None:
+    fabric = KnowledgeFabric()
+    fabric.add_source(source("s1", tenant_id="tenant-a"))
+    fabric.add_claim(claim("c1", "working", source_id="s1", tenant_id="tenant-a"))
+
+    with pytest.raises(ValueError, match="another tenant"):
+        fabric.propose_memory_write(
+            content="remember",
+            source_claim_ids=("c1",),
+            scope="episodic",
+            retention_days=7,
+            retention_class=RetentionClass.SESSION,
+            tenant_id="tenant-b",
+        )
