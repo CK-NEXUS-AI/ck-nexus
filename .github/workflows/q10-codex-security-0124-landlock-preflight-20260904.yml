@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - ops/q10-host-qualification-20260904
+      - ops/q10-landlock-preflight-run-20260904
   workflow_dispatch:
 
 permissions:
