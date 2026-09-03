@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
@@ -24,6 +24,18 @@ from .knowledge_fabric import (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class LexicalKnowledgeHit:
+    claim_id: str
+    subject: str
+    predicate: str
+    value: str
+    score: float
+    observed_at: str
+    fresh_until: str | None
+    source_ids: tuple[str, ...]
+
+
 class KnowledgeRepository(Protocol):
     async def store_source(self, source: SourceRecord) -> bool: ...
 
@@ -41,6 +53,14 @@ class KnowledgeRepository(Protocol):
         self,
         tenant_id: str,
     ) -> tuple[tuple[SourceRecord, ...], tuple[KnowledgeClaim, ...], frozenset[str]]: ...
+
+    async def search_claims(
+        self,
+        *,
+        tenant_id: str,
+        query: str,
+        limit: int = 20,
+    ) -> tuple[LexicalKnowledgeHit, ...]: ...
 
     async def store_memory_proposal(self, proposal: MemoryWriteProposal) -> None: ...
 
@@ -329,6 +349,103 @@ class PostgresKnowledgeRepository:
         )
         return sources, claims, revoked_ids
 
+
+    async def search_claims(
+        self,
+        *,
+        tenant_id: str,
+        query: str,
+        limit: int = 20,
+    ) -> tuple[LexicalKnowledgeHit, ...]:
+        tenant = tenant_id.strip()
+        text = query.strip()
+        if not tenant:
+            raise ValueError("tenant_id is required")
+        if not text:
+            raise ValueError("query is required")
+        if len(text) > 512:
+            raise ValueError("query must be <= 512 characters")
+        if limit < 1 or limit > 100:
+            raise ValueError("limit must be between 1 and 100")
+
+        async with acquire_db_connection(self._pool, self._runtime_config) as conn:
+            rows = await conn.fetch(
+                """
+                SELECT
+                    c.claim_id,
+                    c.subject,
+                    c.predicate,
+                    c.payload,
+                    c.observed_at,
+                    c.fresh_until,
+                    ts_rank_cd(
+                        to_tsvector(
+                            'simple'::regconfig,
+                            c.subject || ' ' || c.predicate || ' ' ||
+                            COALESCE(c.payload ->> 'value', '')
+                        ),
+                        websearch_to_tsquery('simple'::regconfig, $2)
+                    ) AS score,
+                    ARRAY(
+                        SELECT kcs.source_id
+                        FROM knowledge_claim_sources AS kcs
+                        JOIN knowledge_sources AS ks
+                          ON ks.tenant_id = kcs.tenant_id
+                         AND ks.source_id = kcs.source_id
+                        WHERE kcs.tenant_id = c.tenant_id
+                          AND kcs.claim_id = c.claim_id
+                          AND ks.revoked = FALSE
+                        ORDER BY kcs.source_id
+                    ) AS source_ids
+                FROM knowledge_claims AS c
+                WHERE c.tenant_id = $1
+                  AND (c.fresh_until IS NULL OR c.fresh_until >= now())
+                  AND EXISTS (
+                      SELECT 1
+                      FROM knowledge_claim_sources AS kcs
+                      JOIN knowledge_sources AS ks
+                        ON ks.tenant_id = kcs.tenant_id
+                       AND ks.source_id = kcs.source_id
+                      WHERE kcs.tenant_id = c.tenant_id
+                        AND kcs.claim_id = c.claim_id
+                        AND ks.revoked = FALSE
+                  )
+                  AND to_tsvector(
+                      'simple'::regconfig,
+                      c.subject || ' ' || c.predicate || ' ' ||
+                      COALESCE(c.payload ->> 'value', '')
+                  ) @@ websearch_to_tsquery('simple'::regconfig, $2)
+                ORDER BY score DESC, c.observed_at DESC, c.claim_id ASC
+                LIMIT $3
+                """,
+                tenant,
+                text,
+                limit,
+            )
+
+        hits: list[LexicalKnowledgeHit] = []
+        for row in rows:
+            payload = _payload_dict(row["payload"])
+            value = payload.get("value")
+            observed_at = _iso_utc(row["observed_at"])
+            if not isinstance(value, str) or not value.strip():
+                raise RuntimeError("persisted knowledge claim is missing value")
+            if observed_at is None:
+                raise RuntimeError("persisted knowledge claim is missing observed_at")
+            hits.append(
+                LexicalKnowledgeHit(
+                    claim_id=str(row["claim_id"]),
+                    subject=str(row["subject"]),
+                    predicate=str(row["predicate"]),
+                    value=value,
+                    score=round(float(row["score"]), 6),
+                    observed_at=observed_at,
+                    fresh_until=_iso_utc(row["fresh_until"]),
+                    source_ids=tuple(str(item) for item in row["source_ids"]),
+                )
+            )
+        return tuple(hits)
+
     async def store_memory_proposal(self, proposal: MemoryWriteProposal) -> None:
         if proposal.auto_approved:
             raise PermissionError("knowledge repository cannot persist auto-approved proposal")
@@ -481,6 +598,16 @@ def _claim_from_payload(
 
 def _optional_str(value: Any) -> str | None:
     return None if value is None else str(value)
+
+
+def _iso_utc(value: Any) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    return str(value)
 
 
 def _postgres_timestamp(value: str | None) -> datetime | None:
