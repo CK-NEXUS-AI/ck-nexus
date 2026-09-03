@@ -85,14 +85,16 @@ async def test_postgres_lexical_retrieval_round_trip() -> None:
             == ()
         )
     finally:
-        async with pool.acquire() as conn:
-            async with conn.transaction():
-                await conn.execute(
-                    "DELETE FROM knowledge_claims WHERE tenant_id = $1",
-                    tenant_id,
-                )
-                await conn.execute(
-                    "DELETE FROM knowledge_sources WHERE tenant_id = $1",
-                    tenant_id,
-                )
+        async with (
+            pool.acquire() as conn,
+            conn.transaction(),
+        ):
+            await conn.execute(
+                "DELETE FROM knowledge_claims WHERE tenant_id = $1",
+                tenant_id,
+            )
+            await conn.execute(
+                "DELETE FROM knowledge_sources WHERE tenant_id = $1",
+                tenant_id,
+            )
         await pool.close()
