@@ -1,0 +1,268 @@
+name: Docker Security Toolbox Preflight 2026-09-04
+
+on:
+  push:
+    branches:
+      - ops/canonical-export-20260904
+    paths:
+      - .github/workflows/docker-security-toolbox-20260904.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-security-toolbox-20260904
+  cancel-in-progress: false
+
+env:
+  SUBJECT_SHA: b4146db8e23dff49520cbbc9d0194a15bcc5872d
+  SUBJECT_TREE: 25d9c74db2b553667ad085172f8ac7beff4146aa
+
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SUBJECT_SHA }}
+          fetch-depth: 0
+      - name: Verify exact subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SUBJECT_TREE"
+      - name: Run Semgrep container read-only
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p evidence
+          IMAGE=semgrep/semgrep:latest
+          docker pull "$IMAGE"
+          docker image inspect "$IMAGE" --format '{{json .RepoDigests}}' > evidence/image-digest.json
+          docker run --rm -v "$PWD:/src:ro" -v "$PWD/evidence:/out" "$IMAGE" semgrep scan --config auto --json --output /out/semgrep.json /src
+          rc=$?
+          printf '%s\n' "$rc" > evidence/exit-code.txt
+          docker run --rm "$IMAGE" semgrep --version > evidence/version.txt 2>&1 || true
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-helper-semgrep
+          path: evidence/
+          if-no-files-found: error
+
+  trivy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SUBJECT_SHA }}
+          fetch-depth: 0
+      - name: Verify exact subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SUBJECT_TREE"
+      - name: Run Trivy container read-only
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p evidence "$HOME/.cache/trivy"
+          IMAGE=aquasec/trivy:0.74.0
+          docker pull "$IMAGE"
+          docker image inspect "$IMAGE" --format '{{json .RepoDigests}}' > evidence/image-digest.json
+          docker run --rm -v "$PWD:/src:ro" -v "$PWD/evidence:/out" -v "$HOME/.cache/trivy:/root/.cache/" "$IMAGE" fs --scanners vuln,misconfig,secret --format json --output /out/trivy.json /src
+          rc=$?
+          printf '%s\n' "$rc" > evidence/exit-code.txt
+          docker run --rm "$IMAGE" --version > evidence/version.txt 2>&1 || true
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-helper-trivy
+          path: evidence/
+          if-no-files-found: error
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SUBJECT_SHA }}
+          fetch-depth: 0
+      - name: Verify exact subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SUBJECT_TREE"
+      - name: Run Gitleaks container read-only
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p evidence
+          IMAGE=ghcr.io/zricethezav/gitleaks:latest
+          docker pull "$IMAGE"
+          docker image inspect "$IMAGE" --format '{{json .RepoDigests}}' > evidence/image-digest.json
+          docker run --rm -v "$PWD:/repo:ro" -v "$PWD/evidence:/out" "$IMAGE" detect --source /repo --report-format json --report-path /out/gitleaks.json --redact --no-banner
+          rc=$?
+          printf '%s\n' "$rc" > evidence/exit-code.txt
+          docker run --rm "$IMAGE" version > evidence/version.txt 2>&1 || true
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-helper-gitleaks
+          path: evidence/
+          if-no-files-found: error
+
+  checkov:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SUBJECT_SHA }}
+          fetch-depth: 0
+      - name: Verify exact subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SUBJECT_TREE"
+      - name: Run Checkov container read-only
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p evidence
+          IMAGE=bridgecrew/checkov:latest
+          docker pull "$IMAGE"
+          docker image inspect "$IMAGE" --format '{{json .RepoDigests}}' > evidence/image-digest.json
+          docker run --rm -v "$PWD:/src:ro" "$IMAGE" -d /src -o json --soft-fail > evidence/checkov.json 2> evidence/stderr.txt
+          rc=$?
+          printf '%s\n' "$rc" > evidence/exit-code.txt
+          docker run --rm "$IMAGE" --version > evidence/version.txt 2>&1 || true
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-helper-checkov
+          path: evidence/
+          if-no-files-found: error
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SUBJECT_SHA }}
+          fetch-depth: 0
+      - name: Verify exact subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SUBJECT_TREE"
+      - name: Run ShellCheck container read-only
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p evidence
+          IMAGE=koalaman/shellcheck:stable
+          docker pull "$IMAGE"
+          docker image inspect "$IMAGE" --format '{{json .RepoDigests}}' > evidence/image-digest.json
+          mapfile -t files < <(find . -type f -name '*.sh' -not -path './.git/*' | sort)
+          printf '%s\n' "${files[@]}" > evidence/files.txt
+          if ((${#files[@]})); then
+            args=()
+            for f in "${files[@]}"; do args+=("/mnt/${f#./}"); done
+            docker run --rm -v "$PWD:/mnt:ro" "$IMAGE" "${args[@]}" > evidence/shellcheck.txt 2>&1
+            rc=$?
+          else
+            rc=0
+          fi
+          printf '%s\n' "$rc" > evidence/exit-code.txt
+          docker run --rm "$IMAGE" --version > evidence/version.txt 2>&1 || true
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-helper-shellcheck
+          path: evidence/
+          if-no-files-found: error
+
+  hadolint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SUBJECT_SHA }}
+          fetch-depth: 0
+      - name: Verify exact subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SUBJECT_TREE"
+      - name: Run Hadolint container read-only
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p evidence
+          IMAGE=hadolint/hadolint:latest-debian
+          docker pull "$IMAGE"
+          docker image inspect "$IMAGE" --format '{{json .RepoDigests}}' > evidence/image-digest.json
+          mapfile -t files < <(find . -type f \( -name 'Dockerfile' -o -name 'Dockerfile.*' -o -name '*.Dockerfile' \) -not -path './.git/*' | sort)
+          printf '%s\n' "${files[@]}" > evidence/files.txt
+          if ((${#files[@]})); then
+            args=()
+            for f in "${files[@]}"; do args+=("/src/${f#./}"); done
+            docker run --rm -v "$PWD:/src:ro" "$IMAGE" hadolint "${args[@]}" > evidence/hadolint.txt 2>&1
+            rc=$?
+          else
+            rc=0
+          fi
+          printf '%s\n' "$rc" > evidence/exit-code.txt
+          docker run --rm "$IMAGE" hadolint --version > evidence/version.txt 2>&1 || true
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-helper-hadolint
+          path: evidence/
+          if-no-files-found: error
+
+  dependency-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SUBJECT_SHA }}
+          fetch-depth: 0
+      - name: Verify exact subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$SUBJECT_TREE"
+      - name: Run OWASP Dependency-Check container read-only
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p evidence dc-data
+          IMAGE=owasp/dependency-check:latest
+          docker pull "$IMAGE"
+          docker image inspect "$IMAGE" --format '{{json .RepoDigests}}' > evidence/image-digest.json
+          docker run --rm -v "$PWD:/src:ro" -v "$PWD/evidence:/report" -v "$PWD/dc-data:/usr/share/dependency-check/data" "$IMAGE" --scan /src --format JSON --out /report --project CK-NEXUS > evidence/stdout.txt 2> evidence/stderr.txt
+          rc=$?
+          printf '%s\n' "$rc" > evidence/exit-code.txt
+          docker run --rm "$IMAGE" --version > evidence/version.txt 2>&1 || true
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-helper-dependency-check
+          path: evidence/
+          if-no-files-found: warn
