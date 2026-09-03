@@ -1,0 +1,113 @@
+name: Knowledge Persistence V2 PostgreSQL Integration
+
+on:
+  push:
+    branches:
+      - upgrade/knowledge-persistence-v2-20260903
+    paths:
+      - .github/workflows/knowledge-persistence-postgres-integration-20260904.yml
+      - idea_engine/knowledge_repository.py
+      - migrations/postgresql/004_knowledge_fabric_v2.sql
+      - tests/integration/test_knowledge_persistence_postgres.py
+      - tests/test_knowledge_persistence_v2.py
+      - idea_engine/knowledge_fabric.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_HEAD: 12dd220088e429b73e45b433c760788e1b99c9bd
+  CK_KNOWLEDGE_PG_TEST_URL: postgresql://postgres:postgres@127.0.0.1:5432/cknexus_knowledge_test
+
+jobs:
+  postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cknexus_knowledge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d cknexus_knowledge_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXPECTED_HEAD }}
+          fetch-depth: 0
+
+      - name: Verify exact development subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git status --porcelain=v1
+          test -z "$(git status --porcelain=v1)"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install locked development environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip uv
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+
+      - name: Apply Knowledge Persistence V2 migration
+        shell: bash
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d cknexus_knowledge_test -v ON_ERROR_STOP=1 -f migrations/postgresql/004_knowledge_fabric_v2.sql
+
+      - name: Run exact live PostgreSQL round-trip integration test
+        shell: bash
+        run: |
+          set -euo pipefail
+          .venv/bin/pytest -q tests/integration/test_knowledge_persistence_postgres.py
+
+      - name: Re-apply migration to prove idempotency
+        shell: bash
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d cknexus_knowledge_test -v ON_ERROR_STOP=1 -f migrations/postgresql/004_knowledge_fabric_v2.sql
+
+      - name: Verify schema objects and no leaked integration rows
+        shell: bash
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d cknexus_knowledge_test -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT to_regclass('public.knowledge_sources') IS NOT NULL AS knowledge_sources_exists;
+          SELECT to_regclass('public.knowledge_claims') IS NOT NULL AS knowledge_claims_exists;
+          SELECT to_regclass('public.knowledge_memory_proposals') IS NOT NULL AS memory_proposals_exists;
+          SELECT count(*) = 0 AS no_integration_sources FROM knowledge_sources WHERE tenant_id LIKE 'knowledge-it-%';
+          SELECT count(*) = 0 AS no_integration_claims FROM knowledge_claims WHERE tenant_id LIKE 'knowledge-it-%';
+          SELECT count(*) = 0 AS no_integration_memory FROM knowledge_memory_proposals WHERE tenant_id LIKE 'knowledge-it-%';
+          SQL
+
+      - name: Development evidence boundary
+        shell: bash
+        run: |
+          cat <<'EOF'
+          DEVELOPMENT VALIDATION ONLY
+          This run proves a PostgreSQL integration round trip for PR #207 exact development head.
+          It is not Q10 canonical evidence, independent verification, owner sign-off, or production authorization.
+          Q10 remains NOT_VERIFIED; Q11/Q12 remain BLOCKED; Production remains NO-GO.
+          EOF
