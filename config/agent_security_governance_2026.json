@@ -1,0 +1,150 @@
+{
+  "schema": "ck-nexus-agent-security-governance-v2026",
+  "version": "0.1.0",
+  "status": "MEASURED_NOT_VERIFIED",
+  "authority": {
+    "policy_authority": "CK-NEXUS",
+    "self_approval": false,
+    "production_mutation": false,
+    "independent_verification_required": true
+  },
+  "normative_references": [
+    "OWASP GenAI LLM Top 10 2026",
+    "OWASP Top 10 for Agentic Applications 2026",
+    "OWASP Agent Control Standard 2026"
+  ],
+  "supporting_references": [
+    "NIST AI RMF 1.0",
+    "NIST AI 600-1",
+    "NIST SP 800-218A",
+    "ISO/IEC 42001:2023",
+    "ISO/IEC 27001:2022"
+  ],
+  "required_threat_families": [
+    "prompt_tool_injection",
+    "excessive_agency",
+    "agent_identity_permission",
+    "memory_context_poisoning",
+    "insecure_inter_agent_communication",
+    "cascading_failures",
+    "human_agent_trust_exploitation",
+    "rogue_agent_behavior"
+  ],
+  "allowed_runtime_hooks": [
+    "AGENT_ADMISSION",
+    "PRE_MODEL_INPUT",
+    "PRE_TOOL_CALL",
+    "POST_TOOL_RESULT",
+    "PRE_MEMORY_READ",
+    "PRE_MEMORY_WRITE",
+    "PRE_AGENT_MESSAGE",
+    "POST_AGENT_MESSAGE",
+    "PRE_NETWORK_EGRESS",
+    "PRE_CREDENTIAL_USE",
+    "PRE_HIGH_RISK_ACTION",
+    "POST_FAILURE",
+    "CONTINUOUS_BEHAVIOR_MONITOR"
+  ],
+  "controls": [
+    {
+      "id": "CKAG-01",
+      "title": "Agent identity, provenance and delegated-authority binding",
+      "threat_families": ["agent_identity_permission", "rogue_agent_behavior"],
+      "mappings": ["OWASP-Agentic-2026", "OWASP-ACS-2026", "NIST-AIRMF"],
+      "runtime_hooks": ["AGENT_ADMISSION", "PRE_AGENT_MESSAGE", "PRE_TOOL_CALL"],
+      "fail_closed": true,
+      "default_action": "DENY",
+      "evidence_required": true
+    },
+    {
+      "id": "CKAG-02",
+      "title": "User-intent and task binding before tool execution",
+      "threat_families": ["prompt_tool_injection", "excessive_agency"],
+      "mappings": ["OWASP-LLM-2026", "OWASP-Agentic-2026", "OWASP-ACS-2026"],
+      "runtime_hooks": ["PRE_MODEL_INPUT", "PRE_TOOL_CALL", "POST_TOOL_RESULT"],
+      "fail_closed": true,
+      "default_action": "DENY",
+      "evidence_required": true
+    },
+    {
+      "id": "CKAG-03",
+      "title": "Least-privilege tool, resource and action scopes",
+      "threat_families": ["excessive_agency", "agent_identity_permission"],
+      "mappings": ["OWASP-Agentic-2026", "OWASP-ACS-2026", "ISO27001"],
+      "runtime_hooks": ["AGENT_ADMISSION", "PRE_TOOL_CALL", "PRE_HIGH_RISK_ACTION"],
+      "fail_closed": true,
+      "default_action": "DENY",
+      "evidence_required": true
+    },
+    {
+      "id": "CKAG-04",
+      "title": "Memory and context integrity with provenance and taint boundaries",
+      "threat_families": ["memory_context_poisoning", "prompt_tool_injection"],
+      "mappings": ["OWASP-Agentic-2026", "OWASP-ACS-2026", "NIST-AIRMF"],
+      "runtime_hooks": ["PRE_MEMORY_READ", "PRE_MEMORY_WRITE", "PRE_MODEL_INPUT"],
+      "fail_closed": true,
+      "default_action": "QUARANTINE",
+      "evidence_required": true
+    },
+    {
+      "id": "CKAG-05",
+      "title": "Authenticated and integrity-bound inter-agent communication",
+      "threat_families": ["insecure_inter_agent_communication", "agent_identity_permission"],
+      "mappings": ["OWASP-Agentic-2026", "OWASP-ACS-2026", "ISO27001"],
+      "runtime_hooks": ["PRE_AGENT_MESSAGE", "POST_AGENT_MESSAGE"],
+      "fail_closed": true,
+      "default_action": "DENY",
+      "evidence_required": true
+    },
+    {
+      "id": "CKAG-06",
+      "title": "Cascading-failure containment and bounded recovery",
+      "threat_families": ["cascading_failures", "rogue_agent_behavior"],
+      "mappings": ["OWASP-Agentic-2026", "OWASP-ACS-2026", "ISO42001"],
+      "runtime_hooks": ["POST_FAILURE", "CONTINUOUS_BEHAVIOR_MONITOR"],
+      "fail_closed": true,
+      "default_action": "QUARANTINE",
+      "evidence_required": true
+    },
+    {
+      "id": "CKAG-07",
+      "title": "Rogue-agent drift detection, containment and kill-switch handoff",
+      "threat_families": ["rogue_agent_behavior", "cascading_failures"],
+      "mappings": ["OWASP-Agentic-2026", "OWASP-ACS-2026", "NIST-AIRMF"],
+      "runtime_hooks": ["CONTINUOUS_BEHAVIOR_MONITOR", "PRE_TOOL_CALL", "PRE_NETWORK_EGRESS"],
+      "fail_closed": true,
+      "default_action": "QUARANTINE",
+      "evidence_required": true
+    },
+    {
+      "id": "CKAG-08",
+      "title": "Human approval separated from agent explanation and recommendation",
+      "threat_families": ["human_agent_trust_exploitation", "excessive_agency"],
+      "mappings": ["OWASP-Agentic-2026", "OWASP-ACS-2026", "ISO42001"],
+      "runtime_hooks": ["PRE_HIGH_RISK_ACTION"],
+      "fail_closed": true,
+      "default_action": "ESCALATE",
+      "evidence_required": true
+    },
+    {
+      "id": "CKAG-09",
+      "title": "Credential isolation and allowlisted network egress",
+      "threat_families": ["prompt_tool_injection", "excessive_agency", "rogue_agent_behavior"],
+      "mappings": ["OWASP-Agentic-2026", "OWASP-ACS-2026", "ISO27001"],
+      "runtime_hooks": ["PRE_CREDENTIAL_USE", "PRE_NETWORK_EGRESS"],
+      "fail_closed": true,
+      "default_action": "DENY",
+      "evidence_required": true
+    },
+    {
+      "id": "CKAG-10",
+      "title": "Portable runtime control hooks and tamper-evident decision evidence",
+      "threat_families": ["prompt_tool_injection", "excessive_agency", "agent_identity_permission", "memory_context_poisoning", "insecure_inter_agent_communication", "cascading_failures", "human_agent_trust_exploitation", "rogue_agent_behavior"],
+      "mappings": ["OWASP-ACS-2026", "OWASP-Agentic-2026", "NIST-SP800-218A"],
+      "runtime_hooks": ["AGENT_ADMISSION", "PRE_TOOL_CALL", "PRE_MEMORY_WRITE", "PRE_AGENT_MESSAGE", "PRE_NETWORK_EGRESS", "PRE_HIGH_RISK_ACTION", "POST_FAILURE", "CONTINUOUS_BEHAVIOR_MONITOR"],
+      "fail_closed": true,
+      "default_action": "DENY",
+      "evidence_required": true
+    }
+  ]
+}
