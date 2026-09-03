@@ -21,12 +21,18 @@ class CreatorModeSpec:
 _MODES: dict[str, CreatorModeSpec] = {
     "expert": CreatorModeSpec(
         id="expert",
-        purpose="Produce a domain-aware answer while separating facts, assumptions, and uncertainty.",
+        purpose=(
+            "Produce a domain-aware answer while separating facts, "
+            "assumptions, and uncertainty."
+        ),
         output_contract=("answer", "assumptions", "uncertainty"),
     ),
     "brief": CreatorModeSpec(
         id="brief",
-        purpose="Condense material to the smallest useful answer without dropping key constraints.",
+        purpose=(
+            "Condense material to the smallest useful answer without "
+            "dropping key constraints."
+        ),
         output_contract=("summary", "key_points"),
     ),
     "compare": CreatorModeSpec(
@@ -36,41 +42,79 @@ _MODES: dict[str, CreatorModeSpec] = {
     ),
     "research": CreatorModeSpec(
         id="research",
-        purpose="Research a topic using attributable sources and distinguish source facts from inference.",
+        purpose=(
+            "Research a topic using attributable sources and distinguish "
+            "source facts from inference."
+        ),
         output_contract=("findings", "sources", "gaps", "next_checks"),
         requires_sources=True,
     ),
     "brainstorm": CreatorModeSpec(
         id="brainstorm",
-        purpose="Generate diverse ideas, deduplicate them, and rank by usefulness and feasibility.",
+        purpose=(
+            "Generate diverse ideas, deduplicate them, and rank by "
+            "usefulness and feasibility."
+        ),
         output_contract=("ideas", "dedup_notes", "ranking"),
     ),
     "seo": CreatorModeSpec(
         id="seo",
-        purpose="Improve discoverability using people-first SEO fundamentals without keyword stuffing.",
+        purpose=(
+            "Improve discoverability using people-first SEO fundamentals "
+            "without keyword stuffing."
+        ),
         output_contract=("search_intent", "structure", "metadata", "quality_checks"),
         requires_sources=True,
     ),
     "ai-search": CreatorModeSpec(
         id="ai-search",
-        purpose="Improve answer-engine and generative-search readability through clear structure, evidence, citations, and original value.",
-        output_contract=("user_questions", "answer_blocks", "citations", "original_value", "quality_checks"),
+        purpose=(
+            "Improve answer-engine and generative-search readability through "
+            "clear structure, evidence, citations, and original value."
+        ),
+        output_contract=(
+            "user_questions",
+            "answer_blocks",
+            "citations",
+            "original_value",
+            "quality_checks",
+        ),
         requires_sources=True,
     ),
     "creator": CreatorModeSpec(
         id="creator",
-        purpose="Plan original platform-aware creator content with measurable goals.",
-        output_contract=("audience", "hook", "body", "cta", "production_notes", "metric"),
+        purpose=(
+            "Plan original platform-aware creator content with measurable goals."
+        ),
+        output_contract=(
+            "audience",
+            "hook",
+            "body",
+            "cta",
+            "production_notes",
+            "metric",
+        ),
     ),
     "repurpose": CreatorModeSpec(
         id="repurpose",
-        purpose="Transform source material into platform-native variants while preserving meaning and provenance.",
+        purpose=(
+            "Transform source material into platform-native variants while "
+            "preserving meaning and provenance."
+        ),
         output_contract=("source_message", "variants", "provenance_notes"),
     ),
     "privacy-check": CreatorModeSpec(
         id="privacy-check",
-        purpose="Review data collection, permissions, personalization, and disclosure risk without overstating privacy claims.",
-        output_contract=("data_types", "controls", "risk_notes", "recommended_actions"),
+        purpose=(
+            "Review data collection, permissions, personalization, and "
+            "disclosure risk without overstating privacy claims."
+        ),
+        output_contract=(
+            "data_types",
+            "controls",
+            "risk_notes",
+            "recommended_actions",
+        ),
         requires_sources=True,
     ),
 }
