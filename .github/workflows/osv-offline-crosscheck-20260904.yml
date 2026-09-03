@@ -55,7 +55,7 @@ jobs:
           docker image inspect "$IMAGE" --format '{{json .RepoDigests}}' > "$TOOL_OUT/image-digest.json"
           docker run --rm "$IMAGE" --version > "$TOOL_OUT/version.txt" 2>&1 || true
 
-      - name: Download local vulnerability databases without scanning source
+      - name: Seed local vulnerability databases using documented offline mode
         shell: bash
         continue-on-error: true
         run: |
@@ -65,9 +65,10 @@ jobs:
             -e OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY=/cache \
             -v "$OSV_DB:/cache" \
             -v "$PWD:/src:ro" \
-            "$IMAGE" --offline-vulnerabilities --download-offline-databases scan source --recursive /src \
+            "$IMAGE" --offline-vulnerabilities --download-offline-databases --format json /src \
             > "$TOOL_OUT/download-and-seed.json" 2> "$TOOL_OUT/download.stderr.txt"
-          printf 'seed_rc=%s\n' "$?" > "$TOOL_OUT/seed-exit.txt"
+          seed_rc=$?
+          printf 'seed_rc=%s\n' "$seed_rc" > "$TOOL_OUT/seed-exit.txt"
           exit 0
 
       - name: Run network-disabled offline vulnerability scan
@@ -80,9 +81,10 @@ jobs:
             -e OSV_SCANNER_LOCAL_DB_CACHE_DIRECTORY=/cache \
             -v "$OSV_DB:/cache:ro" \
             -v "$PWD:/src:ro" \
-            "$IMAGE" --offline scan source --recursive --format json /src \
+            "$IMAGE" --offline --format json /src \
             > "$TOOL_OUT/osv-offline.json" 2> "$TOOL_OUT/offline.stderr.txt"
-          printf 'offline_scan_rc=%s\n' "$?" > "$TOOL_OUT/offline-exit.txt"
+          scan_rc=$?
+          printf 'offline_scan_rc=%s\n' "$scan_rc" > "$TOOL_OUT/offline-exit.txt"
           exit 0
 
       - name: Summarize evidence conservatively
@@ -93,17 +95,32 @@ jobs:
           import json, os, pathlib
           out = pathlib.Path(os.environ['TOOL_OUT'])
           result = out / 'osv-offline.json'
+          seed_rc = (out / 'seed-exit.txt').read_text().strip().split('=', 1)[-1]
+          scan_rc = (out / 'offline-exit.txt').read_text().strip().split('=', 1)[-1]
           summary = {
               'classification': 'DEVELOPMENT_SECURITY_PREFLIGHT',
               'q10_status': 'NOT_VERIFIED',
+              'seed_rc': int(seed_rc),
+              'offline_scan_rc': int(scan_rc),
               'offline_report_exists': result.exists() and result.stat().st_size > 0,
           }
           if summary['offline_report_exists']:
               try:
                   data = json.loads(result.read_text(encoding='utf-8'))
-                  summary['results_count'] = len(data.get('results', [])) if isinstance(data, dict) else None
+                  results = data.get('results', []) if isinstance(data, dict) else []
+                  summary['results_count'] = len(results)
+                  summary['packages_with_vulnerabilities'] = sum(
+                      1
+                      for item in results
+                      if isinstance(item, dict) and item.get('packages')
+                  )
               except Exception as exc:
                   summary['parse_error'] = type(exc).__name__
+          summary['valid_offline_execution'] = (
+              summary['seed_rc'] in (0, 1)
+              and summary['offline_scan_rc'] in (0, 1)
+              and summary['offline_report_exists']
+          )
           (out / 'summary.json').write_text(json.dumps(summary, sort_keys=True, indent=2) + '\n', encoding='utf-8')
           PY
 
