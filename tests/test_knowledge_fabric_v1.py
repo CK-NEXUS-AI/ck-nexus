@@ -202,16 +202,14 @@ def test_revoked_source_is_removed_from_retrieval_until_restored() -> None:
     fabric.add_claim(claim("c1", "working"))
     now = datetime(2026, 9, 3, 1, tzinfo=UTC)
 
-    assert [item.claim_id for item in fabric.retrieval_candidates(tenant_id="default", now=now)] == [
-        "c1"
-    ]
+    initial = fabric.retrieval_candidates(tenant_id="default", now=now)
+    assert [item.claim_id for item in initial] == ["c1"]
     fabric.revoke_source("s1")
     assert fabric.retrieval_candidates(tenant_id="default", now=now) == ()
     assert fabric.source_weight(fabric.claims["c1"], now=now) == 0.0
     fabric.restore_source("s1")
-    assert [item.claim_id for item in fabric.retrieval_candidates(tenant_id="default", now=now)] == [
-        "c1"
-    ]
+    restored = fabric.retrieval_candidates(tenant_id="default", now=now)
+    assert [item.claim_id for item in restored] == ["c1"]
 
 
 def test_stale_claim_is_not_retrieval_eligible() -> None:
