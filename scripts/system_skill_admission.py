@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -69,7 +69,7 @@ def main() -> int:
             raise SystemExit(f"unknown skill: {args.skill}")
     if args.auto_safe:
         decisions = [item for item in decisions if item.auto_safe and item.next_action != "STOP"]
-    print(json.dumps([item.__dict__ for item in decisions], indent=2, sort_keys=True))
+    print(json.dumps([asdict(item) for item in decisions], indent=2, sort_keys=True))
     return 0
 
 
