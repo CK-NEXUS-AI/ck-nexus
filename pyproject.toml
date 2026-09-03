@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.scripts]
-ck-nexus = "main:main"
+ck-nexus = "creator_app.cli:main"
 
 [project.optional-dependencies]
 gateway = [
