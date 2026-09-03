@@ -16,14 +16,21 @@ SPEC.loader.exec_module(module)
 
 class SystemSkillAdmissionTests(unittest.TestCase):
     def test_catalog_is_valid_and_unique(self):
-        catalog = module.load_catalog(ROOT / "capabilities" / "system-skills.catalog.json")
+        catalog = module.load_catalog(
+            ROOT / "capabilities" / "system-skills.catalog.json"
+        )
         ids = [item["id"] for item in catalog["skills"]]
         self.assertEqual(len(ids), len(set(ids)))
         self.assertGreaterEqual(len(ids), 25)
 
     def test_failed_lineage_is_fail_closed(self):
         decisions = {item.skill_id: item for item in module.plan()}
-        for skill_id in ("failure_memory", "durable_execution_v3", "agnes_triad_parallel_scheduler"):
+        blocked = (
+            "failure_memory",
+            "durable_execution_v3",
+            "agnes_triad_parallel_scheduler",
+        )
+        for skill_id in blocked:
             self.assertEqual(decisions[skill_id].next_action, "STOP")
             self.assertFalse(decisions[skill_id].auto_safe)
 
@@ -40,7 +47,8 @@ class SystemSkillAdmissionTests(unittest.TestCase):
 
     def test_canonical_skill_is_reused(self):
         decisions = {item.skill_id: item for item in module.plan()}
-        self.assertEqual(decisions["pattern_selection_router"].next_action, "REUSE_CANONICAL")
+        selector = decisions["pattern_selection_router"]
+        self.assertEqual(selector.next_action, "REUSE_CANONICAL")
 
 
 if __name__ == "__main__":
