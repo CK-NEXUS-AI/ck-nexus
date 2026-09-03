@@ -14,12 +14,12 @@ permissions:
 jobs:
   landlock-preflight:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
     env:
       Q10_SUBJECT: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
       Q10_TREE: 0525195934f703a8becf8a39f6397b2411e0bb2e
-      CODEX_SECURITY_IMAGE: ghcr.io/openai/codex-security:0.1.24
-      CODEX_SECURITY_SOURCE: d4b7d29
+      CODEX_SECURITY_SOURCE: d4b7d29a87cb86c9072f7905ba867d02385d8fd3
+      LOCAL_IMAGE: codex-security:0.1.24-source-d4b7d29
     steps:
       - name: Checkout workflow branch
         uses: actions/checkout@v4
@@ -42,45 +42,61 @@ jobs:
           test -z "$(git -C frozen-source status --porcelain)"
           printf 'subject=%s\ntree=%s\nbinding=PASS\n' "$actual_subject" "$actual_tree" | tee subject-binding.txt
 
-      - name: Pull exact Codex Security release image
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker pull "$CODEX_SECURITY_IMAGE"
-          docker image inspect "$CODEX_SECURITY_IMAGE" --format '{{json .RepoDigests}}' | tee image-repodigests.json
-          docker run --rm "$CODEX_SECURITY_IMAGE" --version | tee codex-security-version.txt
+      - name: Checkout exact OpenAI Codex Security 0.1.24 source
+        uses: actions/checkout@v4
+        with:
+          repository: openai/codex-security
+          ref: ${{ env.CODEX_SECURITY_SOURCE }}
+          path: codex-security-source
+          fetch-depth: 1
+          persist-credentials: false
 
-      - name: Fetch release-matched seccomp profile
+      - name: Verify upstream release identity
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSLo codex-security-seccomp.json \
-            "https://raw.githubusercontent.com/openai/codex-security/${CODEX_SECURITY_SOURCE}/docker/codex-security-seccomp.json"
-          sha256sum codex-security-seccomp.json | tee seccomp-sha256.txt
+          actual="$(git -C codex-security-source rev-parse HEAD)"
+          test "$actual" = "$CODEX_SECURITY_SOURCE"
+          version="$(python3 - <<'PY'
+import json
+with open('codex-security-source/sdk/typescript/package.json', encoding='utf-8') as f:
+    print(json.load(f)['version'])
+PY
+)"
+          test "$version" = '0.1.24'
+          printf 'source_commit=%s\npackage_version=%s\nsource_identity=PASS\n' "$actual" "$version" | tee scanner-source-identity.txt
 
-      - name: Verify official hardened sandbox fallback
+      - name: Build exact scanner target from source
         shell: bash
         run: |
           set -euo pipefail
+          docker build --target scanner -t "$LOCAL_IMAGE" codex-security-source
+          docker image inspect "$LOCAL_IMAGE" --format '{{.Id}}' | tee local-image-id.txt
+          docker run --rm "$LOCAL_IMAGE" --version | tee codex-security-version.txt
+          sha256sum codex-security-source/docker/codex-security-seccomp.json | tee seccomp-sha256.txt
+
+      - name: Verify supported hardened sandbox fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          seccomp="$GITHUB_WORKSPACE/codex-security-source/docker/codex-security-seccomp.json"
           command=(
             docker run --rm
             --cap-drop ALL
             --security-opt no-new-privileges
-            --security-opt "seccomp=$GITHUB_WORKSPACE/codex-security-seccomp.json"
+            --security-opt "seccomp=$seccomp"
             --entrypoint node
-            "$CODEX_SECURITY_IMAGE"
+            "$LOCAL_IMAGE"
             /usr/local/lib/node_modules/@openai/codex-security/node_modules/@openai/codex/bin/codex.js
           )
-
           set +e
           output="$("${command[@]}" sandbox /usr/bin/true 2>&1)"
-          bwrap_rc=$?
+          default_rc=$?
           set -e
           printf '%s\n' "$output" > sandbox-default.txt
-          printf 'default_sandbox_rc=%s\n' "$bwrap_rc" | tee sandbox-status.txt
-
-          if [ "$bwrap_rc" -eq 0 ]; then
-            echo 'sandbox_path=BUBBLEWRAP_OR_DEFAULT_PASS' | tee -a sandbox-status.txt
+          printf 'default_sandbox_rc=%s\n' "$default_rc" | tee sandbox-status.txt
+          if [ "$default_rc" -eq 0 ]; then
+            echo 'sandbox_path=DEFAULT_PASS' | tee -a sandbox-status.txt
           elif grep -Eq 'bwrap: (Failed to make / slave: Permission denied|loopback: Failed RTM_NEW(ADDR|LINK): Operation not permitted|setting up uid map: Permission denied|No permissions to create a new namespace)' <<< "$output"; then
             set +e
             landlock_output="$("${command[@]}" sandbox --enable use_legacy_landlock /usr/bin/true 2>&1)"
@@ -96,47 +112,65 @@ jobs:
             exit 1
           fi
 
-      - name: Record preflight classification
+      - name: Verify external-provider CLI plumbing without credentials or network
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/provider-dry-run"
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE/frozen-source:/input/repository:ro" \
+            --volume "$RUNNER_TEMP/provider-dry-run:/output" \
+            "$LOCAL_IMAGE" \
+            scan /input/repository \
+            --provider openrouter \
+            --model anthropic/claude-sonnet-4.5 \
+            --output-dir /output/openrouter \
+            --dry-run > provider-openrouter-dry-run.txt 2>&1
+          echo 'provider_openrouter_dry_run=PASS' | tee provider-status.txt
+          echo 'credential_used=NO' | tee -a provider-status.txt
+          echo 'network_scan_started=NO' | tee -a provider-status.txt
+
+      - name: Record classification
         shell: bash
         run: |
           set -euo pipefail
           {
             echo 'classification=TECHNICAL_COMPATIBILITY_PREFLIGHT_ONLY'
-            echo 'authority=NONE'
+            echo 'scanner=codex-security'
+            echo 'scanner_version=0.1.24'
+            echo 'scanner_source=d4b7d29a87cb86c9072f7905ba867d02385d8fd3'
             echo 'deep_scan_started=NO'
+            echo 'credential_used=NO'
             echo 'quota_consumption_intended=NO'
+            echo 'authority=NONE'
             echo 'q10_status=NOT_VERIFIED'
             echo 'production=NO_GO'
-            echo 'note=Passing this preflight only proves Codex Security 0.1.24 sandbox compatibility on this runner; it does not authorize canonical Q10 evidence.'
           } | tee classification.txt
 
-      - name: Hash preflight evidence
+      - name: Hash evidence
+        if: always()
         shell: bash
         run: |
-          set -euo pipefail
-          sha256sum \
-            subject-binding.txt \
-            image-repodigests.json \
-            codex-security-version.txt \
-            codex-security-seccomp.json \
-            seccomp-sha256.txt \
-            sandbox-default.txt \
-            sandbox-status.txt \
-            classification.txt \
-            sandbox-landlock.txt 2>/dev/null | tee SHA256SUMS
+          set +e
+          files=(subject-binding.txt scanner-source-identity.txt local-image-id.txt codex-security-version.txt seccomp-sha256.txt sandbox-default.txt sandbox-landlock.txt sandbox-status.txt provider-openrouter-dry-run.txt provider-status.txt classification.txt)
+          for f in "${files[@]}"; do [ -f "$f" ] && sha256sum "$f"; done | tee SHA256SUMS
 
       - name: Upload preflight evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: q10-codex-security-0124-landlock-preflight
           path: |
             subject-binding.txt
-            image-repodigests.json
+            scanner-source-identity.txt
+            local-image-id.txt
             codex-security-version.txt
             seccomp-sha256.txt
             sandbox-default.txt
             sandbox-landlock.txt
             sandbox-status.txt
+            provider-openrouter-dry-run.txt
+            provider-status.txt
             classification.txt
             SHA256SUMS
-          if-no-files-found: error
+          if-no-files-found: warn
