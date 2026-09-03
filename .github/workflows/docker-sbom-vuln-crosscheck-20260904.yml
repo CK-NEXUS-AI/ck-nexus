@@ -42,7 +42,6 @@ jobs:
           chmod 0777 "$OUT"
           printf '%s\n' "$SUBJECT_SHA" > "$OUT/subject-sha.txt"
           printf '%s\n' "$SUBJECT_TREE" > "$OUT/subject-tree.txt"
-          printf '%s\n' "$OUT" >> "$GITHUB_ENV"
           echo "TOOL_OUT=$OUT" >> "$GITHUB_ENV"
 
       - name: Generate CycloneDX SBOM with Syft
