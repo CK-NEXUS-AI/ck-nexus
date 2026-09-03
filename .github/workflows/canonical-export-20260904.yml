@@ -1,0 +1,81 @@
+name: Canonical Export 2026-09-04
+
+on:
+  push:
+    branches:
+      - ops/canonical-export-20260904
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    env:
+      SUBJECT_SHA: b4146db8e23dff49520cbbc9d0194a15bcc5872d
+      EXPECTED_TREE: 25d9c74db2b553667ad085172f8ac7beff4146aa
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact canonical subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "${SUBJECT_SHA}^{commit}"
+          actual_tree="$(git show -s --format=%T "${SUBJECT_SHA}")"
+          printf 'SUBJECT_SHA=%s\n' "$SUBJECT_SHA"
+          printf 'ACTUAL_TREE=%s\n' "$actual_tree"
+          test "$actual_tree" = "$EXPECTED_TREE"
+
+      - name: Materialize exact subject and calculate SHA-256 inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/ck-nexus-canonical
+          git worktree add --detach /tmp/ck-nexus-canonical "$SUBJECT_SHA"
+          cd /tmp/ck-nexus-canonical
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$EXPECTED_TREE"
+          git ls-files -z | LC_ALL=C sort -z | xargs -0 sha256sum > "$GITHUB_WORKSPACE/CANONICAL_SHA256SUMS"
+          git ls-files | LC_ALL=C sort > "$GITHUB_WORKSPACE/CANONICAL_FILELIST.txt"
+          file_count="$(git ls-files | wc -l | tr -d ' ')"
+          manifest_sha256="$(sha256sum "$GITHUB_WORKSPACE/CANONICAL_SHA256SUMS" | awk '{print $1}')"
+          cat > "$GITHUB_WORKSPACE/CANONICAL_META.json" <<EOF
+          {
+            "repository": "spinlnw10-art/ck-nexus",
+            "branch_reference": "main",
+            "subject_commit": "$SUBJECT_SHA",
+            "subject_tree": "$EXPECTED_TREE",
+            "file_count": $file_count,
+            "sha256_manifest": "$manifest_sha256",
+            "runner_os": "ubuntu-24.04",
+            "generated_by": "GitHub Actions exact-subject export",
+            "q10_effect": "NONE"
+          }
+          EOF
+          git archive --format=tar.gz --output="$GITHUB_WORKSPACE/CK_NEXUS_CANONICAL_b4146db8.tar.gz" "$SUBJECT_SHA"
+
+      - name: Verify archive can be extracted
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/archive-check
+          tar -xzf CK_NEXUS_CANONICAL_b4146db8.tar.gz -C /tmp/archive-check
+          test -n "$(find /tmp/archive-check -type f -print -quit)"
+          sha256sum CK_NEXUS_CANONICAL_b4146db8.tar.gz > CANONICAL_ARCHIVE_SHA256.txt
+
+      - name: Upload canonical export
+        uses: actions/upload-artifact@v4
+        with:
+          name: ck-nexus-canonical-b4146db8
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            CANONICAL_META.json
+            CANONICAL_FILELIST.txt
+            CANONICAL_SHA256SUMS
+            CANONICAL_ARCHIVE_SHA256.txt
+            CK_NEXUS_CANONICAL_b4146db8.tar.gz
