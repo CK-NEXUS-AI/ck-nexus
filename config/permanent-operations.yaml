@@ -26,6 +26,19 @@ docker_helper_farm:
   record_image_digest: true
   record_exit_code: true
   nonzero_exit_must_not_destroy_evidence: true
+  isolated_output_directory_required: true
+  never_mix_repository_evidence_with_new_scanner_output: true
+  hash_tool_output_before_archive: true
+  scan_scope_must_be_declared: true
+  scan_scopes:
+    - CURRENT_TREE
+    - FULL_GIT_HISTORY
+    - DEPENDENCY_GRAPH
+    - CONTAINER_IMAGE
+    - RUNTIME_ENDPOINT
+  historical_secret_findings_must_not_be_reported_as_current_tree_secrets: true
+  persistent_cache_preferred_for_large_vulnerability_databases: true
+  cold_database_timeout_is_tooling_blocker_not_security_pass: true
   helpers:
     - semgrep
     - trivy
