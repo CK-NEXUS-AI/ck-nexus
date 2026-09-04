@@ -259,8 +259,10 @@ def main() -> int:
     ]
 
     branch_rows = []
+    branch_blob_context: dict[str, dict[str, object]] = {}
     run("git", "fetch", "origin", "+refs/heads/*:refs/remotes/origin/*", check=False)
     main_paths = {row["path"] for row in rows}
+    main_blob_shas = {row["blob_sha"] for row in rows}
     refs = run(
         "git",
         "for-each-ref",
@@ -272,18 +274,70 @@ def main() -> int:
             continue
         branch, sha, date = line.split("\t", 2)
         try:
-            paths = {item[0] for item in list_tree(branch)}
+            tree_items = list_tree(branch)
         except Exception:
             continue
-        branch_rows.append({
-            "branch": branch,
-            "sha": sha,
-            "date": date,
-            "file_count": len(paths),
-            "unique_vs_main_count": len(paths - main_paths),
-            "missing_vs_main_count": len(main_paths - paths),
-            "unique_vs_main_sample": sorted(paths - main_paths)[:50],
-        })
+        paths = {item[0] for item in tree_items}
+        for path, blob_sha, mode, size in tree_items:
+            context = branch_blob_context.setdefault(
+                blob_sha,
+                {
+                    "paths": set(),
+                    "branches": set(),
+                    "size_bytes": size,
+                    "mode": mode,
+                },
+            )
+            context["paths"].add(path)
+            context["branches"].add(branch)
+        branch_rows.append(
+            {
+                "branch": branch,
+                "sha": sha,
+                "date": date,
+                "file_count": len(paths),
+                "unique_vs_main_count": len(paths - main_paths),
+                "missing_vs_main_count": len(main_paths - paths),
+                "unique_vs_main_sample": sorted(paths - main_paths)[:50],
+            }
+        )
+
+    historical_blobs = []
+    for blob_sha, context in branch_blob_context.items():
+        if blob_sha in main_blob_shas:
+            continue
+        paths = sorted(context["paths"])
+        branches = sorted(context["branches"])
+        representative = paths[0]
+        data = git_blob_bytes(blob_sha)
+        binary = is_binary(data)
+        text = "" if binary else data.decode("utf-8", errors="replace")
+        cat = category(representative)
+        decision, reasons = retention(
+            representative,
+            cat,
+            len(data),
+            binary,
+            text,
+        )
+        historical_blobs.append(
+            {
+                "blob_sha": blob_sha,
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "representative_path": representative,
+                "paths": paths[:100],
+                "path_count": len(paths),
+                "branches": branches[:100],
+                "branch_count": len(branches),
+                "size_bytes": len(data),
+                "binary": binary,
+                "line_count": 0 if binary else len(text.splitlines()),
+                "category": cat,
+                "retention": decision,
+                "reasons": reasons,
+                "signals": structural_signals(representative, text) if text else {},
+            }
+        )
 
     summary = {
         "ref": args.ref,
@@ -295,6 +349,10 @@ def main() -> int:
         "retention": dict(Counter(row["retention"] for row in rows)),
         "duplicate_groups": len(duplicate_groups),
         "branch_count_seen": len(branch_rows),
+        "branch_only_unique_blobs": len(historical_blobs),
+        "branch_only_retention": dict(
+            Counter(item["retention"] for item in historical_blobs)
+        ),
         "large_files_over_1mb": [
             {"path": row["path"], "size_bytes": row["size_bytes"]}
             for row in rows if int(row["size_bytes"]) > 1_000_000
@@ -321,6 +379,7 @@ def main() -> int:
             "files": rows,
             "duplicates": duplicate_groups,
             "branches": branch_rows,
+            "branch_only_unique_blobs": historical_blobs,
         }
         json.dump(payload, handle, indent=2, ensure_ascii=False)
         handle.write("\n")
@@ -364,6 +423,7 @@ def main() -> int:
         f"- Total tracked bytes: **{summary['total_bytes']}**",
         f"- Duplicate content groups: **{summary['duplicate_groups']}**",
         f"- Remote branches inspected: **{summary['branch_count_seen']}**",
+        f"- Branch-only unique file blobs: **{summary['branch_only_unique_blobs']}**",
         "",
         "## Retention counts",
         "",
