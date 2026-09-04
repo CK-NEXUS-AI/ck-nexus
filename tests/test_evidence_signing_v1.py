@@ -13,6 +13,7 @@ from creator_app.evidence_signing.bundle import (
     verify_evidence_bundle,
 )
 from creator_app.evidence_signing.cosign import sign_and_verify_keyless
+from creator_app.evidence_signing.openssl_ed25519 import sign_and_verify_ed25519
 
 COMMIT = "1" * 40
 TREE = "2" * 40
@@ -155,3 +156,50 @@ def test_verified_system_signature_never_promotes_human_or_production_state(
     result = verify_evidence_bundle(evidence_dir=evidence, output_dir=output)
     assert result["result"] == "PASS"
     assert result["system_signature"]["status"] == "CRYPTOGRAPHICALLY_VERIFIED"
+
+
+def test_internal_ed25519_signature_verifies_without_public_log_and_stays_fail_closed(
+    tmp_path: Path,
+) -> None:
+    evidence, output = _build(tmp_path)
+    private_key = tmp_path / "private.pem"
+    public_key = tmp_path / "public.pem"
+    private_key.write_text("PRIVATE\n", encoding="utf-8")
+    public_key.write_text("PUBLIC\n", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def runner(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        if "-sign" in command:
+            output_index = command.index("-out") + 1
+            Path(command[output_index]).write_bytes(b"signature")
+        return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
+
+    signed = sign_and_verify_ed25519(
+        manifest_path=output / "evidence-signing-manifest.json",
+        private_key_path=private_key,
+        public_key_path=public_key,
+        signature_path=output / "evidence-signing.ed25519.sig",
+        openssl_path="/fake/openssl",
+        runner=runner,
+    )
+    state = record_system_signature(
+        output_dir=output,
+        provider="openssl-ed25519-internal",
+        bundle_filename=signed.signature_path.name,
+        signer_identity=signed.signer_identity,
+        verified_at="2026-09-04T00:02:00+00:00",
+    )
+
+    assert len(calls) == 2
+    assert "-sign" in calls[0]
+    assert "-verify" in calls[1]
+    assert state["system_signature"]["status"] == "CRYPTOGRAPHICALLY_VERIFIED"
+    assert state["system_signature"]["provider"] == "openssl-ed25519-internal"
+    assert state["independent_human_review"]["status"] == "PENDING"
+    assert state["owner_signoff"]["status"] == "PENDING"
+    assert state["q10"] == "NOT_VERIFIED"
+    assert state["production"] == "NO-GO"
+
+    result = verify_evidence_bundle(evidence_dir=evidence, output_dir=output)
+    assert result["result"] == "PASS"
