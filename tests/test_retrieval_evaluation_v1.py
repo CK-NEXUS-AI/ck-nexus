@@ -134,12 +134,34 @@ def test_quality_gate_accepts_non_regressing_candidate() -> None:
 
 
 def test_case_bounds_fail_closed() -> None:
-    for kwargs in (
-        {"case_id": "", "query": "x", "relevant_claim_ids": ("c1",), "retrieved_claim_ids": ()},
-        {"case_id": "x", "query": "", "relevant_claim_ids": ("c1",), "retrieved_claim_ids": ()},
-        {"case_id": "x", "query": "q", "relevant_claim_ids": (), "retrieved_claim_ids": ()},
-        {"case_id": "x", "query": "q", "relevant_claim_ids": ("c1",), "retrieved_claim_ids": (), "k": 0},
-    ):
+    cases = (
+        {
+            "case_id": "",
+            "query": "x",
+            "relevant_claim_ids": ("c1",),
+            "retrieved_claim_ids": (),
+        },
+        {
+            "case_id": "x",
+            "query": "",
+            "relevant_claim_ids": ("c1",),
+            "retrieved_claim_ids": (),
+        },
+        {
+            "case_id": "x",
+            "query": "q",
+            "relevant_claim_ids": (),
+            "retrieved_claim_ids": (),
+        },
+        {
+            "case_id": "x",
+            "query": "q",
+            "relevant_claim_ids": ("c1",),
+            "retrieved_claim_ids": (),
+            "k": 0,
+        },
+    )
+    for kwargs in cases:
         try:
             RetrievalEvaluationCase(**kwargs)
         except ValueError:
