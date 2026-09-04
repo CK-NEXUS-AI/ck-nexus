@@ -16,4 +16,7 @@ __all__ = [
     "build_evidence_bundle",
     "record_system_signature",
     "verify_evidence_bundle",
+    "sign_and_verify_ed25519",
 ]
+
+from .openssl_ed25519 import sign_and_verify_ed25519
