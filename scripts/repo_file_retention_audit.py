@@ -252,6 +252,89 @@ def retention(path: str, cat: str, size: int, binary: bool, text: str) -> tuple[
     return "REVIEW", reasons or ["no automatic deletion basis"]
 
 
+def reachable_blob_inventory(main_blob_shas: set[str]) -> list[dict[str, object]]:
+    rev_list = run("git", "rev-list", "--objects", "--all", check=False)
+    if not rev_list.strip():
+        return []
+
+    proc = subprocess.run(
+        [
+            "git",
+            "cat-file",
+            "--batch-check=%(objectname)%09%(objecttype)%09%(objectsize)%09%(rest)",
+        ],
+        input=rev_list,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    rows: dict[str, dict[str, object]] = {}
+    for line in proc.stdout.splitlines():
+        parts = line.split("\t", 3)
+        if len(parts) < 3:
+            continue
+        sha, kind, raw_size = parts[:3]
+        path = parts[3] if len(parts) == 4 else ""
+        if kind != "blob":
+            continue
+        item = rows.setdefault(
+            sha,
+            {
+                "blob_sha": sha,
+                "size_bytes": int(raw_size),
+                "paths": set(),
+                "on_main": sha in main_blob_shas,
+            },
+        )
+        if path:
+            item["paths"].add(path)
+
+    results = []
+    for sha, item in rows.items():
+        if item["on_main"]:
+            continue
+        paths = sorted(item["paths"])
+        representative = paths[0] if paths else f"<historical-blob:{sha}>"
+        data = git_blob_bytes(sha)
+        binary = is_binary(data)
+        text = "" if binary else data.decode("utf-8", errors="replace")
+        cat = category(representative)
+        decision, reasons = retention(
+            representative,
+            cat,
+            len(data),
+            binary,
+            text,
+        )
+        signals = structural_signals(representative, text) if text else {}
+        archive = archive_signals(representative, data)
+        if archive:
+            signals["archive"] = archive
+        secret_categories = sorted(
+            label
+            for label, pattern in SECRET_CONTENT_PATTERNS.items()
+            if pattern.search(data)
+        )
+        results.append(
+            {
+                "blob_sha": sha,
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "representative_path": representative,
+                "paths": paths[:100],
+                "path_count": len(paths),
+                "size_bytes": len(data),
+                "binary": binary,
+                "line_count": 0 if binary else len(text.splitlines()),
+                "category": cat,
+                "retention": decision,
+                "reasons": reasons,
+                "signals": signals,
+                "secret_pattern_categories_found": secret_categories,
+            }
+        )
+    return results
+
+
 def last_change(ref: str, path: str) -> dict[str, str]:
     out = run(
         "git", "log", "-1", "--format=%H%x09%cI%x09%s", ref, "--", path,
@@ -412,6 +495,8 @@ def main() -> int:
             }
         )
 
+    historical_reachable_blobs = reachable_blob_inventory(main_blob_shas)
+
     summary = {
         "ref": args.ref,
         "commit": run("git", "rev-parse", args.ref).strip(),
@@ -425,6 +510,14 @@ def main() -> int:
         "branch_only_unique_blobs": len(historical_blobs),
         "branch_only_retention": dict(
             Counter(item["retention"] for item in historical_blobs)
+        ),
+        "reachable_history_unique_blobs": len(historical_reachable_blobs),
+        "reachable_history_retention": dict(
+            Counter(item["retention"] for item in historical_reachable_blobs)
+        ),
+        "reachable_history_secret_signal_blobs": sum(
+            bool(item["secret_pattern_categories_found"])
+            for item in historical_reachable_blobs
         ),
         "large_files_over_1mb": [
             {"path": row["path"], "size_bytes": row["size_bytes"]}
@@ -453,6 +546,7 @@ def main() -> int:
             "duplicates": duplicate_groups,
             "branches": branch_rows,
             "branch_only_unique_blobs": historical_blobs,
+            "reachable_history_unique_blobs": historical_reachable_blobs,
         }
         json.dump(payload, handle, indent=2, ensure_ascii=False)
         handle.write("\n")
@@ -497,6 +591,14 @@ def main() -> int:
         f"- Duplicate content groups: **{summary['duplicate_groups']}**",
         f"- Remote branches inspected: **{summary['branch_count_seen']}**",
         f"- Branch-only unique file blobs: **{summary['branch_only_unique_blobs']}**",
+        (
+            "- Reachable historical unique blobs outside main: "
+            f"**{summary['reachable_history_unique_blobs']}**"
+        ),
+        (
+            "- Historical blobs with secret-pattern category signals: "
+            f"**{summary['reachable_history_secret_signal_blobs']}**"
+        ),
         "",
         "## Retention counts",
         "",
