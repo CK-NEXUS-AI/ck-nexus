@@ -7,8 +7,9 @@ import subprocess
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from creator_app.agnes_ledger import AppendOnlyLedger
 
@@ -228,9 +229,18 @@ def evaluate_signature_policy(envelope: dict[str, Any]) -> dict[str, Any]:
         if isinstance(item, dict)
     }
     return {
-        "system_integrity": statuses.get(SignerType.SYSTEM.value) == SignatureStatus.CRYPTOGRAPHICALLY_VERIFIED.value,
-        "independent_human_review": statuses.get(SignerType.HUMAN_REVIEWER.value) == SignatureStatus.CRYPTOGRAPHICALLY_VERIFIED.value,
-        "owner_signoff": statuses.get(SignerType.OWNER.value) == SignatureStatus.CRYPTOGRAPHICALLY_VERIFIED.value,
+        "system_integrity": (
+            statuses.get(SignerType.SYSTEM.value)
+            == SignatureStatus.CRYPTOGRAPHICALLY_VERIFIED.value
+        ),
+        "independent_human_review": (
+            statuses.get(SignerType.HUMAN_REVIEWER.value)
+            == SignatureStatus.CRYPTOGRAPHICALLY_VERIFIED.value
+        ),
+        "owner_signoff": (
+            statuses.get(SignerType.OWNER.value)
+            == SignatureStatus.CRYPTOGRAPHICALLY_VERIFIED.value
+        ),
         "release_gate_effect": "NONE",
         "production_authorized": False,
     }
