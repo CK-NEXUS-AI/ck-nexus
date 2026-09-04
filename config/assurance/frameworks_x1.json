@@ -1,0 +1,97 @@
+{
+  "profile": "CK-NEXUS Assurance Profile X1",
+  "status": "DEVELOPMENT_BASELINE_NOT_CERTIFICATION",
+  "reviewed_at": "2026-09-05",
+  "authority": {
+    "q10": "NOT_VERIFIED",
+    "q11": "BLOCKED",
+    "q12": "BLOCKED",
+    "production": "NO_GO_NOT_CERTIFIED",
+    "frozen_q10_commit": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
+    "frozen_q10_tree": "0525195934f703a8becf8a39f6397b2411e0bb2e"
+  },
+  "external_baselines": [
+    {
+      "name": "ISO/IEC 27001",
+      "version": "2022",
+      "amendment": "Amd 1:2024",
+      "type": "management_system",
+      "status": "published"
+    },
+    {
+      "name": "ISO/IEC 42001",
+      "version": "2023",
+      "type": "ai_management_system",
+      "status": "published"
+    },
+    {
+      "name": "ISO/IEC 23894",
+      "version": "2023",
+      "type": "ai_risk_management_guidance",
+      "status": "published"
+    },
+    {
+      "name": "NIST AI RMF",
+      "version": "1.0",
+      "type": "ai_risk_management",
+      "status": "published"
+    },
+    {
+      "name": "NIST AI 600-1",
+      "version": "2024",
+      "type": "generative_ai_profile",
+      "status": "published"
+    },
+    {
+      "name": "NIST SP 800-218",
+      "version": "SSDF 1.1",
+      "type": "secure_software_development",
+      "status": "final"
+    },
+    {
+      "name": "NIST SP 800-218A",
+      "version": "2024",
+      "type": "ai_secure_software_development_profile",
+      "status": "final"
+    },
+    {
+      "name": "NIST SP 800-218 Rev. 1",
+      "version": "SSDF 1.2",
+      "type": "secure_software_development",
+      "status": "draft_track_only"
+    },
+    {
+      "name": "OWASP Top 10 for Agentic Applications",
+      "version": "2025",
+      "type": "agentic_ai_security",
+      "status": "published"
+    }
+  ],
+  "internal_principles": [
+    "FAIL_CLOSED",
+    "EXACT_SUBJECT_VERIFICATION",
+    "EVIDENCE_FIRST",
+    "NO_SELF_APPROVAL",
+    "INDEPENDENT_HUMAN_REVIEW",
+    "OWNER_HUMAN_SIGNOFF",
+    "SEPARATION_OF_DUTIES",
+    "CHAIN_OF_CUSTODY",
+    "DEVELOPMENT_PRODUCTION_SEPARATION",
+    "TRUTH_PRESERVING_STATUS"
+  ],
+  "maturity_states": [
+    "PLANNED",
+    "IMPLEMENTED",
+    "MEASURED_NOT_VERIFIED",
+    "EXTERNALLY_REVIEWED",
+    "VERIFIED",
+    "BLOCKED",
+    "NOT_APPLICABLE"
+  ],
+  "non_claims": [
+    "ISO_CERTIFIED",
+    "Q10_PASSED",
+    "PRODUCTION_READY",
+    "FULLY_VERIFIED"
+  ]
+}
