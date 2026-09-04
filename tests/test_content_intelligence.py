@@ -1,7 +1,7 @@
 from creator_app.image_intelligence import (
     CandidateDecision,
-    ClaimKind,
     CapabilityGap,
+    ClaimKind,
     ContentClaim,
     ContentEvidenceState,
     ContentIntelligencePipeline,
