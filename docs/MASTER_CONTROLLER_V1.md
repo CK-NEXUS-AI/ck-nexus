@@ -23,7 +23,7 @@ The controller reuses:
 After installation:
 
 ```text
-ck-nexus-control
+python -m creator_app.master_controller_cli
 ```
 
 defaults to the logical command:
@@ -35,7 +35,7 @@ CK-NEXUS RUN
 A specific request can be planned with:
 
 ```text
-ck-nexus-control ตรวจสอบ Q10 บน VPS
+python -m creator_app.master_controller_cli ตรวจสอบ Q10 บน VPS
 ```
 
 The command prints a deterministic JSON plan. V1 is planner-only; it does not
