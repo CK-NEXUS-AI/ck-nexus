@@ -9,8 +9,8 @@ import pytest
 from creator_app.evidence_signing import (
     EvidenceCustodyLedger,
     EvidenceSubject,
-    SignerType,
     SignatureStatus,
+    SignerType,
     build_manifest,
     evaluate_signature_policy,
     unsigned_signature_envelope,
@@ -112,14 +112,16 @@ def test_cosign_verification_rejects_legacy_bundle(tmp_path: Path):
     bundle.write_text('{"base64Signature": "legacy"}\n', encoding="utf-8")
 
     version = Mock(returncode=0, stdout="GitVersion: v3.1.3", stderr="")
-    with patch("creator_app.evidence_signing.subprocess.run", return_value=version):
-        with pytest.raises(RuntimeError, match="legacy/non-standard"):
-            verify_cosign_bundle(
-                blob=blob,
-                bundle=bundle,
-                certificate_identity="ci@example.invalid",
-                certificate_oidc_issuer="https://token.actions.githubusercontent.com",
-            )
+    with (
+        patch("creator_app.evidence_signing.subprocess.run", return_value=version),
+        pytest.raises(RuntimeError, match="legacy/non-standard"),
+    ):
+        verify_cosign_bundle(
+            blob=blob,
+            bundle=bundle,
+            certificate_identity="ci@example.invalid",
+            certificate_oidc_issuer="https://token.actions.githubusercontent.com",
+        )
 
 
 def test_cosign_verification_requires_patched_version(tmp_path: Path):
@@ -132,14 +134,16 @@ def test_cosign_verification_requires_patched_version(tmp_path: Path):
     )
 
     old = Mock(returncode=0, stdout="GitVersion: v3.1.2", stderr="")
-    with patch("creator_app.evidence_signing.subprocess.run", return_value=old):
-        with pytest.raises(RuntimeError, match="3.1.3 or newer"):
-            verify_cosign_bundle(
-                blob=blob,
-                bundle=bundle,
-                certificate_identity="ci@example.invalid",
-                certificate_oidc_issuer="https://token.actions.githubusercontent.com",
-            )
+    with (
+        patch("creator_app.evidence_signing.subprocess.run", return_value=old),
+        pytest.raises(RuntimeError, match="3.1.3 or newer"),
+    ):
+        verify_cosign_bundle(
+            blob=blob,
+            bundle=bundle,
+            certificate_identity="ci@example.invalid",
+            certificate_oidc_issuer="https://token.actions.githubusercontent.com",
+        )
 
 
 def test_cosign_standard_bundle_can_be_verified_with_identity_policy(tmp_path: Path):
