@@ -4,12 +4,16 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import csv
 import hashlib
+import io
 import json
 import os
 import re
 import subprocess
+import tarfile
+import zipfile
 from collections import Counter, defaultdict
 from pathlib import PurePosixPath
 
@@ -158,6 +162,62 @@ def structural_signals(path: str, text: str) -> dict[str, object]:
         sig["strict_mode"] = "set -euo pipefail" in text
         sig["shebang"] = text.startswith("#!")
     return sig
+
+
+SECRET_CONTENT_PATTERNS = {
+    "openai_key": re.compile(rb"sk-[A-Za-z0-9_-]{20,}"),
+    "github_token": re.compile(rb"(?:ghp|gho|github_pat)_[A-Za-z0-9_]{20,}"),
+    "private_key": re.compile(rb"BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY"),
+    "aws_access_key": re.compile(rb"AKIA[0-9A-Z]{16}"),
+}
+
+
+def archive_signals(path: str, data: bytes) -> dict[str, object]:
+    low = path.lower()
+    names: list[str] = []
+    content_hits: set[str] = set()
+
+    def inspect_member(name: str, payload: bytes | None) -> None:
+        names.append(name)
+        if payload is None or len(payload) > 2_000_000:
+            return
+        for label, pattern in SECRET_CONTENT_PATTERNS.items():
+            if pattern.search(payload):
+                content_hits.add(label)
+
+    try:
+        if low.endswith(".zip"):
+            with zipfile.ZipFile(io.BytesIO(data)) as archive:
+                for info in archive.infolist():
+                    payload = None
+                    if not info.is_dir() and info.file_size <= 2_000_000:
+                        payload = archive.read(info)
+                    inspect_member(info.filename, payload)
+        elif low.endswith(".tar.gz.b64"):
+            decoded = base64.b64decode(data, validate=True)
+            with tarfile.open(fileobj=io.BytesIO(decoded), mode="r:gz") as archive:
+                for member in archive.getmembers():
+                    payload = None
+                    if member.isfile() and member.size <= 2_000_000:
+                        handle = archive.extractfile(member)
+                        payload = handle.read() if handle is not None else None
+                    inspect_member(member.name, payload)
+        else:
+            return {}
+    except Exception as exc:
+        return {"archive_parse_error": type(exc).__name__}
+
+    sensitive_names = sorted(
+        name
+        for name in names
+        if any(hint.lower() in name.lower() for hint in SENSITIVE_NAME_HINTS)
+    )
+    return {
+        "archive_member_count": len(names),
+        "archive_member_sample": sorted(names)[:100],
+        "sensitive_member_names": sensitive_names[:100],
+        "secret_pattern_categories_found": sorted(content_hits),
+    }
 
 
 def retention(path: str, cat: str, size: int, binary: bool, text: str) -> tuple[str, list[str]]:
@@ -329,6 +389,10 @@ def main() -> int:
             binary,
             text,
         )
+        signals = structural_signals(representative, text) if text else {}
+        archive = archive_signals(representative, data)
+        if archive:
+            signals["archive"] = archive
         historical_blobs.append(
             {
                 "blob_sha": blob_sha,
@@ -344,7 +408,7 @@ def main() -> int:
                 "category": cat,
                 "retention": decision,
                 "reasons": reasons,
-                "signals": structural_signals(representative, text) if text else {},
+                "signals": signals,
             }
         )
 
