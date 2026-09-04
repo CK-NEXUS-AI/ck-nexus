@@ -194,7 +194,7 @@ def archive_signals(path: str, data: bytes) -> dict[str, object]:
                         payload = archive.read(info)
                     inspect_member(info.filename, payload)
         elif low.endswith(".tar.gz.b64"):
-            decoded = base64.b64decode(data, validate=True)
+            decoded = base64.b64decode(b"".join(data.split()), validate=True)
             with tarfile.open(fileobj=io.BytesIO(decoded), mode="r:gz") as archive:
                 for member in archive.getmembers():
                     payload = None
