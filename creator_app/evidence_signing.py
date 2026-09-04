@@ -4,10 +4,10 @@ import hashlib
 import json
 import re
 import subprocess
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
-from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
