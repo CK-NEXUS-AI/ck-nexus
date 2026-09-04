@@ -1,0 +1,180 @@
+name: Q10 Alternative Host UserNS V2 2026-09-04
+
+on:
+  push:
+    branches:
+      - ops/q10-host-qualification-20260904
+    paths:
+      - .github/workflows/q10-alternative-host-userns-v2-20260904.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  Q10_SUBJECT: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
+  Q10_TREE: 0525195934f703a8becf8a39f6397b2411e0bb2e
+
+jobs:
+  qualify-ephemeral-linux-userns:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout workflow branch
+        uses: actions/checkout@v4
+
+      - name: Materialize frozen Q10 subject
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.Q10_SUBJECT }}
+          path: frozen-source
+          fetch-depth: 1
+
+      - name: Bind exact frozen subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_subject="$(git -C frozen-source rev-parse HEAD)"
+          actual_tree="$(git -C frozen-source rev-parse HEAD^{tree})"
+          test "$actual_subject" = "$Q10_SUBJECT"
+          test "$actual_tree" = "$Q10_TREE"
+          test -z "$(git -C frozen-source status --porcelain=v1)"
+          printf 'subject=%s\ntree=%s\nbinding=PASS\n' "$actual_subject" "$actual_tree" > subject-binding.txt
+
+      - name: Install bubblewrap probe dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bubblewrap
+
+      - name: Record original user namespace policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          key=kernel.apparmor_restrict_unprivileged_userns
+          if sysctl -n "$key" > original-userns-value.txt 2> original-userns.stderr.txt; then
+            echo "sysctl_present=true" > userns-policy-state.txt
+          else
+            echo "sysctl_present=false" > userns-policy-state.txt
+            printf 'NOT_PRESENT\n' > original-userns-value.txt
+          fi
+          cat /sys/module/apparmor/parameters/enabled > apparmor-enabled.txt 2>/dev/null || true
+
+      - name: Enable upstream Bubblewrap CI user namespace setting temporarily
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -q '^sysctl_present=true$' userns-policy-state.txt; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 | tee userns-enable.txt
+          else
+            echo 'sysctl unavailable; no mutation made' | tee userns-enable.txt
+          fi
+
+      - name: Probe exact host capabilities after reversible userns enablement
+        shell: bash
+        run: |
+          set +e
+          {
+            echo "classification=HOST_QUALIFICATION_CANDIDATE_ONLY"
+            echo "kernel=$(uname -srmo)"
+            echo "uid=$(id -u)"
+            echo "gid=$(id -g)"
+            echo "bubblewrap_version=$(bwrap --version 2>/dev/null || true)"
+            echo "docker_version=$(docker --version 2>/dev/null || true)"
+            if test -e /sys/fs/cgroup/cgroup.controllers; then echo "cgroup_v2=PASS"; else echo "cgroup_v2=FAIL"; fi
+            unshare -Ur true >/tmp/unshare-user.out 2>/tmp/unshare-user.err
+            echo "unshare_user_rc=$?"
+            unshare -Urmpf true >/tmp/unshare-full.out 2>/tmp/unshare-full.err
+            echo "unshare_full_rc=$?"
+            bwrap --ro-bind / / --proc /proc --dev /dev true >/tmp/bwrap-basic.out 2>/tmp/bwrap-basic.err
+            echo "bwrap_basic_rc=$?"
+            bwrap --unshare-user --unshare-pid --unshare-net --ro-bind / / --proc /proc --dev /dev true >/tmp/bwrap-isolated.out 2>/tmp/bwrap-isolated.err
+            echo "bwrap_isolated_rc=$?"
+            docker info >/tmp/docker-info.out 2>/tmp/docker-info.err
+            echo "docker_info_rc=$?"
+            docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges:true alpine:3.20 true >/tmp/docker-sandbox.out 2>/tmp/docker-sandbox.err
+            echo "docker_sandbox_rc=$?"
+          } | tee host-capabilities.txt
+
+          cp /tmp/unshare-user.err unshare-user.stderr.txt
+          cp /tmp/unshare-full.err unshare-full.stderr.txt
+          cp /tmp/bwrap-basic.err bwrap-basic.stderr.txt
+          cp /tmp/bwrap-isolated.err bwrap-isolated.stderr.txt
+          cp /tmp/docker-info.err docker-info.stderr.txt
+          cp /tmp/docker-sandbox.err docker-sandbox.stderr.txt
+          exit 0
+
+      - name: Evaluate technical candidate fail-closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          get_value() { awk -F= -v k="$1" '$1==k {print $2}' host-capabilities.txt; }
+          cgroup="$(get_value cgroup_v2)"
+          userns="$(get_value unshare_user_rc)"
+          fullns="$(get_value unshare_full_rc)"
+          bwrap_basic="$(get_value bwrap_basic_rc)"
+          bwrap_isolated="$(get_value bwrap_isolated_rc)"
+          docker="$(get_value docker_sandbox_rc)"
+          if [ "$cgroup" = PASS ] && [ "$userns" = 0 ] && [ "$fullns" = 0 ] && [ "$bwrap_basic" = 0 ] && [ "$bwrap_isolated" = 0 ] && [ "$docker" = 0 ]; then
+            result=QUALIFIED_TECHNICAL_CANDIDATE
+          else
+            result=NOT_QUALIFIED
+          fi
+          {
+            echo "result=$result"
+            echo "authority=NONE"
+            echo "q10_status=NOT_VERIFIED"
+            echo "production=NO_GO"
+            echo "userns_policy_mutation=TEMPORARY_REVERSIBLE"
+            echo "note=Requires explicit governance acceptance before use as canonical Q10 execution host."
+          } | tee qualification-result.txt
+
+      - name: Restore original user namespace policy
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if grep -q '^sysctl_present=true$' userns-policy-state.txt; then
+            original="$(cat original-userns-value.txt)"
+            sudo sysctl -w "kernel.apparmor_restrict_unprivileged_userns=$original" > userns-restore.txt 2>&1
+            restore_rc=$?
+            current="$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)"
+            printf 'restore_rc=%s\noriginal=%s\ncurrent=%s\n' "$restore_rc" "$original" "$current" >> userns-restore.txt
+          else
+            printf 'restore_rc=0\noriginal=NOT_PRESENT\ncurrent=NOT_PRESENT\n' > userns-restore.txt
+          fi
+          exit 0
+
+      - name: Verify restoration and hash evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -q '^sysctl_present=true$' userns-policy-state.txt; then
+            original="$(cat original-userns-value.txt)"
+            current="$(sysctl -n kernel.apparmor_restrict_unprivileged_userns)"
+            test "$current" = "$original"
+          fi
+          sha256sum subject-binding.txt host-capabilities.txt qualification-result.txt \
+            original-userns-value.txt userns-policy-state.txt userns-enable.txt userns-restore.txt \
+            apparmor-enabled.txt *.stderr.txt | sort > SHA256SUMS
+
+      - name: Upload technical host qualification artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: q10-alternative-host-userns-v2
+          path: |
+            subject-binding.txt
+            host-capabilities.txt
+            qualification-result.txt
+            original-userns-value.txt
+            original-userns.stderr.txt
+            userns-policy-state.txt
+            userns-enable.txt
+            userns-restore.txt
+            apparmor-enabled.txt
+            *.stderr.txt
+            SHA256SUMS
+          if-no-files-found: warn
