@@ -56,6 +56,15 @@ def git_bytes(ref: str, path: str) -> bytes:
     return proc.stdout
 
 
+def git_blob_bytes(blob_sha: str) -> bytes:
+    proc = subprocess.run(
+        ["git", "cat-file", "-p", blob_sha],
+        check=True,
+        capture_output=True,
+    )
+    return proc.stdout
+
+
 def list_tree(ref: str) -> list[tuple[str, str, str, int]]:
     raw = run("git", "ls-tree", "-rl", "-z", ref)
     rows = []
