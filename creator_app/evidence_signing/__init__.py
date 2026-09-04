@@ -8,6 +8,7 @@ from .bundle import (
     record_system_signature,
     verify_evidence_bundle,
 )
+from .openssl_ed25519 import sign_and_verify_ed25519
 
 __all__ = [
     "REQUIRED_EVIDENCE_FILES",
@@ -15,8 +16,6 @@ __all__ = [
     "append_chain_event",
     "build_evidence_bundle",
     "record_system_signature",
-    "verify_evidence_bundle",
     "sign_and_verify_ed25519",
+    "verify_evidence_bundle",
 ]
-
-from .openssl_ed25519 import sign_and_verify_ed25519
