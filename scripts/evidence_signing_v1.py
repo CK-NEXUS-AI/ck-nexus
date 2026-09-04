@@ -10,6 +10,7 @@ from creator_app.evidence_signing.bundle import (
     verify_evidence_bundle,
 )
 from creator_app.evidence_signing.cosign import sign_and_verify_keyless
+from creator_app.evidence_signing.openssl_ed25519 import sign_and_verify_ed25519
 
 
 def _build(args: argparse.Namespace) -> int:
@@ -82,6 +83,37 @@ def _sign_sigstore(args: argparse.Namespace) -> int:
     return 0
 
 
+def _sign_ed25519(args: argparse.Namespace) -> int:
+    output_dir = Path(args.output_dir)
+    result = sign_and_verify_ed25519(
+        manifest_path=output_dir / "evidence-signing-manifest.json",
+        private_key_path=Path(args.private_key),
+        public_key_path=Path(args.public_key),
+        signature_path=output_dir / args.signature_name,
+    )
+    state = record_system_signature(
+        output_dir=output_dir,
+        provider="openssl-ed25519-internal",
+        bundle_filename=result.signature_path.name,
+        signer_identity=result.signer_identity,
+    )
+    print(
+        json.dumps(
+            {
+                "result": "CRYPTOGRAPHICALLY_VERIFIED",
+                "system_signature": state["system_signature"],
+                "independent_human_review": state["independent_human_review"],
+                "owner_signoff": state["owner_signoff"],
+                "q10": state["q10"],
+                "production": state["production"],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description="CK-NEXUS Evidence Signing & Chain-of-Custody V1")
     sub = root.add_subparsers(dest="action", required=True)
@@ -116,6 +148,16 @@ def parser() -> argparse.ArgumentParser:
         help="Required explicit consent because keyless Sigstore signing is publicly auditable.",
     )
     sign.set_defaults(func=_sign_sigstore)
+
+    offline = sub.add_parser(
+        "sign-ed25519",
+        help="Sign the manifest with an internal OpenSSL Ed25519 key",
+    )
+    offline.add_argument("--output-dir", required=True)
+    offline.add_argument("--private-key", required=True)
+    offline.add_argument("--public-key", required=True)
+    offline.add_argument("--signature-name", default="evidence-signing.ed25519.sig")
+    offline.set_defaults(func=_sign_ed25519)
     return root
 
 
