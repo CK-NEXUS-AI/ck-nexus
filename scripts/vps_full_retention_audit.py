@@ -4,12 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import grp
 import hashlib
 import json
 import os
 import pwd
-import grp
-import shutil
 import stat
 import subprocess
 from collections import Counter, defaultdict
@@ -41,8 +40,7 @@ def run(args: list[str], timeout: int = 30) -> dict[str, object]:
         proc = subprocess.run(
             args,
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout,
             check=False,
         )
@@ -186,7 +184,7 @@ def duplicate_scan() -> list[dict[str, object]]:
                     by_size[size].append(path)
 
     digest_map: dict[str, list[str]] = defaultdict(list)
-    for size, paths in by_size.items():
+    for _size, paths in by_size.items():
         if len(paths) < 2:
             continue
         for path in paths:
