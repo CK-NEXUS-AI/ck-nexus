@@ -115,7 +115,7 @@ P1:
 - ISO/IEC 27001: https://www.iso.org/standard/27001
 - ISO/IEC 27001:2022/Amd 1:2024: https://www.iso.org/standard/88435.html
 - ISO/IEC 42001: https://www.iso.org/standard/42001
-- NIST AI RMF: https://www.nist.gov/itl/ai-risk-management-framework
-- NIST AI 600-1: https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-generative-artificial-intelligence
+- NIST AI RMF: https://doi.org/10.6028/NIST.AI.100-1
+- NIST AI 600-1: https://doi.org/10.6028/NIST.AI.600-1
 - NIST SP 800-218: https://csrc.nist.gov/pubs/sp/800/218/final
 - OWASP Agentic Top 10: https://genai.owasp.org/2025/12/09/owasp-top-10-for-agentic-applications-the-benchmark-for-agentic-security-in-the-age-of-autonomous-ai/
