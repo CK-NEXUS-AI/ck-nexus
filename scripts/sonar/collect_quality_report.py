@@ -222,7 +222,8 @@ def main() -> int:
         "## Boundary",
         "",
         "This report is automated tool evidence. It does not constitute an ISO/CISQ "
-        "certificate, an independent security assessment, Q10 verification, or Production approval.",
+        "certificate, an independent security assessment, Q10 verification, "
+        "or Production approval.",
     ]
     (out / "DEVELOPER_REPORT.md").write_text("\n".join(dev_lines) + "\n", encoding="utf-8")
 
