@@ -43,7 +43,7 @@ TEXT_EXTENSIONS = {
 
 
 def run(*args: str, check: bool = True) -> str:
-    proc = subprocess.run(args, check=check, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run(args, check=check, text=True, capture_output=True)
     return proc.stdout
 
 
@@ -51,8 +51,7 @@ def git_bytes(ref: str, path: str) -> bytes:
     proc = subprocess.run(
         ["git", "show", f"{ref}:{path}"],
         check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     return proc.stdout
 
@@ -262,7 +261,12 @@ def main() -> int:
     branch_rows = []
     run("git", "fetch", "origin", "+refs/heads/*:refs/remotes/origin/*", check=False)
     main_paths = {row["path"] for row in rows}
-    refs = run("git", "for-each-ref", "--format=%(refname:short)%09%(objectname)%09%(committerdate:iso-strict)", "refs/remotes/origin/").splitlines()
+    refs = run(
+        "git",
+        "for-each-ref",
+        "--format=%(refname:short)%09%(objectname)%09%(committerdate:iso-strict)",
+        "refs/remotes/origin/",
+    ).splitlines()
     for line in refs:
         if not line or line.startswith("origin/HEAD"):
             continue
@@ -309,13 +313,39 @@ def main() -> int:
         ],
     }
 
-    with open(os.path.join(args.out_dir, "repo-file-audit.json"), "w", encoding="utf-8") as handle:
-        json.dump({"summary": summary, "files": rows, "duplicates": duplicate_groups, "branches": branch_rows}, handle, indent=2, ensure_ascii=False)
+    with open(
+        os.path.join(args.out_dir, "repo-file-audit.json"), "w", encoding="utf-8"
+    ) as handle:
+        payload = {
+            "summary": summary,
+            "files": rows,
+            "duplicates": duplicate_groups,
+            "branches": branch_rows,
+        }
+        json.dump(payload, handle, indent=2, ensure_ascii=False)
         handle.write("\n")
 
-    with open(os.path.join(args.out_dir, "repo-file-audit.csv"), "w", newline="", encoding="utf-8") as handle:
+    with open(
+        os.path.join(args.out_dir, "repo-file-audit.csv"),
+        "w",
+        newline="",
+        encoding="utf-8",
+    ) as handle:
         writer = csv.writer(handle)
-        writer.writerow(["path", "category", "retention", "size_bytes", "lines", "binary", "reference_mentions", "sha256", "last_change_date", "reasons"])
+        writer.writerow(
+            [
+                "path",
+                "category",
+                "retention",
+                "size_bytes",
+                "lines",
+                "binary",
+                "reference_mentions",
+                "sha256",
+                "last_change_date",
+                "reasons",
+            ]
+        )
         for row in rows:
             writer.writerow([
                 row["path"], row["category"], row["retention"], row["size_bytes"],
