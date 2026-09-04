@@ -165,3 +165,22 @@ cryptographic provenance as certification.
 - targeted CI and security regression pass on the exact candidate head.
 
 Independent human review remains outside this implementation.
+
+## Internal offline Ed25519 signing
+
+For private/internal evidence where CK-NEXUS must not publish signing metadata to an external
+transparency service, V1 also supports an OpenSSL Ed25519 path:
+
+```bash
+python scripts/evidence_signing_v1.py sign-ed25519 \
+  --output-dir /path/to/signing \
+  --private-key /secure/path/internal-signing-key.pem \
+  --public-key /secure/path/internal-signing-key.pub.pem
+```
+
+The private key is never written into the evidence bundle and must remain outside the evidence
+directory with restrictive filesystem permissions. The signer identity stored in
+`verification-state.json` is the SHA-256 fingerprint of the public-key file.
+
+This is an **internal cryptographic system signature only**. It does not create an accredited
+certificate, independent human review, owner sign-off, Q10 PASS, or Production authorization.
