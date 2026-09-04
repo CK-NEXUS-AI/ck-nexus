@@ -21,6 +21,7 @@ dependencies = [
 
 [project.scripts]
 ck-nexus = "main:main"
+ck-nexus-control = "creator_app.master_controller_cli:main"
 
 [project.optional-dependencies]
 gateway = [
