@@ -457,6 +457,16 @@ class DevelopmentStatusStore:
             )
         return payload
 
+    def get_competency(self, agent_id: str) -> dict[str, Any]:
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT payload_json FROM competency WHERE agent_id = ?",
+                (agent_id,),
+            ).fetchone()
+        if row is None:
+            raise KeyError(agent_id)
+        return json.loads(row["payload_json"])
+
     def history(self, limit: int = 100) -> list[dict[str, Any]]:
         bounded = max(1, min(limit, 500))
         with self._connect() as db:
