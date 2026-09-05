@@ -1,0 +1,173 @@
+name: Buyer Ready Clean Package 2026-09-06
+
+on:
+  push:
+    branches:
+      - ops/buyer-ready-clean-package-20260906
+    paths:
+      - buyer/**
+      - .github/workflows/buyer-ready-clean-package-20260906.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact canonical source
+        uses: actions/checkout@v6
+        with:
+          ref: b4146db8e23dff49520cbbc9d0194a15bcc5872d
+          fetch-depth: 0
+          path: canonical
+
+      - name: Checkout buyer metadata branch
+        uses: actions/checkout@v6
+        with:
+          ref: ops/buyer-ready-clean-package-20260906
+          fetch-depth: 1
+          path: opsmeta
+
+      - name: Verify exact subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd canonical
+          test "$(git rev-parse HEAD)" = "b4146db8e23dff49520cbbc9d0194a15bcc5872d"
+          test "$(git rev-parse HEAD^{tree})" = "25d9c74db2b553667ad085172f8ac7beff4146aa"
+          test -z "$(git status --porcelain)"
+          {
+            echo "subject_sha=$(git rev-parse HEAD)"
+            echo "subject_tree=$(git rev-parse HEAD^{tree})"
+            echo "tracked_files=$(git ls-files | wc -l)"
+          } > ../subject.txt
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: canonical/uv.lock
+
+      - name: Install exact environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd canonical
+          python -m pip install --upgrade pip uv
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+
+      - name: Compile and Ruff
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd canonical
+          .venv/bin/python -m compileall -q main.py creator_app services scripts
+          .venv/bin/ruff check main.py creator_app services tests scripts
+
+      - name: Bandit reviewed gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd canonical
+          .venv/bin/bandit -r creator_app services main.py -f json -o ../bandit.json || true
+          .venv/bin/python - <<'PY'
+          import hashlib,json,sys
+          r=json.load(open('../bandit.json',encoding='utf-8'))
+          ok={
+            ('B608','services/email_gateway/repository.py',221,'a248369faca360edbca232b1700ef67d87d9eeae8401bb1b379122f3274a4a6a'),
+            ('B608','services/email_gateway/repository.py',230,'2948e929a8c5a30e600e2d06c3cea59da396aa196adfd234183556d877df3de0'),
+          }
+          bad=[]
+          for x in r.get('results',[]):
+              if x.get('issue_severity') not in {'MEDIUM','HIGH'}:
+                  continue
+              f=(x.get('test_id'),x.get('filename'),x.get('line_number'),
+                 hashlib.sha256(x.get('code','').encode()).hexdigest())
+              if f not in ok:
+                  bad.append(f)
+          print('blocking=',bad)
+          sys.exit(bool(bad))
+          PY
+
+      - name: Current-tree secret scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd canonical
+          .venv/bin/python scripts/secret_scan.py | tee ../secret-scan.txt
+
+      - name: Portable regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          set -o pipefail
+          cd canonical
+          .venv/bin/pytest -q             --ignore=tests/test_agnes_execution_kernel_phase2.py             --ignore=tests/test_agnes_execution_kernel_phase3.py             | tee ../pytest.txt
+
+      - name: Exact-tree external evidence gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd canonical
+          m=$(git ls-tree -r HEAD -- creator_app services tests scripts main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          .venv/bin/python - "$m" <<'PY'
+          import json,sys
+          m=sys.argv[1]
+          q5=json.load(open('evidence/Q05_MULTILANE.json',encoding='utf-8'))
+          q8=json.load(open('evidence/Q08_LIVE.json',encoding='utf-8'))
+          q9=json.load(open('evidence/Q09_GOVERNANCE_BINDING.json',encoding='utf-8'))
+          assert m==q5['subject_manifest_sha256']==q8['source_subject_manifest_sha256']==q9['subject_manifest_sha256']
+          assert q5['result']=='PASS' and q5['tests_failed']==0
+          assert q8['result']=='PASS' and q8['redis_live']=='PASS' and q8['postgresql_live']=='PASS'
+          assert q9['result']=='PASS_CANDIDATE'
+          print('Q05/Q08/Q09 candidate evidence PASS')
+          PY
+
+      - name: Build single clean buyer package
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist/CK_NEXUS_BUYER_READY_CLEAN_2026_09_06/SOURCE
+          mkdir -p dist/CK_NEXUS_BUYER_READY_CLEAN_2026_09_06/BUYER
+          mkdir -p dist/CK_NEXUS_BUYER_READY_CLEAN_2026_09_06/VALIDATION
+
+          git -C canonical archive --format=tar b4146db8e23dff49520cbbc9d0194a15bcc5872d             | tar -xf - -C dist/CK_NEXUS_BUYER_READY_CLEAN_2026_09_06/SOURCE
+
+          cp opsmeta/buyer/*.md dist/CK_NEXUS_BUYER_READY_CLEAN_2026_09_06/BUYER/
+          cp subject.txt pytest.txt bandit.json secret-scan.txt              dist/CK_NEXUS_BUYER_READY_CLEAN_2026_09_06/VALIDATION/
+
+          (
+            cd dist/CK_NEXUS_BUYER_READY_CLEAN_2026_09_06/SOURCE
+            find . -type f -print0 | sort -z | xargs -0 sha256sum
+          ) > dist/CK_NEXUS_BUYER_READY_CLEAN_2026_09_06/VALIDATION/SOURCE_SHA256SUMS
+
+          {
+            echo "package_created_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "subject_sha=b4146db8e23dff49520cbbc9d0194a15bcc5872d"
+            echo "subject_tree=25d9c74db2b553667ad085172f8ac7beff4146aa"
+            echo "source_files=$(find dist/CK_NEXUS_BUYER_READY_CLEAN_2026_09_06/SOURCE -type f | wc -l)"
+            echo "classification=BUYER_READY_DEVELOPMENT_ASSET"
+            echo "q10=NOT_VERIFIED"
+            echo "q11=BLOCKED"
+            echo "q12=BLOCKED"
+            echo "production=NO_GO_NOT_CERTIFIED"
+          } > dist/CK_NEXUS_BUYER_READY_CLEAN_2026_09_06/VALIDATION/PACKAGE_MANIFEST.txt
+
+          cd dist
+          zip -qr CK_NEXUS_BUYER_READY_CLEAN_2026_09_06.zip CK_NEXUS_BUYER_READY_CLEAN_2026_09_06
+          sha256sum CK_NEXUS_BUYER_READY_CLEAN_2026_09_06.zip             > CK_NEXUS_BUYER_READY_CLEAN_2026_09_06.zip.sha256
+
+      - name: Upload single buyer package
+        uses: actions/upload-artifact@v4
+        with:
+          name: CK_NEXUS_BUYER_READY_CLEAN_2026_09_06
+          path: |
+            dist/CK_NEXUS_BUYER_READY_CLEAN_2026_09_06.zip
+            dist/CK_NEXUS_BUYER_READY_CLEAN_2026_09_06.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
