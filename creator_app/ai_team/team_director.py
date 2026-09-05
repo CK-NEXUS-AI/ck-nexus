@@ -203,7 +203,7 @@ class TeamDirector:
         """Admit a dynamic development AI only after the competency gate."""
         store = DevelopmentStatusStore(self._development_status_path)
         try:
-            assessment = store.get_competency(competency_agent_id)
+            store.require_write_authority(competency_agent_id)
         except KeyError as exc:
             store.record_agent_admission(
                 agent_id=competency_agent_id,
@@ -214,10 +214,7 @@ class TeamDirector:
             raise PermissionError(
                 "dynamic development agent has no competency assessment"
             ) from exc
-
-        if assessment.get("level") != "PRO_LEVEL" or not bool(
-            assessment.get("write_allowed")
-        ):
+        except PermissionError as exc:
             store.record_agent_admission(
                 agent_id=competency_agent_id,
                 team_key=name,
@@ -226,7 +223,7 @@ class TeamDirector:
             )
             raise PermissionError(
                 "dynamic development agent requires human-confirmed PRO_LEVEL"
-            )
+            ) from exc
 
         self.agents[name] = agent
         store.record_agent_admission(
