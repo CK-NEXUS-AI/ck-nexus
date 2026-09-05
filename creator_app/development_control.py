@@ -136,6 +136,13 @@ def evaluate_competency(
     human_confirmed: bool = False,
 ) -> CompetencyAssessment:
     """Evaluate one AI against the owner-defined CK-NEXUS competency gate."""
+    normalized_agent_id = agent_id.strip()
+    normalized_display_name = display_name.strip()
+    if not normalized_agent_id:
+        raise ValueError("agent_id must not be empty")
+    if not normalized_display_name:
+        raise ValueError("display_name must not be empty")
+
     required_ids = tuple(
         criterion
         for level in ("level_1", "level_2", "level_3", "level_4")
@@ -186,8 +193,8 @@ def evaluate_competency(
 
     gaps = tuple(criterion for criterion in required_ids if not answers[criterion])
     return CompetencyAssessment(
-        agent_id=agent_id.strip(),
-        display_name=display_name.strip(),
+        agent_id=normalized_agent_id,
+        display_name=normalized_display_name,
         score=score,
         level=level,
         level_1_pass=level_1_pass,
@@ -456,6 +463,16 @@ class DevelopmentStatusStore:
                 },
             )
         return payload
+
+    def require_write_authority(self, agent_id: str) -> dict[str, Any]:
+        assessment = self.get_competency(agent_id)
+        if assessment.get("level") != CompetencyLevel.PRO_LEVEL.value:
+            raise PermissionError("PRO_LEVEL competency is required")
+        if not bool(assessment.get("write_allowed")):
+            raise PermissionError(
+                "human-confirmed development write authority is required"
+            )
+        return assessment
 
     def record_agent_admission(
         self,
