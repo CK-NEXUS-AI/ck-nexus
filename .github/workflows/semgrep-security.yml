@@ -1,0 +1,90 @@
+name: Semgrep Security Visibility
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Install pinned Semgrep
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv .semgrep-venv
+          .semgrep-venv/bin/python -m pip install --disable-pip-version-check "semgrep==1.175.0"
+
+      - name: Scan (visibility mode; non-blocking during initial adoption)
+        id: scan
+        shell: bash
+        run: |
+          set +e
+          .semgrep-venv/bin/semgrep scan --config auto --json . > semgrep.json 2> semgrep.stderr
+          rc=$?
+          set -e
+          echo "scanner_exit_code=$rc" >> "$GITHUB_OUTPUT"
+          python3 - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+
+          path = Path("semgrep.json")
+          if not path.exists() or not path.stat().st_size:
+              print("Semgrep produced no JSON result.")
+              raise SystemExit(0)
+          data = json.loads(path.read_text(encoding="utf-8"))
+          results = data.get("results", [])
+          counts = Counter(
+              str(item.get("extra", {}).get("severity", "UNKNOWN")).upper()
+              for item in results
+          )
+          print(f"Semgrep findings: {len(results)}")
+          for severity in sorted(counts):
+              print(f"{severity}: {counts[severity]}")
+          PY
+          # Initial visibility period: findings are recorded but do not fail CI.
+          exit 0
+
+      - name: Publish scan summary
+        if: always()
+        shell: bash
+        env:
+          SCANNER_EXIT_CODE: ${{ steps.scan.outputs.scanner_exit_code }}
+        run: |
+          {
+            echo "## Semgrep security visibility"
+            echo
+            echo "Scanner exit code: ${SCANNER_EXIT_CODE:-unknown}"
+            if [ -s semgrep.json ]; then
+              python3 - <<'PY'
+          import json
+          from collections import Counter
+          data = json.load(open("semgrep.json", encoding="utf-8"))
+          results = data.get("results", [])
+          counts = Counter(str(x.get("extra", {}).get("severity", "UNKNOWN")).upper() for x in results)
+          print(f"Findings: {len(results)}")
+          for severity in sorted(counts):
+              print(f"- {severity}: {counts[severity]}")
+          PY
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload raw Semgrep evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: semgrep-${{ github.sha }}
+          path: |
+            semgrep.json
+            semgrep.stderr
+          if-no-files-found: warn
+          retention-days: 30

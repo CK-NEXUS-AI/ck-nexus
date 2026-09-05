@@ -12,7 +12,7 @@ jobs:
   runtime_licenses:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
       - name: Build exact production image
@@ -109,7 +109,7 @@ jobs:
           PY
       - name: Upload runtime-license evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: q16-runtime-licenses-${{ github.sha }}
           path: |
