@@ -1,0 +1,23 @@
+name: Workflow Permissions Policy
+
+on:
+  push:
+    paths:
+      - ".github/workflows/**"
+      - ".github/scripts/check_workflow_permissions.py"
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - ".github/scripts/check_workflow_permissions.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  workflow-permissions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Enforce least-privilege workflow token policy
+        run: python3 .github/scripts/check_workflow_permissions.py
