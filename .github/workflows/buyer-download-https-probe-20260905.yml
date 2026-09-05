@@ -1,0 +1,27 @@
+name: Buyer Download HTTPS Probe 2026-09-05
+
+on:
+  push:
+    branches: [ops/buyer-download-probe-20260905]
+    paths: [.github/workflows/buyer-download-https-probe-20260905.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Probe acquire HTTPS endpoint
+        shell: bash
+        run: |
+          set -e
+          URL="https://ck-nexus-acquire.149-13-58-181.sslip.io/acquire/probe-20260905.txt"
+          code="$(curl -sS -o body.txt -w "%{http_code}" --max-time 20 "$URL")"
+          echo "http_code=$code"
+          echo "body_sha256=$(sha256sum body.txt | awk '{print $1}')"
+          test "$code" = "200"
+          grep -qx "ck-nexus-buyer-probe-20260905" body.txt
+          echo "RESULT=PASS"
