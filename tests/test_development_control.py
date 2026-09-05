@@ -177,7 +177,7 @@ def test_team_director_blocks_unassessed_dynamic_agent(tmp_path: Path) -> None:
     )
 
     with pytest.raises(PermissionError, match="no competency assessment"):
-        team.add_agent(
+        team.admit_agent(
             "candidate",
             candidate,
             competency_agent_id="candidate-ai",
@@ -217,7 +217,7 @@ def test_team_director_admits_human_confirmed_pro_agent(tmp_path: Path) -> None:
         role=AgentRole.RESEARCHER,
         expertise=("research",),
     )
-    team.add_agent(
+    team.admit_agent(
         "candidate",
         candidate,
         competency_agent_id="candidate-ai",
