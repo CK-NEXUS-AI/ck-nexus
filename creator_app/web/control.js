@@ -1,4 +1,4 @@
-const state = { manifest: null, status: null };
+const state = { manifest: null, status: null, development: null };
 const tokenInput = document.querySelector('#access-token');
 tokenInput.value = sessionStorage.getItem('cknexus_access_token') || '';
 
@@ -125,14 +125,59 @@ function renderStatus(snapshot) {
   );
 }
 
+
+function renderDevelopment(snapshot) {
+  state.development = snapshot;
+  const counts = snapshot.task_counts || {};
+  const competency = snapshot.competency || {};
+  const release = snapshot.release_authority || {};
+  const scores = snapshot.scores || {};
+  const grid = document.querySelector('#development-status-grid');
+  grid.replaceChildren(
+    statusCard('COMPLETED', counts.completed ?? 0, 'reviewed + merged only'),
+    statusCard('ACTIVE', counts.active ?? 0, 'running / measured / review required'),
+    statusCard('QUEUED', counts.queued ?? 0, 'received / planned / queued'),
+    statusCard('BLOCKED', counts.blocked ?? 0, 'reason required'),
+    statusCard(
+      'AI PRO-LEVEL',
+      competency.pro_level_write_enabled ?? 0,
+      `${competency.total ?? 0} assessed`
+    ),
+    statusCard(
+      'AI OBSERVER / PENDING',
+      competency.observer_or_pending ?? 0,
+      'read / comment only'
+    ),
+    statusCard('Q10', release.q10 || 'UNKNOWN', release.source || 'authority source'),
+    statusCard('Q11', release.q11 || 'UNKNOWN', 'production closure'),
+    statusCard('Q12', release.q12 || 'UNKNOWN', 'production closure'),
+    statusCard('PRODUCTION', release.production || 'UNKNOWN', 'authority effect: none'),
+    statusCard(
+      'OPENSSF',
+      scores.openssf_scorecard_current ?? 'UNKNOWN',
+      `target ${scores.openssf_scorecard_target ?? 'UNKNOWN'}`
+    )
+  );
+
+  const next = snapshot.next_task;
+  document.querySelector('#development-next').textContent = next
+    ? `NEXT TASK: ${next.task_id} / ${next.title} / ${next.state} / ${next.priority}`
+    : 'NEXT TASK: NONE';
+}
+
 async function refresh() {
   const button = document.querySelector('#refresh-all');
   button.disabled = true;
   button.textContent = 'REFRESHING';
   try {
-    const [manifest, snapshot] = await Promise.all([api('/api/control/manifest'), api('/api/control/status')]);
+    const [manifest, snapshot, development] = await Promise.all([
+      api('/api/control/manifest'),
+      api('/api/control/status'),
+      api('/api/control/development/live')
+    ]);
     renderManifest(manifest);
     renderStatus(snapshot);
+    renderDevelopment(development);
   } catch (error) {
     document.querySelector('#system-state').textContent = 'AUTH / API ERROR';
     document.querySelector('#system-state').className = 'bad';
@@ -154,6 +199,7 @@ document.querySelector('#save-token').addEventListener('click', () => {
   if (token) sessionStorage.setItem('cknexus_access_token', token);
   else sessionStorage.removeItem('cknexus_access_token');
   refresh();
+window.setInterval(refresh, 5000);
 });
 document.querySelector('#refresh-all').addEventListener('click', refresh);
 refresh();
