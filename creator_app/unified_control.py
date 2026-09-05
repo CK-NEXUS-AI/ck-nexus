@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 import hmac
+import os
+import sqlite3
 from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.responses import FileResponse
 from fastapi.routing import APIRoute
+
+from creator_app.development_control import (
+    COMPETENCY_CRITERIA,
+    DevelopmentState,
+    DevelopmentStatusStore,
+    evaluate_competency,
+)
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 
@@ -183,6 +192,12 @@ def _safe_call(func: Any, fallback: Any = None) -> Any:
 def install_unified_control(app: FastAPI) -> FastAPI:
     """Attach a compact control plane without duplicating or bypassing CK-NEXUS runtime policy."""
     settings = app.state.settings
+    development_store = DevelopmentStatusStore(
+        os.environ.get(
+            "CKNEXUS_DEVELOPMENT_STATUS_DB",
+            "~/.local/state/ck-nexus/development-status.sqlite3",
+        )
+    )
 
     async def require_control_token(
         authorization: str | None = Header(default=None),
@@ -229,6 +244,159 @@ def install_unified_control(app: FastAPI) -> FastAPI:
                 "source_of_truth": "FastAPI route discovery + module inventory",
             },
         }
+
+    @app.get(
+        "/api/control/development/live",
+        dependencies=[Depends(require_control_token)],
+    )
+    async def development_live_status() -> dict[str, Any]:
+        return development_store.snapshot()
+
+    @app.get(
+        "/api/control/development/history",
+        dependencies=[Depends(require_control_token)],
+    )
+    async def development_history(limit: int = 100) -> dict[str, Any]:
+        return {"events": development_store.history(limit=limit)}
+
+    @app.get(
+        "/api/control/development/competency/criteria",
+        dependencies=[Depends(require_control_token)],
+    )
+    async def development_competency_criteria() -> dict[str, Any]:
+        return {
+            "criteria": {
+                level: list(items)
+                for level, items in COMPETENCY_CRITERIA.items()
+            },
+            "pro_level_rule": {
+                "minimum_score": 85,
+                "level_1_all_required": True,
+                "level_2_all_required": True,
+                "level_3_all_required": True,
+                "level_4_minimum_ratio": 0.80,
+                "human_confirmation_required_for_write": True,
+            },
+            "authority_denials": [
+                "merge_main",
+                "deploy_production",
+                "change_q10_q11_q12",
+                "self_approve",
+            ],
+        }
+
+    @app.post(
+        "/api/control/development/tasks",
+        dependencies=[Depends(require_control_token)],
+    )
+    async def create_development_task(payload: dict[str, Any]) -> dict[str, Any]:
+        required = ("task_id", "title", "owner", "actor")
+        missing = [key for key in required if not str(payload.get(key, "")).strip()]
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": "MISSING_FIELDS", "fields": missing},
+            )
+        try:
+            return development_store.create_task(
+                task_id=str(payload["task_id"]),
+                title=str(payload["title"]),
+                owner=str(payload["owner"]),
+                priority=str(payload.get("priority", "P2")),
+                actor=str(payload["actor"]),
+                current_step=(
+                    str(payload["current_step"])
+                    if payload.get("current_step") is not None
+                    else None
+                ),
+            )
+        except (ValueError, sqlite3.IntegrityError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"error": type(exc).__name__, "message": str(exc)},
+            ) from exc
+
+    @app.post(
+        "/api/control/development/tasks/{task_id}/transition",
+        dependencies=[Depends(require_control_token)],
+    )
+    async def transition_development_task(
+        task_id: str,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        if not str(payload.get("actor", "")).strip():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": "ACTOR_REQUIRED"},
+            )
+        try:
+            return development_store.transition_task(
+                task_id=task_id,
+                to_state=DevelopmentState(str(payload.get("to_state", ""))),
+                actor=str(payload["actor"]),
+                progress=payload.get("progress"),
+                current_step=payload.get("current_step"),
+                eta=payload.get("eta"),
+                blocker=payload.get("blocker"),
+                commit_hash=payload.get("commit_hash"),
+                human_reviewed=bool(payload.get("human_reviewed", False)),
+                merged=bool(payload.get("merged", False)),
+            )
+        except KeyError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "TASK_NOT_FOUND", "task_id": task_id},
+            ) from exc
+        except PermissionError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"error": "COMPLETION_GATE_BLOCKED", "message": str(exc)},
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"error": "INVALID_TRANSITION", "message": str(exc)},
+            ) from exc
+
+    @app.post(
+        "/api/control/development/competency/evaluate",
+        dependencies=[Depends(require_control_token)],
+    )
+    async def evaluate_development_ai(payload: dict[str, Any]) -> dict[str, Any]:
+        answers = payload.get("answers")
+        if not isinstance(answers, dict):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": "ANSWERS_REQUIRED"},
+            )
+        human_confirmed = bool(payload.get("human_confirmed", False))
+        reviewer_type = str(payload.get("reviewer_type", "")).strip().lower()
+        if human_confirmed and reviewer_type != "human":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "HUMAN_CONFIRMATION_REQUIRED",
+                    "message": (
+                        "AI or automated evaluators cannot grant write authority."
+                    ),
+                },
+            )
+        try:
+            assessment = evaluate_competency(
+                agent_id=str(payload.get("agent_id", "")),
+                display_name=str(payload.get("display_name", "")),
+                answers={str(key): bool(value) for key, value in answers.items()},
+                human_confirmed=human_confirmed,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": "INVALID_ASSESSMENT", "message": str(exc)},
+            ) from exc
+        return development_store.save_competency(
+            assessment,
+            actor=str(payload.get("actor") or reviewer_type or "unknown"),
+        )
 
     @app.get("/api/control/status", dependencies=[Depends(require_control_token)])
     async def control_status() -> dict[str, Any]:
