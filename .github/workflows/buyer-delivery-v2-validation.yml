@@ -6,7 +6,7 @@ on:
       - release/buyer-delivery-v2-20260906
     paths:
       - scripts/package_buyer_delivery.py
-      - docs/buyer/BUYER_DELIVERY_V2_SPEC.md
+      - 'docs/buyer/**'
       - .github/workflows/buyer-delivery-v2-validation.yml
   pull_request:
     paths:
