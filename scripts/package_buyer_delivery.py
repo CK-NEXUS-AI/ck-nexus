@@ -14,6 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 DELIVERY_PREFIX = "CK-NEXUS-FULL-SOURCE-DELIVERY"
+THIRD_PARTY_NOTICES = "THIRD_PARTY_NOTICES.md"
 
 EXCLUDED_SUFFIXES = {
     ".db", ".sqlite", ".sqlite3", ".pem", ".key", ".p12", ".pfx", ".log",
@@ -91,9 +92,18 @@ def write_text(path: Path, content: str) -> None:
     path.write_text(content.rstrip() + "\n", encoding="utf-8")
 
 
+def validated_child(root: Path, path: Path) -> Path:
+    resolved_root = root.resolve()
+    resolved_path = path.resolve()
+    if not resolved_path.is_relative_to(resolved_root):
+        raise RuntimeError(f"Path escapes package root: {path}")
+    return resolved_path
+
+
 def scan_text_tree(root: Path) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
-    for path in sorted(root.rglob("*")):
+    for candidate in sorted(root.rglob("*")):
+        path = validated_child(root, candidate)
         if not path.is_file() or path.suffix.lower() not in TEXT_SUFFIXES:
             continue
         try:
@@ -120,6 +130,29 @@ def write_sha256(root: Path, output: Path) -> int:
         count += 1
     write_text(output, "\n".join(rows))
     return count
+
+
+def copy_classified_artifacts(root: Path) -> None:
+    for path in tracked_files():
+        p = path.as_posix().lower()
+        if not safe_tracked_file(path):
+            continue
+        src = ROOT / path
+        if not src.is_file():
+            continue
+        if (
+            "security" in p
+            or "audit" in p
+            or "evidence" in p
+            or p.startswith(("creator_app/privacy_firewall/", "creator_app/agnes/"))
+        ):
+            copy_if_exists(src, root / "03-SECURITY-AND-VERIFICATION" / path)
+        if p.startswith((".github/workflows/", "scripts/")):
+            copy_if_exists(src, root / "04-AUTOMATION-AND-OPS" / path)
+        if p.startswith(("creator_app/web/", "gateway/", "integrations/")):
+            copy_if_exists(src, root / "05-INTERFACES" / path)
+        if p.startswith("docs/") or p.endswith(".md"):
+            copy_if_exists(src, root / "06-DEVELOPER-DOCS" / path)
 
 
 def build_package(output_dir: Path, version: str) -> tuple[Path, str]:
@@ -165,7 +198,7 @@ No AI-generated document should be treated as signed legal advice.
             "INSTALL_GUIDE.md",
             "DELIVERY_MANIFEST.txt",
             "RELEASE_STATUS.md",
-            "THIRD_PARTY_NOTICES.md",
+            THIRD_PARTY_NOTICES,
             "CHANGELOG.md",
         ):
             copy_if_exists(ROOT / name, root / "01-SYSTEM-DOCS" / name)
@@ -175,31 +208,7 @@ No AI-generated document should be treated as signed legal advice.
             root / "01-SYSTEM-DOCS" / "RELEASE_CHECKLIST.md",
         )
 
-        for path in tracked_files():
-            p = path.as_posix().lower()
-            if not safe_tracked_file(path):
-                continue
-            src = ROOT / path
-            if not src.is_file():
-                continue
-            if (
-                "security" in p
-                or "audit" in p
-                or "evidence" in p
-                or p.startswith("creator_app/privacy_firewall/")
-                or p.startswith("creator_app/agnes/")
-            ):
-                copy_if_exists(src, root / "03-SECURITY-AND-VERIFICATION" / path)
-            if p.startswith(".github/workflows/") or p.startswith("scripts/"):
-                copy_if_exists(src, root / "04-AUTOMATION-AND-OPS" / path)
-            if (
-                p.startswith("creator_app/web/")
-                or p.startswith("gateway/")
-                or p.startswith("integrations/")
-            ):
-                copy_if_exists(src, root / "05-INTERFACES" / path)
-            if p.startswith("docs/") or p.endswith(".md"):
-                copy_if_exists(src, root / "06-DEVELOPER-DOCS" / path)
+        copy_classified_artifacts(root)
 
         for name in (
             "Dockerfile",
@@ -216,8 +225,8 @@ No AI-generated document should be treated as signed legal advice.
             copy_if_exists(ROOT / name, root / "07-INSTALL-AND-CONFIG" / name)
 
         copy_if_exists(
-            ROOT / "THIRD_PARTY_NOTICES.md",
-            root / "09-ASSETS-AND-LICENSES" / "THIRD_PARTY_NOTICES.md",
+            ROOT / THIRD_PARTY_NOTICES,
+            root / "09-ASSETS-AND-LICENSES" / THIRD_PARTY_NOTICES,
         )
 
         commit_history = run("git", "log", "--oneline", "--decorate", "-n", "500")
