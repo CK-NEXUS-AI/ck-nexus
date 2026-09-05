@@ -1,0 +1,138 @@
+name: Buyer Delivery V2 Validation
+
+on:
+  push:
+    branches:
+      - release/buyer-delivery-v2-20260906
+    paths:
+      - scripts/package_buyer_delivery.py
+      - docs/buyer/BUYER_DELIVERY_V2_SPEC.md
+      - .github/workflows/buyer-delivery-v2-validation.yml
+  pull_request:
+    paths:
+      - scripts/package_buyer_delivery.py
+      - docs/buyer/BUYER_DELIVERY_V2_SPEC.md
+      - .github/workflows/buyer-delivery-v2-validation.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+
+      - name: Compile buyer packager
+        run: python -m py_compile scripts/package_buyer_delivery.py
+
+      - name: Current-tree secret scan
+        run: python scripts/secret_scan.py
+
+      - name: Build buyer delivery ZIP
+        run: |
+          rm -rf dist/buyer-delivery
+          python scripts/package_buyer_delivery.py \
+            --version v0.2.0-buyer-candidate \
+            --output-directory dist/buyer-delivery
+
+      - name: Validate archive and exclusions
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP=$(find dist/buyer-delivery -maxdepth 1 -name '*.zip' -print -quit)
+          SIDECAR="$ZIP.sha256"
+          test -n "$ZIP"
+          test -f "$SIDECAR"
+          unzip -t "$ZIP"
+          (
+            cd "$(dirname "$ZIP")"
+            sha256sum -c "$(basename "$SIDECAR")"
+          )
+          rm -rf /tmp/cknexus-buyer-delivery
+          mkdir -p /tmp/cknexus-buyer-delivery
+          unzip -q "$ZIP" -d /tmp/cknexus-buyer-delivery
+
+          ROOT=$(find /tmp/cknexus-buyer-delivery -mindepth 1 -maxdepth 1 -type d -print -quit)
+          test -n "$ROOT"
+          test -f "$ROOT/SHA256-CHECKSUM-ALL-FILES.txt"
+          test -f "$ROOT/DELIVERY_MANIFEST.json"
+          test -f "$ROOT/README-READ-FIRST.md"
+
+          (
+            cd "$ROOT"
+            sha256sum -c SHA256-CHECKSUM-ALL-FILES.txt
+          )
+
+          python - "$ROOT" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          forbidden_names = {
+              ".env",
+              ".env.local",
+              ".env.production",
+              ".env.development",
+              "id_rsa",
+              "id_ed25519",
+              "credentials.json",
+              "client_secret.json",
+          }
+          forbidden_suffixes = {
+              ".db",
+              ".sqlite",
+              ".sqlite3",
+              ".pem",
+              ".key",
+              ".p12",
+              ".pfx",
+              ".log",
+          }
+
+          bad = []
+          for path in root.rglob("*"):
+              if not path.is_file():
+                  continue
+              if path.name in forbidden_names:
+                  bad.append(str(path.relative_to(root)))
+              if path.suffix.lower() in forbidden_suffixes:
+                  bad.append(str(path.relative_to(root)))
+
+          if bad:
+              raise SystemExit("forbidden files in buyer ZIP: " + "; ".join(bad))
+
+          manifest = json.loads(
+              (root / "DELIVERY_MANIFEST.json").read_text(encoding="utf-8")
+          )
+          assert manifest["q10"] == "NOT_VERIFIED"
+          assert manifest["q11"] == "BLOCKED"
+          assert manifest["q12"] == "BLOCKED"
+          assert manifest["production"] == "NO-GO / NOT CERTIFIED"
+          assert manifest["secret_scan"] == "PASS"
+          assert manifest["git_bundle_included"] is False
+          assert manifest["credentials_included"] is False
+          print("buyer_delivery_validation=PASS")
+          PY
+
+      - name: Upload buyer delivery candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ck-nexus-buyer-delivery-v2
+          path: |
+            dist/buyer-delivery/*.zip
+            dist/buyer-delivery/*.sha256
+          if-no-files-found: error
+          retention-days: 30
