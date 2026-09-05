@@ -218,6 +218,44 @@ def install_unified_control(app: FastAPI) -> FastAPI:
                 detail={"error": "HUMAN_APPROVAL_REQUIRED"},
             )
 
+    def authorize_development_mutation(
+        payload: dict[str, Any],
+        supplied_human_approval: str | None,
+    ) -> None:
+        actor_type = str(payload.get("actor_type", "")).strip().lower()
+        if actor_type == "ai":
+            competency_agent_id = str(
+                payload.get("competency_agent_id", "")
+            ).strip()
+            if not competency_agent_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={"error": "COMPETENCY_AGENT_ID_REQUIRED"},
+                )
+            try:
+                development_store.require_write_authority(competency_agent_id)
+            except (KeyError, PermissionError) as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "error": "AI_COMPETENCY_WRITE_GATE_BLOCKED",
+                        "message": str(exc),
+                    },
+                ) from exc
+            return
+
+        if actor_type == "human":
+            require_human_approval_token(supplied_human_approval)
+            return
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "DEVELOPMENT_ACTOR_TYPE_REQUIRED",
+                "allowed": ["ai", "human"],
+            },
+        )
+
     async def require_control_token(
         authorization: str | None = Header(default=None),
     ) -> None:
@@ -310,7 +348,10 @@ def install_unified_control(app: FastAPI) -> FastAPI:
         "/api/control/development/tasks",
         dependencies=[Depends(require_control_token)],
     )
-    async def create_development_task(payload: dict[str, Any]) -> dict[str, Any]:
+    async def create_development_task(
+        payload: dict[str, Any],
+        x_cknexus_human_approval: str | None = Header(default=None),
+    ) -> dict[str, Any]:
         required = ("task_id", "title", "owner", "actor")
         missing = [key for key in required if not str(payload.get(key, "")).strip()]
         if missing:
@@ -318,6 +359,7 @@ def install_unified_control(app: FastAPI) -> FastAPI:
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={"error": "MISSING_FIELDS", "fields": missing},
             )
+        authorize_development_mutation(payload, x_cknexus_human_approval)
         try:
             return development_store.create_task(
                 task_id=str(payload["task_id"]),
@@ -351,9 +393,15 @@ def install_unified_control(app: FastAPI) -> FastAPI:
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={"error": "ACTOR_REQUIRED"},
             )
+        authorize_development_mutation(payload, x_cknexus_human_approval)
         try:
             target_state = DevelopmentState(str(payload.get("to_state", "")))
             if target_state is DevelopmentState.COMPLETED:
+                if str(payload.get("actor_type", "")).strip().lower() != "human":
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail={"error": "HUMAN_COMPLETION_REQUIRED"},
+                    )
                 require_human_approval_token(x_cknexus_human_approval)
             return development_store.transition_task(
                 task_id=task_id,
@@ -397,7 +445,26 @@ def install_unified_control(app: FastAPI) -> FastAPI:
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={"error": "ANSWERS_REQUIRED"},
             )
-        human_confirmed = bool(payload.get("human_confirmed", False))
+        invalid_boolean_fields = [
+            str(key)
+            for key, value in answers.items()
+            if not isinstance(value, bool)
+        ]
+        if invalid_boolean_fields:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "error": "BOOLEAN_ANSWERS_REQUIRED",
+                    "fields": invalid_boolean_fields,
+                },
+            )
+        human_confirmed_value = payload.get("human_confirmed", False)
+        if not isinstance(human_confirmed_value, bool):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": "HUMAN_CONFIRMED_MUST_BE_BOOLEAN"},
+            )
+        human_confirmed = human_confirmed_value
         reviewer_type = str(payload.get("reviewer_type", "")).strip().lower()
         if human_confirmed:
             if reviewer_type != "human":
@@ -415,7 +482,7 @@ def install_unified_control(app: FastAPI) -> FastAPI:
             assessment = evaluate_competency(
                 agent_id=str(payload.get("agent_id", "")),
                 display_name=str(payload.get("display_name", "")),
-                answers={str(key): bool(value) for key, value in answers.items()},
+                answers={str(key): value for key, value in answers.items()},
                 human_confirmed=human_confirmed,
             )
         except ValueError as exc:
