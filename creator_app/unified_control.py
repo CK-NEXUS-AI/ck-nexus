@@ -198,6 +198,25 @@ def install_unified_control(app: FastAPI) -> FastAPI:
             "~/.local/state/ck-nexus/development-status.sqlite3",
         )
     )
+    human_approval_token = os.environ.get("CKNEXUS_HUMAN_APPROVAL_TOKEN", "").strip()
+
+    def require_human_approval_token(supplied: str | None) -> None:
+        if not human_approval_token:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "HUMAN_APPROVAL_GATE_NOT_CONFIGURED",
+                    "message": (
+                        "Human approval authority is fail-closed until a separate "
+                        "approval token is configured."
+                    ),
+                },
+            )
+        if not supplied or not hmac.compare_digest(supplied, human_approval_token):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"error": "HUMAN_APPROVAL_REQUIRED"},
+            )
 
     async def require_control_token(
         authorization: str | None = Header(default=None),
@@ -276,6 +295,8 @@ def install_unified_control(app: FastAPI) -> FastAPI:
                 "level_3_all_required": True,
                 "level_4_minimum_ratio": 0.80,
                 "human_confirmation_required_for_write": True,
+                "separate_human_approval_token_required": True,
+                "human_approval_gate_configured": bool(human_approval_token),
             },
             "authority_denials": [
                 "merge_main",
@@ -323,6 +344,7 @@ def install_unified_control(app: FastAPI) -> FastAPI:
     async def transition_development_task(
         task_id: str,
         payload: dict[str, Any],
+        x_cknexus_human_approval: str | None = Header(default=None),
     ) -> dict[str, Any]:
         if not str(payload.get("actor", "")).strip():
             raise HTTPException(
@@ -330,9 +352,12 @@ def install_unified_control(app: FastAPI) -> FastAPI:
                 detail={"error": "ACTOR_REQUIRED"},
             )
         try:
+            target_state = DevelopmentState(str(payload.get("to_state", "")))
+            if target_state is DevelopmentState.COMPLETED:
+                require_human_approval_token(x_cknexus_human_approval)
             return development_store.transition_task(
                 task_id=task_id,
-                to_state=DevelopmentState(str(payload.get("to_state", ""))),
+                to_state=target_state,
                 actor=str(payload["actor"]),
                 progress=payload.get("progress"),
                 current_step=payload.get("current_step"),
@@ -362,7 +387,10 @@ def install_unified_control(app: FastAPI) -> FastAPI:
         "/api/control/development/competency/evaluate",
         dependencies=[Depends(require_control_token)],
     )
-    async def evaluate_development_ai(payload: dict[str, Any]) -> dict[str, Any]:
+    async def evaluate_development_ai(
+        payload: dict[str, Any],
+        x_cknexus_human_approval: str | None = Header(default=None),
+    ) -> dict[str, Any]:
         answers = payload.get("answers")
         if not isinstance(answers, dict):
             raise HTTPException(
@@ -371,16 +399,18 @@ def install_unified_control(app: FastAPI) -> FastAPI:
             )
         human_confirmed = bool(payload.get("human_confirmed", False))
         reviewer_type = str(payload.get("reviewer_type", "")).strip().lower()
-        if human_confirmed and reviewer_type != "human":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={
-                    "error": "HUMAN_CONFIRMATION_REQUIRED",
-                    "message": (
-                        "AI or automated evaluators cannot grant write authority."
-                    ),
-                },
-            )
+        if human_confirmed:
+            if reviewer_type != "human":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "error": "HUMAN_CONFIRMATION_REQUIRED",
+                        "message": (
+                            "AI or automated evaluators cannot grant write authority."
+                        ),
+                    },
+                )
+            require_human_approval_token(x_cknexus_human_approval)
         try:
             assessment = evaluate_competency(
                 agent_id=str(payload.get("agent_id", "")),
