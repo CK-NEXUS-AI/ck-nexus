@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from typing import Any
 
@@ -31,6 +32,7 @@ from creator_app.ai_team.agents import (
     ResearcherAgent,
 )
 from creator_app.ai_team.shared_knowledge import SharedKnowledge
+from creator_app.development_control import DevelopmentStatusStore
 
 
 class TeamDirector:
@@ -42,7 +44,11 @@ class TeamDirector:
         print(result.final_output)
     """
 
-    def __init__(self, knowledge_path: str | None = None) -> None:
+    def __init__(
+        self,
+        knowledge_path: str | None = None,
+        development_status_path: str | None = None,
+    ) -> None:
         self.director = DirectorAgent()
         self.agents: dict[str, Agent] = {
             "engineer": EngineerAgent(),
@@ -53,6 +59,10 @@ class TeamDirector:
             "connector": ConnectorAgent(),
         }
         self.knowledge = SharedKnowledge(persistence_path=knowledge_path)
+        self._development_status_path = development_status_path or os.environ.get(
+            "CKNEXUS_DEVELOPMENT_STATUS_DB",
+            "~/.local/state/ck-nexus/development-status.sqlite3",
+        )
         self._request_history: list[TeamResult] = []
 
     def process_request(
@@ -183,8 +193,51 @@ class TeamDirector:
             "agents": agent_statuses,
         }
 
-    def add_agent(self, name: str, agent: Agent) -> None:
+    def add_agent(
+        self,
+        name: str,
+        agent: Agent,
+        *,
+        competency_agent_id: str | None = None,
+    ) -> None:
+        if not competency_agent_id:
+            raise PermissionError(
+                "dynamic development agents require a competency assessment ID"
+            )
+        store = DevelopmentStatusStore(self._development_status_path)
+        try:
+            assessment = store.get_competency(competency_agent_id)
+        except KeyError as exc:
+            store.record_agent_admission(
+                agent_id=competency_agent_id,
+                team_key=name,
+                admitted=False,
+                reason="competency_assessment_missing",
+            )
+            raise PermissionError(
+                "dynamic development agent has no competency assessment"
+            ) from exc
+
+        if assessment.get("level") != "PRO_LEVEL" or not bool(
+            assessment.get("write_allowed")
+        ):
+            store.record_agent_admission(
+                agent_id=competency_agent_id,
+                team_key=name,
+                admitted=False,
+                reason="pro_level_write_authority_required",
+            )
+            raise PermissionError(
+                "dynamic development agent requires human-confirmed PRO_LEVEL"
+            )
+
         self.agents[name] = agent
+        store.record_agent_admission(
+            agent_id=competency_agent_id,
+            team_key=name,
+            admitted=True,
+            reason="human_confirmed_pro_level",
+        )
 
     def remove_agent(self, name: str) -> bool:
         if name in self.agents:
