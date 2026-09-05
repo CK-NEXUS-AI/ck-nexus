@@ -24,7 +24,6 @@ def _value(value: object) -> str:
 
 
 def print_text(snapshot: dict[str, object]) -> None:
-    counts = snapshot["task_counts"]
     competency = snapshot["competency"]
     release = snapshot["release_authority"]
     scores = snapshot["scores"]
