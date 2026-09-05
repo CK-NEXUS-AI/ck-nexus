@@ -156,3 +156,73 @@ def test_snapshot_never_guesses_scores_or_progress(tmp_path: Path) -> None:
     assert snapshot["queued"][0]["eta"] is None
     assert snapshot["scores"]["openssf_scorecard_current"] is None
     assert snapshot["scores"]["unknown_values_are_never_guessed"] is True
+
+
+def test_team_director_blocks_unassessed_dynamic_agent(tmp_path: Path) -> None:
+    from creator_app.ai_team.agent import Agent
+    from creator_app.ai_team.agent_models import AgentRole
+    from creator_app.ai_team.team_director import TeamDirector
+
+    class CandidateAgent(Agent):
+        def process(self, request, context=None):
+            raise AssertionError("candidate must not execute before admission")
+
+    team = TeamDirector(
+        development_status_path=str(tmp_path / "dev-status.sqlite3")
+    )
+    candidate = CandidateAgent(
+        name="Candidate",
+        role=AgentRole.RESEARCHER,
+        expertise=("research",),
+    )
+
+    with pytest.raises(PermissionError, match="no competency assessment"):
+        team.add_agent(
+            "candidate",
+            candidate,
+            competency_agent_id="candidate-ai",
+        )
+
+
+def test_team_director_admits_human_confirmed_pro_agent(tmp_path: Path) -> None:
+    from creator_app.ai_team.agent import Agent
+    from creator_app.ai_team.agent_models import AgentRole, TaskStatus
+    from creator_app.ai_team.team_director import TeamDirector
+
+    class CandidateAgent(Agent):
+        def process(self, request, context=None):
+            from creator_app.ai_team.agent_models import TaskResult
+
+            return TaskResult(
+                task_id="candidate-task",
+                agent_name=self.name,
+                agent_role=self.role.value,
+                status=TaskStatus.COMPLETED,
+                output="ok",
+            )
+
+    status_path = tmp_path / "dev-status.sqlite3"
+    store = DevelopmentStatusStore(status_path)
+    assessment = evaluate_competency(
+        agent_id="candidate-ai",
+        display_name="Candidate",
+        answers=_all_answers(),
+        human_confirmed=True,
+    )
+    store.save_competency(assessment, actor="human-reviewer")
+
+    team = TeamDirector(development_status_path=str(status_path))
+    candidate = CandidateAgent(
+        name="Candidate",
+        role=AgentRole.RESEARCHER,
+        expertise=("research",),
+    )
+    team.add_agent(
+        "candidate",
+        candidate,
+        competency_agent_id="candidate-ai",
+    )
+
+    assert "candidate" in team.agents
+    events = store.history(10)
+    assert any(event["event_type"] == "AGENT_ADMITTED" for event in events)
