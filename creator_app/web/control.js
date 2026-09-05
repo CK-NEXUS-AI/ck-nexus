@@ -199,7 +199,7 @@ document.querySelector('#save-token').addEventListener('click', () => {
   if (token) sessionStorage.setItem('cknexus_access_token', token);
   else sessionStorage.removeItem('cknexus_access_token');
   refresh();
-window.setInterval(refresh, 5000);
 });
 document.querySelector('#refresh-all').addEventListener('click', refresh);
 refresh();
+window.setInterval(refresh, 5000);
