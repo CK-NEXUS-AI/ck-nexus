@@ -226,3 +226,44 @@ def test_team_director_admits_human_confirmed_pro_agent(tmp_path: Path) -> None:
     assert "candidate" in team.agents
     events = store.history(10)
     assert any(event["event_type"] == "AGENT_ADMITTED" for event in events)
+
+
+def test_empty_agent_identity_fails_closed() -> None:
+    with pytest.raises(ValueError, match="agent_id must not be empty"):
+        evaluate_competency(
+            agent_id=" ",
+            display_name="Candidate",
+            answers=_all_answers(),
+        )
+
+    with pytest.raises(ValueError, match="display_name must not be empty"):
+        evaluate_competency(
+            agent_id="candidate-ai",
+            display_name=" ",
+            answers=_all_answers(),
+        )
+
+
+def test_write_authority_requires_human_confirmed_pro(tmp_path: Path) -> None:
+    store = DevelopmentStatusStore(tmp_path / "dev-status.sqlite3")
+    assessment = evaluate_competency(
+        agent_id="candidate-ai",
+        display_name="Candidate",
+        answers=_all_answers(),
+        human_confirmed=False,
+    )
+    store.save_competency(assessment, actor="automated-assessment")
+
+    with pytest.raises(PermissionError, match="human-confirmed"):
+        store.require_write_authority("candidate-ai")
+
+    confirmed = evaluate_competency(
+        agent_id="candidate-ai",
+        display_name="Candidate",
+        answers=_all_answers(),
+        human_confirmed=True,
+    )
+    store.save_competency(confirmed, actor="human-reviewer")
+    granted = store.require_write_authority("candidate-ai")
+    assert granted["level"] == "PRO_LEVEL"
+    assert granted["write_allowed"] is True
