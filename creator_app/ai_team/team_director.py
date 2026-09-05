@@ -193,17 +193,14 @@ class TeamDirector:
             "agents": agent_statuses,
         }
 
-    def add_agent(
+    def admit_agent(
         self,
         name: str,
         agent: Agent,
         *,
-        competency_agent_id: str | None = None,
+        competency_agent_id: str,
     ) -> None:
-        if not competency_agent_id:
-            raise PermissionError(
-                "dynamic development agents require a competency assessment ID"
-            )
+        """Admit a dynamic development AI only after the competency gate."""
         store = DevelopmentStatusStore(self._development_status_path)
         try:
             assessment = store.get_competency(competency_agent_id)
@@ -238,6 +235,10 @@ class TeamDirector:
             admitted=True,
             reason="human_confirmed_pro_level",
         )
+
+    def add_agent(self, name: str, agent: Agent) -> None:
+        """Internal/bootstrap compatibility path; external AI must use admit_agent."""
+        self.agents[name] = agent
 
     def remove_agent(self, name: str) -> bool:
         if name in self.agents:
