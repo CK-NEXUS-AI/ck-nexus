@@ -394,6 +394,15 @@ def install_unified_control(app: FastAPI) -> FastAPI:
                 detail={"error": "ACTOR_REQUIRED"},
             )
         authorize_development_mutation(payload, x_cknexus_human_approval)
+        for field_name in ("human_reviewed", "merged"):
+            if field_name in payload and not isinstance(payload[field_name], bool):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={
+                        "error": "BOOLEAN_FIELD_REQUIRED",
+                        "field": field_name,
+                    },
+                )
         try:
             target_state = DevelopmentState(str(payload.get("to_state", "")))
             if target_state is DevelopmentState.COMPLETED:
@@ -412,8 +421,8 @@ def install_unified_control(app: FastAPI) -> FastAPI:
                 eta=payload.get("eta"),
                 blocker=payload.get("blocker"),
                 commit_hash=payload.get("commit_hash"),
-                human_reviewed=bool(payload.get("human_reviewed", False)),
-                merged=bool(payload.get("merged", False)),
+                human_reviewed=payload.get("human_reviewed", False),
+                merged=payload.get("merged", False),
             )
         except KeyError as exc:
             raise HTTPException(
