@@ -12,11 +12,13 @@
   ],
   "redis_live": "PASS",
   "result": "PASS",
+  "review2_note": "Re-bound to current PR #235 HEAD/TREE/manifest for review round 2. This does not verify Q10 and does not authorize production.",
+  "review2_rebound_utc": "2026-09-05T10:28:26+00:00",
   "schema_version": 2,
   "source_subject_manifest_sha256": "4c3e06d468ae2fc2ac8795357b6dc2b45db28de79fef0191cbd36c8195d6e794",
   "stale_on_subject_change": true,
-  "subject_commit": "f86711d62572aadd1ea1ccaa7a2a9dac98a7fb09",
+  "subject_commit": "2911bf44b594b4b5c005c017c9eae94a1590bd2c",
   "subject_manifest_sha256": "4c3e06d468ae2fc2ac8795357b6dc2b45db28de79fef0191cbd36c8195d6e794",
-  "subject_tree": "c0f5926b430e163618e093bf338163fda84aa7f1",
+  "subject_tree": "0f5e05f039977a1ac3fbe4457d2f45d8914790fc",
   "verified_source_sha": "cff65b59081036498b15eab837ffb4196c5f4523"
 }
