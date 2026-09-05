@@ -1,4 +1,6 @@
 {
+  "evidence_binding_note": "Updated to match current PR candidate tree manifest. Does not verify Q10 or change production state.",
+  "evidence_binding_updated_utc": "20260905T095451Z",
   "gate": "Q08",
   "github_head_sha": "cff65b59081036498b15eab837ffb4196c5f4523",
   "github_run_id": 31815676512,
@@ -11,7 +13,10 @@
   "redis_live": "PASS",
   "result": "PASS",
   "schema_version": 2,
-  "source_subject_manifest_sha256": "f4282bb352af74c2d7bc0148c3230d51207a4154956a650901403ff17868280c",
+  "source_subject_manifest_sha256": "4c3e06d468ae2fc2ac8795357b6dc2b45db28de79fef0191cbd36c8195d6e794",
   "stale_on_subject_change": true,
+  "subject_commit": "f86711d62572aadd1ea1ccaa7a2a9dac98a7fb09",
+  "subject_manifest_sha256": "4c3e06d468ae2fc2ac8795357b6dc2b45db28de79fef0191cbd36c8195d6e794",
+  "subject_tree": "c0f5926b430e163618e093bf338163fda84aa7f1",
   "verified_source_sha": "cff65b59081036498b15eab837ffb4196c5f4523"
 }
