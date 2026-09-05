@@ -158,3 +158,30 @@ Equality of competency requirements does not mean an AI can become:
 - Production release authority
 
 Latest exact evidence wins.
+
+
+## Mutation authority
+
+Reading live status uses the existing Unified Control access-token boundary.
+
+Development mutation requires an explicit actor type:
+
+- `actor_type=ai`: requires `competency_agent_id` whose stored assessment is
+  human-confirmed `PRO_LEVEL` with development write authority.
+- `actor_type=human`: requires the separate
+  `CKNEXUS_HUMAN_APPROVAL_TOKEN` boundary.
+
+The human-approval token is separate from the ordinary control token. If it is
+not configured, human approval actions fail closed.
+
+Only a HUMAN actor using the separate approval boundary may record a transition
+to `COMPLETED`. `human_reviewed` and `merged` must both be literal boolean
+true values.
+
+Dynamic external AI admission uses `TeamDirector.admit_agent()`, which checks
+the same competency SSOT and appends the admission decision to the event
+ledger. `TeamDirector.add_agent()` remains an internal/bootstrap compatibility
+path and must not be exposed as an external admission API.
+
+No credential or token value belongs in Git, status output, event history, or
+evidence.
