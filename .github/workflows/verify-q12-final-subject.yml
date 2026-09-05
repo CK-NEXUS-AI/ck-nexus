@@ -52,8 +52,25 @@ jobs:
           for controller in cpu memory pids; do
             grep -qw "$controller" "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.controllers"
           done
+
+          # Domain controllers can only be enabled for child cgroups when the
+          # delegated root itself has no internal processes. Configure the
+          # runner service with DelegateSubgroup=runner (systemd 255+) so the
+          # runner process lives in a child subgroup and this root stays empty.
+          root_procs="$(cat "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.procs")"
+          if [ -n "$root_procs" ]; then
+            echo "delegated root contains internal processes; use DelegateSubgroup=runner" >&2
+            exit 1
+          fi
+
+          printf '+cpu +memory +pids\n' > "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.subtree_control"
+          for controller in cpu memory pids; do
+            grep -qw "$controller" "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.subtree_control"
+          done
+
           printf '%s\n' "$CKNEXUS_AGNES_CGROUP_ROOT" > q12-delegated-root.txt
           cat "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.controllers" > q12-controllers.txt
+          cat "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.subtree_control" > q12-subtree-control.txt
           printf '%s\n' "$(id -un)" > q12-runner-user.txt
       - name: Run exact Q12 kernel enforcement as non-root
         id: gate
@@ -93,6 +110,7 @@ jobs:
             'runner_user':open('q12-runner-user.txt',encoding='utf-8').read().strip(),
             'delegated_root':os.environ['CKNEXUS_AGNES_CGROUP_ROOT'],
             'controllers':open('q12-controllers.txt',encoding='utf-8').read().split(),
+            'subtree_control':open('q12-subtree-control.txt',encoding='utf-8').read().split(),
             'delegation_ready':True,'gate_exit_code':gate_rc,'raw':raw,
             'actual_kernel_enforcement':passed,'result':'PASS' if passed else 'FAIL',
             'production_promotion_allowed':passed,'diagnostic':diagnostic[:2000],
@@ -111,6 +129,7 @@ jobs:
             Q12_CGROUP_RAW.json
             q12-delegated-root.txt
             q12-controllers.txt
+            q12-subtree-control.txt
             q12-runner-user.txt
             q12-gate-error.txt
           if-no-files-found: error
