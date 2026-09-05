@@ -457,6 +457,30 @@ class DevelopmentStatusStore:
             )
         return payload
 
+    def record_agent_admission(
+        self,
+        *,
+        agent_id: str,
+        team_key: str,
+        admitted: bool,
+        reason: str,
+        actor: str = "team_director",
+    ) -> None:
+        with self._lock, self._connect() as db:
+            self._record_event(
+                db,
+                event_type=(
+                    "AGENT_ADMITTED" if admitted else "AGENT_ADMISSION_DENIED"
+                ),
+                actor=actor,
+                payload={
+                    "agent_id": agent_id,
+                    "team_key": team_key,
+                    "admitted": admitted,
+                    "reason": reason,
+                },
+            )
+
     def get_competency(self, agent_id: str) -> dict[str, Any]:
         with self._connect() as db:
             row = db.execute(
