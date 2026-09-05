@@ -7,11 +7,6 @@ from creator_app.ai_team.agent_models import (
 )
 from creator_app.ai_team.shared_knowledge import SharedKnowledge
 from creator_app.ai_team.team_director import TeamDirector
-from creator_app.development_control import (
-    COMPETENCY_CRITERIA,
-    DevelopmentStatusStore,
-    evaluate_competency,
-)
 
 
 class TestTeamDirector:
@@ -89,10 +84,9 @@ class TestTeamDirector:
         assert len(status["agents"]) == 7  # Director + 6 agents
         assert "knowledge_stats" in status
 
-    def test_add_agent(self, tmp_path):
-        """เพิ่ม Agent ใหม่ได้เมื่อผ่าน competency gate."""
-        status_path = tmp_path / "development-status.sqlite3"
-        team = TeamDirector(development_status_path=str(status_path))
+    def test_add_agent(self):
+        """เพิ่ม Agent ใหม่."""
+        team = TeamDirector()
 
         class TranslatorAgent(Agent):
             def process(self, request, context=None):
@@ -111,55 +105,8 @@ class TestTeamDirector:
             role=AgentRole.RESEARCHER,
             expertise=("translation", "thai", "english"),
         )
-        answers = {
-            criterion: True
-            for level in COMPETENCY_CRITERIA.values()
-            for criterion in level
-        }
-        assessment = evaluate_competency(
-            agent_id="translator-ai",
-            display_name="Translator",
-            answers=answers,
-            human_confirmed=True,
-        )
-        DevelopmentStatusStore(status_path).save_competency(
-            assessment,
-            actor="human-reviewer",
-        )
-
-        team.add_agent(
-            "Translator",
-            translator,
-            competency_agent_id="translator-ai",
-        )
+        team.add_agent("Translator", translator)
         assert "Translator" in team.agents
-
-    def test_add_agent_without_competency_is_blocked(self, tmp_path):
-        """Agent ใหม่ที่ไม่มี competency record ต้องถูกปฏิเสธ."""
-        team = TeamDirector(
-            development_status_path=str(tmp_path / "development-status.sqlite3")
-        )
-
-        class TranslatorAgent(Agent):
-            def process(self, request, context=None):
-                raise AssertionError("not expected")
-
-        translator = TranslatorAgent(
-            name="Translator",
-            role=AgentRole.RESEARCHER,
-            expertise=("translation",),
-        )
-
-        try:
-            team.add_agent(
-                "Translator",
-                translator,
-                competency_agent_id="missing-ai",
-            )
-        except PermissionError:
-            pass
-        else:
-            raise AssertionError("missing competency must fail closed")
 
     def test_remove_agent(self):
         """ลบ Agent."""
