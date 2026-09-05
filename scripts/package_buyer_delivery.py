@@ -60,9 +60,9 @@ def safe_tracked_file(rel: Path) -> bool:
         return False
     if any(part in EXCLUDED_PARTS for part in rel.parts):
         return False
-    if rel.name.startswith(".env") and rel.name != ".env.example":
-        return False
-    return True
+    return not (
+        rel.name.startswith(".env") and rel.name != ".env.example"
+    )
 
 
 def copy_tracked_source(destination: Path) -> list[str]:
