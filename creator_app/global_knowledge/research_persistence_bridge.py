@@ -1,3 +1,5 @@
+[Reading 221 lines from start (total: 221 lines, 0 remaining)]
+
 """Bridge research intelligence artifacts into canonical PostgreSQL records.
 
 This module reconciles the Gen 6 research contracts with the existing
@@ -11,12 +13,6 @@ import hashlib
 from dataclasses import asdict
 from typing import Any
 
-from creator_app.global_knowledge.contracts import Claim, SourceRef
-from creator_app.global_knowledge.research_intelligence import (
-    ResearchCompilationArtifact,
-    ResearchCycleAction,
-    ResearchCycleDecision,
-)
 from idea_engine.knowledge_fabric import (
     CanonicalSourceKind,
     ClaimClass,
@@ -24,6 +20,13 @@ from idea_engine.knowledge_fabric import (
     SourceClass,
     SourceRecord,
     VerificationState,
+)
+
+from creator_app.global_knowledge.contracts import Claim, SourceRef
+from creator_app.global_knowledge.research_intelligence import (
+    ResearchCompilationArtifact,
+    ResearchCycleAction,
+    ResearchCycleDecision,
 )
 from idea_engine.research_repository import (
     ResearchArtifactRecord,
@@ -218,3 +221,5 @@ def _stable_id(prefix: str, *parts: str) -> str:
     payload = "\x1f".join(parts).encode("utf-8")
     digest = hashlib.sha256(payload).hexdigest()[:24]
     return f"{prefix}-{digest}"
+
+[executed on device: 10616a96dd5c121bb (99b698de-7e79-4f9c-ad45-281a8377dada)]
