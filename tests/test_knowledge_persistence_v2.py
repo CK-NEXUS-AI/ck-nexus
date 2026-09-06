@@ -5,6 +5,9 @@ from dataclasses import replace
 from typing import Any
 
 import pytest
+
+import idea_engine.knowledge_repository as repository_module
+from creator_app.runtime_binding import RuntimeBindingConfig
 from idea_engine.knowledge_fabric import (
     ClaimClass,
     KnowledgeClaim,
@@ -13,9 +16,6 @@ from idea_engine.knowledge_fabric import (
     SourceClass,
     SourceRecord,
 )
-
-import idea_engine.knowledge_repository as repository_module
-from creator_app.runtime_binding import RuntimeBindingConfig
 from idea_engine.knowledge_repository import PostgresKnowledgeRepository
 
 
