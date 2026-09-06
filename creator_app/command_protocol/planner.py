@@ -81,7 +81,10 @@ def build_protocol_plan(request: CommandRequest) -> ProtocolPlan:
         TaskType.DATA_CHANGE,
     }
     independent_review_required = intensity >= IntensityLevel.L2_COMPLEX
-    human_review_required = (\n        authority.human_approval_required\n        or intensity >= IntensityLevel.L3_HIGH_IMPACT\n    )
+    human_review_required = (
+        authority.human_approval_required
+        or intensity >= IntensityLevel.L3_HIGH_IMPACT
+    )
 
     required_steps = _required_steps(
         intensity=intensity,
