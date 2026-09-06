@@ -98,9 +98,11 @@ image digests and record them in development evidence.
 ## Rate limiting
 
 SearXNG's limiter is enabled and backed by Valkey. The development
-`limiter.toml` passlists only loopback addresses because the Compose port is
-also bound only to loopback. This permits the local CK-NEXUS doctor/adapter
-without disabling the limiter or opening a private-network exemption.
+`limiter.toml` passlists only loopback client addresses. Docker port
+forwarding presents the host request through a bridge proxy, so the limiter
+also trusts the Docker 172.16.0.0/12 proxy range to read the
+`X-Forwarded-For` and `X-Real-IP` headers. The Docker range itself is not
+passlisted. The published SearXNG port remains loopback-only.
 
 CK-NEXUS must still retain its own caller-side rate and concurrency limits.
 Upstream engines can impose their own limits independently of the local
