@@ -152,6 +152,16 @@ def test_compose_binds_search_to_loopback_and_does_not_publish_valkey() -> None:
     valkey_block, searxng_block = compose.split("  searxng:", maxsplit=1)
     assert "ports:" not in valkey_block
     assert "SEARXNG_SECRET:" in searxng_block
+    assert "./limiter.toml:/etc/searxng/limiter.toml:ro" in searxng_block
+
+
+def test_limiter_passlist_is_restricted_to_loopback() -> None:
+    limiter = (ROOT / "deploy/searxng/limiter.toml").read_text()
+
+    assert '"127.0.0.0/8"' in limiter
+    assert '"::1"' in limiter
+    assert "192.168.0.0/16" not in limiter
+    assert "0.0.0.0/0" not in limiter
 
 
 def test_example_environment_contains_no_committed_secret() -> None:
