@@ -1,5 +1,3 @@
-[Reading 160 lines from start (total: 160 lines, 0 remaining)]
-
 from __future__ import annotations
 
 from dataclasses import replace
