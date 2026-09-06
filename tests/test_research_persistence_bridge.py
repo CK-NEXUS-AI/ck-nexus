@@ -160,5 +160,3 @@ def test_artifact_bridge_rejects_claim_source_outside_artifact() -> None:
             scope={},
             claims=(bad_claim,),
         )
-
-[executed on device: 10616a96dd5c121bb (99b698de-7e79-4f9c-ad45-281a8377dada)]
