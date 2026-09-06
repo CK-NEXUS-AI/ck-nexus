@@ -17,10 +17,16 @@ from .models import (
 _TOKEN = re.compile(r"[a-z0-9_+#.-]+|[\u0E00-\u0E7F]+", re.I)
 
 _TASK_KEYWORDS: tuple[tuple[TaskType, frozenset[str]], ...] = (
-    (TaskType.PURCHASE, frozenset({"buy", "purchase", "payment", "pay", "ซื้อ", "จ่ายเงิน"})),
+    (
+        TaskType.PURCHASE,
+        frozenset({"buy", "purchase", "payment", "pay", "ซื้อ", "จ่ายเงิน"}),
+    ),
     (TaskType.DEPLOYMENT, frozenset({"deploy", "deployment", "release", "ขึ้นระบบ"})),
     (TaskType.PRODUCTION, frozenset({"production", "prod", "โปรดักชัน"})),
-    (TaskType.SECURITY, frozenset({"security", "vulnerability", "secret", "credential", "ความปลอดภัย"})),
+    (
+        TaskType.SECURITY,
+        frozenset({"security", "vulnerability", "secret", "credential", "ความปลอดภัย"}),
+    ),
     (TaskType.BUG_FIX, frozenset({"bug", "fix", "error", "failure", "แก้บั๊ก", "แก้ปัญหา"})),
     (TaskType.CODE_CHANGE, frozenset({"code", "patch", "refactor", "implement", "โค้ด", "พัฒนา"})),
     (TaskType.ARCHITECTURE, frozenset({"architecture", "design", "สถาปัตยกรรม", "ออกแบบระบบ"})),
@@ -75,7 +81,7 @@ def build_protocol_plan(request: CommandRequest) -> ProtocolPlan:
         TaskType.DATA_CHANGE,
     }
     independent_review_required = intensity >= IntensityLevel.L2_COMPLEX
-    human_review_required = authority.human_approval_required or intensity >= IntensityLevel.L3_HIGH_IMPACT
+    human_review_required = (\n        authority.human_approval_required\n        or intensity >= IntensityLevel.L3_HIGH_IMPACT\n    )
 
     required_steps = _required_steps(
         intensity=intensity,
