@@ -1,0 +1,143 @@
+name: Research Persistence V1 PostgreSQL Integration
+
+on:
+  push:
+    branches:
+      - post-p0/research-persistence-v1-20260907
+    paths:
+      - .github/workflows/research-persistence-postgres-integration-20260907.yml
+      - idea_engine/research_repository.py
+      - migrations/postgresql/004_knowledge_fabric_v2.sql
+      - migrations/postgresql/005_research_artifacts_v1.sql
+      - tests/test_research_persistence_v1.py
+      - tests/integration/test_research_persistence_postgres.py
+      - idea_engine/knowledge_repository.py
+      - idea_engine/knowledge_fabric.py
+  pull_request:
+    paths:
+      - .github/workflows/research-persistence-postgres-integration-20260907.yml
+      - idea_engine/research_repository.py
+      - migrations/postgresql/005_research_artifacts_v1.sql
+      - tests/test_research_persistence_v1.py
+      - tests/integration/test_research_persistence_postgres.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CK_KNOWLEDGE_PG_TEST_URL: postgresql://postgres:postgres@127.0.0.1:5432/cknexus_knowledge_test
+
+jobs:
+  postgres-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cknexus_knowledge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d cknexus_knowledge_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact development checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain=v1)"
+          printf 'development_head=%s
+' "$GITHUB_SHA"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install locked development environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip uv
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+
+      - name: Run research persistence unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          .venv/bin/pytest -q tests/test_research_persistence_v1.py
+
+      - name: Apply canonical knowledge migration
+        shell: bash
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql             -h 127.0.0.1             -U postgres             -d cknexus_knowledge_test             -v ON_ERROR_STOP=1             -f migrations/postgresql/004_knowledge_fabric_v2.sql
+
+      - name: Apply research persistence migration
+        shell: bash
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql             -h 127.0.0.1             -U postgres             -d cknexus_knowledge_test             -v ON_ERROR_STOP=1             -f migrations/postgresql/005_research_artifacts_v1.sql
+
+      - name: Run live PostgreSQL round-trip test
+        shell: bash
+        run: |
+          set -euo pipefail
+          .venv/bin/pytest -q tests/integration/test_research_persistence_postgres.py
+
+      - name: Re-apply migrations to prove idempotency
+        shell: bash
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql             -h 127.0.0.1             -U postgres             -d cknexus_knowledge_test             -v ON_ERROR_STOP=1             -f migrations/postgresql/004_knowledge_fabric_v2.sql
+          psql             -h 127.0.0.1             -U postgres             -d cknexus_knowledge_test             -v ON_ERROR_STOP=1             -f migrations/postgresql/005_research_artifacts_v1.sql
+
+      - name: Verify schema and cleanup boundary
+        shell: bash
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql             -h 127.0.0.1             -U postgres             -d cknexus_knowledge_test             -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT to_regclass('public.knowledge_research_artifacts') IS NOT NULL AS artifacts_exists;
+          SELECT to_regclass('public.knowledge_research_lineage_edges') IS NOT NULL AS lineage_exists;
+          SELECT to_regclass('public.knowledge_research_contradictions') IS NOT NULL AS contradictions_exist;
+          SELECT count(*) = 0 AS no_research_artifact_leak
+          FROM knowledge_research_artifacts
+          WHERE tenant_id LIKE 'research-it-%';
+          SELECT count(*) = 0 AS no_research_claim_leak
+          FROM knowledge_claims
+          WHERE tenant_id LIKE 'research-it-%';
+          SELECT count(*) = 0 AS no_research_source_leak
+          FROM knowledge_sources
+          WHERE tenant_id LIKE 'research-it-%';
+          SQL
+
+      - name: Development evidence boundary
+        shell: bash
+        run: |
+          cat <<'EOF'
+          DEVELOPMENT VALIDATION ONLY
+          This run measures PostgreSQL research persistence at the exact workflow SHA.
+          It is not independent verification, Q10 evidence, owner sign-off, or Production authorization.
+          VERIFIED state remains outside the persistence repository authority.
+          EOF
