@@ -29,6 +29,7 @@ The runtime follows current SearXNG administration guidance:
 
 - `deploy/searxng/docker-compose.yml`
 - `deploy/searxng/settings.yml`
+- `deploy/searxng/limiter.toml`
 - `deploy/searxng/.env.example`
 - `scripts/searxng_doctor.py`
 
@@ -96,9 +97,14 @@ image digests and record them in development evidence.
 
 ## Rate limiting
 
-SearXNG's limiter is enabled and backed by Valkey. CK-NEXUS must also retain
-its own caller-side rate and concurrency limits. Upstream engines can impose
-their own limits independently of the local SearXNG limiter.
+SearXNG's limiter is enabled and backed by Valkey. The development
+`limiter.toml` passlists only loopback addresses because the Compose port is
+also bound only to loopback. This permits the local CK-NEXUS doctor/adapter
+without disabling the limiter or opening a private-network exemption.
+
+CK-NEXUS must still retain its own caller-side rate and concurrency limits.
+Upstream engines can impose their own limits independently of the local
+SearXNG limiter.
 
 ## Evidence
 
