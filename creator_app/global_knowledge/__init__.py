@@ -1,9 +1,8 @@
 """Global Knowledge Discovery capability for CK-NEXUS.
 
-This package is intentionally network-agnostic. It defines the canonical
-contracts, policy gates, discovery planning, and deterministic information
-filtering needed by crawler/search adapters without granting those adapters
-authority over CK-NEXUS state.
+This package defines canonical contracts, policy gates, discovery planning,
+filtering, research sufficiency analysis, and evidence-lineage structures
+without granting external providers authority over CK-NEXUS state.
 """
 
 from .contracts import (
@@ -15,6 +14,15 @@ from .contracts import (
     SearchRequest,
     SourceKind,
     SourceRef,
+)
+from .evidence_graph import (
+    EvidenceEdgeKind,
+    EvidenceGraph,
+    EvidenceGraphEdge,
+    EvidenceGraphNode,
+    EvidenceGraphReport,
+    EvidenceNodeKind,
+    LineagePath,
 )
 from .filtering import (
     CandidateDecision,
@@ -29,29 +37,85 @@ from .filtering import (
 )
 from .planner import DiscoveryPlan, DiscoveryTask, build_discovery_plan
 from .policy import CrawlPolicyInput, IngestDecision, evaluate_crawl_policy
+from .research_bridge import ResearchRoutingPlan, build_research_routing_plan
+from .research_intelligence import (
+    ClaimObservation,
+    ContradictionRecord,
+    ContradictionType,
+    CoverageReport,
+    EvidenceLineageReport,
+    GapKind,
+    GapSeverity,
+    KnowledgeGap,
+    ResearchCompilationArtifact,
+    ResearchCycleAction,
+    ResearchCycleDecision,
+    ResearchRequirements,
+    SourceDiversityReport,
+    SourceObservation,
+    analyze_coverage,
+    analyze_evidence_lineage,
+    analyze_source_diversity,
+    build_search_expansions,
+    compile_research_artifact,
+    decide_research_cycle,
+    detect_contradictions,
+    detect_knowledge_gaps,
+)
 
 __all__ = [
     "CandidateDecision",
     "Claim",
+    "ClaimObservation",
+    "ContradictionRecord",
+    "ContradictionType",
+    "CoverageReport",
     "CrawlPolicyInput",
     "DiscoveryMode",
     "DiscoveryPlan",
     "DiscoveryTask",
     "EntityRef",
+    "EvidenceEdgeKind",
+    "EvidenceGraph",
+    "EvidenceGraphEdge",
+    "EvidenceGraphNode",
+    "EvidenceGraphReport",
+    "EvidenceLineageReport",
+    "EvidenceNodeKind",
     "ExpansionStrategy",
     "FilterAction",
     "FilterBatchResult",
     "FilterCandidate",
     "FilterPolicy",
     "FilterReason",
+    "GapKind",
+    "GapSeverity",
     "IngestDecision",
+    "KnowledgeGap",
+    "LineagePath",
     "Reliability",
     "Relation",
+    "ResearchCompilationArtifact",
+    "ResearchCycleAction",
+    "ResearchCycleDecision",
+    "ResearchRequirements",
+    "ResearchRoutingPlan",
     "SearchExpansion",
     "SearchRequest",
+    "SourceDiversityReport",
     "SourceKind",
+    "SourceObservation",
     "SourceRef",
+    "analyze_coverage",
+    "analyze_evidence_lineage",
+    "analyze_source_diversity",
     "build_discovery_plan",
+    "build_research_routing_plan",
+    "build_search_expansions",
+    "compile_research_artifact",
+    "decide_research_cycle",
+    "detect_contradictions",
+    "detect_knowledge_gaps",
     "evaluate_crawl_policy",
     "filter_candidates",
 ]
