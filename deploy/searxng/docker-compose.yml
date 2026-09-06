@@ -35,6 +35,7 @@ services:
       SEARXNG_VALKEY_URL: valkey://valkey:6379/0
     volumes:
       - ./settings.yml:/etc/searxng/settings.yml:ro
+      - ./limiter.toml:/etc/searxng/limiter.toml:ro
       - searxng-cache:/var/cache/searxng
     networks:
       - searxng-internal
