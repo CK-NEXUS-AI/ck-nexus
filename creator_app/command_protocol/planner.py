@@ -30,9 +30,15 @@ _TASK_KEYWORDS: tuple[tuple[TaskType, frozenset[str]], ...] = (
     (TaskType.BUG_FIX, frozenset({"bug", "fix", "error", "failure", "แก้บั๊ก", "แก้ปัญหา"})),
     (TaskType.CODE_CHANGE, frozenset({"code", "patch", "refactor", "implement", "โค้ด", "พัฒนา"})),
     (TaskType.ARCHITECTURE, frozenset({"architecture", "design", "สถาปัตยกรรม", "ออกแบบระบบ"})),
-    (TaskType.RESEARCH, frozenset({"research", "search", "compare", "ค้นหา", "วิจัย", "เปรียบเทียบ"})),
+    (
+        TaskType.RESEARCH,
+        frozenset({"research", "search", "compare", "ค้นหา", "วิจัย", "เปรียบเทียบ"}),
+    ),
     (TaskType.FILE_MANAGEMENT, frozenset({"file", "folder", "archive", "ไฟล์", "โฟลเดอร์"})),
-    (TaskType.INFRASTRUCTURE, frozenset({"vps", "docker", "server", "infra", "infrastructure", "เซิร์ฟเวอร์"})),
+    (
+        TaskType.INFRASTRUCTURE,
+        frozenset({"vps", "docker", "server", "infra", "infrastructure", "เซิร์ฟเวอร์"}),
+    ),
     (TaskType.DATA_CHANGE, frozenset({"database", "data", "migration", "ข้อมูล", "ฐานข้อมูล"})),
     (TaskType.EVIDENCE, frozenset({"evidence", "audit", "หลักฐาน", "ตรวจสอบ"})),
     (TaskType.LEGAL_FINANCIAL, frozenset({"legal", "financial", "finance", "กฎหมาย", "การเงิน"})),
