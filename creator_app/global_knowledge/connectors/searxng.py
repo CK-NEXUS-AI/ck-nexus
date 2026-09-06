@@ -151,30 +151,29 @@ class SearxngDiscoveryAdapter:
                 raise TypeError("fetch_json must return a mapping")
             return value
 
-        return await asyncio.to_thread(
-            _stdlib_fetch_json,
-            url,
-            self.config.timeout_seconds,
-        )
+        try:
+            import httpx
+        except ImportError as exc:
+            raise RuntimeError("httpx gateway extra is required") from exc
 
+        async with httpx.AsyncClient(
+            timeout=self.config.timeout_seconds,
+            follow_redirects=False,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "CK-NEXUS-Research/1.0",
+            },
+        ) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            content_type = response.headers.get("content-type", "")
+            if "application/json" not in content_type.lower():
+                raise ValueError("SearXNG JSON format is not enabled")
+            payload = response.json()
 
-def _stdlib_fetch_json(url: str, timeout_seconds: float) -> dict[str, Any]:
-    request = Request(  # noqa: S310
-        url,
-        headers={
-            "Accept": "application/json",
-            "User-Agent": "CK-NEXUS-Research/1.0",
-        },
-        method="GET",
-    )
-    with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310
-        content_type = response.headers.get_content_type()
-        if content_type != "application/json":
-            raise ValueError("SearXNG JSON format is not enabled")
-        payload = json.loads(response.read().decode("utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError("SearXNG response must be an object")
-    return payload
+        if not isinstance(payload, dict):
+            raise ValueError("SearXNG response must be an object")
+        return payload
 
 
 def _public_result_url_shape(value: str) -> bool:
