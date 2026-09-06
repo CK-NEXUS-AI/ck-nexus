@@ -11,6 +11,12 @@ import hashlib
 from dataclasses import asdict
 from typing import Any
 
+from creator_app.global_knowledge.contracts import Claim, SourceRef
+from creator_app.global_knowledge.research_intelligence import (
+    ResearchCompilationArtifact,
+    ResearchCycleAction,
+    ResearchCycleDecision,
+)
 from idea_engine.knowledge_fabric import (
     CanonicalSourceKind,
     ClaimClass,
@@ -18,13 +24,6 @@ from idea_engine.knowledge_fabric import (
     SourceClass,
     SourceRecord,
     VerificationState,
-)
-
-from creator_app.global_knowledge.contracts import Claim, SourceRef
-from creator_app.global_knowledge.research_intelligence import (
-    ResearchCompilationArtifact,
-    ResearchCycleAction,
-    ResearchCycleDecision,
 )
 from idea_engine.research_repository import (
     ResearchArtifactRecord,
