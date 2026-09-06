@@ -127,6 +127,13 @@ def _classify_task(request: CommandRequest) -> TaskType:
     if request.explicit_task_type is not None:
         return request.explicit_task_type
 
+    if (
+        not request.mutates_state
+        and not request.external_action
+        and _looks_like_read_only_question(request.text)
+    ):
+        return TaskType.QUESTION
+
     tokens = _tokens(request.text)
     for task_type, keywords in _TASK_KEYWORDS:
         if tokens & keywords:
@@ -135,6 +142,37 @@ def _classify_task(request: CommandRequest) -> TaskType:
     if request.external_action:
         return TaskType.EXTERNAL_ACTION
     return TaskType.QUESTION
+
+
+def _looks_like_read_only_question(text: str) -> bool:
+    normalized = " ".join(text.casefold().split())
+    english_prefixes = (
+        "what ",
+        "which ",
+        "who ",
+        "where ",
+        "when ",
+        "why ",
+        "how ",
+        "is ",
+        "are ",
+        "does ",
+        "do ",
+        "can ",
+    )
+    thai_markers = (
+        "คืออะไร",
+        "ชื่ออะไร",
+        "อะไรคือ",
+        "ทำไม",
+        "อย่างไร",
+        "อธิบาย",
+    )
+    return (
+        normalized.endswith("?")
+        or normalized.startswith(english_prefixes)
+        or any(marker in normalized for marker in thai_markers)
+    )
 
 
 def _classify_risk(request: CommandRequest, task_type: TaskType) -> RiskLevel:
