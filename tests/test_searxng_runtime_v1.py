@@ -6,7 +6,6 @@ import pytest
 
 from creator_app.global_knowledge import searxng_runtime
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
