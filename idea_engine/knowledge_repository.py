@@ -1,3 +1,5 @@
+[Reading 494 lines from start (total: 494 lines, 0 remaining)]
+
 from __future__ import annotations
 
 import json
@@ -17,7 +19,6 @@ from .knowledge_fabric import (
     ClaimClass,
     KnowledgeClaim,
     MemoryWriteProposal,
-    RetentionClass,
     SourceClass,
     SourceRecord,
     VerificationState,
@@ -87,8 +88,10 @@ class PostgresKnowledgeRepository:
     async def store_source(self, source: SourceRecord) -> bool:
         payload = _json_payload(source)
         source_version = source.metadata.get("source_version")
-        async with acquire_db_connection(self._pool, self._runtime_config) as conn:
-            async with conn.transaction():
+        async with (
+            acquire_db_connection(self._pool, self._runtime_config) as conn,
+            conn.transaction(),
+        ):
                 existing = await conn.fetchrow(
                     """
                     SELECT source_hash, source_version, payload::text AS payload
@@ -128,8 +131,10 @@ class PostgresKnowledgeRepository:
         payload = _json_payload(claim)
         observed_at = _postgres_timestamp(claim.observed_at)
         fresh_until = _postgres_timestamp(claim.fresh_until)
-        async with acquire_db_connection(self._pool, self._runtime_config) as conn:
-            async with conn.transaction():
+        async with (
+            acquire_db_connection(self._pool, self._runtime_config) as conn,
+            conn.transaction(),
+        ):
                 if await conn.fetchval(
                     """
                     SELECT 1
@@ -333,8 +338,10 @@ class PostgresKnowledgeRepository:
         if proposal.auto_approved:
             raise PermissionError("knowledge repository cannot persist auto-approved proposal")
         payload = _json_payload(proposal)
-        async with acquire_db_connection(self._pool, self._runtime_config) as conn:
-            async with conn.transaction():
+        async with (
+            acquire_db_connection(self._pool, self._runtime_config) as conn,
+            conn.transaction(),
+        ):
                 claim_rows = await conn.fetch(
                     """
                     SELECT claim_id
@@ -402,10 +409,7 @@ def _json_payload(value: Any) -> str:
 
 
 def _payload_dict(value: Any) -> dict[str, Any]:
-    if isinstance(value, str):
-        loaded = json.loads(value)
-    else:
-        loaded = value
+    loaded = json.loads(value) if isinstance(value, str) else value
     if not isinstance(loaded, dict):
         raise ValueError("knowledge persistence payload must be an object")
     return dict(loaded)
@@ -490,3 +494,5 @@ def _postgres_timestamp(value: str | None) -> datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
+
+[executed on device: 10616a96dd5c121bb (99b698de-7e79-4f9c-ad45-281a8377dada)]
