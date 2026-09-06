@@ -1,5 +1,3 @@
-[Reading 308 lines from start (total: 308 lines, 0 remaining)]
-
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
