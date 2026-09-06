@@ -639,7 +639,13 @@ def _artifact_from_payload(value: Any) -> ResearchArtifactRecord:
             for item in payload.get("lineage_edges", ())
         ),
         contradictions=tuple(
-            ResearchContradictionRecord(**item)
+            ResearchContradictionRecord(
+                contradiction_id=str(item["contradiction_id"]),
+                contradiction_type=str(item["contradiction_type"]),
+                resolution_status=str(item["resolution_status"]),
+                confidence=float(item["confidence"]),
+                claim_ids=tuple(item.get("claim_ids", ())),
+            )
             for item in payload.get("contradictions", ())
         ),
         search_attempts=tuple(
