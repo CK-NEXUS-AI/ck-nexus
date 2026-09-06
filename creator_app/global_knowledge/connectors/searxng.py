@@ -6,13 +6,10 @@ search results as verified evidence and performs no write action.
 
 from __future__ import annotations
 
-import asyncio
-import json
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 from urllib.parse import urlencode, urljoin, urlsplit
-from urllib.request import Request, urlopen
 
 
 class SearxngStatus(StrEnum):
