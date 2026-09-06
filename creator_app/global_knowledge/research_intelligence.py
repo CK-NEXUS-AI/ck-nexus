@@ -613,8 +613,10 @@ def _is_time_disjoint_from_all(claim: Claim, members: list[Claim]) -> bool:
 def _time_ranges_disjoint(left: Claim, right: Claim) -> bool:
     if left.valid_from is None or right.valid_from is None:
         return False
-    if left.valid_to is not None and left.valid_to < right.valid_from:
-        return True
-    if right.valid_to is not None and right.valid_to < left.valid_from:
-        return True
-    return False
+    return (
+        left.valid_to is not None
+        and left.valid_to < right.valid_from
+    ) or (
+        right.valid_to is not None
+        and right.valid_to < left.valid_from
+    )
