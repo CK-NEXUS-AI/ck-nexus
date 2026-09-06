@@ -654,5 +654,3 @@ def _artifact_from_payload(value: Any) -> ResearchArtifactRecord:
             for item in payload.get("coverage_metrics", ())
         ),
     )
-
-[executed on device: 10616a96dd5c121bb (99b698de-7e79-4f9c-ad45-281a8377dada)]
