@@ -101,7 +101,9 @@ def test_json_doctor_accepts_expected_response(
     assert result.reason == "ready"
     assert result.result_count == 1
     assert "format=json" in FakeConnection.calls[0][1]
-    assert FakeConnection.calls[0][2]["X-Real-IP"] == "127.0.0.1"
+    headers = FakeConnection.calls[0][2]
+    assert headers["X-Forwarded-For"] == "127.0.0.1"
+    assert headers["X-Real-IP"] == "127.0.0.1"
 
 
 def test_json_doctor_fails_closed_when_json_is_disabled(
@@ -154,12 +156,14 @@ def test_compose_binds_search_to_loopback_and_does_not_publish_valkey() -> None:
     assert "./limiter.toml:/etc/searxng/limiter.toml:ro" in searxng_block
 
 
-def test_limiter_passlist_is_restricted_to_loopback() -> None:
+def test_limiter_trusts_docker_proxy_but_passlists_loopback_only() -> None:
     limiter = (ROOT / "deploy/searxng/limiter.toml").read_text()
 
+    assert '"172.16.0.0/12"' in limiter
     assert '"127.0.0.0/8"' in limiter
     assert '"::1"' in limiter
     assert "192.168.0.0/16" not in limiter
+    assert "10.0.0.0/8" not in limiter
     assert "0.0.0.0/0" not in limiter
 
 
