@@ -1,6 +1,6 @@
 name: Research Persistence V1 PostgreSQL Integration
 
-on:
+"on":
   push:
     branches:
       - post-p0/research-persistence-v1-20260907
@@ -26,12 +26,13 @@ permissions:
   contents: read
 
 env:
-  CK_KNOWLEDGE_PG_TEST_URL: postgresql://postgres:postgres@127.0.0.1:5432/cknexus_knowledge_test
+  CK_KNOWLEDGE_PG_TEST_URL: "postgresql://postgres:postgres@127.0.0.1:5432/cknexus_knowledge_test"
 
 jobs:
   postgres-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
     services:
       postgres:
         image: postgres:16
@@ -48,7 +49,7 @@ jobs:
           --health-retries=20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -58,13 +59,11 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test -z "$(git status --porcelain=v1)"
-          printf 'development_head=%s
-' "$GITHUB_SHA"
+          echo "development_head=$GITHUB_SHA"
 
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
-          cache: pip
+          python-version: "3.12"
 
       - name: Install locked development environment
         shell: bash
@@ -86,7 +85,7 @@ jobs:
           PGPASSWORD: postgres
         run: |
           set -euo pipefail
-          psql             -h 127.0.0.1             -U postgres             -d cknexus_knowledge_test             -v ON_ERROR_STOP=1             -f migrations/postgresql/004_knowledge_fabric_v2.sql
+          psql -h 127.0.0.1 -U postgres -d cknexus_knowledge_test -v ON_ERROR_STOP=1 -f migrations/postgresql/004_knowledge_fabric_v2.sql
 
       - name: Apply research persistence migration
         shell: bash
@@ -94,7 +93,7 @@ jobs:
           PGPASSWORD: postgres
         run: |
           set -euo pipefail
-          psql             -h 127.0.0.1             -U postgres             -d cknexus_knowledge_test             -v ON_ERROR_STOP=1             -f migrations/postgresql/005_research_artifacts_v1.sql
+          psql -h 127.0.0.1 -U postgres -d cknexus_knowledge_test -v ON_ERROR_STOP=1 -f migrations/postgresql/005_research_artifacts_v1.sql
 
       - name: Run live PostgreSQL round-trip test
         shell: bash
@@ -108,8 +107,8 @@ jobs:
           PGPASSWORD: postgres
         run: |
           set -euo pipefail
-          psql             -h 127.0.0.1             -U postgres             -d cknexus_knowledge_test             -v ON_ERROR_STOP=1             -f migrations/postgresql/004_knowledge_fabric_v2.sql
-          psql             -h 127.0.0.1             -U postgres             -d cknexus_knowledge_test             -v ON_ERROR_STOP=1             -f migrations/postgresql/005_research_artifacts_v1.sql
+          psql -h 127.0.0.1 -U postgres -d cknexus_knowledge_test -v ON_ERROR_STOP=1 -f migrations/postgresql/004_knowledge_fabric_v2.sql
+          psql -h 127.0.0.1 -U postgres -d cknexus_knowledge_test -v ON_ERROR_STOP=1 -f migrations/postgresql/005_research_artifacts_v1.sql
 
       - name: Verify schema and cleanup boundary
         shell: bash
@@ -117,7 +116,7 @@ jobs:
           PGPASSWORD: postgres
         run: |
           set -euo pipefail
-          psql             -h 127.0.0.1             -U postgres             -d cknexus_knowledge_test             -v ON_ERROR_STOP=1 <<'SQL'
+          psql -h 127.0.0.1 -U postgres -d cknexus_knowledge_test -v ON_ERROR_STOP=1 <<'SQL'
           SELECT to_regclass('public.knowledge_research_artifacts') IS NOT NULL AS artifacts_exists;
           SELECT to_regclass('public.knowledge_research_lineage_edges') IS NOT NULL AS lineage_exists;
           SELECT to_regclass('public.knowledge_research_contradictions') IS NOT NULL AS contradictions_exist;
