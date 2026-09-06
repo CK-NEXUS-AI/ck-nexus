@@ -1,3 +1,5 @@
+[Reading 654 lines from start (total: 654 lines, 0 remaining)]
+
 from __future__ import annotations
 
 import json
@@ -9,7 +11,6 @@ from creator_app.runtime_binding import (
     acquire_db_connection,
     get_db_pool,
 )
-
 
 _ALLOWED_DECISIONS = frozenset(
     {
@@ -243,31 +244,30 @@ class PostgresResearchRepository:
         async with acquire_db_connection(
             self._pool,
             self._runtime_config,
-        ) as conn:
-            async with conn.transaction():
-                existing = await conn.fetchrow(
-                    """
+        ) as conn, conn.transaction():
+            existing = await conn.fetchrow(
+                """
                     SELECT payload
                     FROM knowledge_research_artifacts
                     WHERE tenant_id = $1 AND artifact_id = $2
                     FOR UPDATE
                     """,
-                    artifact.tenant_id,
-                    artifact.artifact_id,
+                artifact.tenant_id,
+                artifact.artifact_id,
+            )
+            if existing is not None:
+                if _payload_dict(existing["payload"]) == json.loads(
+                    artifact_payload
+                ):
+                    return False
+                raise ValueError(
+                    "artifact_id already exists with different payload"
                 )
-                if existing is not None:
-                    if _payload_dict(existing["payload"]) == json.loads(
-                        artifact_payload
-                    ):
-                        return False
-                    raise ValueError(
-                        "artifact_id already exists with different payload"
-                    )
 
-                await self._validate_references(conn, artifact)
+            await self._validate_references(conn, artifact)
 
-                await conn.execute(
-                    """
+            await conn.execute(
+                """
                     INSERT INTO knowledge_research_artifacts (
                         tenant_id,
                         artifact_id,
@@ -289,19 +289,19 @@ class PostgresResearchRepository:
                         $8::jsonb
                     )
                     """,
-                    artifact.tenant_id,
-                    artifact.artifact_id,
-                    artifact.decision,
-                    artifact.truth_state,
-                    artifact.ready_for_analysis,
-                    json.dumps(artifact.scope, sort_keys=True),
-                    json.dumps(list(artifact.gaps), sort_keys=True),
-                    artifact_payload,
-                )
+                artifact.tenant_id,
+                artifact.artifact_id,
+                artifact.decision,
+                artifact.truth_state,
+                artifact.ready_for_analysis,
+                json.dumps(artifact.scope, sort_keys=True),
+                json.dumps(list(artifact.gaps), sort_keys=True),
+                artifact_payload,
+            )
 
-                await _insert_many(
-                    conn,
-                    """
+            await _insert_many(
+                conn,
+                """
                     INSERT INTO knowledge_research_artifact_sources (
                         tenant_id,
                         artifact_id,
@@ -309,18 +309,18 @@ class PostgresResearchRepository:
                     )
                     VALUES ($1, $2, $3)
                     """,
-                    [
-                        (
-                            artifact.tenant_id,
-                            artifact.artifact_id,
-                            source_id,
-                        )
-                        for source_id in artifact.source_ids
-                    ],
-                )
-                await _insert_many(
-                    conn,
-                    """
+                [
+                    (
+                        artifact.tenant_id,
+                        artifact.artifact_id,
+                        source_id,
+                    )
+                    for source_id in artifact.source_ids
+                ],
+            )
+            await _insert_many(
+                conn,
+                """
                     INSERT INTO knowledge_research_artifact_claims (
                         tenant_id,
                         artifact_id,
@@ -328,18 +328,18 @@ class PostgresResearchRepository:
                     )
                     VALUES ($1, $2, $3)
                     """,
-                    [
-                        (
-                            artifact.tenant_id,
-                            artifact.artifact_id,
-                            claim_id,
-                        )
-                        for claim_id in artifact.claim_ids
-                    ],
-                )
-                await _insert_many(
-                    conn,
-                    """
+                [
+                    (
+                        artifact.tenant_id,
+                        artifact.artifact_id,
+                        claim_id,
+                    )
+                    for claim_id in artifact.claim_ids
+                ],
+            )
+            await _insert_many(
+                conn,
+                """
                     INSERT INTO knowledge_research_lineage_edges (
                         tenant_id,
                         artifact_id,
@@ -365,25 +365,25 @@ class PostgresResearchRepository:
                         $10::jsonb
                     )
                     """,
-                    [
-                        (
-                            artifact.tenant_id,
-                            artifact.artifact_id,
-                            edge.edge_id,
-                            edge.from_node_kind,
-                            edge.from_node_id,
-                            edge.to_node_kind,
-                            edge.to_node_id,
-                            edge.edge_type,
-                            edge.independent_validation,
-                            _json_payload(edge),
-                        )
-                        for edge in artifact.lineage_edges
-                    ],
-                )
-                await _insert_many(
-                    conn,
-                    """
+                [
+                    (
+                        artifact.tenant_id,
+                        artifact.artifact_id,
+                        edge.edge_id,
+                        edge.from_node_kind,
+                        edge.from_node_id,
+                        edge.to_node_kind,
+                        edge.to_node_id,
+                        edge.edge_type,
+                        edge.independent_validation,
+                        _json_payload(edge),
+                    )
+                    for edge in artifact.lineage_edges
+                ],
+            )
+            await _insert_many(
+                conn,
+                """
                     INSERT INTO knowledge_research_contradictions (
                         tenant_id,
                         artifact_id,
@@ -405,23 +405,23 @@ class PostgresResearchRepository:
                         $8::jsonb
                     )
                     """,
-                    [
-                        (
-                            artifact.tenant_id,
-                            artifact.artifact_id,
-                            item.contradiction_id,
-                            item.contradiction_type,
-                            item.resolution_status,
-                            item.confidence,
-                            json.dumps(list(item.claim_ids)),
-                            _json_payload(item),
-                        )
-                        for item in artifact.contradictions
-                    ],
-                )
-                await _insert_many(
-                    conn,
-                    """
+                [
+                    (
+                        artifact.tenant_id,
+                        artifact.artifact_id,
+                        item.contradiction_id,
+                        item.contradiction_type,
+                        item.resolution_status,
+                        item.confidence,
+                        json.dumps(list(item.claim_ids)),
+                        _json_payload(item),
+                    )
+                    for item in artifact.contradictions
+                ],
+            )
+            await _insert_many(
+                conn,
+                """
                     INSERT INTO knowledge_research_search_attempts (
                         tenant_id,
                         artifact_id,
@@ -445,24 +445,24 @@ class PostgresResearchRepository:
                         $9::jsonb
                     )
                     """,
-                    [
-                        (
-                            artifact.tenant_id,
-                            artifact.artifact_id,
-                            item.attempt_id,
-                            item.query,
-                            item.engine,
-                            item.result_count,
-                            item.duration_ms,
-                            item.status,
-                            _json_payload(item),
-                        )
-                        for item in artifact.search_attempts
-                    ],
-                )
-                await _insert_many(
-                    conn,
-                    """
+                [
+                    (
+                        artifact.tenant_id,
+                        artifact.artifact_id,
+                        item.attempt_id,
+                        item.query,
+                        item.engine,
+                        item.result_count,
+                        item.duration_ms,
+                        item.status,
+                        _json_payload(item),
+                    )
+                    for item in artifact.search_attempts
+                ],
+            )
+            await _insert_many(
+                conn,
+                """
                     INSERT INTO knowledge_research_coverage_metrics (
                         tenant_id,
                         artifact_id,
@@ -482,19 +482,19 @@ class PostgresResearchRepository:
                         $7::jsonb
                     )
                     """,
-                    [
-                        (
-                            artifact.tenant_id,
-                            artifact.artifact_id,
-                            item.metric_id,
-                            item.dimension,
-                            item.coverage_fraction,
-                            item.scoped,
-                            _json_payload(item),
-                        )
-                        for item in artifact.coverage_metrics
-                    ],
-                )
+                [
+                    (
+                        artifact.tenant_id,
+                        artifact.artifact_id,
+                        item.metric_id,
+                        item.dimension,
+                        item.coverage_fraction,
+                        item.scoped,
+                        _json_payload(item),
+                    )
+                    for item in artifact.coverage_metrics
+                ],
+            )
         return True
 
     async def load_artifact(
@@ -613,10 +613,7 @@ def _json_payload(value: Any) -> str:
 
 
 def _payload_dict(value: Any) -> dict[str, Any]:
-    if isinstance(value, str):
-        loaded = json.loads(value)
-    else:
-        loaded = value
+    loaded = json.loads(value) if isinstance(value, str) else value
     if not isinstance(loaded, dict):
         raise ValueError("research persistence payload must be an object")
     return dict(loaded)
@@ -657,3 +654,5 @@ def _artifact_from_payload(value: Any) -> ResearchArtifactRecord:
             for item in payload.get("coverage_metrics", ())
         ),
     )
+
+[executed on device: 10616a96dd5c121bb (99b698de-7e79-4f9c-ad45-281a8377dada)]
