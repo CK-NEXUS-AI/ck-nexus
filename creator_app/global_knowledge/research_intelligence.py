@@ -85,6 +85,7 @@ class EvidenceLineageReport:
     source_count: int
     lineage_count: int
     independent_lineage_count: int
+    validated_lineage_count: int
     duplicate_lineages: tuple[str, ...]
     source_lineage_pairs: tuple[tuple[str, str], ...]
 
@@ -185,7 +186,7 @@ def analyze_evidence_lineage(
         )
     )
 
-    independent_lineages = sum(
+    validated_lineages = sum(
         1
         for members in lineage_members.values()
         if any(item.is_primary or item.independent_validation for item in members)
@@ -194,7 +195,8 @@ def analyze_evidence_lineage(
     return EvidenceLineageReport(
         source_count=len(observations),
         lineage_count=len(lineage_members),
-        independent_lineage_count=independent_lineages,
+        independent_lineage_count=len(lineage_members),
+        validated_lineage_count=validated_lineages,
         duplicate_lineages=duplicate_lineages,
         source_lineage_pairs=tuple(sorted(pairs)),
     )
