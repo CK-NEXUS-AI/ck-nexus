@@ -3,10 +3,6 @@ from __future__ import annotations
 from dataclasses import replace
 
 import pytest
-from idea_engine.knowledge_fabric import (
-    ClaimClass,
-    VerificationState,
-)
 
 from creator_app.global_knowledge.contracts import (
     Claim,
@@ -25,6 +21,10 @@ from creator_app.global_knowledge.research_persistence_bridge import (
     artifact_to_record,
     claim_to_record,
     source_ref_to_record,
+)
+from idea_engine.knowledge_fabric import (
+    ClaimClass,
+    VerificationState,
 )
 
 
