@@ -1,8 +1,14 @@
+[Reading 160 lines from start (total: 160 lines, 0 remaining)]
+
 from __future__ import annotations
 
 from dataclasses import replace
 
 import pytest
+from idea_engine.knowledge_fabric import (
+    ClaimClass,
+    VerificationState,
+)
 
 from creator_app.global_knowledge.contracts import (
     Claim,
@@ -21,10 +27,6 @@ from creator_app.global_knowledge.research_persistence_bridge import (
     artifact_to_record,
     claim_to_record,
     source_ref_to_record,
-)
-from idea_engine.knowledge_fabric import (
-    ClaimClass,
-    VerificationState,
 )
 
 
@@ -158,3 +160,5 @@ def test_artifact_bridge_rejects_claim_source_outside_artifact() -> None:
             scope={},
             claims=(bad_claim,),
         )
+
+[executed on device: 10616a96dd5c121bb (99b698de-7e79-4f9c-ad45-281a8377dada)]
