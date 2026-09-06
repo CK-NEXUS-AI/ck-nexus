@@ -159,6 +159,7 @@ class SearxngDiscoveryAdapter:
             "User-Agent": "CK-NEXUS-Research/1.0",
         }
         if _is_loopback_base_url(self.config.base_url):
+            headers["X-Forwarded-For"] = "127.0.0.1"
             headers["X-Real-IP"] = "127.0.0.1"
 
         async with httpx.AsyncClient(
