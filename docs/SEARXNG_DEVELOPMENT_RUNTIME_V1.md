@@ -63,7 +63,7 @@ Do not expose the development instance directly to the public internet.
 After the service is healthy:
 
 ```bash
-python scripts/searxng_doctor.py --base-url http://127.0.0.1:8080/
+python -m scripts.searxng_doctor --base-url http://127.0.0.1:8080/
 ```
 
 The doctor requires:
