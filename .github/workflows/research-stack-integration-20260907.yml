@@ -1,0 +1,166 @@
+name: Research Stack Integration V1
+
+on:
+  push:
+    branches:
+      - post-p0/research-stack-integration-v1-20260907
+    paths:
+      - .github/workflows/research-stack-integration-20260907.yml
+      - creator_app/global_knowledge/**
+      - idea_engine/**
+      - migrations/postgresql/**
+      - deploy/searxng/**
+      - scripts/searxng_doctor.py
+      - tests/test_global_knowledge_*.py
+      - tests/test_searxng_runtime_v1.py
+      - tests/test_knowledge_persistence*.py
+      - tests/test_research_persistence*.py
+      - tests/integration/test_*persistence_postgres.py
+  pull_request:
+    paths:
+      - .github/workflows/research-stack-integration-20260907.yml
+      - creator_app/global_knowledge/**
+      - idea_engine/**
+      - migrations/postgresql/**
+      - deploy/searxng/**
+      - scripts/searxng_doctor.py
+      - tests/test_global_knowledge_*.py
+      - tests/test_searxng_runtime_v1.py
+      - tests/test_knowledge_persistence*.py
+      - tests/test_research_persistence*.py
+      - tests/integration/test_*persistence_postgres.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CK_KNOWLEDGE_PG_TEST_URL: postgresql://postgres:postgres@127.0.0.1:5432/cknexus_knowledge_test
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cknexus_knowledge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d cknexus_knowledge_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact integration checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain=v1)"
+          echo "integration_head=$GITHUB_SHA"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install locked project environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip uv
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+
+      - name: Run integration contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run --frozen --with pytest --with pytest-asyncio pytest -q             tests/test_global_knowledge_research_intelligence.py             tests/test_global_knowledge_connectors_and_lineage.py             tests/test_searxng_runtime_v1.py             tests/test_knowledge_persistence_v2.py             tests/test_research_persistence_v1.py             tests/test_research_persistence_bridge.py
+
+      - name: Apply canonical knowledge migrations
+        shell: bash
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d cknexus_knowledge_test             -v ON_ERROR_STOP=1             -f migrations/postgresql/004_knowledge_fabric_v2.sql
+          psql -h 127.0.0.1 -U postgres -d cknexus_knowledge_test             -v ON_ERROR_STOP=1             -f migrations/postgresql/005_research_artifacts_v1.sql
+
+      - name: Run live PostgreSQL integration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run --frozen --with pytest --with pytest-asyncio pytest -q             tests/integration/test_knowledge_persistence_postgres.py             tests/integration/test_research_persistence_postgres.py
+
+      - name: Re-apply migrations to prove idempotency
+        shell: bash
+        env:
+          PGPASSWORD: postgres
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U postgres -d cknexus_knowledge_test             -v ON_ERROR_STOP=1             -f migrations/postgresql/004_knowledge_fabric_v2.sql
+          psql -h 127.0.0.1 -U postgres -d cknexus_knowledge_test             -v ON_ERROR_STOP=1             -f migrations/postgresql/005_research_artifacts_v1.sql
+
+      - name: Prepare ephemeral SearXNG environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp deploy/searxng/.env.example deploy/searxng/.env
+          secret="$(openssl rand -hex 32)"
+          sed -i "s/^SEARXNG_SECRET=.*/SEARXNG_SECRET=$secret/" deploy/searxng/.env
+          grep -q '^SEARXNG_SECRET=.' deploy/searxng/.env
+
+      - name: Validate SearXNG Compose
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose             --env-file deploy/searxng/.env             -f deploy/searxng/docker-compose.yml             config >/tmp/searxng-compose-rendered.yml
+          ! grep -q '0.0.0.0:8080' /tmp/searxng-compose-rendered.yml
+          grep -q '127.0.0.1' /tmp/searxng-compose-rendered.yml
+
+      - name: Start SearXNG runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose             --env-file deploy/searxng/.env             -f deploy/searxng/docker-compose.yml             up -d
+
+      - name: Verify live SearXNG JSON endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 45); do
+            if python -m scripts.searxng_doctor               --base-url http://127.0.0.1:8080/               --query "ck nexus"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose             --env-file deploy/searxng/.env             -f deploy/searxng/docker-compose.yml             logs --no-color
+          exit 1
+
+      - name: Teardown SearXNG runtime
+        if: always()
+        shell: bash
+        run: |
+          docker compose             --env-file deploy/searxng/.env             -f deploy/searxng/docker-compose.yml             down -v --remove-orphans || true
+          rm -f deploy/searxng/.env
+
+      - name: Development evidence boundary
+        shell: bash
+        run: |
+          cat <<'EOF'
+          DEVELOPMENT INTEGRATION VALIDATION ONLY
+          This run measures research intelligence, persistence, and discovery runtime at one exact SHA.
+          It is not independent verification, owner sign-off, Q10 evidence, or Production authorization.
+          VERIFIED authority remains outside this workflow.
+          EOF
