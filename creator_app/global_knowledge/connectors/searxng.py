@@ -6,9 +6,9 @@ search results as verified evidence and performs no write action.
 
 from __future__ import annotations
 
+import ipaddress
 from dataclasses import dataclass
 from enum import StrEnum
-import ipaddress
 from typing import Any
 from urllib.parse import urlencode, urljoin, urlsplit
 
