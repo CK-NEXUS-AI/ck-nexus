@@ -221,5 +221,3 @@ def _stable_id(prefix: str, *parts: str) -> str:
     payload = "\x1f".join(parts).encode("utf-8")
     digest = hashlib.sha256(payload).hexdigest()[:24]
     return f"{prefix}-{digest}"
-
-[executed on device: 10616a96dd5c121bb (99b698de-7e79-4f9c-ad45-281a8377dada)]
