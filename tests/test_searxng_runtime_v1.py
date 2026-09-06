@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
-
 import pytest
 
 import scripts.searxng_doctor as doctor
