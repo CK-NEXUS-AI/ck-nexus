@@ -1,3 +1,5 @@
+[Reading 308 lines from start (total: 308 lines, 0 remaining)]
+
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -5,9 +7,6 @@ from dataclasses import replace
 from typing import Any
 
 import pytest
-
-import idea_engine.knowledge_repository as repository_module
-from creator_app.runtime_binding import RuntimeBindingConfig
 from idea_engine.knowledge_fabric import (
     ClaimClass,
     KnowledgeClaim,
@@ -16,6 +15,9 @@ from idea_engine.knowledge_fabric import (
     SourceClass,
     SourceRecord,
 )
+
+import idea_engine.knowledge_repository as repository_module
+from creator_app.runtime_binding import RuntimeBindingConfig
 from idea_engine.knowledge_repository import PostgresKnowledgeRepository
 
 
@@ -306,3 +308,5 @@ async def test_load_tenant_reconstructs_only_requested_tenant(
     assert claims == (item_claim,)
     assert revoked == frozenset({"s1"})
     assert all(args == ("tenant-a",) for _sql, args in conn.executed)
+
+[executed on device: 10616a96dd5c121bb (99b698de-7e79-4f9c-ad45-281a8377dada)]
