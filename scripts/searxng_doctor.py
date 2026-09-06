@@ -55,6 +55,7 @@ def check_json_api(
             headers={
                 "Accept": "application/json",
                 "User-Agent": "CK-NEXUS-SearXNG-Doctor/1.0",
+                "X-Real-IP": "127.0.0.1",
             },
         )
         response = connection.getresponse()
