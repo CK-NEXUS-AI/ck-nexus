@@ -10,7 +10,6 @@ from dataclasses import dataclass
 
 from .contracts import DiscoveryMode, SearchRequest, SourceKind
 
-
 _DEFAULT_SOURCE_PRIORITY = (
     SourceKind.GOVERNMENT,
     SourceKind.ACADEMIC,
