@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts import searxng_doctor as doctor
+from scripts import searxng_doctor
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -67,22 +67,22 @@ def install_fake_connection(
     FakeConnection.response = response
     FakeConnection.calls = []
     monkeypatch.setattr(
-        doctor.http.client,
+        searxng_doctor.http.client,
         "HTTPConnection",
         FakeConnection,
     )
 
 
 def test_validate_local_base_url_accepts_loopback_only() -> None:
-    assert doctor.validate_local_base_url(
+    assert searxng_doctor.validate_local_base_url(
         "http://127.0.0.1:8080/"
     ) == ("127.0.0.1", 8080)
 
     with pytest.raises(ValueError, match="loopback"):
-        doctor.validate_local_base_url("http://192.168.1.10:8080/")
+        searxng_doctor.validate_local_base_url("http://192.168.1.10:8080/")
 
     with pytest.raises(ValueError, match="local http"):
-        doctor.validate_local_base_url("https://127.0.0.1:8080/")
+        searxng_doctor.validate_local_base_url("https://127.0.0.1:8080/")
 
 
 def test_json_doctor_accepts_expected_response(
@@ -93,7 +93,7 @@ def test_json_doctor_accepts_expected_response(
         FakeResponse(body=b'{"results": [{"url": "https://example.test"}]}'),
     )
 
-    result = doctor.check_json_api(
+    result = searxng_doctor.check_json_api(
         "http://127.0.0.1:8080/",
         query="ck nexus",
     )
@@ -116,7 +116,7 @@ def test_json_doctor_fails_closed_when_json_is_disabled(
         ),
     )
 
-    result = doctor.check_json_api("http://127.0.0.1:8080/")
+    result = searxng_doctor.check_json_api("http://127.0.0.1:8080/")
 
     assert result.ok is False
     assert result.reason == "json_format_not_enabled"
@@ -130,7 +130,7 @@ def test_json_doctor_fails_closed_on_invalid_payload(
         FakeResponse(body=b'{"unexpected": []}'),
     )
 
-    result = doctor.check_json_api("http://127.0.0.1:8080/")
+    result = searxng_doctor.check_json_api("http://127.0.0.1:8080/")
 
     assert result.ok is False
     assert result.reason == "results_array_missing"
