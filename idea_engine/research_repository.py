@@ -1,5 +1,3 @@
-[Reading 654 lines from start (total: 654 lines, 0 remaining)]
-
 from __future__ import annotations
 
 import json
