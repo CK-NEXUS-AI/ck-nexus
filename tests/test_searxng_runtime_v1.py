@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+
 import pytest
 
 from scripts import searxng_doctor as doctor
@@ -101,6 +102,7 @@ def test_json_doctor_accepts_expected_response(
     assert result.reason == "ready"
     assert result.result_count == 1
     assert "format=json" in FakeConnection.calls[0][1]
+    assert FakeConnection.calls[0][2]["X-Real-IP"] == "127.0.0.1"
 
 
 def test_json_doctor_fails_closed_when_json_is_disabled(
