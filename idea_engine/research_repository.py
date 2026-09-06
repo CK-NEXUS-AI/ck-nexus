@@ -39,6 +39,21 @@ _ALLOWED_EDGE_TYPES = frozenset(
         "CONTRADICTS",
     }
 )
+_ALLOWED_CONTRADICTION_TYPES = frozenset(
+    {
+        "FACTUAL",
+        "TEMPORAL",
+        "LOGICAL_REVIEW_REQUIRED",
+    }
+)
+_ALLOWED_RESOLUTION_STATES = frozenset(
+    {
+        "UNRESOLVED",
+        "RESEARCH_REQUIRED",
+        "HUMAN_REVIEW_REQUIRED",
+        "RESOLVED",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +69,8 @@ class ResearchLineageEdgeRecord:
     def __post_init__(self) -> None:
         if not self.edge_id.strip():
             raise ValueError("edge_id is required")
+        if not self.from_node_id.strip() or not self.to_node_id.strip():
+            raise ValueError("lineage node ids are required")
         if self.from_node_kind not in _ALLOWED_NODE_KINDS:
             raise ValueError("unsupported from_node_kind")
         if self.to_node_kind not in _ALLOWED_NODE_KINDS:
@@ -80,6 +97,10 @@ class ResearchContradictionRecord:
             raise ValueError("contradiction_id is required")
         if len(set(self.claim_ids)) < 2:
             raise ValueError("contradiction requires at least two claim ids")
+        if self.contradiction_type not in _ALLOWED_CONTRADICTION_TYPES:
+            raise ValueError("unsupported contradiction_type")
+        if self.resolution_status not in _ALLOWED_RESOLUTION_STATES:
+            raise ValueError("unsupported resolution_status")
         if not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be within 0..1")
 
@@ -146,12 +167,12 @@ class ResearchArtifactRecord:
             raise ValueError("artifact_id is required")
         if self.decision not in _ALLOWED_DECISIONS:
             raise ValueError("unsupported research decision")
-        if self.truth_state not in _ALLOWED_TRUTH_STATES:
-            raise ValueError("unsupported research truth_state")
         if self.truth_state == "VERIFIED":
             raise PermissionError(
                 "research persistence cannot persist VERIFIED authority state"
             )
+        if self.truth_state not in _ALLOWED_TRUTH_STATES:
+            raise ValueError("unsupported research truth_state")
 
 
 class ResearchRepository(Protocol):
