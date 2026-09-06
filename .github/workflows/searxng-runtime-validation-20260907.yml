@@ -1,0 +1,108 @@
+name: SearXNG Runtime V1 Validation
+
+on:
+  push:
+    branches:
+      - post-p0/searxng-runtime-v1-20260907
+    paths:
+      - .github/workflows/searxng-runtime-validation-20260907.yml
+      - deploy/searxng/**
+      - scripts/searxng_doctor.py
+      - tests/test_searxng_runtime_v1.py
+  pull_request:
+    paths:
+      - .github/workflows/searxng-runtime-validation-20260907.yml
+      - deploy/searxng/**
+      - scripts/searxng_doctor.py
+      - tests/test_searxng_runtime_v1.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact development checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain=v1)"
+          printf 'development_head=%s\n' "$GITHUB_SHA"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Run SearXNG runtime unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check pytest
+          python -m pytest -q tests/test_searxng_runtime_v1.py
+
+      - name: Prepare ephemeral runtime environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp deploy/searxng/.env.example deploy/searxng/.env
+          secret="$(openssl rand -hex 32)"
+          sed -i "s/^SEARXNG_SECRET=.*/SEARXNG_SECRET=$secret/" deploy/searxng/.env
+          grep -q '^SEARXNG_SECRET=.' deploy/searxng/.env
+
+      - name: Validate Compose configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose             --env-file deploy/searxng/.env             -f deploy/searxng/docker-compose.yml             config >/tmp/searxng-compose-rendered.yml
+          ! grep -q '0.0.0.0:8080' /tmp/searxng-compose-rendered.yml
+          grep -q '127.0.0.1' /tmp/searxng-compose-rendered.yml
+
+      - name: Start SearXNG development runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose             --env-file deploy/searxng/.env             -f deploy/searxng/docker-compose.yml             up -d
+
+      - name: Verify live JSON discovery endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 45); do
+            if python scripts/searxng_doctor.py               --base-url http://127.0.0.1:8080/               --query "ck nexus"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose             --env-file deploy/searxng/.env             -f deploy/searxng/docker-compose.yml             logs --no-color
+          exit 1
+
+      - name: Runtime state
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose             --env-file deploy/searxng/.env             -f deploy/searxng/docker-compose.yml             ps
+
+      - name: Teardown runtime
+        if: always()
+        shell: bash
+        run: |
+          docker compose             --env-file deploy/searxng/.env             -f deploy/searxng/docker-compose.yml             down -v --remove-orphans
+          rm -f deploy/searxng/.env
+
+      - name: Development evidence boundary
+        shell: bash
+        run: |
+          cat <<'EOF'
+          DEVELOPMENT VALIDATION ONLY
+          This run measures a local SearXNG JSON discovery runtime at the exact workflow SHA.
+          It is not search-result verification, independent review, Q10 evidence, or Production authorization.
+          EOF
