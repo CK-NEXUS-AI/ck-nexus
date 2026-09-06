@@ -308,5 +308,3 @@ async def test_load_tenant_reconstructs_only_requested_tenant(
     assert claims == (item_claim,)
     assert revoked == frozenset({"s1"})
     assert all(args == ("tenant-a",) for _sql, args in conn.executed)
-
-[executed on device: 10616a96dd5c121bb (99b698de-7e79-4f9c-ad45-281a8377dada)]
