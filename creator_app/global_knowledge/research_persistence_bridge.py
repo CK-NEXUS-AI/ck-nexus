@@ -1,5 +1,3 @@
-[Reading 221 lines from start (total: 221 lines, 0 remaining)]
-
 """Bridge research intelligence artifacts into canonical PostgreSQL records.
 
 This module reconciles the Gen 6 research contracts with the existing
