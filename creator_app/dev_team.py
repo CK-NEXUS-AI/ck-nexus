@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
@@ -257,6 +258,7 @@ class DevTeamRuntime:
                 self.provider_router.report_success("openai")
             mode = "openai"
 
+        metadata = self._result_metadata(request, content)
         return DevTeamResult(
             id=f"team_{uuid4().hex}",
             session_id=request.session_id,
@@ -264,6 +266,12 @@ class DevTeamRuntime:
             content=content,
             model=self.settings.openai_model,
             mode=mode,
+            provider=mode,
+            advisory_only=True,
+            workflow=metadata["workflow"],
+            debate_status=metadata["debate_status"],
+            consensus_score=metadata["consensus_score"],
+            evidence_ref_count=metadata["evidence_ref_count"],
             duration_ms=max(1, round((perf_counter() - started) * 1_000)),
             advisors_available=len(DEV_ADVISORS),
         )
@@ -515,6 +523,58 @@ class DevTeamRuntime:
             "reviewer": self.settings.dev_reviewer_model,
         }[advisor_id]
         return configured or self.settings.openai_model
+
+    @staticmethod
+    def _result_metadata(request: DevTeamRequest, content: str) -> dict[str, object]:
+        if request.consult_mode == "debate":
+            statuses = (
+                "CONSENSUS_REACHED",
+                "MORE_EVIDENCE_REQUIRED",
+                "DISAGREEMENT_REMAINS",
+                "HUMAN_REVIEW_REQUIRED",
+            )
+            debate_status = next(
+                (status for status in statuses if f"- status: {status}" in content),
+                None,
+            )
+            score_match = re.search(r"- consensus_score: ([0-9]+(?:\.[0-9]+)?)", content)
+            evidence_match = re.search(r"- evidence_refs: ([0-9]+)", content)
+            return {
+                "workflow": [
+                    "PROPOSER",
+                    "OPPOSER",
+                    "EXAMINER",
+                    "SYNTHESIZER",
+                    "DETERMINISTIC_MODERATOR",
+                ],
+                "debate_status": debate_status,
+                "consensus_score": (
+                    float(score_match.group(1)) if score_match is not None else None
+                ),
+                "evidence_ref_count": (
+                    int(evidence_match.group(1)) if evidence_match is not None else None
+                ),
+            }
+
+        if request.consult_mode == "council":
+            workflow = [
+                "LEAD_ORCHESTRATOR",
+                "ARCHITECT",
+                "RESEARCH",
+                "DESIGNER",
+                "BUILDER",
+                "REVIEWER",
+            ]
+        elif request.consult_mode == "auto":
+            workflow = ["LEAD_ORCHESTRATOR", "BOUNDED_SPECIALISTS"]
+        else:
+            workflow = [request.consult_mode.upper()]
+        return {
+            "workflow": workflow,
+            "debate_status": None,
+            "consensus_score": None,
+            "evidence_ref_count": None,
+        }
 
     @staticmethod
     def _build_input(request: DevTeamRequest) -> str:
