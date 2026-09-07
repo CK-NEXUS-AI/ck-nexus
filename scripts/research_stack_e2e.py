@@ -151,6 +151,25 @@ async def write_phase(args: argparse.Namespace) -> int:
     tenant_id = f"research-e2e-{args.run_id}"
     artifact_id = f"artifact-{args.run_id}"
 
+    state = {
+        "version": 1,
+        "tenant_id": tenant_id,
+        "artifact_id": artifact_id,
+        "source_ids": list(artifact.source_ids),
+        "claim_ids": [],
+        "decision": decision.action.name,
+        "truth_state": "MEASURED_NOT_VERIFIED",
+        "ready_for_analysis": artifact.ready_for_analysis,
+        "verified": artifact.verified,
+        "search_result_count": len(result.hits),
+        "observed_at": observed_at,
+        "subject_sha": os.getenv("GITHUB_SHA", "local"),
+    }
+    Path(args.state_file).write_text(
+        json.dumps(state, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
     pool, knowledge_repo, research_repo = await open_repositories(args.database_url)
     try:
         await knowledge_repo.verify_schema()
@@ -203,20 +222,7 @@ async def write_phase(args: argparse.Namespace) -> int:
     finally:
         await pool.close()
 
-    state = {
-        "version": 1,
-        "tenant_id": tenant_id,
-        "artifact_id": artifact_id,
-        "source_ids": list(artifact.source_ids),
-        "claim_ids": [],
-        "decision": decision.action.name,
-        "truth_state": record.truth_state,
-        "ready_for_analysis": artifact.ready_for_analysis,
-        "verified": artifact.verified,
-        "search_result_count": len(result.hits),
-        "observed_at": observed_at,
-        "subject_sha": os.getenv("GITHUB_SHA", "local"),
-    }
+    state["truth_state"] = record.truth_state
     Path(args.state_file).write_text(
         json.dumps(state, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
