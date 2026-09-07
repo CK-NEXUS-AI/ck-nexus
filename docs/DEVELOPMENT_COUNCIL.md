@@ -37,7 +37,7 @@ Request fields:
 }
 ```
 
-Supported `consult_mode` values: `auto`, `council`, `architect`, `research`, `designer`, `builder`, `reviewer`.
+Supported `consult_mode` values: `auto`, `council`, `architect`, `research`, `designer`, `builder`, `reviewer`, `debate`.
 
 ## Models
 
@@ -62,3 +62,29 @@ Only Research & Analyst receives `WebSearchTool`. This keeps the external resear
 ## Readiness boundary
 
 Mock Mode validates routing contracts and UI/API behavior without API spend. Live multi-agent evidence remains BLOCKED until a server-side `OPENAI_API_KEY` is configured and a live smoke test succeeds. Production readiness still requires the broader CK-NEXUS P0 gate set.
+
+
+## Debate Protocol V1
+
+`consult_mode=debate` reuses the existing Development Council instead of creating a second agent runtime.
+
+Role mapping:
+
+- PROPOSER -> Architect & Strategist
+- OPPOSER -> Security / QA / DevOps Reviewer
+- EXAMINER -> Research & Analyst
+- SYNTHESIZER -> bounded synthesis agent on the existing Council model
+- MODERATOR -> deterministic Python rules, not an authority-bearing model
+
+The deterministic moderator enforces bounded structured turns, a 300-word limit per contribution, duplicate detection, a 0.8 advisory consensus threshold, safety escalation, and explicit non-authority semantics.
+
+Possible moderation states:
+
+- `CONSENSUS_REACHED`
+- `MORE_EVIDENCE_REQUIRED`
+- `DISAGREEMENT_REMAINS`
+- `HUMAN_REVIEW_REQUIRED`
+
+A debate consensus is advisory only. It cannot set VERIFIED, approve its own output, merge code, deploy Production, modify Q10/Q11/Q12, or replace independent human review or owner sign-off.
+
+V1 intentionally keeps live debate on the existing Agents-SDK-capable Council provider. Cross-provider role routing is a separate follow-on after provider registry/model/privacy compatibility is refreshed and measured.
