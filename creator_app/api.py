@@ -87,6 +87,7 @@ from creator_app.schemas import (
 )
 from creator_app.service import CreatorService
 from creator_app.storage import RunStore
+from gateway.service_auth import GatewayServiceAuth, GatewayServiceAuthError
 from services.email_gateway.attachments import scan_attachment
 from services.email_gateway.factory import create_email_repository
 from services.email_gateway.loop_prevention import evaluate_loop_headers
@@ -219,6 +220,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     didit_config = DiditConfig.from_env()
     didit_client = DiditClient(didit_config)
     didit_store = DiditVerificationStore(resolved_settings.database_path)
+    gateway_service_secret = os.getenv("CKNEXUS_GATEWAY_SERVICE_AUTH_SECRET", "").strip()
+    try:
+        gateway_service_auth = (
+            GatewayServiceAuth(gateway_service_secret) if gateway_service_secret else None
+        )
+    except ValueError:
+        gateway_service_auth = None
     limiter = SlidingWindowRateLimiter(resolved_settings.rate_limit_per_minute)
     metrics_registry = MetricsRegistry()
     structured_logger = StructuredLogger()
@@ -265,6 +273,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.didit_config = didit_config
     app.state.didit_client = didit_client
     app.state.didit_store = didit_store
+    app.state.gateway_service_auth = gateway_service_auth
     app.state.metrics_registry = metrics_registry
     app.state.runtime_binding_required = runtime_binding_required
     app.state.connector_fabric = connector_fabric
@@ -660,22 +669,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> dict[str, object]:
         return {"journal_id": journal_id, "events": email_repository.trace_audit(journal_id)}
 
-    @app.post(
-        "/api/v1/verification/didit/kyb/session",
-        dependencies=[Depends(require_access_token)],
-    )
+    @app.post("/api/v1/verification/didit/kyb/session")
     async def didit_create_kyb_session(
-        x_ck_gateway_verified: Annotated[
-            str | None, Header(alias="X-CK-Gateway-Verified")
+        x_ck_gateway_service_token: Annotated[
+            str | None, Header(alias="X-CK-Gateway-Service-Token")
         ] = None,
         x_ck_tenant_id: Annotated[str | None, Header(alias="X-CK-Tenant-ID")] = None,
         x_ck_actor_id: Annotated[str | None, Header(alias="X-CK-Actor-ID")] = None,
     ) -> dict[str, str]:
-        if x_ck_gateway_verified != "1" or not x_ck_actor_id or not x_ck_tenant_id:
+        verifier = app.state.gateway_service_auth
+        if verifier is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "GATEWAY_SERVICE_AUTH_NOT_CONFIGURED"},
+            )
+        if not x_ck_gateway_service_token or not x_ck_actor_id or not x_ck_tenant_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail={"error": "TRUSTED_GATEWAY_IDENTITY_REQUIRED"},
             )
+        try:
+            verifier.verify(
+                x_ck_gateway_service_token,
+                tenant_id=x_ck_tenant_id,
+                actor_id=x_ck_actor_id,
+                method="POST",
+                path="/api/v1/verification/didit/kyb/session",
+            )
+        except GatewayServiceAuthError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"error": "INVALID_GATEWAY_SERVICE_AUTH"},
+            ) from exc
         vendor_data = f"{x_ck_tenant_id}:{x_ck_actor_id}"
         try:
             return await app.state.didit_client.create_kyb_session(vendor_data=vendor_data)

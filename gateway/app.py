@@ -14,6 +14,7 @@ from .errors import GatewayError
 from .proxy import HttpxUpstreamClient, UpstreamClient
 from .rate_limit import RedisTokenBucket
 from .routing import RouteRegistry
+from .service_auth import GatewayServiceAuth
 
 
 class RateLimiter(Protocol):
@@ -114,6 +115,28 @@ def create_app(
                 retryable=True,
             )
         target = match.target_url(request_path)
+        trusted_headers = {
+            HEADER: request.state.correlation_id,
+            "X-CK-Tenant-ID": identity.tenant_id,
+            "X-CK-Actor-ID": identity.actor_id,
+            "X-CK-Permissions": ",".join(sorted(identity.permissions)),
+        }
+        if match.policy.id == "verification.didit.kyb.start":
+            try:
+                service_auth = GatewayServiceAuth(deps.settings.service_auth_secret)
+            except ValueError as exc:
+                raise GatewayError(
+                    "SERVICE_AUTH_UNAVAILABLE",
+                    "Gateway service authentication is not configured.",
+                    503,
+                ) from exc
+            trusted_headers["X-CK-Gateway-Service-Token"] = service_auth.issue(
+                tenant_id=identity.tenant_id,
+                actor_id=identity.actor_id,
+                method=request.method,
+                path=request_path,
+            )
+
         upstream = await deps.proxy.request(
             request.method,
             target,
@@ -127,12 +150,9 @@ def create_app(
                         "authorization", "cookie", "proxy-authorization", "host",
                         "content-length", "connection"
                     }
+                    and not key.lower().startswith("x-ck-")
                 },
-                HEADER: request.state.correlation_id,
-                "X-CK-Tenant-ID": identity.tenant_id,
-                "X-CK-Actor-ID": identity.actor_id,
-                "X-CK-Permissions": ",".join(sorted(identity.permissions)),
-                "X-CK-Gateway-Verified": "1",
+                **trusted_headers,
             },
             timeout_seconds=match.policy.timeout_ms / 1000.0,
         )

@@ -26,6 +26,42 @@ DIDIT_STATUSES = {
     "Expired",
     "Kyc Expired",
 }
+
+# Rules apply within one Didit session. A new session_id starts a new lifecycle.
+# Same-state repeats are event-log no-ops because provider retries may use a new
+# event_id; the business verification row is not overwritten.
+DIDIT_ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
+    "Not Started": frozenset({
+        "In Progress", "Awaiting User", "In Review", "Approved", "Declined",
+        "Resubmitted", "Abandoned", "Expired",
+    }),
+    "In Progress": frozenset({
+        "Awaiting User", "In Review", "Approved", "Declined",
+        "Resubmitted", "Abandoned", "Expired",
+    }),
+    "Awaiting User": frozenset({
+        "In Progress", "In Review", "Approved", "Declined",
+        "Resubmitted", "Abandoned", "Expired",
+    }),
+    "In Review": frozenset({
+        "Approved", "Declined", "Resubmitted", "Abandoned", "Expired",
+    }),
+    "Resubmitted": frozenset({
+        "Not Started", "In Progress", "Awaiting User", "In Review",
+        "Approved", "Declined", "Abandoned", "Expired",
+    }),
+    # Approved can become Kyc Expired only when Didit's reverification policy
+    # expires the previously verified session.
+    "Approved": frozenset({"Kyc Expired"}),
+    # Declined/Abandoned can reopen only through an explicit Resubmitted event.
+    "Declined": frozenset({"Resubmitted"}),
+    "Abandoned": frozenset({"Resubmitted"}),
+    # Expired and Kyc Expired require a new session_id.
+    "Expired": frozenset(),
+    "Kyc Expired": frozenset(),
+}
+
+
 class DiditConfigurationError(RuntimeError):
     pass
 
@@ -159,10 +195,28 @@ class DiditVerificationStore:
             ).fetchone()
             if existing:
                 return False
+
+            current = conn.execute(
+                "SELECT session_id, status FROM didit_business_verifications WHERE vendor_data = ?",
+                (vendor_data,),
+            ).fetchone()
+            same_state_repeat = False
+            if current and current["session_id"] == session_id:
+                current_status = str(current["status"])
+                if current_status == status:
+                    same_state_repeat = True
+                elif status not in DIDIT_ALLOWED_TRANSITIONS[current_status]:
+                    raise ValueError(
+                        f"invalid Didit state transition: {current_status} -> {status}"
+                    )
+
             conn.execute(
                 "INSERT INTO didit_webhook_events VALUES (?, ?, ?, ?, ?)",
                 (event_id, session_id, vendor_data, status, received_at),
             )
+            if same_state_repeat:
+                return True
+
             conn.execute(
                 """
                 INSERT INTO didit_business_verifications

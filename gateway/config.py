@@ -59,6 +59,7 @@ class GatewaySettings:
     route_policies: tuple[RoutePolicy, ...] = ()
     rate_policies: dict[str, RateLimitPolicy] = field(default_factory=dict)
     audit_required: bool = True
+    service_auth_secret: str = ""
 
     @classmethod
     def from_env(cls) -> GatewaySettings:
@@ -141,11 +142,16 @@ class GatewaySettings:
                 "read-standard": RateLimitPolicy("read-standard", 120, 2.0),
             },
             audit_required=os.environ.get("CKN_AUDIT_REQUIRED", "true").lower() == "true",
+            service_auth_secret=os.environ.get(
+                "CKNEXUS_GATEWAY_SERVICE_AUTH_SECRET", ""
+            ).strip(),
         )
 
     def validate(self) -> None:
         if self.environment == "production" and not self.jwt_public_key:
             raise ValueError("production gateway requires JWT verifier configuration")
+        if self.environment == "production" and len(self.service_auth_secret.encode()) < 32:
+            raise ValueError("production gateway requires a strong service-auth secret")
         route_ids: set[str] = set()
         for route in self.route_policies:
             if route.id in route_ids:
