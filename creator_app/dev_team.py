@@ -2,12 +2,24 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
 
 from creator_app.config import Settings
+from creator_app.council_debate import (
+    DebatePolicy,
+    DebateRole,
+    build_final_vote_prompt,
+    build_initial_prompt,
+    build_mock_debate_report,
+    build_synthesis_prompt,
+    moderate_votes,
+    parse_contribution,
+    render_report,
+)
 from creator_app.credential_broker import CredentialBroker, CredentialId, CredentialUnavailable
 from creator_app.openai_brain import OpenAIBrainUnavailable, build_openai_agents_run_config
 from creator_app.provider_router import ProviderRouter
@@ -246,6 +258,7 @@ class DevTeamRuntime:
                 self.provider_router.report_success("openai")
             mode = "openai"
 
+        metadata = self._result_metadata(request, content)
         return DevTeamResult(
             id=f"team_{uuid4().hex}",
             session_id=request.session_id,
@@ -253,6 +266,12 @@ class DevTeamRuntime:
             content=content,
             model=self.settings.openai_model,
             mode=mode,
+            provider=mode,
+            advisory_only=True,
+            workflow=metadata["workflow"],
+            debate_status=metadata["debate_status"],
+            consensus_score=metadata["consensus_score"],
+            evidence_ref_count=metadata["evidence_ref_count"],
             duration_ms=max(1, round((perf_counter() - started) * 1_000)),
             advisors_available=len(DEV_ADVISORS),
         )
@@ -302,6 +321,14 @@ class DevTeamRuntime:
                 tools=tools,
             )
 
+        if request.consult_mode == "debate":
+            return await self._run_debate(
+                specialists,
+                request,
+                brain.run_config,
+                agent_type=Agent,
+            )
+
         if request.consult_mode not in {"auto", "council"}:
             specialist = specialists[request.consult_mode]
             return await self._run_agent(specialist, request, brain.run_config)
@@ -325,15 +352,136 @@ class DevTeamRuntime:
         )
         return await self._run_agent(orchestrator, request, brain.run_config)
 
+    async def _run_debate(
+        self,
+        specialists: dict[str, object],
+        request: DevTeamRequest,
+        run_config: object,
+        *,
+        agent_type: object,
+    ) -> str:
+        policy = DebatePolicy()
+        initial = []
+        violations: list[str] = []
+        role_map = (
+            (DebateRole.PROPOSER, "architect"),
+            (DebateRole.OPPOSER, "reviewer"),
+            (DebateRole.EXAMINER, "research"),
+        )
+
+        try:
+            for role, advisor_id in role_map:
+                prompt = build_initial_prompt(
+                    role,
+                    objective=request.prompt,
+                    context=request.context,
+                    language=request.language,
+                    prior=initial,
+                )
+                raw = await self._run_agent_text(
+                    specialists[advisor_id],
+                    prompt,
+                    session_id=f"{request.session_id}:debate:{role.value.lower()}:initial",
+                    run_config=run_config,
+                )
+                contribution, contribution_violations = parse_contribution(
+                    raw,
+                    role=role,
+                    policy=policy,
+                )
+                initial.append(contribution)
+                violations.extend(contribution_violations)
+
+            synthesizer = agent_type(
+                name="CK-NEXUS Debate Synthesizer",
+                instructions=(
+                    f"{TEAM_BASE_INSTRUCTIONS}\n\n"
+                    "Synthesize the debate without erasing material disagreement. "
+                    "You have no verification, approval, merge, deployment, or "
+                    "Production authority."
+                ),
+                model=self.settings.openai_model,
+            )
+            raw_synthesis = await self._run_agent_text(
+                synthesizer,
+                build_synthesis_prompt(
+                    objective=request.prompt,
+                    context=request.context,
+                    language=request.language,
+                    contributions=initial,
+                ),
+                session_id=f"{request.session_id}:debate:synthesizer",
+                run_config=run_config,
+            )
+            synthesis, synthesis_violations = parse_contribution(
+                raw_synthesis,
+                role=DebateRole.SYNTHESIZER,
+                policy=policy,
+            )
+            violations.extend(synthesis_violations)
+
+            final_votes = []
+            for role, advisor_id in role_map:
+                raw_vote = await self._run_agent_text(
+                    specialists[advisor_id],
+                    build_final_vote_prompt(
+                        role,
+                        objective=request.prompt,
+                        synthesis=synthesis,
+                        language=request.language,
+                    ),
+                    session_id=f"{request.session_id}:debate:{role.value.lower()}:vote",
+                    run_config=run_config,
+                )
+                vote, vote_violations = parse_contribution(
+                    raw_vote,
+                    role=role,
+                    policy=policy,
+                )
+                final_votes.append(vote)
+                violations.extend(vote_violations)
+        except ValueError as exc:
+            raise ProviderRuntimeError(
+                "The Development Council debate returned invalid structured output."
+            ) from exc
+
+        moderation = moderate_votes(
+            final_votes,
+            policy=policy,
+            extra_violations=violations,
+        )
+        return render_report(
+            objective=request.prompt,
+            initial=initial,
+            synthesis=synthesis,
+            final_votes=final_votes,
+            moderation=moderation,
+        )
+
     async def _run_agent(self, agent: object, request: DevTeamRequest, run_config: object) -> str:
+        return await self._run_agent_text(
+            agent,
+            self._build_input(request),
+            session_id=request.session_id,
+            run_config=run_config,
+        )
+
+    async def _run_agent_text(
+        self,
+        agent: object,
+        input_text: str,
+        *,
+        session_id: str,
+        run_config: object,
+    ) -> str:
         try:
             from agents import Runner, SQLiteSession
 
-            session = self._session(request.session_id, SQLiteSession)
+            session = self._session(session_id, SQLiteSession)
             async with asyncio.timeout(self.settings.run_timeout_seconds):
                 result = await Runner.run(
                     agent,
-                    self._build_input(request),
+                    input_text,
                     session=session,
                     max_turns=self.settings.dev_team_max_turns,
                     run_config=run_config,
@@ -377,6 +525,58 @@ class DevTeamRuntime:
         return configured or self.settings.openai_model
 
     @staticmethod
+    def _result_metadata(request: DevTeamRequest, content: str) -> dict[str, object]:
+        if request.consult_mode == "debate":
+            statuses = (
+                "CONSENSUS_REACHED",
+                "MORE_EVIDENCE_REQUIRED",
+                "DISAGREEMENT_REMAINS",
+                "HUMAN_REVIEW_REQUIRED",
+            )
+            debate_status = next(
+                (status for status in statuses if f"- status: {status}" in content),
+                None,
+            )
+            score_match = re.search(r"- consensus_score: ([0-9]+(?:\.[0-9]+)?)", content)
+            evidence_match = re.search(r"- evidence_refs: ([0-9]+)", content)
+            return {
+                "workflow": [
+                    "PROPOSER",
+                    "OPPOSER",
+                    "EXAMINER",
+                    "SYNTHESIZER",
+                    "DETERMINISTIC_MODERATOR",
+                ],
+                "debate_status": debate_status,
+                "consensus_score": (
+                    float(score_match.group(1)) if score_match is not None else None
+                ),
+                "evidence_ref_count": (
+                    int(evidence_match.group(1)) if evidence_match is not None else None
+                ),
+            }
+
+        if request.consult_mode == "council":
+            workflow = [
+                "LEAD_ORCHESTRATOR",
+                "ARCHITECT",
+                "RESEARCH",
+                "DESIGNER",
+                "BUILDER",
+                "REVIEWER",
+            ]
+        elif request.consult_mode == "auto":
+            workflow = ["LEAD_ORCHESTRATOR", "BOUNDED_SPECIALISTS"]
+        else:
+            workflow = [request.consult_mode.upper()]
+        return {
+            "workflow": workflow,
+            "debate_status": None,
+            "consensus_score": None,
+            "evidence_ref_count": None,
+        }
+
+    @staticmethod
     def _build_input(request: DevTeamRequest) -> str:
         payload = {
             "consult_mode": request.consult_mode,
@@ -391,6 +591,8 @@ class DevTeamRuntime:
 
     @staticmethod
     def _mock_output(request: DevTeamRequest) -> str:
+        if request.consult_mode == "debate":
+            return build_mock_debate_report(request.prompt)
         if request.consult_mode in DEV_ADVISORS:
             selected = [DEV_ADVISORS[request.consult_mode]]
         else:

@@ -84,27 +84,112 @@
     </section>
 
     <section class="tab" id="tab-dev-team">
-      <div class="page-head"><p class="eyebrow">DEVELOPMENT COUNCIL / 5 ADVISERS</p><h1>Think. <em>Challenge. Build.</em></h1></div>
-      <div class="split">
+      <div class="page-head">
+        <p class="eyebrow">DEVELOPMENT COUNCIL / DIRECT CHAT / DEBATE</p>
+        <h1>Talk. <em>Challenge. Decide.</em></h1>
+        <p class="lede">คุยกับ CK-NEXUS Development Council โดยตรง เลือกโหมดด้วยปุ่ม ดู provider/model/ขั้นตอนการทำงาน และสั่งถกเถียง ตรวจสอบ หรือค้นหลักฐานต่อจากคำตอบล่าสุดได้ทันที</p>
+      </div>
+
+      <div class="split council-layout">
         <section class="panel">
-          <div class="panel-head"><div><span class="step">01</span><h2>COUNCIL ROSTER</h2></div><span id="dev-team-count">05</span></div>
+          <div class="panel-head">
+            <div><span class="step">01</span><h2>COUNCIL ROSTER</h2></div>
+            <span id="dev-team-count">05</span>
+          </div>
+          <div class="council-runtime">
+            <div><span>PROVIDER</span><strong id="dev-team-provider">CHECKING</strong></div>
+            <div><span>MODEL</span><strong id="dev-team-model">CHECKING</strong></div>
+            <div><span>AUTHORITY</span><strong id="dev-team-authority">ADVISORY ONLY</strong></div>
+          </div>
           <div id="dev-team-list" class="agent-list"><p class="muted">LOADING COUNCIL</p></div>
         </section>
+
         <section class="panel">
-          <div class="panel-head"><div><span class="step">02</span><h2>CONSULT TEAM</h2></div></div>
+          <div class="panel-head">
+            <div><span class="step">02</span><h2>DIRECT COUNCIL CHAT</h2></div>
+            <span id="dev-team-ready">CHECKING</span>
+          </div>
+
+          <div class="mode-switch" id="dev-team-mode-buttons" aria-label="Council consult mode">
+            <button type="button" class="mode-chip active" data-dev-mode="auto">AUTO</button>
+            <button type="button" class="mode-chip" data-dev-mode="council">FULL COUNCIL</button>
+            <button type="button" class="mode-chip" data-dev-mode="debate">DEBATE</button>
+            <button type="button" class="mode-chip" data-dev-mode="reviewer">REVIEWER</button>
+            <button type="button" class="mode-chip" data-dev-mode="research">RESEARCH</button>
+          </div>
+
           <form id="dev-team-form" class="form-stack">
-            <label>QUESTION / DEVELOPMENT BRIEF<textarea id="dev-team-prompt" rows="7" required>วิเคราะห์ CK-NEXUS รุ่นปัจจุบัน แล้วเสนอ 3 เรื่องที่ควรพัฒนาต่อโดยคำนึงถึงความปลอดภัย UX และความพร้อมขาย</textarea></label>
+            <label>MESSAGE
+              <textarea id="dev-team-prompt" rows="6" required>วิเคราะห์ CK-NEXUS รุ่นปัจจุบัน แล้วเสนอสิ่งที่ควรพัฒนาต่อโดยคำนึงถึงหลักฐาน ความปลอดภัย และความพร้อมใช้งาน</textarea>
+            </label>
             <div class="form-row">
-              <label>CONSULT MODE<select id="dev-team-mode"><option value="auto">AUTO ROUTE</option><option value="council">FULL COUNCIL</option><option value="architect">ARCHITECT</option><option value="research">RESEARCH</option><option value="designer">DESIGNER</option><option value="builder">BUILDER</option><option value="reviewer">REVIEWER</option></select></label>
-              <label>LANGUAGE<select id="dev-team-language"><option>ไทย</option><option>English</option><option>ไทย + English</option></select></label>
+              <label>CONSULT MODE
+                <select id="dev-team-mode">
+                  <option value="auto">AUTO ROUTE</option>
+                  <option value="council">FULL COUNCIL</option>
+                  <option value="debate">DEBATE</option>
+                  <option value="architect">ARCHITECT</option>
+                  <option value="research">RESEARCH</option>
+                  <option value="designer">DESIGNER</option>
+                  <option value="builder">BUILDER</option>
+                  <option value="reviewer">REVIEWER</option>
+                </select>
+              </label>
+              <label>LANGUAGE
+                <select id="dev-team-language">
+                  <option>ไทย</option>
+                  <option>English</option>
+                  <option>ไทย + English</option>
+                </select>
+              </label>
             </div>
-            <label>CONTEXT<textarea id="dev-team-context" rows="4">Release Candidate ต้องแยกข้อเท็จจริง หลักฐาน สมมติฐาน และข้อเสนอแนะให้ชัดเจน</textarea></label>
+            <label>CONTEXT
+              <textarea id="dev-team-context" rows="3">Development only. แยกข้อเท็จจริง หลักฐาน สมมติฐาน และข้อเสนอแนะให้ชัดเจน ห้ามอ้าง VERIFIED หรือ Production Ready เกินหลักฐาน</textarea>
+            </label>
             <label>SESSION ID<input id="dev-team-session" value="development-council" /></label>
-            <button class="primary" type="submit">CONSULT COUNCIL</button>
+            <button class="primary" id="dev-team-submit" type="submit">SEND TO COUNCIL</button>
           </form>
         </section>
       </div>
-      <section class="panel output-panel"><div class="panel-head"><div><span class="step">03</span><h2>COUNCIL OUTPUT</h2></div><button class="ghost" id="copy-dev-team-output">COPY</button></div><pre class="output" id="dev-team-output">COUNCIL CHANNEL / IDLE</pre></section>
+
+      <section class="panel output-panel council-console">
+        <div class="panel-head">
+          <div><span class="step">03</span><h2>LIVE CONVERSATION</h2></div>
+          <button class="ghost" id="copy-dev-team-output">COPY LAST OUTPUT</button>
+        </div>
+
+        <div class="council-meta-grid" id="dev-team-run-meta">
+          <article><span>MODE</span><strong id="dev-run-mode">IDLE</strong></article>
+          <article><span>PROVIDER / MODEL</span><strong id="dev-run-provider">—</strong></article>
+          <article><span>STATUS</span><strong id="dev-run-status">WAITING</strong></article>
+          <article><span>EVIDENCE</span><strong id="dev-run-evidence">—</strong></article>
+          <article><span>CONSENSUS</span><strong id="dev-run-consensus">—</strong></article>
+          <article><span>DURATION</span><strong id="dev-run-duration">—</strong></article>
+        </div>
+
+        <div class="workflow-strip" id="dev-team-workflow">
+          <span>IDLE</span>
+        </div>
+
+        <div class="chat-stream" id="dev-team-chat" aria-live="polite">
+          <article class="chat-bubble system">
+            <small>CK-NEXUS SYSTEM</small>
+            <p>พร้อมคุยโดยตรง เลือก AUTO, FULL COUNCIL หรือ DEBATE แล้วส่งข้อความได้เลย ผลลัพธ์ทั้งหมดเป็น advisory และไม่เปลี่ยน Q10/Production authority</p>
+          </article>
+        </div>
+
+        <div class="quick-replies" id="dev-team-quick-replies">
+          <button type="button" class="ghost" data-dev-quick="debate">DEBATE คำตอบล่าสุด</button>
+          <button type="button" class="ghost" data-dev-quick="reviewer">REVIEWER ตรวจ</button>
+          <button type="button" class="ghost" data-dev-quick="research">RESEARCH หาเพิ่ม</button>
+          <button type="button" class="ghost" data-dev-quick="followup">ถามต่อเอง</button>
+        </div>
+
+        <details class="raw-output">
+          <summary>RAW COUNCIL OUTPUT / AUDIT VIEW</summary>
+          <pre class="output" id="dev-team-output">COUNCIL CHANNEL / IDLE</pre>
+        </details>
+      </section>
     </section>
 
     <section class="tab" id="tab-email">

@@ -1,6 +1,6 @@
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
-const state = { status:null, agents:[], selectedAgent:null, devTeam:[], lastJournalId:null, lastOutboxId:null, lastClaimedOutboxId:null };
+const state = { status:null, agents:[], selectedAgent:null, devTeam:[], devTeamInfo:null, devChat:[], lastCouncilResult:null, pendingCouncilContext:'', lastJournalId:null, lastOutboxId:null, lastClaimedOutboxId:null };
 
 function toast(message){ const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('show'),2800); }
 function pretty(value){ return JSON.stringify(value,null,2); }
@@ -20,9 +20,230 @@ function selectAgent(a,button){ state.selectedAgent=a; $('#agent-id').value=a.id
 $('#agent-form').addEventListener('submit',async e=>{ e.preventDefault(); if(!state.selectedAgent)return toast('เลือก Agent ก่อน'); $('#agent-output').textContent='GENERATING...'; try{ const r=await jsonPost('/api/runs',{agent_id:$('#agent-id').value,prompt:$('#agent-prompt').value,session_id:$('#agent-session').value,audience:$('#agent-audience').value,platform:$('#agent-platform').value,tone:$('#agent-tone').value,language:$('#agent-language').value},accessHeaders()); $('#agent-output').textContent=`${r.agent_name} / ${r.mode} / ${r.duration_ms} ms\n\n${r.content}`; toast('Agent completed'); }catch(err){ $('#agent-output').textContent=`ERROR\n${err.message}`; } });
 $('#copy-agent-output').addEventListener('click',()=>navigator.clipboard?.writeText($('#agent-output').textContent).then(()=>toast('Copied')));
 
-async function loadDevTeam(){try{const data=await api('/api/dev-team',{headers:accessHeaders()});state.devTeam=data.advisors||[];$('#dev-team-count').textContent=String(state.devTeam.length).padStart(2,'0');const list=$('#dev-team-list');list.replaceChildren();state.devTeam.forEach((a,i)=>{const card=document.createElement('div');card.className='agent-card';card.innerHTML=`<span class="agent-code">${String(i+1).padStart(2,'0')}</span><span><strong>${escapeHtml(a.name)}</strong><small>${escapeHtml(a.role)}</small></span><span>${a.web_search?'WEB':'ADVISE'}</span>`;list.append(card);});if(!state.devTeam.length)list.innerHTML='<p class="muted">NO ADVISERS</p>';return data;}catch(err){toast(`Dev Team: ${err.message}`);return null;}}
-$('#dev-team-form').addEventListener('submit',async e=>{e.preventDefault();$('#dev-team-output').textContent='CONSULTING...';try{const r=await jsonPost('/api/dev-team/run',{prompt:$('#dev-team-prompt').value,session_id:$('#dev-team-session').value,consult_mode:$('#dev-team-mode').value,context:$('#dev-team-context').value,language:$('#dev-team-language').value},accessHeaders());$('#dev-team-output').textContent=`CK-NEXUS DEVELOPMENT COUNCIL / ${r.mode} / ${r.duration_ms} ms\nMODE ${r.consult_mode} / ADVISORS ${r.advisors_available}\n\n${r.content}`;toast('Council completed');}catch(err){$('#dev-team-output').textContent=`ERROR\n${err.message}`;}});
+async function loadDevTeam(){
+  try{
+    const data=await api('/api/dev-team',{headers:accessHeaders()});
+    state.devTeamInfo=data;
+    state.devTeam=data.advisors||[];
+    $('#dev-team-count').textContent=String(state.devTeam.length).padStart(2,'0');
+    $('#dev-team-provider').textContent=(data.provider||data.mode||'blocked').toUpperCase();
+    $('#dev-team-model').textContent=data.model||state.status?.model||'—';
+    $('#dev-team-authority').textContent=data.debate?.authority_effect==='NONE'?'ADVISORY ONLY':'CHECK POLICY';
+    $('#dev-team-ready').textContent=data.ready?'READY':'BLOCKED';
+    setClass($('#dev-team-ready'),data.ready?'ok':'warn');
+
+    const list=$('#dev-team-list');
+    list.replaceChildren();
+    state.devTeam.forEach((a,i)=>{
+      const card=document.createElement('div');
+      card.className='agent-card';
+      const code=document.createElement('span');
+      code.className='agent-code';
+      code.textContent=String(i+1).padStart(2,'0');
+      const copy=document.createElement('span');
+      const strong=document.createElement('strong');
+      strong.textContent=a.name;
+      const small=document.createElement('small');
+      small.textContent=a.role;
+      copy.append(strong,small);
+      const badge=document.createElement('span');
+      badge.textContent=a.web_search?'WEB':'ADVISE';
+      card.append(code,copy,badge);
+      list.append(card);
+    });
+    if(!state.devTeam.length){
+      const empty=document.createElement('p');
+      empty.className='muted';
+      empty.textContent='NO ADVISERS';
+      list.append(empty);
+    }
+    return data;
+  }catch(err){
+    $('#dev-team-ready').textContent='ERROR';
+    setClass($('#dev-team-ready'),'bad');
+    toast(`Dev Team: ${err.message}`);
+    return null;
+  }
+}
+
+function setDevMode(mode){
+  const select=$('#dev-team-mode');
+  if([...select.options].some(option=>option.value===mode)) select.value=mode;
+  $$('[data-dev-mode]').forEach(button=>{
+    button.classList.toggle('active',button.dataset.devMode===mode);
+  });
+}
+
+function renderCouncilWorkflow(workflow=[]){
+  const box=$('#dev-team-workflow');
+  box.replaceChildren();
+  const items=workflow.length?workflow:['IDLE'];
+  items.forEach((item,index)=>{
+    if(index){
+      const arrow=document.createElement('b');
+      arrow.textContent='→';
+      box.append(arrow);
+    }
+    const chip=document.createElement('span');
+    chip.textContent=item;
+    box.append(chip);
+  });
+}
+
+function renderCouncilMeta(result){
+  $('#dev-run-mode').textContent=(result?.consult_mode||$('#dev-team-mode').value||'idle').toUpperCase();
+  $('#dev-run-provider').textContent=result?`${result.provider||result.mode} / ${result.model}`:'—';
+  $('#dev-run-status').textContent=result?.debate_status||'COMPLETED';
+  $('#dev-run-evidence').textContent=result?.evidence_ref_count===null||result?.evidence_ref_count===undefined?'N/A':String(result.evidence_ref_count);
+  $('#dev-run-consensus').textContent=typeof result?.consensus_score==='number'?`${Math.round(result.consensus_score*100)}%`:'N/A';
+  $('#dev-run-duration').textContent=result?`${result.duration_ms} ms`:'—';
+  renderCouncilWorkflow(result?.workflow||[]);
+}
+
+function appendCouncilMessage(kind,content,meta=''){
+  const stream=$('#dev-team-chat');
+  const item=document.createElement('article');
+  item.className=`chat-bubble ${kind}`;
+  const label=document.createElement('small');
+  label.textContent=kind==='user'?'YOU':kind==='assistant'?'CK-NEXUS COUNCIL':'CK-NEXUS SYSTEM';
+  const body=document.createElement('p');
+  body.textContent=content;
+  item.append(label,body);
+  if(meta){
+    const detail=document.createElement('small');
+    detail.className='chat-meta';
+    detail.textContent=meta;
+    item.append(detail);
+  }
+  stream.append(item);
+  stream.scrollTop=stream.scrollHeight;
+  state.devChat.push({kind,content,meta});
+}
+
+function buildCouncilContext(extra=''){
+  const base=$('#dev-team-context').value.trim();
+  const combined=[base,extra].filter(Boolean).join('\n\n');
+  return combined.slice(0,7900);
+}
+
+async function runDevTeam(options={}){
+  const prompt=(options.prompt??$('#dev-team-prompt').value).trim();
+  const mode=options.mode||$('#dev-team-mode').value;
+  const extraContext=options.extraContext||state.pendingCouncilContext||'';
+  if(!prompt) return toast('พิมพ์ข้อความก่อน');
+
+  setDevMode(mode);
+  appendCouncilMessage('user',prompt,`MODE ${mode.toUpperCase()}`);
+  $('#dev-run-mode').textContent=mode.toUpperCase();
+  $('#dev-run-status').textContent='RUNNING';
+  $('#dev-run-evidence').textContent='—';
+  $('#dev-run-consensus').textContent='—';
+  $('#dev-run-duration').textContent='—';
+  renderCouncilWorkflow(mode==='debate'?['PROPOSER','OPPOSER','EXAMINER','SYNTHESIZER','DETERMINISTIC_MODERATOR']:['COUNCIL_RUNTIME']);
+
+  const submit=$('#dev-team-submit');
+  submit.disabled=true;
+  submit.textContent='COUNCIL WORKING';
+  $('#dev-team-output').textContent='CONSULTING...';
+
+  try{
+    const result=await jsonPost('/api/dev-team/run',{
+      prompt,
+      session_id:$('#dev-team-session').value,
+      consult_mode:mode,
+      context:buildCouncilContext(extraContext),
+      language:$('#dev-team-language').value
+    },accessHeaders());
+
+    state.lastCouncilResult=result;
+    state.pendingCouncilContext='';
+    renderCouncilMeta(result);
+    appendCouncilMessage(
+      'assistant',
+      result.content,
+      `${(result.provider||result.mode).toUpperCase()} / ${result.model} / ${result.duration_ms} ms / ${result.debate_status||'COMPLETED'}`
+    );
+    $('#dev-team-output').textContent=[
+      'CK-NEXUS DEVELOPMENT COUNCIL',
+      `MODE ${result.consult_mode}`,
+      `PROVIDER ${result.provider||result.mode}`,
+      `MODEL ${result.model}`,
+      `DURATION ${result.duration_ms} ms`,
+      `ADVISORY_ONLY ${result.advisory_only}`,
+      `WORKFLOW ${(result.workflow||[]).join(' -> ')||'—'}`,
+      `DEBATE_STATUS ${result.debate_status||'N/A'}`,
+      `CONSENSUS ${result.consensus_score??'N/A'}`,
+      `EVIDENCE_REFS ${result.evidence_ref_count??'N/A'}`,
+      '',
+      result.content
+    ].join('\n');
+    toast('Council completed');
+    return result;
+  }catch(err){
+    $('#dev-run-status').textContent='ERROR';
+    setClass($('#dev-run-status'),'bad');
+    $('#dev-team-output').textContent=`ERROR\n${err.message}`;
+    appendCouncilMessage('system',`ERROR: ${err.message}`,'FAIL-CLOSED');
+    return null;
+  }finally{
+    submit.disabled=false;
+    submit.textContent='SEND TO COUNCIL';
+  }
+}
+
+$('#dev-team-form').addEventListener('submit',async event=>{
+  event.preventDefault();
+  await runDevTeam();
+});
+
+$$('[data-dev-mode]').forEach(button=>{
+  button.addEventListener('click',()=>setDevMode(button.dataset.devMode));
+});
+$('#dev-team-mode').addEventListener('change',event=>setDevMode(event.target.value));
+
+$$('[data-dev-quick]').forEach(button=>{
+  button.addEventListener('click',async()=>{
+    const action=button.dataset.devQuick;
+    const last=state.lastCouncilResult;
+    if(!last) return toast('ยังไม่มีคำตอบล่าสุด');
+    const previous=`PREVIOUS COUNCIL OUTPUT:\n${last.content.slice(0,5200)}`;
+
+    if(action==='debate'){
+      await runDevTeam({
+        mode:'debate',
+        prompt:'ถกเถียงคำตอบล่าสุดอย่างเป็นระบบ หาเหตุผลคัดค้าน ตรวจหลักฐาน แล้วสรุปว่าควรยอมรับ แก้ไข หรือขอข้อมูลเพิ่ม',
+        extraContext:previous
+      });
+      return;
+    }
+    if(action==='reviewer'){
+      await runDevTeam({
+        mode:'reviewer',
+        prompt:'ตรวจคำตอบล่าสุดแบบ Security / QA / DevOps reviewer ระบุข้อผิดพลาด ความเสี่ยง หลักฐานที่ขาด และ pass/fail gates',
+        extraContext:previous
+      });
+      return;
+    }
+    if(action==='research'){
+      await runDevTeam({
+        mode:'research',
+        prompt:'ตรวจสอบและค้นหลักฐานเพิ่มเติมสำหรับคำตอบล่าสุด แยกข้อมูลที่ยืนยันได้ ข้อมูลที่เก่า ข้อขัดแย้ง และสิ่งที่ยังต้องพิสูจน์',
+        extraContext:previous
+      });
+      return;
+    }
+    if(action==='followup'){
+      state.pendingCouncilContext=previous;
+      setDevMode('auto');
+      $('#dev-team-prompt').value='';
+      $('#dev-team-prompt').placeholder='ถามต่อจากคำตอบล่าสุด...';
+      $('#dev-team-prompt').focus();
+    }
+  });
+});
+
 $('#copy-dev-team-output').addEventListener('click',()=>navigator.clipboard?.writeText($('#dev-team-output').textContent).then(()=>toast('Copied')));
+
 
 $('#route-form').addEventListener('submit',async e=>{ e.preventDefault(); try{ const r=await jsonPost('/api/email/route',{matched_alias:$('#route-alias').value||null,subject:$('#route-subject').value,sender:$('#route-sender').value,quarantined:false},emailHeaders()); $('#route-output').textContent=pretty(r);}catch(err){$('#route-output').textContent=`ERROR: ${err.message}`;} });
 async function ingest(){ const msg=$('#ingest-message-id').value; const r=await jsonPost('/api/email/ingest',{mailbox:$('#ingest-mailbox').value,provider:$('#ingest-provider').value,provider_message_id:msg,internet_message_id:`<${msg}@demo.ck-nexus.local>`,execution_id:`web-${Date.now()}`},emailHeaders()); if(r.journal_id){state.lastJournalId=r.journal_id; $('#outbox-journal').value=r.journal_id; $('#audit-journal').value=r.journal_id;} $('#ingest-output').textContent=pretty(r); return r; }

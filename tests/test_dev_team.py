@@ -94,3 +94,24 @@ def test_dev_team_can_be_disabled(tmp_path: Path):
         response = client.post("/api/dev-team/run", json=payload())
         assert response.status_code == 503
         assert response.json()["detail"]["error"] == "DEV_TEAM_DISABLED"
+
+
+
+def test_dev_team_mock_debate_reuses_existing_council(tmp_path: Path, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    with TestClient(create_app(settings(tmp_path))) as client:
+        response = client.post(
+            "/api/dev-team/run",
+            json=payload(consult_mode="debate"),
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["mode"] == "mock"
+    assert body["consult_mode"] == "debate"
+    assert body["advisors_available"] == 5
+    assert "CK-NEXUS Debate Protocol V1" in body["content"]
+    assert "CONSENSUS_REACHED" in body["content"]
+    assert "authority_effect: NONE" in body["content"]
+    assert "Production authorization" in body["content"]
+    assert "sk-" not in response.text

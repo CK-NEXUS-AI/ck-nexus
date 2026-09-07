@@ -1238,22 +1238,45 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/dev-team")
     async def dev_team_roster(_: None = Depends(require_access_token)) -> dict[str, object]:
+        preferred = provider_router.preferred_status(required_capabilities={"agents-sdk"})
+        provider_name = (
+            "mock"
+            if resolved_settings.mock_ai
+            else (preferred.name if preferred is not None else "blocked")
+        )
         return {
             "enabled": resolved_settings.dev_team_enabled,
             "ready": dev_team.ready,
-            "mode": (
-                "mock"
-                if resolved_settings.mock_ai
-                else (
-                    provider_router.preferred_status(required_capabilities={"agents-sdk"}).name
-                    if provider_router.preferred_status(required_capabilities={"agents-sdk"})
-                    is not None
-                    else "blocked"
-                )
-            ),
+            "mode": provider_name,
+            "provider": provider_name,
+            "model": resolved_settings.openai_model,
             "orchestrator": "CK-NEXUS Lead Orchestrator",
             "web_search_enabled": resolved_settings.dev_team_web_search_enabled,
             "advisors": dev_team.roster(),
+            "consult_modes": [
+                "auto",
+                "council",
+                "debate",
+                "architect",
+                "research",
+                "designer",
+                "builder",
+                "reviewer",
+            ],
+            "debate": {
+                "enabled": True,
+                "roles": [
+                    "PROPOSER",
+                    "OPPOSER",
+                    "EXAMINER",
+                    "SYNTHESIZER",
+                    "DETERMINISTIC_MODERATOR",
+                ],
+                "consensus_threshold": 0.8,
+                "max_rounds": 10,
+                "max_words_per_turn": 300,
+                "authority_effect": "NONE",
+            },
             "side_effect_policy": "advisory-only; execution requires a separate gated path",
         }
 

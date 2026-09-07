@@ -89,6 +89,7 @@ class DevTeamRequest(BaseModel):
         "designer",
         "builder",
         "reviewer",
+        "debate",
     ] = "auto"
     context: str = Field(default="", max_length=8_000)
     language: Literal["ไทย", "English", "ไทย + English"] = "ไทย"
@@ -109,6 +110,12 @@ class DevTeamResult(BaseModel):
     content: str
     model: str
     mode: Literal["mock", "openai", "ollama"]
+    provider: str
+    advisory_only: bool = True
+    workflow: list[str] = Field(default_factory=list)
+    debate_status: str | None = None
+    consensus_score: float | None = None
+    evidence_ref_count: int | None = None
     duration_ms: int
     advisors_available: int
 
