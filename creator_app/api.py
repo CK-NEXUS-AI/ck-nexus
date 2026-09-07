@@ -50,9 +50,9 @@ from creator_app.didit_kyb import (
     DiditConfig,
     DiditConfigurationError,
     DiditUpstreamError,
-    DiditVerificationStore,
     verify_webhook_signature,
 )
+from creator_app.didit_store import create_didit_verification_store
 from creator_app.github_app import GitHubAppAuth, GitHubAppAuthError
 from creator_app.github_integration import GitHubIntegration
 from creator_app.gmail_oauth import GmailOAuthError, GmailOAuthManager
@@ -219,7 +219,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     didit_config = DiditConfig.from_env()
     didit_client = DiditClient(didit_config)
-    didit_store = DiditVerificationStore(resolved_settings.database_path)
+    didit_store = create_didit_verification_store(
+        database_path=resolved_settings.database_path,
+        database_url=resolved_settings.database_url,
+        environment=resolved_settings.environment,
+    )
     gateway_service_secret = os.getenv("CKNEXUS_GATEWAY_SERVICE_AUTH_SECRET", "").strip()
     try:
         gateway_service_auth = (

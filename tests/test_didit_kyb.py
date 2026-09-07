@@ -10,7 +10,15 @@ from fastapi.testclient import TestClient
 
 from creator_app.api import create_app
 from creator_app.config import Settings
-from creator_app.didit_kyb import DIDIT_STATUSES, canonicalize_webhook
+from creator_app.didit_kyb import (
+    DIDIT_KYB_WORKFLOW_ID,
+    DIDIT_STATUSES,
+    canonicalize_webhook,
+)
+from creator_app.didit_store import (
+    PostgresDiditVerificationStore,
+    create_didit_verification_store,
+)
 from gateway.service_auth import GatewayServiceAuth
 
 SERVICE_AUTH_SECRET = "test-gateway-service-secret-32-bytes-plus"
@@ -60,10 +68,92 @@ def _signed_headers(payload: dict, secret: str) -> dict[str, str]:
     }
 
 
+class _FakeSharedPostgres:
+    def __init__(self) -> None:
+        self.events: dict[str, dict] = {}
+        self.businesses: dict[str, dict] = {}
+
+
+class _FakePgCursor:
+    def __init__(self, state: _FakeSharedPostgres) -> None:
+        self.state = state
+        self._row = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def execute(self, sql: str, params=()):
+        normalized = " ".join(sql.split())
+        if normalized.startswith("INSERT INTO didit_webhook_events"):
+            event_id, session_id, vendor_data, status, received_at = params
+            if event_id in self.state.events:
+                self._row = None
+            else:
+                self.state.events[event_id] = {
+                    "event_id": event_id,
+                    "session_id": session_id,
+                    "vendor_data": vendor_data,
+                    "status": status,
+                    "received_at": received_at,
+                }
+                self._row = {"event_id": event_id}
+        elif normalized.startswith("SELECT session_id, status"):
+            self._row = self.state.businesses.get(params[0])
+        elif normalized.startswith("INSERT INTO didit_business_verifications"):
+            vendor_data, session_id, status, verified, decision, resubmit, updated_at = params
+            self.state.businesses[vendor_data] = {
+                "vendor_data": vendor_data,
+                "session_id": session_id,
+                "status": status,
+                "verified": verified,
+                "decision_json": decision,
+                "resubmit_json": resubmit,
+                "updated_at": updated_at,
+            }
+        elif normalized.startswith("SELECT * FROM didit_business_verifications"):
+            self._row = self.state.businesses.get(params[0])
+        else:
+            raise AssertionError(f"unexpected SQL in fake Postgres: {normalized}")
+
+    def fetchone(self):
+        return self._row
+
+
+class _FakePgConnection:
+    def __init__(self, state: _FakeSharedPostgres) -> None:
+        self.state = state
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def cursor(self):
+        return _FakePgCursor(self.state)
+
+    def commit(self):
+        return None
+
+
+class _TestPostgresStore(PostgresDiditVerificationStore):
+    def __init__(self, state: _FakeSharedPostgres) -> None:
+        super().__init__("postgresql://shared/test")
+        self.state = state
+
+    def _connect(self):
+        return _FakePgConnection(self.state)
+
+
 def _event(status: str, *, event_id: str = "evt-1") -> dict:
     return {
         "event_id": event_id,
         "webhook_type": "business.status.updated",
+        "workflow_id": DIDIT_KYB_WORKFLOW_ID,
+        "session_kind": "business",
         "session_id": "sid-1",
         "status": status,
         "vendor_data": "tenant-a:business-42",
@@ -200,3 +290,45 @@ def test_canonicalization_shortens_whole_number_floats():
     assert canonicalize_webhook({"z": 1.0, "a": "ไทย"}) == (
         '{"a":"ไทย","z":1}'.encode()
     )
+
+
+def test_webhook_rejects_signed_event_from_wrong_workflow(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("DIDIT_WEBHOOK_SECRET", "webhook-secret")
+    app = create_app(_settings(tmp_path))
+    payload = _event("Approved", event_id="evt-wrong-workflow")
+    payload["workflow_id"] = "00000000-0000-0000-0000-000000000000"
+    headers = _signed_headers(payload, "webhook-secret")
+    with TestClient(app) as client:
+        response = client.post("/api/webhooks/didit", json=payload, headers=headers)
+    assert response.status_code == 400
+    assert app.state.didit_store.get_business("tenant-a:business-42") is None
+
+
+def test_postgres_store_dedupes_across_two_replica_instances():
+    shared = _FakeSharedPostgres()
+    replica_a = _TestPostgresStore(shared)
+    replica_b = _TestPostgresStore(shared)
+    payload = _event("In Review", event_id="evt-shared")
+    first = replica_a.apply_event(payload, received_at=int(time.time()))
+    second = replica_b.apply_event(payload, received_at=int(time.time()))
+    assert first is True
+    assert second is False
+    assert len(shared.events) == 1
+
+
+def test_production_rejects_local_sqlite_didit_store(tmp_path: Path):
+    with pytest.raises(RuntimeError, match="shared PostgreSQL"):
+        create_didit_verification_store(
+            database_path=tmp_path / "local.db",
+            database_url="",
+            environment="production",
+        )
+
+
+def test_postgres_store_selected_when_shared_database_url_is_configured(tmp_path: Path):
+    store = create_didit_verification_store(
+        database_path=tmp_path / "ignored.db",
+        database_url="postgresql://db.example/cknexus",
+        environment="production",
+    )
+    assert isinstance(store, PostgresDiditVerificationStore)

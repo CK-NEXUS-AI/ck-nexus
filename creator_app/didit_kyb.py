@@ -14,6 +14,7 @@ import httpx
 
 DIDIT_API_BASE = "https://verification.didit.me"
 DIDIT_KYB_WORKFLOW_ID = "d483655c-0adf-4c47-9d5f-b370d16aece8"
+DIDIT_KYB_WEBHOOK_TYPES = frozenset({"status.updated", "business.status.updated"})
 DIDIT_STATUSES = {
     "Not Started",
     "In Progress",
@@ -146,6 +147,26 @@ def verify_webhook_signature(
         return False
     expected = hmac.new(secret.encode("utf-8"), canonicalize_webhook(payload), hashlib.sha256)
     return hmac.compare_digest(expected.hexdigest(), signature)
+def validated_event_fields(event: dict[str, Any]) -> tuple[str, str, str, str]:
+    workflow_id = str(event.get("workflow_id") or "")
+    session_kind = str(event.get("session_kind") or "")
+    webhook_type = str(event.get("webhook_type") or "")
+    event_id = str(event.get("event_id") or "")
+    session_id = str(event.get("session_id") or "")
+    vendor_data = str(event.get("vendor_data") or event.get("vendor_business_id") or "")
+    status = str(event.get("status") or "")
+
+    if workflow_id != DIDIT_KYB_WORKFLOW_ID:
+        raise ValueError("unexpected Didit KYB workflow_id")
+    if session_kind != "business":
+        raise ValueError("unexpected Didit KYB session_kind")
+    if webhook_type not in DIDIT_KYB_WEBHOOK_TYPES:
+        raise ValueError("unexpected Didit KYB webhook_type")
+    if not event_id or not session_id or not vendor_data or status not in DIDIT_STATUSES:
+        raise ValueError("invalid Didit webhook envelope")
+    return event_id, session_id, vendor_data, status
+
+
 class DiditVerificationStore:
     def __init__(self, database_path: Path) -> None:
         self.database_path = database_path
@@ -179,12 +200,7 @@ class DiditVerificationStore:
                 """
             )
     def apply_event(self, event: dict[str, Any], *, received_at: int) -> bool:
-        event_id = str(event.get("event_id") or "")
-        session_id = str(event.get("session_id") or "")
-        vendor_data = str(event.get("vendor_data") or event.get("vendor_business_id") or "")
-        status = str(event.get("status") or "")
-        if not event_id or not session_id or not vendor_data or status not in DIDIT_STATUSES:
-            raise ValueError("invalid Didit webhook envelope")
+        event_id, session_id, vendor_data, status = validated_event_fields(event)
 
         decision = event.get("decision")
         resubmit = event.get("resubmit_info")
