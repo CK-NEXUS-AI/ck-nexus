@@ -89,6 +89,7 @@ class DevTeamRequest(BaseModel):
         "designer",
         "builder",
         "reviewer",
+        "debate",
     ] = "auto"
     context: str = Field(default="", max_length=8_000)
     language: Literal["ไทย", "English", "ไทย + English"] = "ไทย"
