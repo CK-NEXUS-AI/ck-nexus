@@ -132,6 +132,7 @@ def create_app(
                 "X-CK-Tenant-ID": identity.tenant_id,
                 "X-CK-Actor-ID": identity.actor_id,
                 "X-CK-Permissions": ",".join(sorted(identity.permissions)),
+                "X-CK-Gateway-Verified": "1",
             },
             timeout_seconds=match.policy.timeout_ms / 1000.0,
         )

@@ -103,6 +103,18 @@ class GatewaySettings:
                 timeout_ms=60_000,
             ),
             RoutePolicy(
+                id="verification.didit.kyb.start",
+                path_prefix="/api/v1/verification/didit/kyb/session",
+                methods=frozenset({"POST"}),
+                upstream="creator-runtime",
+                audience="creator-runtime",
+                permissions=frozenset({"verification.kyb.start"}),
+                rate_limit_policy="interactive-standard",
+                timeout_ms=15_000,
+                side_effect=True,
+                retry="none",
+            ),
+            RoutePolicy(
                 id="integrations.status",
                 path_prefix="/api/v1/integrations/status",
                 methods=frozenset({"GET"}),
