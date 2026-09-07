@@ -389,7 +389,8 @@ class DevTeamRuntime:
                 instructions=(
                     f"{TEAM_BASE_INSTRUCTIONS}\n\n"
                     "Synthesize the debate without erasing material disagreement. "
-                    "You have no verification, approval, merge, deployment, or Production authority."
+                    "You have no verification, approval, merge, deployment, or "
+                    "Production authority."
                 ),
                 model=self.settings.openai_model,
             )
