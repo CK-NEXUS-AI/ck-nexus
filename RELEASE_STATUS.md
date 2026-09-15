@@ -8,6 +8,18 @@ Frozen runtime/deployment subject: `96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f3
 Verified runtime source SHA: `4cf17cd3befaafeaf64cd4c149739133aa220f73`
 Closure contract: `docs/Q10_Q16_CLOSURE_CONTRACT.md`
 
+## Update 2026-09-15 — Post-P0 consolidation (automated housekeeping)
+
+- Canonical main advanced: `1488b04` (see commit history).
+- Merged to main: #246, #240, #241, #242, #244, #245 (Post-P0 chain), #237 (Buyer Delivery V2 + Sonar fix).
+- Closed as duplicates/superseded: #226 (kept #227), #235 (kept #234), #236 (kept #237).
+- Evidence Q05/Q08/Q09 regenerated for the current exact tree via `refresh-candidate-evidence` (runs 34926334985, 34926729111).
+- CI on main: **CK-NEXUS CI PASS**. Q05: 598 passed / 0 failed. Q08 live: PostgreSQL PASS, Redis PASS.
+- Buyer Delivery V2 spec, packaging script, transfer schedule template and acceptance checklist are on main.
+- Outstanding: PRs #216/#217/#221/#230 and other Post-P0 backlog branches require rebase onto current main (merge conflicts against moved main); #243/#250 CI unstable.
+
+The original NO-GO verdict below refers to the Q10-Q16 closure claims and remains authoritative for production claims until gates move beyond PASS_CANDIDATE.
+
 ## Current release candidate
 
 Unified Control and production hardening are converged on the closure branch but are **not merged to `main`**. The production image uses the exact `uv.lock`, a pinned Python base-image digest, pinned Compose service-image digests, a non-root runtime user, and `python -m creator_app.unified`. AGNES Phase3 defaults fail-closed (`false`) unless a real delegated cgroup v2 environment is explicitly provided.
