@@ -11,15 +11,15 @@
     "quality_lanes": "PASS",
     "redis_binding": "PASS"
   },
-  "github_verifier_head_sha": "a6e74b5d4aabf1c0b255f4fab5ad1cc24063749d",
-  "github_verifier_run_id": 34074958466,
+  "github_verifier_head_sha": "782b9f905882973da0b5e4880fe7ebbdd19c348b",
+  "github_verifier_run_id": 34926334985,
   "grant_consumed_before_execution": true,
   "result": "PASS_CANDIDATE",
   "schema_version": 2,
-  "source_sha": "a6e74b5d4aabf1c0b255f4fab5ad1cc24063749d",
-  "source_tree": "9fb4cf31098ed92ba9539f7f8cd789bfafc15649",
+  "source_sha": "782b9f905882973da0b5e4880fe7ebbdd19c348b",
+  "source_tree": "4c904f76448fbf2c71660aa94ddca08be8b877ac",
   "stale_on_subject_change": true,
-  "subject_manifest_sha256": "ddaac220e6dd0c41a27c40893ef2ee56d8303d72c93dcec121631e3cb19ac675",
+  "subject_manifest_sha256": "22b074de929fcf0857a8b64605ccf46a2d42fd819c3d0d7a12f3c3baf5b3e9a5",
   "trusted_identity_required": true,
   "unknown_risk": "DENY"
 }
