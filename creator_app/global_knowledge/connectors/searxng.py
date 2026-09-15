@@ -6,6 +6,7 @@ search results as verified evidence and performs no write action.
 
 from __future__ import annotations
 
+import ipaddress
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -153,13 +154,18 @@ class SearxngDiscoveryAdapter:
         except ImportError as exc:
             raise RuntimeError("httpx gateway extra is required") from exc
 
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "CK-NEXUS-Research/1.0",
+        }
+        if _is_loopback_base_url(self.config.base_url):
+            headers["X-Forwarded-For"] = "127.0.0.1"
+            headers["X-Real-IP"] = "127.0.0.1"
+
         async with httpx.AsyncClient(
             timeout=self.config.timeout_seconds,
             follow_redirects=False,
-            headers={
-                "Accept": "application/json",
-                "User-Agent": "CK-NEXUS-Research/1.0",
-            },
+            headers=headers,
         ) as client:
             response = await client.get(url)
             response.raise_for_status()
@@ -171,6 +177,18 @@ class SearxngDiscoveryAdapter:
         if not isinstance(payload, dict):
             raise ValueError("SearXNG response must be an object")
         return payload
+
+
+def _is_loopback_base_url(value: str) -> bool:
+    hostname = urlsplit(value).hostname
+    if hostname == "localhost":
+        return True
+    if hostname is None:
+        return False
+    try:
+        return ipaddress.ip_address(hostname).is_loopback
+    except ValueError:
+        return False
 
 
 def _public_result_url_shape(value: str) -> bool:
