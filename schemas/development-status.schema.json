@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/schemas/development-status.schema.json",
+  "title": "CK-NEXUS Live Development Status",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "observed_at",
+    "freshness_target_seconds",
+    "task_counts",
+    "completed",
+    "active",
+    "queued",
+    "blocked",
+    "competency",
+    "release_authority",
+    "scores"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "freshness_target_seconds": {
+      "type": "integer",
+      "maximum": 10
+    },
+    "task_counts": {
+      "type": "object",
+      "required": [
+        "completed",
+        "active",
+        "queued",
+        "blocked"
+      ],
+      "properties": {
+        "completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "active": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "queued": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "completed": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/task"
+      }
+    },
+    "active": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/task"
+      }
+    },
+    "queued": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/task"
+      }
+    },
+    "blocked": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/task"
+      }
+    },
+    "next_task": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/task"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "competency": {
+      "type": "object"
+    },
+    "release_authority": {
+      "type": "object",
+      "required": [
+        "q10",
+        "q11",
+        "q12",
+        "production",
+        "source",
+        "authority_effect"
+      ]
+    },
+    "scores": {
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "task": {
+      "type": "object",
+      "required": [
+        "task_id",
+        "title",
+        "owner",
+        "state",
+        "priority",
+        "updated_at"
+      ],
+      "properties": {
+        "task_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "enum": [
+            "RECEIVED",
+            "PLANNED",
+            "QUEUED",
+            "RUNNING",
+            "BLOCKED",
+            "MEASURED",
+            "REVIEW_REQUIRED",
+            "COMPLETED"
+          ]
+        },
+        "priority": {
+          "enum": [
+            "P0",
+            "P1",
+            "P2",
+            "P3"
+          ]
+        },
+        "progress": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "current_step": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "eta": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "blocker": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "commit_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}
