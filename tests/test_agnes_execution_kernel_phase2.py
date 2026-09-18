@@ -332,6 +332,8 @@ async def test_api_phase2_approval_then_execute(tmp_path: Path):
         agnes_sandbox_enabled=True,
         agnes_sandbox_root=tmp_path / "api-sandbox",
         agnes_sandbox_repository_root=REPO,
+        agnes_approver_token="test-approver",
+        agnes_approver_id="independent-reviewer",
     )
     payload = {
         "skill_id": "hands.code_patch",
@@ -361,6 +363,7 @@ async def test_api_phase2_approval_then_execute(tmp_path: Path):
                 "approved_by": "tester",
                 "ttl_seconds": 300,
             },
+            headers={"X-CK-NEXUS-APPROVER-TOKEN": "test-approver"},
         )
         assert approved.status_code == 200
         payload["approval_id"] = "api-approval"

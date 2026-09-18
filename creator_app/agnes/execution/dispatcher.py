@@ -142,6 +142,13 @@ class SkillExecutionDispatcher:
                 approval_id=request.approval_id,
                 fingerprint=approval_fingerprint,
             ):
+                self.approval.register_pending(
+                    execution_id=request.execution_id,
+                    fingerprint=approval_fingerprint,
+                    manifest_hash=manifest.manifest_hash,
+                    actor_id=request.actor_id,
+                    tenant_id=request.tenant_id,
+                )
                 return self._blocked(
                     request,
                     "sticky_approval_required_or_mismatch",

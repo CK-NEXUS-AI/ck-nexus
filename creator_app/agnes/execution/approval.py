@@ -17,11 +17,22 @@ class ApprovalGrant:
     expires_at: float
 
 
+@dataclass(frozen=True, slots=True)
+class PendingApproval:
+    execution_id: str
+    fingerprint: str
+    manifest_hash: str
+    actor_id: str
+    tenant_id: str
+    expires_at: float
+
+
 class StickyApprovalResolver:
     """Approval is bound to immutable execution facts, not merely an approval id."""
 
     def __init__(self) -> None:
         self._grants: dict[str, ApprovalGrant] = {}
+        self._pending: dict[str, PendingApproval] = {}
 
     @staticmethod
     def fingerprint(request: SkillExecutionRequest, risk_class: ExecutorRiskClass) -> str:
@@ -49,6 +60,51 @@ class StickyApprovalResolver:
         }
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
         return hashlib.sha256(encoded).hexdigest()
+
+    def register_pending(
+        self,
+        *,
+        execution_id: str,
+        fingerprint: str,
+        manifest_hash: str,
+        actor_id: str,
+        tenant_id: str,
+        ttl_seconds: int = 900,
+    ) -> None:
+        if ttl_seconds <= 0:
+            raise ValueError("approval ttl must be positive")
+        self._pending[fingerprint] = PendingApproval(
+            execution_id=execution_id,
+            fingerprint=fingerprint,
+            manifest_hash=manifest_hash,
+            actor_id=actor_id,
+            tenant_id=tenant_id,
+            expires_at=time() + ttl_seconds,
+        )
+
+    def approve_pending(
+        self,
+        *,
+        approval_id: str,
+        fingerprint: str,
+        approved_by: str,
+        ttl_seconds: int = 900,
+    ) -> ApprovalGrant:
+        pending = self._pending.get(fingerprint)
+        if pending is None or pending.expires_at <= time():
+            raise ValueError("approval request is not pending or has expired")
+        if approval_id in self._grants:
+            raise ValueError("approval_id already exists")
+        if not approved_by or approved_by == pending.actor_id:
+            raise ValueError("approver identity must be distinct from requester")
+        grant = self.grant(
+            approval_id=approval_id,
+            fingerprint=pending.fingerprint,
+            approved_by=approved_by,
+            ttl_seconds=min(ttl_seconds, max(1, int(pending.expires_at - time()))),
+        )
+        del self._pending[fingerprint]
+        return grant
 
     def grant(
         self,

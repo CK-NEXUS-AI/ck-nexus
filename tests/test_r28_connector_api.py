@@ -14,6 +14,7 @@ def settings(tmp_path: Path, **overrides) -> Settings:
         "mock_ai": True,
         "access_token": "",
         "connector_fabric_enabled": True,
+        "connector_allow_private_network": False,
         "connector_registry_path": tmp_path / "connector-registry.json",
         "connector_evidence_path": tmp_path / "connector-evidence.jsonl",
     }
@@ -30,7 +31,7 @@ def test_connector_api_disabled_is_explicit(tmp_path: Path):
 
 
 def test_connector_registration_without_discovery_is_persisted(tmp_path: Path):
-    with TestClient(create_app(settings(tmp_path))) as client:
+    with TestClient(create_app(settings(tmp_path, connector_allow_private_network=True))) as client:
         response = client.post(
             "/api/connectors",
             json={
@@ -52,6 +53,22 @@ def test_connector_registration_without_discovery_is_persisted(tmp_path: Path):
 
         registry_text = (tmp_path / "connector-registry.json").read_text()
         assert "credential" not in registry_text.lower() or "credentialRef" in registry_text
+
+
+def test_connector_caller_cannot_enable_private_network(tmp_path: Path):
+    with TestClient(create_app(settings(tmp_path))) as client:
+        response = client.post(
+            "/api/connectors",
+            json={
+                "connector_id": "blocked-local",
+                "url": "http://127.0.0.1:65535/mcp",
+                "protocol": "mcp",
+                "allow_private_network": True,
+                "auto_discover": False,
+            },
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"]["error"] == "CONNECTOR_ENDPOINT_REJECTED"
 
 
 def test_connector_registration_rejects_query_string_secret(tmp_path: Path):

@@ -7,6 +7,7 @@ from uuid import uuid4
 from creator_app.agnes_ledger import AppendOnlyLedger
 
 from ..approval import StickyApprovalResolver
+from ..manifest import ImmutableExecutionManifest
 from ..request import SkillExecutionRequest
 from ..result import ExecutionStatus
 from .models import CandidateArtifact, PipelineHandle, PipelineState, PipelineStatus
@@ -73,6 +74,18 @@ class AutonomousDevController:
                         match = self.agnes.approvals.find_matching(fingerprint)
                         grant = match.approval_id if match else None
                     if not grant:
+                        manifest = ImmutableExecutionManifest.freeze(
+                            request,
+                            risk_class=risk,
+                            approval_fingerprint=fingerprint,
+                        )
+                        self.agnes.approvals.register_pending(
+                            execution_id=request.execution_id,
+                            fingerprint=fingerprint,
+                            manifest_hash=manifest.manifest_hash,
+                            actor_id=request.actor_id,
+                            tenant_id=request.tenant_id,
+                        )
                         status.error = "sticky_approval_required"
                         return status.state
                     if request.approval_id != grant:

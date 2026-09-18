@@ -773,7 +773,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             protocol=ConnectorProtocol(payload.protocol),
             credential_ref=payload.credential_ref,
             trust_source=payload.trust_source,
-            allow_private_network=payload.allow_private_network,
+            # Private-network access is an operator policy, never caller-controlled.
+            allow_private_network=resolved_settings.connector_allow_private_network,
             allowed_tools=tuple(payload.allowed_tools),
         )
         try:
@@ -1191,13 +1192,31 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def agnes_approval(
         payload: AgnesApprovalRequest,
         _: None = Depends(require_access_token),
+        x_ck_nexus_approver_token: str | None = Header(default=None),
     ) -> dict[str, object]:
-        grant = agnes.approvals.grant(
-            approval_id=payload.approval_id,
-            fingerprint=payload.fingerprint,
-            approved_by=payload.approved_by,
-            ttl_seconds=payload.ttl_seconds,
-        )
+        expected = resolved_settings.agnes_approver_token
+        if not expected or not x_ck_nexus_approver_token or not hmac.compare_digest(
+            x_ck_nexus_approver_token, expected
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "APPROVER_ROLE_REQUIRED",
+                    "message": "A distinct AGNES approver credential is required.",
+                },
+            )
+        try:
+            grant = agnes.approvals.approve_pending(
+                approval_id=payload.approval_id,
+                fingerprint=payload.fingerprint,
+                approved_by=resolved_settings.agnes_approver_id,
+                ttl_seconds=payload.ttl_seconds,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={"error": "APPROVAL_NOT_PENDING", "message": str(exc)},
+            ) from None
         return {
             "approval_id": grant.approval_id,
             "approved_by": grant.approved_by,

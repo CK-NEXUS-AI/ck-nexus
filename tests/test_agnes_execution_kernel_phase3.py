@@ -255,6 +255,8 @@ def test_phase3_api_pending_approval_then_advance_to_candidate(tmp_path: Path):
         agnes_phase3_enabled=True,
         agnes_sandbox_root=tmp_path / "sandbox",
         agnes_sandbox_repository_root=ROOT,
+        agnes_approver_token="test-approver",
+        agnes_approver_id="independent-reviewer",
     )
     patch = (
         "--- a/README.md\n"
@@ -286,6 +288,7 @@ def test_phase3_api_pending_approval_then_advance_to_candidate(tmp_path: Path):
         approved = client.post(
             "/api/agnes/approvals",
             json={"approval_id": "api-p3-approval", "fingerprint": fp, "approved_by": "human"},
+            headers={"X-CK-NEXUS-APPROVER-TOKEN": "test-approver"},
         )
         assert approved.status_code == 200
         advanced = client.post(f"/api/agnes/pipeline/{pipeline_id}/advance")

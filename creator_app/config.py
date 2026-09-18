@@ -53,6 +53,8 @@ class Settings:
     database_path: Path = RUNTIME_ROOT / "data" / "cknexus.db"
     mock_ai: bool = False
     access_token: str = ""
+    agnes_approver_token: str = ""
+    agnes_approver_id: str = ""
     max_prompt_chars: int = 8_000
     history_limit: int = 30
     rate_limit_per_minute: int = 10
@@ -101,6 +103,7 @@ class Settings:
     agnes_sandbox_root: Path = RUNTIME_ROOT / "data" / "agnes-sandbox"
     agnes_sandbox_repository_root: Path = RUNTIME_ROOT
     connector_fabric_enabled: bool = False
+    connector_allow_private_network: bool = False
     connector_registry_path: Path = RUNTIME_ROOT / "data" / "connector-registry.json"
     connector_evidence_path: Path = RUNTIME_ROOT / "data" / "connector-evidence.jsonl"
     connector_timeout_seconds: int = 8
@@ -227,6 +230,8 @@ class Settings:
             database_path=database_path,
             mock_ai=_as_bool(os.getenv("CKNEXUS_MOCK_AI"), default=False),
             access_token=os.getenv("CKNEXUS_ACCESS_TOKEN", ""),
+            agnes_approver_token=os.getenv("CKNEXUS_AGNES_APPROVER_TOKEN", "").strip(),
+            agnes_approver_id=os.getenv("CKNEXUS_AGNES_APPROVER_ID", "").strip(),
             max_prompt_chars=_as_int(
                 os.getenv("CKNEXUS_MAX_PROMPT_CHARS"),
                 default=8_000,
@@ -349,6 +354,9 @@ class Settings:
             connector_fabric_enabled=_as_bool(
                 os.getenv("CKNEXUS_CONNECTOR_FABRIC_ENABLED"), default=False
             ),
+            connector_allow_private_network=_as_bool(
+                os.getenv("CKNEXUS_CONNECTOR_ALLOW_PRIVATE_NETWORK"), default=False
+            ),
             connector_registry_path=connector_registry_path,
             connector_evidence_path=connector_evidence_path,
             connector_timeout_seconds=_as_int(
@@ -373,6 +381,8 @@ class Settings:
         missing: list[str] = []
         if not _is_runtime_secret(self.access_token):
             missing.append("CKNEXUS_ACCESS_TOKEN")
+        if not _is_runtime_secret(self.agnes_approver_token) or not self.agnes_approver_id:
+            missing.append("CKNEXUS_AGNES_APPROVER_TOKEN/CKNEXUS_AGNES_APPROVER_ID")
         if self.email_gateway_enabled and not _is_runtime_secret(self.email_webhook_token):
             missing.append("CKNEXUS_EMAIL_WEBHOOK_TOKEN")
         if self.gmail_oauth_enabled or self.github_app_enabled:
