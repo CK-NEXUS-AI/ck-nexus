@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/schemas/capability.schema.json",
+  "title": "CK-NEXUS Capability",
+  "type": "object",
+  "required": ["id", "name", "version", "status", "risk_level", "inputs", "outputs", "permissions"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "name": {"type": "string", "minLength": 1},
+    "version": {"type": "string", "minLength": 1},
+    "category": {"type": "string"},
+    "status": {
+      "type": "string",
+      "enum": ["IMPLEMENTED","PARTIAL","PROTOTYPE","DESIGNED","CONCEPT","ARTIFACT","UNKNOWN","REJECTED","BLOCKED","QUARANTINED","DEPRECATED"]
+    },
+    "risk_level": {"type": "string", "enum": ["LOW","MEDIUM","HIGH","CRITICAL"]},
+    "inputs": {"type": "array", "items": {"type": "object"}},
+    "outputs": {"type": "array", "items": {"type": "object"}},
+    "permissions": {"type": "array", "items": {"type": "string"}},
+    "dependencies": {"type": "array", "items": {"type": "string"}},
+    "contracts": {"type": "array", "items": {"type": "string"}},
+    "evidence": {"type": "array", "items": {"type": "string"}},
+    "provider": {"type": ["string","null"]},
+    "health": {"type": ["string","null"]},
+    "cost": {"type": ["number","null"]},
+    "latency_ms": {"type": ["number","null"]},
+    "fallback": {"type": ["string","null"]},
+    "rollback": {"type": ["string","null"]},
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "source": {"type": "string"},
+        "commit": {"type": ["string","null"]},
+        "timestamp": {"type": ["string","null"]},
+        "notes": {"type": ["string","null"]}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
