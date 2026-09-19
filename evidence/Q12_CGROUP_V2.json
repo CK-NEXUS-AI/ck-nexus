@@ -1,5 +1,7 @@
 {
   "actual_kernel_enforcement": true,
+  "artifact_digest": "sha256:7afd6dbcdafbdf4557346ca1e604be114b0c374031d23dd159c62ca60307cf62",
+  "artifact_id": 10577158236,
   "controllers": [
     "cpu",
     "memory",
