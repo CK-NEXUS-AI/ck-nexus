@@ -42,7 +42,6 @@ jobs:
           test "$actual_sha" = "$Q12_SOURCE_SHA"
           test "$actual_tree" = "$Q12_SOURCE_TREE"
           test "$subject" = "$Q12_RELEASE_SUBJECT"
-          python3 --version
       - name: Verify true delegated cgroup v2 boundary
         shell: bash
         run: |
