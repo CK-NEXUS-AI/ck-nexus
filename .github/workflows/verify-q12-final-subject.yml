@@ -41,6 +41,9 @@ jobs:
           printf 'actual_sha=%s\nactual_tree=%s\nactual_subject=%s\nexpected_sha=%s\nexpected_tree=%s\nexpected_subject=%s\n' "$actual_sha" "$actual_tree" "$subject" "$Q12_SOURCE_SHA" "$Q12_SOURCE_TREE" "$Q12_RELEASE_SUBJECT"
           if [ "$actual_sha" = "$Q12_SOURCE_SHA" ]; then echo sha_check=PASS; else echo sha_check=FAIL; exit 1; fi
           if [ "$actual_tree" = "$Q12_SOURCE_TREE" ]; then echo tree_check=PASS; else echo tree_check=FAIL; exit 1; fi
+          echo "subject_len=${#subject} expected_len=${#Q12_RELEASE_SUBJECT}"
+          printf "subject_hex="; printf "%s" "$subject" | od -An -tx1 | tr -d " \n"; echo
+          printf "expected_hex="; printf "%s" "$Q12_RELEASE_SUBJECT" | od -An -tx1 | tr -d " \n"; echo
           if [ "$subject" = "$Q12_RELEASE_SUBJECT" ]; then echo subject_check=PASS; else echo subject_check=FAIL; exit 1; fi
           echo "immutable subject checks passed"
           exit 0
