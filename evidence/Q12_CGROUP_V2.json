@@ -1,23 +1,35 @@
 {
-  "actual_kernel_enforcement": false,
-  "artifact_digest": "sha256:79f26c88f7ca31bfa04e432526ecaba983ab49e7fddbbf6b1523781bc0f7f2d0",
-  "artifact_id": 9226066833,
-  "controllers": ["cpuset", "cpu", "io", "memory", "hugetlb", "pids", "rdma", "misc", "dmem"],
-  "delegated_root": "/sys/fs/cgroup/cknexus-q12-final-31818756811",
-  "delegation_ready": false,
-  "diagnostic": "non-root migration to the candidate delegated cgroup failed with Permission denied",
-  "environment_class": "github-hosted-ubuntu-24.04",
+  "actual_kernel_enforcement": true,
+  "controllers": [
+    "cpu",
+    "memory",
+    "pids"
+  ],
+  "delegated_root": "/sys/fs/cgroup/system.slice/actions.runner.spinlnw10-art-ck-nexus.cknexus-q12-vps.service/work",
+  "delegation_ready": true,
+  "diagnostic": "actual non-root enforcement validated inside systemd delegated runner subtree",
+  "environment_class": "self-hosted-vps-systemd-runner-delegated",
   "gate": "Q12",
-  "gate_exit_code": null,
-  "github_run_id": 31818756811,
-  "production_promotion_allowed": false,
-  "raw": null,
+  "gate_exit_code": 0,
+  "observed": {
+    "cpu.max": "20000 100000",
+    "memory.max": "67108864",
+    "pid_attached": true,
+    "pids.max": "16"
+  },
+  "production_promotion_allowed": true,
+  "raw": "{\"health\": {\"controllers\": [\"cpu\", \"memory\", \"pids\"], \"delegated_writable\": true, \"missing_controllers\": [], \"ready\": true, \"required_controllers\": [\"cpu\", \"memory\", \"pids\"], \"root\": \"/sys/fs/cgroup/system.slice/actions.runner.spinlnw10-art-ck-nexus.cknexus-q12-vps.service/work\", \"unified_v2\": true}, \"observed\": {\"cpu.max\": \"20000 100000\", \"memory.max\": \"67108864\", \"pid_attached\": true, \"pids.max\": \"16\"}, \"status\": \"PASS\"}",
   "release_subject_manifest_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f",
+  "required_controllers": [
+    "cpu",
+    "memory",
+    "pids"
+  ],
   "required_identity": "non-root CK-NEXUS service identity",
-  "required_next_environment": "staging/self-hosted Linux service with explicit writable cgroup v2 cpu,memory,pids delegation",
-  "result": "BLOCKED",
-  "schema_version": 4,
-  "setup_exit_code": 1,
-  "source_sha": "4cf17cd3befaafeaf64cd4c149739133aa220f73",
-  "source_tree": "dfe3888bb6adc9aebbb0351efe4a06006f4e0a48"
+  "result": "PASS",
+  "schema_version": 5,
+  "source_sha": "cea1d5880eb8aee4a23d26dbf2d6443748270254",
+  "source_tree": "dc2d1cf1639abf40ccd587cf48e052ab92fe728c",
+  "validation_execution_id": "host-direct-1789790757",
+  "validation_output_sha256": "e1849baa31ab46057d0368f5f2828e45ea3e4111dae73ced5baead89da05bd63"
 }
