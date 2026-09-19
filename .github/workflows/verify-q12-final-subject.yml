@@ -38,11 +38,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$Q12_SOURCE_SHA"
           test "$(git rev-parse HEAD^{tree})" = "$Q12_SOURCE_TREE"
           subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
-          echo "computed_subject=$subject"
-echo "expected_subject=$Q12_RELEASE_SUBJECT"
-echo "DEBUG_COMPUTED_SUBJECT=$subject"
-echo "DEBUG_EXPECTED_SUBJECT=$Q12_RELEASE_SUBJECT"
-true
+          test "$subject" = "$Q12_RELEASE_SUBJECT"
           python3 --version
       - name: Verify true delegated cgroup v2 boundary
         shell: bash
