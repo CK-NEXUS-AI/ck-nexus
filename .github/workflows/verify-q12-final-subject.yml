@@ -39,9 +39,9 @@ jobs:
           actual_tree=$(git rev-parse HEAD^{tree})
           subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
           printf 'actual_sha=%s\nactual_tree=%s\nactual_subject=%s\nexpected_sha=%s\nexpected_tree=%s\nexpected_subject=%s\n' "$actual_sha" "$actual_tree" "$subject" "$Q12_SOURCE_SHA" "$Q12_SOURCE_TREE" "$Q12_RELEASE_SUBJECT"
-          test "$actual_sha" = "$Q12_SOURCE_SHA"
-          test "$actual_tree" = "$Q12_SOURCE_TREE"
-          test "$subject" = "$Q12_RELEASE_SUBJECT"
+          if [ "$actual_sha" = "$Q12_SOURCE_SHA" ]; then echo sha_check=PASS; else echo sha_check=FAIL; exit 1; fi
+          if [ "$actual_tree" = "$Q12_SOURCE_TREE" ]; then echo tree_check=PASS; else echo tree_check=FAIL; exit 1; fi
+          if [ "$subject" = "$Q12_RELEASE_SUBJECT" ]; then echo subject_check=PASS; else echo subject_check=FAIL; exit 1; fi
           echo "immutable subject checks passed"
           exit 0
       - name: Verify true delegated cgroup v2 boundary
