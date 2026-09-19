@@ -35,9 +35,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$Q12_SOURCE_SHA"
-          test "$(git rev-parse HEAD^{tree})" = "$Q12_SOURCE_TREE"
+          actual_sha=$(git rev-parse HEAD)
+          actual_tree=$(git rev-parse HEAD^{tree})
           subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          printf 'actual_sha=%s
+actual_tree=%s
+actual_subject=%s
+expected_sha=%s
+expected_tree=%s
+expected_subject=%s
+' "$actual_sha" "$actual_tree" "$subject" "$Q12_SOURCE_SHA" "$Q12_SOURCE_TREE" "$Q12_RELEASE_SUBJECT"
+          test "$actual_sha" = "$Q12_SOURCE_SHA"
+          test "$actual_tree" = "$Q12_SOURCE_TREE"
           test "$subject" = "$Q12_RELEASE_SUBJECT"
           python3 --version
       - name: Verify true delegated cgroup v2 boundary
