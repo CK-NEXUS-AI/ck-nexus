@@ -41,3 +41,13 @@ Final commit and tree hashes must be recorded after commit.
 - Bandit HIGH/MEDIUM threshold: exit 0
 - pip-audit: no known vulnerabilities, exit 0
 - git diff --check: exit 0
+
+
+## Dependency security remediation
+- Trivy supplemental scan identified six advisories in httpx2/httpcore2 2.9.1.
+- httpx2 and httpcore2 were upgraded to 2.13.0 in the lockfile.
+- Full pytest after upgrade: 238 passed.
+- Ruff: PASS.
+- Bandit HIGH/MEDIUM threshold: PASS.
+- pip-audit: No known vulnerabilities.
+- The Trivy findings are therefore being re-baselined on the updated exact source tree; native Codex Security Deep Scan is still required for Q10 promotion.

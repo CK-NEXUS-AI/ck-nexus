@@ -30,7 +30,7 @@ gateway = [
 ]
 dev = [
   "bandit>=1.8,<2",
-  "httpx2>=2.9,<3",
+  "httpx2>=2.12,<3",
   "pip-audit>=2.9,<3",
   "pytest>=8,<10",
   "pytest-asyncio>=0.24,<2",
