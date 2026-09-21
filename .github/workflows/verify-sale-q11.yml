@@ -23,7 +23,7 @@ jobs:
           OPENAI_SMOKE_MODEL: gpt-5-mini
         run: |
           set -euo pipefail
-          python3 scripts/test_openai_live.py | tee Q11_OPENAI_LIVE.txt
+          /opt/ck-nexus-q10/.venv/bin/python scripts/test_openai_live.py | tee Q11_OPENAI_LIVE.txt
           grep -q 'CK-NEXUS-P0-SMOKE-PASS' Q11_OPENAI_LIVE.txt
       - name: Emit evidence
         run: |
