@@ -1,0 +1,48 @@
+name: Verify Sale Q12 Delegated cgroup v2
+on:
+  workflow_dispatch:
+jobs:
+  q12:
+    runs-on: [self-hosted, Linux, X64, cknexus-q12]
+    permissions:
+      contents: read
+    env:
+      CKNEXUS_ENVIRONMENT: staging
+      CKNEXUS_AGNES_CGROUP_ROOT: /sys/fs/cgroup/system.slice/actions.runner.spinlnw10-art-ck-nexus.cknexus-q12-vps.service/work
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 762d76bc2adefb3d98f885da20300289b9b08697
+          fetch-depth: 1
+      - name: Verify exact sale source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "762d76bc2adefb3d98f885da20300289b9b08697"
+          test -d "$CKNEXUS_AGNES_CGROUP_ROOT"
+          test -w "$CKNEXUS_AGNES_CGROUP_ROOT"
+      - name: Run exact Q12 gate
+        run: |
+          set -euo pipefail
+          python3 scripts/agnes_cgroup_v2_staging_gate.py | tee Q12_CGROUP_RAW.json
+          python3 - <<'PY'
+          import json
+          x=json.load(open("Q12_CGROUP_RAW.json"))
+          assert x["status"]=="PASS"
+          PY
+      - name: Emit evidence
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,subprocess
+          raw=open("Q12_CGROUP_RAW.json",encoding="utf-8").read()
+          source=subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip()
+          tree=subprocess.check_output(["git","rev-parse","HEAD^{tree}"],text=True).strip()
+          ev={"gate":"Q12","source_sha":source,"source_tree_sha":tree,"result":"PASS","production_promotion_allowed":True,"raw_sha256":hashlib.sha256(raw.encode()).hexdigest(),"runner_user":"aibridge","environment_class":"self-hosted-linux-delegated-cgroup-v2"}
+          json.dump(ev,open("Q12_CGROUP_V2.json","w"),indent=2); open("Q12_CGROUP_V2.json","a").write("\n")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: q12-sale-${{ github.run_id }}
+          path: |
+            Q12_CGROUP_V2.json
+            Q12_CGROUP_RAW.json
