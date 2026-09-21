@@ -1,0 +1,34 @@
+name: Verify Sale Q11 OpenAI Live v2
+on:
+  push:
+    branches: [verify/sale-gates-v2-20260922]
+  workflow_dispatch:
+jobs:
+  q11:
+    runs-on: [self-hosted, Linux, X64, cknexus-q12]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 8a599ac3223f016427a6094ddc0739a962225025
+          fetch-depth: 1
+      - run: test "$(git rev-parse HEAD)" = "8a599ac3223f016427a6094ddc0739a962225025"
+      - name: OpenAI live smoke
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_SMOKE_MODEL: gpt-5-mini
+        run: |
+          /opt/ck-nexus-q10/.venv/bin/python scripts/test_openai_live.py | tee Q11_OPENAI_LIVE.txt
+          grep -q 'CK-NEXUS-P0-SMOKE-PASS' Q11_OPENAI_LIVE.txt
+      - name: Evidence
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,subprocess
+          out=open("Q11_OPENAI_LIVE.txt",encoding="utf-8").read()
+          json.dump({"gate":"Q11","source_sha":subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip(),"source_tree_sha":subprocess.check_output(["git","rev-parse","HEAD^{tree}"],text=True).strip(),"result":"PASS","production_promotion_allowed":True,"smoke_output_sha256":hashlib.sha256(out.encode()).hexdigest()},open("Q11_OPENAI_LIVE.json","w"),indent=2)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: q11-sale-v2-${{ github.run_id }}
+          path: Q11_OPENAI_LIVE.*

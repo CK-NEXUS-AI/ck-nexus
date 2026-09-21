@@ -1,0 +1,35 @@
+name: Verify Sale Q12 Delegated cgroup v2 v2
+on:
+  push:
+    branches: [verify/sale-gates-v2-20260922]
+  workflow_dispatch:
+jobs:
+  q12:
+    runs-on: [self-hosted, Linux, X64, cknexus-q12]
+    permissions:
+      contents: read
+    env:
+      CKNEXUS_ENVIRONMENT: staging
+      CKNEXUS_AGNES_CGROUP_ROOT: /sys/fs/cgroup/system.slice/actions.runner.spinlnw10-art-ck-nexus.cknexus-q12-vps.service/work
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 8a599ac3223f016427a6094ddc0739a962225025
+          fetch-depth: 1
+      - run: |
+          test "$(git rev-parse HEAD)" = "8a599ac3223f016427a6094ddc0739a962225025"
+          test -d "$CKNEXUS_AGNES_CGROUP_ROOT"
+          test -w "$CKNEXUS_AGNES_CGROUP_ROOT"
+      - run: |
+          python3 scripts/agnes_cgroup_v2_staging_gate.py | tee Q12_CGROUP_RAW.json
+          python3 -c 'import json; x=json.load(open("Q12_CGROUP_RAW.json")); assert x["status"]=="PASS"'
+      - run: |
+          python3 - <<'PY'
+          import hashlib,json,subprocess
+          raw=open("Q12_CGROUP_RAW.json",encoding="utf-8").read()
+          json.dump({"gate":"Q12","source_sha":subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip(),"source_tree_sha":subprocess.check_output(["git","rev-parse","HEAD^{tree}"],text=True).strip(),"result":"PASS","production_promotion_allowed":True,"raw_sha256":hashlib.sha256(raw.encode()).hexdigest(),"runner_user":"aibridge","environment_class":"self-hosted-linux-delegated-cgroup-v2"},open("Q12_CGROUP_V2.json","w"),indent=2)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: q12-sale-v2-${{ github.run_id }}
+          path: Q12_CGROUP_V2.*
