@@ -13,7 +13,7 @@ class GatewayIdentity:
     audience: str
 
     @classmethod
-    def from_claims(cls, claims: dict[str, object], *, audience: str) -> "GatewayIdentity":
+    def from_claims(cls, claims: dict[str, object], *, audience: str) -> GatewayIdentity:
         actor = str(claims.get("sub") or "")
         tenant = str(claims.get("tenant_id") or "")
         if not actor or not tenant:

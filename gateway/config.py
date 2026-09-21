@@ -61,7 +61,7 @@ class GatewaySettings:
     audit_required: bool = True
 
     @classmethod
-    def from_env(cls) -> "GatewaySettings":
+    def from_env(cls) -> GatewaySettings:
         upstreams = {
             "creator-runtime": os.environ.get("CKNEXUS_CREATOR_API_URL", "http://127.0.0.1:8102"),
             "dev-council": os.environ.get("CKNEXUS_DEVTEAM_URL", "http://127.0.0.1:8103"),
