@@ -1,6 +1,8 @@
 name: Verify Sale Q11 OpenAI Live
 on:
   workflow_dispatch:
+  push:
+    branches: [verify/sale-gates-20260922]
 jobs:
   q11:
     runs-on: [self-hosted, Linux, X64, cknexus-q12]

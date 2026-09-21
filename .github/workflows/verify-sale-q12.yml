@@ -1,6 +1,8 @@
 name: Verify Sale Q12 Delegated cgroup v2
 on:
   workflow_dispatch:
+  push:
+    branches: [verify/sale-gates-20260922]
 jobs:
   q12:
     runs-on: [self-hosted, Linux, X64, cknexus-q12]
