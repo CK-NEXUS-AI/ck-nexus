@@ -120,9 +120,9 @@ def cmd_login(args: argparse.Namespace) -> int:
     cli = ensure_cli()
     path = profile_path(name)
     secure_dir(path)
-    print(f"Starting official Codex login for profile: {name}")
+    print(f"Starting official Codex device login for profile: {name}")
     print("Complete the browser sign-in yourself. Do not send credentials to CK-NEXUS.")
-    result = subprocess.run([cli, "login"], env=command_env(name), check=False)
+    result = subprocess.run([cli, "login", "--device-auth"], env=command_env(name), check=False)
     if result.returncode == 0:
         data["accounts"][name]["updated_at"] = now()
         data["active"] = name
