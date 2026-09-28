@@ -13,15 +13,14 @@ import os
 import re
 import shutil
 import subprocess
-import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 
 def now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def root() -> Path:
@@ -53,7 +52,9 @@ def save(data: dict) -> None:
     base.mkdir(mode=0o700, parents=True, exist_ok=True)
     path = metadata_path()
     temporary = path.with_suffix(".tmp")
-    temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.write_text(
+        json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     os.chmod(temporary, 0o600)
     temporary.replace(path)
     os.chmod(path, 0o600)
@@ -80,7 +81,9 @@ def ensure_cli() -> str:
         return str(path)
     found = shutil.which(configured)
     if not found:
-        raise SystemExit("Codex CLI not found. Install the official @openai/codex package first.")
+        raise SystemExit(
+            "Codex CLI not found. Install the official @openai/codex package first."
+        )
     return found
 
 
@@ -205,19 +208,35 @@ def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="CK-Codex Account Switcher")
     sub = p.add_subparsers(dest="action", required=True)
 
-    s = sub.add_parser("add"); s.add_argument("name"); s.set_defaults(fn=cmd_add)
-    s = sub.add_parser("login"); s.add_argument("name"); s.set_defaults(fn=cmd_login)
-    s = sub.add_parser("status"); s.add_argument("name"); s.set_defaults(fn=cmd_status)
-    s = sub.add_parser("list"); s.set_defaults(fn=cmd_list)
-    s = sub.add_parser("env"); s.add_argument("name"); s.set_defaults(fn=cmd_env)
+    s = sub.add_parser("add")
+    s.add_argument("name")
+    s.set_defaults(fn=cmd_add)
+
+    s = sub.add_parser("login")
+    s.add_argument("name")
+    s.set_defaults(fn=cmd_login)
+
+    s = sub.add_parser("status")
+    s.add_argument("name")
+    s.set_defaults(fn=cmd_status)
+
+    s = sub.add_parser("list")
+    s.set_defaults(fn=cmd_list)
+
+    s = sub.add_parser("env")
+    s.add_argument("name")
+    s.set_defaults(fn=cmd_env)
+
     s = sub.add_parser("run")
     s.add_argument("name")
     s.add_argument("command", nargs=argparse.REMAINDER)
     s.set_defaults(fn=cmd_run)
+
     s = sub.add_parser("remove")
     s.add_argument("name")
     s.add_argument("--confirm", action="store_true")
     s.set_defaults(fn=cmd_remove)
+
     return p
 
 
