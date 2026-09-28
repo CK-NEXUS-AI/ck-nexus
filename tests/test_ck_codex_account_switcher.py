@@ -9,7 +9,9 @@ from pathlib import Path
 SCRIPT = Path(__file__).parents[1] / "tools" / "ck-codex-account.py"
 
 
-def run(tmp_path: Path, *args: str, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+def run(
+    tmp_path: Path, *args: str, extra_env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["CK_CODEX_ACCOUNTS_HOME"] = str(tmp_path / "accounts")
     if extra_env:
