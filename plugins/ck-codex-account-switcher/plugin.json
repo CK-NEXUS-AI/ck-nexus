@@ -5,10 +5,5 @@
   "description": "Manage isolated Codex CLI login profiles and switch between them without exposing credentials.",
   "author": "CK-NEXUS",
   "repository": "https://github.com/spinlnw10-art/ck-nexus",
-  "keywords": ["codex", "account", "switcher", "oauth", "security"],
-  "extensions": {
-    "com.openai": {
-      "skills": "./skills/"
-    }
-  }
+  "keywords": ["codex", "account", "switcher", "oauth", "security"]
 }
