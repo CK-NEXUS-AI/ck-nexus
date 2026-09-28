@@ -174,9 +174,14 @@ def cmd_run(args: argparse.Namespace) -> int:
     data = load()
     if name not in data["accounts"]:
         raise SystemExit(f"Unknown profile: {name}")
-    if not args.command:
+    command = list(args.command)
+    # argparse.REMAINDER preserves the explicit separator. Strip it so the
+    # child receives exactly the requested executable and arguments.
+    if command and command[0] == "--":
+        command = command[1:]
+    if not command:
         raise SystemExit("Usage: ... run PROFILE -- COMMAND [ARGS...]")
-    result = subprocess.run(args.command, env=command_env(name), check=False)
+    result = subprocess.run(command, env=command_env(name), check=False)
     if result.returncode == 0:
         data["active"] = name
         data["accounts"][name]["updated_at"] = now()
