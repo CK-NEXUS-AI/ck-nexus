@@ -52,9 +52,7 @@ def save(data: dict) -> None:
     base.mkdir(mode=0o700, parents=True, exist_ok=True)
     path = metadata_path()
     temporary = path.with_suffix(".tmp")
-    temporary.write_text(
-        json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     os.chmod(temporary, 0o600)
     temporary.replace(path)
     os.chmod(path, 0o600)
@@ -81,9 +79,7 @@ def ensure_cli() -> str:
         return str(path)
     found = shutil.which(configured)
     if not found:
-        raise SystemExit(
-            "Codex CLI not found. Install the official @openai/codex package first."
-        )
+        raise SystemExit("Codex CLI not found. Install the official @openai/codex package first.")
     return found
 
 
