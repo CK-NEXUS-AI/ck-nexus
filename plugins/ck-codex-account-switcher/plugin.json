@@ -3,7 +3,9 @@
   "name": "ck-codex-account-switcher",
   "version": "0.1.0",
   "description": "Manage isolated Codex CLI login profiles and switch between them without exposing credentials.",
-  "author": "CK-NEXUS",
+  "author": {
+    "name": "CK-NEXUS"
+  },
   "repository": "https://github.com/spinlnw10-art/ck-nexus",
   "keywords": ["codex", "account", "switcher", "oauth", "security"]
 }
