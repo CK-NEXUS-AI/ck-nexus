@@ -6,7 +6,7 @@ CK-NEXUS remains a development candidate under evidence-based closure.
 - Frozen HEAD: ba6eac66ac4efab2afff5bb9463d5ffd7a6fef76
 - Audit snapshot: docs/CANONICAL_EVIDENCE_LEDGER_20261001.md
 - Audit snapshot commit: a7d2588c885a2d29fe09faa9369be008da79081a
-- Audit ledger SHA-256: 8314a0d1635abe95046f9de245b7adf3c634266a031decdbc9c967896ee5bfe5
+- Audit ledger SHA-256: 66b0d254a67bd61a83e3e6b2f604f094d573e490d95b8242efaa84714abc59dc
 - Gate status: Q05/Q08/Q14 = PASS* (subject-bound), Q09/Q13/Q15/Q16 = PASS_CANDIDATE, Q10 whole = NOT_VERIFIED, Q11 = BLOCKED, Q12 = NOT PROMOTED
 - Production claims are withheld pending Q10/Q11/Q12 verification and subject reconciliation.
 - No production-ready verdict is issued.
