@@ -110,7 +110,53 @@ agent_id → lease_id → policy_version → approval_id
 
 Missing any link is a coverage gap.
 
-## 7. Runtime Questions
+## 7. Test / Evidence Boundary
+
+The supplied OpenClaw testing guidance is treated as **test-method evidence**, not runtime proof of CK-NEXUS coverage.
+
+Evidence tiers for this map:
+
+1. **STATIC DOCUMENTED** — OpenClaw source/docs identify a capability or test lane.
+2. **LOCAL EXECUTED** — a permitted, bounded local command ran successfully.
+3. **REMOTE EXECUTED** — Crabbox/Testbox/CI ran the relevant test against the intended SHA.
+4. **RUNTIME VERIFIED** — the result demonstrates the actual target deployment's enabled surface and governance behavior.
+5. **COVERAGE VERIFIED** — the full mutation path, including leaf effects, is proven MEDIATED.
+6. **PRODUCTION** — independent release gates are closed; this is not implied by any test result alone.
+
+Important constraints from the testing guidance:
+
+- Do not run large/heavy repository tests locally merely because a remote provider is unavailable.
+- `pnpm test:changed` and targeted Vitest are bounded local evidence lanes when dependencies are available.
+- `pnpm check:changed` classifies the change before selecting local versus remote execution.
+- Large distributed checks, Docker, E2E, live evidence, and cross-platform checks belong in Crabbox/Testbox/CI when required by the repository workflow.
+- `OPENCLAW_TESTBOX_ALLOW_STALE=1` is diagnostic only and is **not release evidence**.
+- A cancelled outer GitHub Action is not by itself a test failure if the wrapper reports successful command execution; wrapper exit code and captured JSON are the authoritative result for that lane.
+- Live-provider tests require explicit live credentials and are therefore **out of scope for this read-only mapping phase**.
+- Docker/Plugin/browser/MCP lanes prove their respective test scenarios; they do **not** by themselves prove CK-NEXUS Gateway mediation.
+
+Therefore:
+> A test PASS establishes only the scope of the test that actually ran. It does not upgrade an unrelated mutation surface from UNKNOWN to MEDIATED.
+
+## 8. Surface-to-Test Discovery Matrix
+
+| Surface | Static discovery | Candidate bounded test | Coverage proof still required |
+|---|---|---|---|
+| S01 exec | tools/exec docs + source | targeted exec smoke | Gateway deny/allow + leaf containment |
+| S02 process | process/tool source | process lifecycle smoke | lease + expiry + kill/quarantine |
+| S03 browser | browser tool docs/source | browser E2E/CDP lane | submit/side-effect mediation |
+| S04 MCP | MCP docs/source | MCP serve/channel lane | downstream mutation leaf |
+| S05 filesystem | exec/plugin source | targeted write fixture | policy-bound filesystem enforcement |
+| S06 network | sandbox/network config | network-deny fixture | network interception/egress proof |
+| S07 plugin | plugin docs/source | plugin install/update Docker lane | admission + re-scan + capability boundary |
+| S08 skill | SKILL.md/plugin source | targeted skill test | invoked-tool mediation |
+| S09 sub-agent | delegation source | delegated-agent fixture | narrowed lease proof |
+| S10 credentials | provider/auth source | redaction/config inspection only | broker enforcement without exposing secrets |
+| S11 device/node | node/device source | bounded node inventory | remote authority boundary |
+| S12 message/channel | channel source | mocked send path | human/approval binding |
+| S13 web_search | web tool source | bounded fetch fixture | egress + data-loss controls |
+| S14 scheduling | cron/task source | delayed test fixture | fire-time approval re-check |
+
+## 9. Runtime Questions
 
 - Which surfaces are actually enabled?
 - Does exec run inside a sandbox that blocks network by default?
@@ -120,18 +166,20 @@ Missing any link is a coverage gap.
 - Is scheduling enabled, and is expiry re-checked at fire time?
 - Is any native path able to bypass tool policy?
 
-## 8. Evidence Log
+## 10. Evidence Log
 
 | Source | Claim | Status |
 |---|---|---|
-| OpenClaw documentation | capability classes exist | DOCUMENTED |
+| OpenClaw documentation supplied in task | testing lanes and remote/local execution policy exist | DOCUMENTED |
 | Target runtime | actual enabled surfaces / policy holes | NOT COLLECTED |
+| CK-NEXUS Gateway | universal mediation | NOT IMPLEMENTED / NOT VERIFIED |
 
-## 9. Status
+## 11. Status
 
 ```
 P0.2 Mutation Surface Mapping = DESIGNED
-Runtime verification           = NOT STARTED
-Coverage                       = UNKNOWN (14/14)
-Production                     = NO-GO
+Test-method mapping             = DESIGNED
+Runtime verification             = NOT STARTED
+Coverage                         = UNKNOWN (14/14)
+Production                       = NO-GO
 ```
