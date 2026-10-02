@@ -2,7 +2,7 @@ name: Refresh candidate evidence
 
 on:
   push:
-    branches: [agent/unified-control-package]
+    branches: [agent/unified-control-package, closure/one-shot-evidence-closure-20261002]
   workflow_dispatch:
 
 permissions:
