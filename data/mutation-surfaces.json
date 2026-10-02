@@ -1,0 +1,219 @@
+{
+  "schema_version": "1.0.0",
+  "document": "CK-NEXUS Mutation Surface Registry",
+  "subject": "OpenClaw Worker",
+  "status": "DESIGNED",
+  "runtime_verified": false,
+  "generated_from": "static_research",
+  "surfaces": [
+    {
+      "id": "S01",
+      "name": "exec",
+      "primitive": "exec",
+      "examples": [
+        "shell",
+        "python",
+        "node",
+        "git write"
+      ],
+      "risk": "high",
+      "coverage": "UNKNOWN",
+      "runtime_enabled": "UNKNOWN"
+    },
+    {
+      "id": "S02",
+      "name": "process",
+      "primitive": "process",
+      "examples": [
+        "background job",
+        "long-running process"
+      ],
+      "risk": "high",
+      "coverage": "UNKNOWN",
+      "runtime_enabled": "UNKNOWN"
+    },
+    {
+      "id": "S03",
+      "name": "browser",
+      "primitive": "browser",
+      "examples": [
+        "click",
+        "submit",
+        "download"
+      ],
+      "risk": "high",
+      "coverage": "UNKNOWN",
+      "runtime_enabled": "UNKNOWN"
+    },
+    {
+      "id": "S04",
+      "name": "mcp",
+      "primitive": "mcp",
+      "examples": [
+        "external tool call",
+        "server invocation"
+      ],
+      "risk": "high",
+      "coverage": "UNKNOWN",
+      "runtime_enabled": "UNKNOWN"
+    },
+    {
+      "id": "S05",
+      "name": "filesystem",
+      "primitive": "exec|plugin",
+      "examples": [
+        "write",
+        "delete",
+        "move"
+      ],
+      "risk": "high",
+      "coverage": "UNKNOWN",
+      "runtime_enabled": "UNKNOWN"
+    },
+    {
+      "id": "S06",
+      "name": "network",
+      "primitive": "exec|browser|fetch",
+      "examples": [
+        "http",
+        "api",
+        "socket"
+      ],
+      "risk": "high",
+      "coverage": "UNKNOWN",
+      "runtime_enabled": "UNKNOWN"
+    },
+    {
+      "id": "S07",
+      "name": "plugin",
+      "primitive": "plugins",
+      "examples": [
+        "install capability",
+        "invoke tool"
+      ],
+      "risk": "high",
+      "coverage": "UNKNOWN",
+      "runtime_enabled": "UNKNOWN"
+    },
+    {
+      "id": "S08",
+      "name": "skill",
+      "primitive": "skills",
+      "examples": [
+        "workflow invoking tools"
+      ],
+      "risk": "medium",
+      "coverage": "UNKNOWN",
+      "runtime_enabled": "UNKNOWN"
+    },
+    {
+      "id": "S09",
+      "name": "sub_agent",
+      "primitive": "delegation",
+      "examples": [
+        "delegated agent action"
+      ],
+      "risk": "high",
+      "coverage": "UNKNOWN",
+      "runtime_enabled": "UNKNOWN"
+    },
+    {
+      "id": "S10",
+      "name": "credentials",
+      "primitive": "broker|env",
+      "examples": [
+        "secret access",
+        "api key read"
+      ],
+      "risk": "critical",
+      "coverage": "UNKNOWN",
+      "runtime_enabled": "UNKNOWN"
+    },
+    {
+      "id": "S11",
+      "name": "device_node",
+      "primitive": "remote_node",
+      "examples": [
+        "external machine execution"
+      ],
+      "risk": "high",
+      "coverage": "UNKNOWN",
+      "runtime_enabled": "UNKNOWN"
+    },
+    {
+      "id": "S12",
+      "name": "message",
+      "primitive": "message",
+      "examples": [
+        "send",
+        "post",
+        "action"
+      ],
+      "risk": "medium",
+      "coverage": "UNKNOWN",
+      "runtime_enabled": "UNKNOWN"
+    },
+    {
+      "id": "S13",
+      "name": "web_search",
+      "primitive": "web_search",
+      "examples": [
+        "outbound fetch",
+        "possible exfil"
+      ],
+      "risk": "medium",
+      "coverage": "UNKNOWN",
+      "runtime_enabled": "UNKNOWN"
+    },
+    {
+      "id": "S14",
+      "name": "scheduling",
+      "primitive": "automation",
+      "examples": [
+        "deferred mutation",
+        "recurring job"
+      ],
+      "risk": "high",
+      "coverage": "UNKNOWN",
+      "runtime_enabled": "UNKNOWN"
+    }
+  ],
+  "composite_paths": [
+    {
+      "id": "C1",
+      "path": "exec→network",
+      "coverage": "INCOMPLETE"
+    },
+    {
+      "id": "C2",
+      "path": "mcp→external_api",
+      "coverage": "INCOMPLETE"
+    },
+    {
+      "id": "C3",
+      "path": "plugin→new_surface",
+      "coverage": "INCOMPLETE"
+    },
+    {
+      "id": "C4",
+      "path": "sub_agent→authority_inherit",
+      "coverage": "INCOMPLETE"
+    },
+    {
+      "id": "C5",
+      "path": "scheduling→deferred_decision",
+      "coverage": "INCOMPLETE"
+    }
+  ],
+  "coverage_invariant": [
+    "agent_id",
+    "lease_id",
+    "policy_version",
+    "approval_id",
+    "mutation_surface",
+    "resource",
+    "gateway_decision",
+    "execution",
+    "post_receipt"
+  ]
+}
