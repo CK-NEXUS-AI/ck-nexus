@@ -23,6 +23,9 @@ dependencies = [
 ck-nexus = "main:main"
 
 [project.optional-dependencies]
+adk = [
+  "google-adk[gcp]>=2.0.0,<3.0.0",
+]
 gateway = [
   "httpx>=0.27,<1",
   "PyJWT[crypto]>=2.10,<3",
