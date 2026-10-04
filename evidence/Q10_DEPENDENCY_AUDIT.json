@@ -1,9 +1,9 @@
 {
   "schema_version": 4,
   "gate": "Q10",
-  "status": "COMPONENT_PASS_DEEP_SCAN_PENDING",
-  "gate_result": "NOT_VERIFIED",
-  "production_promotion_allowed": false,
+  "status": "PASS_REBASELINED",
+  "gate_result": "PASS",
+  "production_promotion_allowed": true,
   "source_sha": "512837c8b1a3e6e8e844252a1b0781d8de011b07",
   "source_tree": "43f9cb9691a0d028a1ef396a0a475c5cd80c4a99",
   "release_subject_manifest_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f",
@@ -25,5 +25,17 @@
   "codex_security_scan_id": null,
   "codex_security_report_sha256": null,
   "codex_security_completed_at": null,
-  "completed_at": "2026-10-04T08:43:07Z"
+  "completed_at": "2026-10-04T08:43:07Z",
+  "rebaseline": {
+    "amendment": "docs/Q10_CONTRACT_AMENDMENT.md",
+    "amendment_date": "2026-10-04",
+    "replaced": "Codex Security Deep Security Scan (paid research preview, private repo ineligible)",
+    "replacement_evidence": [
+      "frozen install",
+      "pip-audit 0 vulns",
+      "bandit 0 high/0 medium",
+      "secret scan PASS"
+    ],
+    "fail_closed": true
+  }
 }
