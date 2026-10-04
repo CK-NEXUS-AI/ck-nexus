@@ -1,0 +1,84 @@
+name: Category A Canonical Validation
+
+on:
+  push:
+    branches:
+      - verify/category-a-canonical
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  category-a-structure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify canonical files
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            "CLAUDE.md"
+            ".claude/rules/evidence-first.md"
+            ".claude/rules/security.md"
+            ".claude/rules/testing.md"
+            ".claude/rules/production.md"
+            ".claude/rules/repository.md"
+            ".claude/skills/q10-audit/SKILL.md"
+            ".claude/skills/q11-provider/SKILL.md"
+            ".claude/skills/q12-runtime/SKILL.md"
+            ".claude/skills/evidence-chain/SKILL.md"
+            ".claude/skills/repo-audit/SKILL.md"
+            ".claude/skills/release-verification/SKILL.md"
+            ".claude/agents/architect.md"
+            ".claude/agents/security.md"
+            ".claude/agents/verifier.md"
+            ".claude/agents/scout.md"
+            "docs/CK_NEXUS_GOVERNED_DEVELOPMENT_SYSTEM.md"
+            "docs/EVIDENCE_EXECUTION_SCHEMA.md"
+          )
+          for f in "${required[@]}"; do
+            test -f "$f" || { echo "MISSING: $f"; exit 1; }
+          done
+
+      - name: Verify governance invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "NO EVIDENCE -> NO DONE" CLAUDE.md
+          grep -Fq "GPT/LLM proposes; it is never the root authority." CLAUDE.md
+          grep -Fq "Policy Kernel decides allow/deny/approval." CLAUDE.md
+          grep -Fq "Execution Gateway executes only authorized actions." CLAUDE.md
+          grep -Fq "Verifier verifies outcomes independently where practical." CLAUDE.md
+          grep -Fq "Evidence Engine records reproducible proof." CLAUDE.md
+          grep -Fq "REF -> COMMIT -> TREE -> SOURCE -> RELEASE -> APPLICATION" .claude/rules/evidence-first.md
+
+      - name: Markdown/YAML sanity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+          for p in Path(".github/workflows").glob("*.yml"):
+              yaml.safe_load(p.read_text())
+          for p in Path(".claude").rglob("*.md"):
+              text = p.read_text()
+              if "\x00" in text:
+                  raise SystemExit(f"NUL byte in {p}")
+          print("SANITY_PASS")
+          PY
+
+      - name: Repository revision evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "source_sha=$(git rev-parse HEAD)"
+          echo "source_tree=$(git rev-parse HEAD^{tree})"
+          echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
