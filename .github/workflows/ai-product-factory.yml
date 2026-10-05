@@ -31,10 +31,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: .venv/bin/python scripts/ai_github_harvester.py
+      - name: Discover AI provider capabilities
+        run: .venv/bin/python scripts/ai_provider_capability.py
       - name: Run deterministic factory tests
         run: .venv/bin/pytest -q tests/test_ai_product_factory.py
       - name: Validate source hygiene
-        run: .venv/bin/ruff check scripts/ai_github_harvester.py scripts/ai_idea_harvester.py scripts/ai_closure_gate.py tests/test_ai_product_factory.py
+        run: .venv/bin/ruff check scripts/ai_github_harvester.py scripts/ai_idea_harvester.py scripts/ai_closure_gate.py scripts/ai_provider_capability.py tests/test_ai_product_factory.py
       - name: Upload evidence
         uses: actions/upload-artifact@v4
         with:
