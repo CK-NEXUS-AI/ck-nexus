@@ -110,6 +110,14 @@ class _Executor:
         return {"ready": True}
 
 
+async def _execute_with_omni_context(
+    dispatcher: SkillExecutionDispatcher,
+    request: SkillExecutionRequest,
+    context: OMNIExecutionContext,
+) -> SkillExecutionResult:
+    return await dispatcher.execute(request, omni_context=context)
+
+
 async def _execute_with_omni(
     dispatcher: SkillExecutionDispatcher, request: SkillExecutionRequest
 ) -> SkillExecutionResult:
@@ -136,7 +144,7 @@ async def _execute_with_omni(
         verifier_id="test-verifier",
         intent_id=request.correlation_id,
     )
-    return await dispatcher.execute(request, omni_context=context)
+    return await _execute_with_omni_context(dispatcher, request, context)
 
 
 def _dispatcher(
@@ -218,6 +226,35 @@ async def test_dispatcher_fail_closed_when_no_executor(tmp_path: Path):
     assert result.error == "no_capable_executor"
     assert result.manifest_hash
     assert result.evidence_refs
+    assert dispatcher.ledger.verify().valid is True
+
+
+@pytest.mark.asyncio
+async def test_invalid_omni_context_blocks_before_executor(tmp_path: Path):
+    dispatcher = _dispatcher(tmp_path)
+    executor = _Executor()
+    dispatcher.register(executor)
+    request = _request()
+    now = time.time()
+    invalid = OMNIExecutionContext(
+        identity=AgentIdentity("", "test-model", "test-suite", "idp:test-agent"),
+        capability_id="code.read",
+        lease=CapabilityLease("test-lease", "test-agent", ("code.read",), now - 1, now + 3600),
+        policy_id="policy-1",
+        risk_verdict=PreExecutionRiskVerdict(
+            "test-risk", request.execution_id, "test-agent", "code.read", "policy-1",
+            RiskDecision.ALLOW, EvidenceLevel.E1, "LOCAL", "reversible", "none", False,
+        ),
+        tool_id="test-tool",
+        target_id="test-target",
+        runtime_id="test-runtime",
+        verifier_id="test-verifier",
+        intent_id=request.correlation_id,
+    )
+    result = await _execute_with_omni_context(dispatcher, request, invalid)
+    assert result.status is ExecutionStatus.BLOCKED
+    assert result.error == "agent_identity_missing"
+    assert executor.calls == 0
     assert dispatcher.ledger.verify().valid is True
 
 
