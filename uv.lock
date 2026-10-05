@@ -400,7 +400,6 @@ requires-dist = [
     { name = "python-multipart", marker = "extra == 'email'", specifier = ">=0.0.20,<1" },
     { name = "redis", marker = "extra == 'gateway'", specifier = ">=5,<7" },
     { name = "urllib3", marker = "extra == 'gateway'", specifier = ">=2.8,<3" },
-    { name = "urllib3", marker = "extra == 'gateway'", specifier = ">=2.8,<3" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.12,<1" },
     { name = "sqlalchemy", marker = "extra == 'billing'", specifier = ">=2.0,<3" },
     { name = "stripe", marker = "extra == 'billing'", specifier = ">=11,<15" },
