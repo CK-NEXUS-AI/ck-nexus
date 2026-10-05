@@ -266,8 +266,8 @@ async def test_read_only_executor_runs_after_pre_audit_and_final_audit(tmp_path:
     result = await _execute_with_omni(dispatcher, _request())
     assert result.status is ExecutionStatus.SUCCEEDED
     assert executor.calls == 1
-    assert len(result.evidence_refs) == 2
-    assert dispatcher.ledger.verify().entries == 2
+    assert len(result.evidence_refs) == 3
+    assert dispatcher.ledger.verify().entries == 3
 
 
 @pytest.mark.asyncio
@@ -481,4 +481,4 @@ async def test_result_verification_rejects_executor_identity_mismatch(tmp_path: 
     assert result.status is ExecutionStatus.FAILED
     assert result.error == "verification_failed:execution_id_mismatch"
     assert executor.calls == 1
-    assert len(result.evidence_refs) == 2
+    assert len(result.evidence_refs) == 3
