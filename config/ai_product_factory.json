@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "mode": "observe_until_verified",
+  "harvest": {
+    "cadence_hours": 6,
+    "sources": ["github", "issues", "oss", "research", "market_signals", "competitor_changes", "user_feedback"],
+    "retain_raw": true,
+    "deduplicate": true,
+    "require_provenance": true
+  },
+  "opportunity": {
+    "thresholds": {"build_now": 90, "priority": 80, "experiment": 70, "backlog": 60},
+    "weights": {
+      "market_demand": 20,
+      "pain_severity": 15,
+      "revenue_potential": 15,
+      "competition_gap": 10,
+      "technical_feasibility": 10,
+      "reusability": 10,
+      "automation_fit": 5,
+      "strategic_fit": 5,
+      "time_to_market": 5,
+      "evidence_strength": 5
+    }
+  },
+  "closure": {
+    "max_repair_iterations": 3,
+    "max_alternative_paths": 3,
+    "independent_verification_required": true,
+    "production_requires_explicit_promotion": true,
+    "no_evidence_no_done": true,
+    "failed_attempts_are_knowledge": true
+  },
+  "hard_gates": [
+    "provenance_required",
+    "evidence_required",
+    "independent_verification_required",
+    "no_secret_exposure",
+    "no_unauthorized_mutation",
+    "no_production_mutation",
+    "regression_must_not_increase",
+    "budget_must_not_be_exceeded"
+  ]
+}
