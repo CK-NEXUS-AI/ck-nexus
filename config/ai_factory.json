@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "mode": "observe_until_verified",
+  "schedule": {
+    "controller_cron": "17 */6 * * *",
+    "minimum_interval_minutes": 360
+  },
+  "budget": {
+    "max_ai_usd_per_run": 0.25,
+    "max_ai_usd_per_day": 2.0,
+    "max_iterations_per_task": 3,
+    "max_alternatives_per_failure": 3,
+    "max_parallel_agents": 3
+  },
+  "promotion": {
+    "reject_below": 70,
+    "development": 70,
+    "release_candidate": 80,
+    "high_quality": 90,
+    "premium": 95,
+    "production_requires_independent_evidence": true
+  },
+  "weights": {
+    "functional_correctness": 20,
+    "test_coverage": 10,
+    "security": 15,
+    "reliability": 10,
+    "performance": 10,
+    "maintainability": 10,
+    "architecture": 10,
+    "documentation": 5,
+    "recovery": 5,
+    "observability": 5
+  },
+  "hard_gates": [
+    "no_secrets_in_logs",
+    "no_unauthorized_write",
+    "no_production_mutation",
+    "independent_verification_required",
+    "evidence_required",
+    "regression_must_not_increase",
+    "budget_must_not_be_exceeded"
+  ],
+  "providers": [
+    {"id": "github-agentic", "kind": "agentic-workflow", "enabled": false},
+    {"id": "codex", "kind": "coding-agent", "enabled": false},
+    {"id": "claude", "kind": "coding-agent", "enabled": false},
+    {"id": "gemini", "kind": "coding-agent", "enabled": false},
+    {"id": "goose", "kind": "open-source-router", "enabled": false},
+    {"id": "openhands", "kind": "open-source-agent", "enabled": false},
+    {"id": "ollama", "kind": "local-model-fallback", "enabled": false}
+  ]
+}
