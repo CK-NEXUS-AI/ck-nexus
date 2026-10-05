@@ -189,3 +189,45 @@ Run status: RESEARCH_UPDATED / NO_INSTALL / NO_PROMOTION / NO_PRODUCTION_CHANGE
 - No Q10/Q11/Q12 promotion.
 - No Production status change.
 - Next safe implementation lane: schema-only profiles + negative tests, then independent verification.
+
+## Continuous external research record — 2026-10-06 / security delta
+
+Run status: RESEARCH_UPDATED / NO_INSTALL / NO_PROMOTION / NO_PRODUCTION_CHANGE
+
+### Finding I — Agent skill/tool supply chain needs provenance admission, not just dependency scanning
+- Status: active security trend; incident evidence, not a certification.
+- Evidence: current supply-chain activity affecting packages and CI actions reinforces that agent ecosystems inherit ordinary software supply-chain compromise while adding tool/skill metadata and runtime capability surfaces.
+- Deduplication: extends existing agent/MCP/skill admission architecture; does not create a second package manager or runtime.
+- Safe candidate: AGENT_SKILL_PROVENANCE_GATE
+- Required controls: immutable source reference, commit/tree/file hashes, dependency manifest, signer/provenance where available, capability declaration, security review, admission certificate, upgrade diff, automatic quarantine on provenance drift.
+- Sources:
+  - https://www.bleepingcomputer.com/news/security/github-actions-re-enabled-with-mini-shai-hulud-payload-still-active/
+  - https://www.nvd.nist.gov/
+
+### Finding J — Dynamic malicious skill injection deserves a first-class negative test
+- Status: research finding; not a production threat-rate claim.
+- Evidence: recent research demonstrates runtime injection of malicious logic through natural-language documentation/skill surfaces in agentic coding environments.
+- Deduplication: complements MCP metadata-integrity controls and agent admission; the new actionable layer is testing behavior after admission rather than trusting static review alone.
+- Safe candidate: AGENT_DYNAMIC_SKILL_INJECTION_TEST
+- Required controls: clean baseline, admitted skill hash, controlled mutation, behavioral diff, privilege/tool-call diff, evidence capture, automatic rejection on unauthorized capability change.
+- Source:
+  - https://arxiv.org/abs/2606.16287
+
+### Finding K — Long-horizon and adversarial evaluation should be part of deployment readiness
+- Status: evaluation research; not a production certification.
+- Evidence: current agent evaluations increasingly test long-horizon behavior, exploitability, coordination, monitoring, and runtime defenses rather than only task success.
+- Deduplication: extends CK-NEXUS deployment readiness and behavioral-control candidates; benchmark scores remain external evidence, not CK-NEXUS VERIFIED state.
+- Safe candidate: AGENT_LONG_HORIZON_CONTROL_EVAL
+- Required controls: bounded scenarios, explicit success/failure criteria, adversarial cases, tool/privilege telemetry, timeout and budget controls, reproducible corpus/version, raw results, independent evaluator, evidence hash.
+- Sources:
+  - https://arxiv.org/pdf/2605.11086
+  - https://arxiv.org/abs/2606.05342
+
+### Immediate disposition — security delta
+- AGENT_SKILL_PROVENANCE_GATE: OBSERVED / P1 candidate.
+- AGENT_DYNAMIC_SKILL_INJECTION_TEST: OBSERVED / P1 negative-test candidate.
+- AGENT_LONG_HORIZON_CONTROL_EVAL: OBSERVED / P2 evaluation candidate.
+- No dependency installation.
+- No external runtime authority.
+- No automatic trust promotion from benchmark or incident data.
+- Next safe lane: add schema/test contracts only; require CI and independent reproduction before merge.
