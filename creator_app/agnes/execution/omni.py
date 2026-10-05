@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass
 from enum import StrEnum
 from typing import Any
 
-from .request import ExecutorRiskClass, SkillExecutionRequest
+from .request import SkillExecutionRequest
 
 
 class OmniGateError(PermissionError):
