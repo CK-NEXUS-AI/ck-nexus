@@ -75,7 +75,7 @@ def assert_block(ctx: OMNIExecutionContext, request: SkillExecutionRequest | Non
         ("T09 policy risk mismatch", {"risk_verdict": PreExecutionRiskVerdict("rv-1", "exec-001", "agent-1", "code.read", "other-policy", RiskDecision.ALLOW, EvidenceLevel.E1, "LOCAL", "reversible", "none", False)}),
         ("T10 non-allow risk decision", {"risk_verdict": PreExecutionRiskVerdict("rv-1", "exec-001", "agent-1", "code.read", "policy-1", RiskDecision.BLOCK, EvidenceLevel.E1, "LOCAL", "reversible", "none", False)}),
         ("T11 missing approval boundary", {"risk_verdict": PreExecutionRiskVerdict("rv-1", "exec-001", "agent-1", "code.read", "policy-1", RiskDecision.REQUIRE_APPROVAL, EvidenceLevel.E1, "LOCAL", "reversible", "none", False)}),
-        ("T12 child capability escalation", {"delegation": DelegationContext("parent-1", "parent-agent", ("code.read",), "agent-1")}),
+        ("T12 child capability escalation", {"delegation": DelegationContext("parent-1", "parent-agent", (), "agent-1")}),
         ("T13 missing parent execution", {"delegation": DelegationContext("", "parent-agent", ("code.read",), "agent-1")}),
         ("T14 tool/target mismatch", {"tool_id": "other-tool", "target_id": "other-target"}),
         ("T15 missing runtime binding", {"runtime_id": ""}),
