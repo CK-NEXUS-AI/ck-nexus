@@ -325,7 +325,12 @@ class SkillExecutionDispatcher:
             result.evidence_refs.extend([pre_ref, final_ref])
 
             output_hash = hashlib.sha256(
-                json.dumps(\n                    result.output,\n                    sort_keys=True,\n                    separators=(",", ":"),\n                    default=str,\n                ).encode("utf-8")
+                json.dumps(
+                    result.output,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    default=str,
+                ).encode("utf-8")
             ).hexdigest()
             action_record = omni_context.action_record(
                 request,
