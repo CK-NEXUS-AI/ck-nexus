@@ -26,6 +26,10 @@ if printf '%s\n' "$changed" | grep -Eq '^(pyproject\.toml|uv\.lock|\.github/|evi
   exit 67
 fi
 
+# The project itself is intentionally not installed into the frozen verifier image.
+# The mounted checkout must therefore be importable directly from /workspace.
+export PYTHONPATH="/workspace${PYTHONPATH:+:$PYTHONPATH}"
+
 python -m compileall -q main.py creator_app services scripts
 ruff check main.py creator_app services tests scripts --output-format=concise
 
