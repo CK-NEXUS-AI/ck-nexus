@@ -5,6 +5,7 @@ from pathlib import Path
 
 from scripts.ai_closure_gate import evaluate
 from scripts.ai_idea_harvester import ingest
+from scripts.ai_provider_capability import discover, route
 
 
 def test_idea_harvester_preserves_provenance_and_scores() -> None:
@@ -59,3 +60,10 @@ def test_factory_config_exists() -> None:
     path = Path(__file__).parents[1] / "config" / "ai_product_factory.json"
     config = json.loads(path.read_text(encoding="utf-8"))
     assert config["closure"]["no_evidence_no_done"] is True
+
+
+def test_provider_router_fail_closes_when_no_provider_is_available() -> None:
+    result = route(discover(), "code_generation")
+    assert result["status"] == "BLOCK_PATH"
+    assert result["candidates"] == []
+    assert result["reason"] == "no_enabled_provider_with_available_runtime"
