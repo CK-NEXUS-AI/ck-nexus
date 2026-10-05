@@ -12,6 +12,7 @@ if [ ! -d /workspace ]; then
 fi
 
 cd /workspace
+export PYTHONPATH="/workspace${PYTHONPATH:+:$PYTHONPATH}"
 
 if [ ! -e pyproject.toml ] || [ ! -e uv.lock ]; then
   echo "workspace is not a CK-NEXUS checkout" >&2
