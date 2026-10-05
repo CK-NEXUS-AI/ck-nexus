@@ -1,0 +1,6 @@
+{
+  "name": "ck-codex-account-switcher",
+  "version": "0.1.0",
+  "description": "Manage isolated Codex CLI login profiles and switch between them without exposing credentials.",
+  "skills": "./skills/"
+}

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CK-Codex Account Switcher</title>
+<style>
+body{font:16px system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px}
+.card{border:1px solid #ddd;border-radius:16px;padding:24px}
+button{padding:12px 18px;border:0;border-radius:10px;cursor:pointer;font-weight:700}
+.login{background:#111;color:#fff}.status{background:#eee;margin-left:8px}
+pre{background:#f6f6f6;padding:14px;border-radius:10px;white-space:pre-wrap}
+input{padding:11px;border:1px solid #bbb;border-radius:9px}
+a{font-weight:700}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>CK-Codex Account Switcher</h1>
+<p>Profile: <input id="profile" value="second-gmail" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,63}"></p>
+<button class="login" onclick="login()">🔐 LOGIN</button>
+<button class="status" onclick="status()">Check status</button>
+<pre id="out">Ready.</pre>
+</div>
+<script>
+async function login(){
+  const profile=document.getElementById('profile').value;
+  out.textContent='Starting official Codex device login…';
+  const r=await fetch('/login?profile='+encodeURIComponent(profile),{method:'POST'});
+  out.textContent=await r.text();
+}
+async function status(){
+  const profile=document.getElementById('profile').value;
+  const r=await fetch('/status?profile='+encodeURIComponent(profile));
+  out.textContent=await r.text();
+}
+</script>
+</body>
+</html>
