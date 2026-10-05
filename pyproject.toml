@@ -50,7 +50,7 @@ email = [
 ]
 
 github-app = [
-  "PyJWT[crypto]>=2.10,<3",
+  "PyJWT[crypto]>=2.14,<3",
 ]
 
 [tool.setuptools]
