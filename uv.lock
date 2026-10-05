@@ -658,7 +658,7 @@ dependencies = [
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d5/44/474bef7e4e3b26205e8436a18a8afdb6a66f201871842dce5a97b1c1/httpx2-2.13.1.tar.gz", hash = "sha256:e48744a19e3af5ee48313d0ce5fe941d5422fae5705ea922a4aabf94d7800dfa", size = 102808 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d8/9c/6fe474bef7016b252bec0c99a49fce42c3326/httpx2-2.13.1-py3-none-any.whl", hash = "sha256:6dff50fabc270ee5fd25d845d0b078ed20564579744d6d962850975996d2f9a4", size = 97900 },
+    { url = "https://files.pythonhosted.org/packages/d8/9c/6fe8931fd9f381042a9e4c7d5a7b4cbf7016b252bec0c99a49fce42c3326/httpx2-2.13.1-py3-none-any.whl", hash = "sha256:6dff50fabc270ee5fd25d845d0b078ed20564579744d6d962850975996d2f9a4", size = 97900 },
 ]
 
 [[package]]
