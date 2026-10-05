@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,6 +17,14 @@ from creator_app.agnes.execution.guards import ExecutionPolicyEngine
 from creator_app.agnes.execution.idempotency import InMemoryIdempotencyStore
 from creator_app.agnes.execution.kill_switch import KillSwitchHierarchy
 from creator_app.agnes.execution.manifest import ImmutableExecutionManifest
+from creator_app.agnes.execution.omni import (
+    AgentIdentity,
+    CapabilityLease,
+    EvidenceLevel,
+    OMNIExecutionContext,
+    PreExecutionRiskVerdict,
+    RiskDecision,
+)
 from creator_app.agnes.execution.promotion import (
     ArtifactPromotionState,
     CodePatchState,
@@ -101,6 +110,43 @@ class _Executor:
         return {"ready": True}
 
 
+async def _execute_with_omni_context(
+    dispatcher: SkillExecutionDispatcher,
+    request: SkillExecutionRequest,
+    context: OMNIExecutionContext,
+) -> SkillExecutionResult:
+    return await dispatcher.execute(request, omni_context=context)
+
+
+async def _execute_with_omni(
+    dispatcher: SkillExecutionDispatcher, request: SkillExecutionRequest
+) -> SkillExecutionResult:
+    now = time.time()
+    capability = (
+        request.granted_capabilities[0] if request.granted_capabilities else "code.read"
+    )
+    context = OMNIExecutionContext(
+        identity=AgentIdentity(
+            "test-agent", "test-model", "test-suite", "idp:test-agent"
+        ),
+        capability_id=capability,
+        lease=CapabilityLease(
+            "test-lease", "test-agent", (capability,), now - 1, now + 3600
+        ),
+        policy_id="policy-1",
+        risk_verdict=PreExecutionRiskVerdict(
+            "test-risk", request.execution_id, "test-agent", capability, "policy-1",
+            RiskDecision.ALLOW, EvidenceLevel.E1, "LOCAL", "reversible", "none", False,
+        ),
+        tool_id="test-tool",
+        target_id="test-target",
+        runtime_id="test-runtime",
+        verifier_id="test-verifier",
+        intent_id=request.correlation_id,
+    )
+    return await _execute_with_omni_context(dispatcher, request, context)
+
+
 def _dispatcher(
     tmp_path: Path,
     *,
@@ -175,7 +221,7 @@ def test_immutable_execution_manifest_hash_is_stable():
 @pytest.mark.asyncio
 async def test_dispatcher_fail_closed_when_no_executor(tmp_path: Path):
     dispatcher = _dispatcher(tmp_path)
-    result = await dispatcher.execute(_request())
+    result = await _execute_with_omni(dispatcher, _request())
     assert result.status is ExecutionStatus.BLOCKED
     assert result.error == "no_capable_executor"
     assert result.manifest_hash
@@ -184,15 +230,44 @@ async def test_dispatcher_fail_closed_when_no_executor(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_invalid_omni_context_blocks_before_executor(tmp_path: Path):
+    dispatcher = _dispatcher(tmp_path)
+    executor = _Executor()
+    dispatcher.register(executor)
+    request = _request()
+    now = time.time()
+    invalid = OMNIExecutionContext(
+        identity=AgentIdentity("", "test-model", "test-suite", "idp:test-agent"),
+        capability_id="code.read",
+        lease=CapabilityLease("test-lease", "test-agent", ("code.read",), now - 1, now + 3600),
+        policy_id="policy-1",
+        risk_verdict=PreExecutionRiskVerdict(
+            "test-risk", request.execution_id, "test-agent", "code.read", "policy-1",
+            RiskDecision.ALLOW, EvidenceLevel.E1, "LOCAL", "reversible", "none", False,
+        ),
+        tool_id="test-tool",
+        target_id="test-target",
+        runtime_id="test-runtime",
+        verifier_id="test-verifier",
+        intent_id=request.correlation_id,
+    )
+    result = await _execute_with_omni_context(dispatcher, request, invalid)
+    assert result.status is ExecutionStatus.BLOCKED
+    assert result.error == "agent_identity_missing"
+    assert executor.calls == 0
+    assert dispatcher.ledger.verify().valid is True
+
+
+@pytest.mark.asyncio
 async def test_read_only_executor_runs_after_pre_audit_and_final_audit(tmp_path: Path):
     dispatcher = _dispatcher(tmp_path)
     executor = _Executor()
     dispatcher.register(executor)
-    result = await dispatcher.execute(_request())
+    result = await _execute_with_omni(dispatcher, _request())
     assert result.status is ExecutionStatus.SUCCEEDED
     assert executor.calls == 1
-    assert len(result.evidence_refs) == 2
-    assert dispatcher.ledger.verify().entries == 2
+    assert len(result.evidence_refs) == 3
+    assert dispatcher.ledger.verify().entries == 3
 
 
 @pytest.mark.asyncio
@@ -201,7 +276,7 @@ async def test_kill_switch_hierarchy_blocks_before_executor(tmp_path: Path):
     executor = _Executor()
     dispatcher.register(executor)
     dispatcher.kill_switches.skills.add("brain.plan")
-    result = await dispatcher.execute(_request())
+    result = await _execute_with_omni(dispatcher, _request())
     assert result.status is ExecutionStatus.BLOCKED
     assert result.error == "kill_switch_skill"
     assert executor.calls == 0
@@ -210,7 +285,7 @@ async def test_kill_switch_hierarchy_blocks_before_executor(tmp_path: Path):
 @pytest.mark.asyncio
 async def test_manifest_executor_mismatch_is_blocked(tmp_path: Path):
     dispatcher = _dispatcher(tmp_path)
-    result = await dispatcher.execute(_request(executor=ExecutorType.PROVIDER))
+    result = await _execute_with_omni(dispatcher, _request(executor=ExecutorType.PROVIDER))
     assert result.status is ExecutionStatus.BLOCKED
     assert result.error == "executor_manifest_mismatch"
 
@@ -221,7 +296,7 @@ async def test_executable_skill_requires_explicit_capability_grants(tmp_path: Pa
     request = _request(
         "hands.code_patch", executor=ExecutorType.SANDBOX, idempotency_key="patch-perm"
     )
-    result = await dispatcher.execute(request)
+    result = await _execute_with_omni(dispatcher, request)
     assert result.status is ExecutionStatus.BLOCKED
     assert result.error.startswith("missing_capability_grant:")
 
@@ -235,7 +310,7 @@ async def test_high_risk_requires_sticky_approval_before_any_execution(tmp_path:
         idempotency_key="patch-1",
         granted_capabilities=("code_write", "patch"),
     )
-    result = await dispatcher.execute(request)
+    result = await _execute_with_omni(dispatcher, request)
     assert result.status is ExecutionStatus.WAITING_APPROVAL
     assert result.error == "sticky_approval_required_or_mismatch"
 
@@ -260,7 +335,7 @@ async def test_high_risk_is_blocked_by_non_durable_idempotency_even_when_approve
     )
     # Fingerprint includes approval-independent execution facts, so the grant remains valid.
     assert dispatcher.approval.fingerprint(request, ExecutorRiskClass.HIGH) == fp
-    result = await dispatcher.execute(request)
+    result = await _execute_with_omni(dispatcher, request)
     assert result.status is ExecutionStatus.BLOCKED
     assert result.error == "durable_idempotency_required_for_high_risk"
 
@@ -285,9 +360,9 @@ async def test_production_write_remains_blocked_even_with_approval(tmp_path: Pat
         idempotency_key="patch-prod",
         granted_capabilities=("code_write", "patch"),
     )
-    result = await dispatcher.execute(request)
+    result = await _execute_with_omni(dispatcher, request)
     assert result.status is ExecutionStatus.BLOCKED
-    assert result.error == "production_mutation_disabled"
+    assert result.error == "production_mutation_requires_governed_read_only_verdict"
 
 
 @pytest.mark.asyncio
@@ -295,7 +370,7 @@ async def test_executor_risk_escalation_invalidates_manifest_scope(tmp_path: Pat
     dispatcher = _dispatcher(tmp_path)
     executor = _Executor(risk_class=ExecutorRiskClass.HIGH)
     dispatcher.register(executor)
-    result = await dispatcher.execute(_request())
+    result = await _execute_with_omni(dispatcher, _request())
     assert result.status is ExecutionStatus.BLOCKED
     assert result.error == "executor_risk_escalation_requires_new_manifest_and_approval"
     assert executor.calls == 0
@@ -315,7 +390,7 @@ async def test_credential_lease_forbids_user_sourced_secret(tmp_path: Path):
             CredentialRequirement("openai.api_key", "provider.openai", "test-only-provider-call"),
         )
     )
-    result = await dispatcher.execute(request)
+    result = await _execute_with_omni(dispatcher, request)
     assert result.status is ExecutionStatus.BLOCKED
     assert result.error == "credential_lease_blocked:CredentialLeaseDenied"
 
@@ -325,9 +400,9 @@ async def test_idempotency_manifest_conflict_blocks_reuse(tmp_path: Path):
     dispatcher = _dispatcher(tmp_path)
     executor = _Executor()
     dispatcher.register(executor)
-    first = await dispatcher.execute(_request(inputs={"value": 1}))
+    first = await _execute_with_omni(dispatcher, _request(inputs={"value": 1}))
     assert first.status is ExecutionStatus.SUCCEEDED
-    second = await dispatcher.execute(_request(inputs={"value": 2}))
+    second = await _execute_with_omni(dispatcher, _request(inputs={"value": 2}))
     assert second.status is ExecutionStatus.BLOCKED
     assert second.error == "idempotency_key_manifest_conflict"
     assert executor.calls == 1
@@ -377,7 +452,7 @@ async def test_pre_audit_failure_prevents_executor_run(tmp_path: Path):
             raise AssertionError("finalize should not run")
 
     dispatcher.evidence = _BrokenEvidence()
-    result = await dispatcher.execute(_request())
+    result = await _execute_with_omni(dispatcher, _request())
     assert result.status is ExecutionStatus.BLOCKED
     assert result.error == "control_plane_failure:OSError"
     assert executor.calls == 0
@@ -402,8 +477,8 @@ async def test_result_verification_rejects_executor_identity_mismatch(tmp_path: 
     dispatcher = _dispatcher(tmp_path)
     executor = _BadResultExecutor()
     dispatcher.register(executor)
-    result = await dispatcher.execute(_request())
+    result = await _execute_with_omni(dispatcher, _request())
     assert result.status is ExecutionStatus.FAILED
     assert result.error == "verification_failed:execution_id_mismatch"
     assert executor.calls == 1
-    assert len(result.evidence_refs) == 2
+    assert len(result.evidence_refs) == 3
