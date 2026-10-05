@@ -24,15 +24,21 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+          cache: pip
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+      - name: Sync frozen project environment
+        run: |
+          uv sync --all-extras --dev --frozen
       - name: Factory preflight
         run: python scripts/ai_factory_preflight.py
       - name: Deterministic quality checks
         shell: bash
         run: |
           set -euo pipefail
-          python -m compileall -q main.py creator_app services scripts
-          python -m ruff check main.py creator_app services tests scripts --output-format=concise
-          python -m pytest -q tests/test_omni_runtime_binding.py tests/test_agnes_execution_kernel_phase1.py
+          .venv/bin/python -m compileall -q main.py creator_app services scripts
+          .venv/bin/ruff check main.py creator_app services tests scripts --output-format=concise
+          .venv/bin/pytest -q tests/test_omni_runtime_binding.py tests/test_agnes_execution_kernel_phase1.py
       - name: Produce score evidence
         shell: bash
         run: |
