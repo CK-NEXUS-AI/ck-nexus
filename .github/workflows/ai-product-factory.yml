@@ -1,0 +1,48 @@
+name: CK-NEXUS AI Product Factory
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "37 */6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-product-factory-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  harvest-and-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+      - name: Sync frozen environment
+        run: uv sync --all-extras --dev --frozen
+      - name: Harvest GitHub signals
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .venv/bin/python scripts/ai_github_harvester.py
+      - name: Run deterministic factory tests
+        run: .venv/bin/pytest -q tests/test_ai_product_factory.py
+      - name: Validate source hygiene
+        run: .venv/bin/ruff check scripts/ai_github_harvester.py scripts/ai_idea_harvester.py scripts/ai_closure_gate.py tests/test_ai_product_factory.py
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-product-factory-${{ github.sha }}
+          path: evidence/ai_factory/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Production boundary
+        run: |
+          echo "Harvest and deterministic gates are development evidence only."
+          echo "No production mutation or autonomous release is authorized by this workflow."
