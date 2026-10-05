@@ -3,13 +3,26 @@
   "mode": "observe_until_verified",
   "harvest": {
     "cadence_hours": 6,
-    "sources": ["github", "issues", "oss", "research", "market_signals", "competitor_changes", "user_feedback"],
+    "sources": [
+      "github",
+      "issues",
+      "oss",
+      "research",
+      "market_signals",
+      "competitor_changes",
+      "user_feedback"
+    ],
     "retain_raw": true,
     "deduplicate": true,
     "require_provenance": true
   },
   "opportunity": {
-    "thresholds": {"build_now": 90, "priority": 80, "experiment": 70, "backlog": 60},
+    "thresholds": {
+      "build_now": 90,
+      "priority": 80,
+      "experiment": 70,
+      "backlog": 60
+    },
     "weights": {
       "market_demand": 20,
       "pain_severity": 15,
@@ -40,5 +53,49 @@
     "no_production_mutation",
     "regression_must_not_increase",
     "budget_must_not_be_exceeded"
-  ]
+  ],
+  "providers": {
+    "github-agentic": {
+      "enabled": false,
+      "command": "gh",
+      "model_agnostic": true,
+      "requires_external_secret": false
+    },
+    "codex": {
+      "enabled": false,
+      "command": "codex",
+      "model_agnostic": true,
+      "requires_external_secret": true
+    },
+    "claude": {
+      "enabled": false,
+      "command": "claude",
+      "model_agnostic": true,
+      "requires_external_secret": true
+    },
+    "gemini": {
+      "enabled": false,
+      "command": "gemini",
+      "model_agnostic": true,
+      "requires_external_secret": true
+    },
+    "goose": {
+      "enabled": false,
+      "command": "goose",
+      "model_agnostic": true,
+      "requires_external_secret": true
+    },
+    "openhands": {
+      "enabled": false,
+      "command": "openhands",
+      "model_agnostic": true,
+      "requires_external_secret": true
+    },
+    "ollama": {
+      "enabled": false,
+      "command": "ollama",
+      "model_agnostic": true,
+      "requires_external_secret": false
+    }
+  }
 }
