@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import time
 from dataclasses import dataclass
 
@@ -17,6 +19,7 @@ from .guards import ExecutionPolicyEngine, RiskClassifier
 from .idempotency import IdempotencyState, IdempotencyStore, InMemoryIdempotencyStore
 from .kill_switch import KillSwitchHierarchy
 from .manifest import ImmutableExecutionManifest
+from .omni import OMNIExecutionContext, OmniGateError
 from .permissions import PermissionResolver
 from .registry import ExecutorRegistry
 from .request import ExecutorRiskClass, SkillExecutionRequest
@@ -86,12 +89,24 @@ class SkillExecutionDispatcher:
             "production_execution": "blocked_until_R12_and_production_safe_sandbox_evidence",
         }
 
-    async def execute(self, request: SkillExecutionRequest) -> SkillExecutionResult:
+    async def execute(
+        self,
+        request: SkillExecutionRequest,
+        *,
+        omni_context: OMNIExecutionContext | None = None,
+    ) -> SkillExecutionResult:
         start = time.monotonic()
         manifest: ImmutableExecutionManifest | None = None
         approval_fingerprint: str | None = None
         idempotency_claimed = False
         try:
+            if omni_context is None:
+                return self._blocked(request, "omni_context_required", start=start)
+            try:
+                omni_context.validate(request)
+            except OmniGateError as exc:
+                return self._blocked(request, str(exc), start=start)
+
             skill = self.skill_registry.get(request.skill_id)
             if skill.version != request.skill_version:
                 return self._blocked(request, "skill_version_mismatch", start=start)
@@ -308,6 +323,17 @@ class SkillExecutionDispatcher:
             result.risk_class = risk.value
             final_ref = self.evidence.finalize(manifest, result)
             result.evidence_refs.extend([pre_ref, final_ref])
+
+            output_hash = hashlib.sha256(
+                json.dumps(result.output, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+            ).hexdigest()
+            action_record = omni_context.action_record(
+                request,
+                output_hash=output_hash,
+                evidence_id=final_ref,
+            )
+            action_ref = self.ledger.append("omni_action_record", action_record.as_dict())
+            result.evidence_refs.append(str(action_ref["hash"]))
 
             if request.idempotency_key and idempotency_claimed:
                 key = f"{request.tenant_id}:{request.skill_id}:{request.idempotency_key}"
