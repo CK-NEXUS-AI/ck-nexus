@@ -128,6 +128,8 @@ class OMNIExecutionContext:
             raise OmniGateError("policy_id_missing")
         if not self.lease.lease_id or self.lease.agent_id != self.identity.agent_id:
             raise OmniGateError("capability_lease_identity_mismatch")
+        if self.lease.revocation_ref:
+            raise OmniGateError("capability_lease_revoked")
         if not self.lease.active():
             raise OmniGateError("capability_lease_expired_or_inactive")
         if not self.lease.permits(self.capability_id):
@@ -146,15 +148,26 @@ class OMNIExecutionContext:
             RiskDecision.WARN,
             RiskDecision.REQUIRE_APPROVAL,
         }:
-            raise OmniGateError(f"risk_verdict_not_allow:{self.risk_verdict.decision.value}")
+            if self.risk_verdict.decision is RiskDecision.REQUIRE_APPROVAL and request.approval_id:
+                pass
+            else:
+                raise OmniGateError(f"risk_verdict_not_allow:{self.risk_verdict.decision.value}")
         if not self.tool_id or not self.target_id:
             raise OmniGateError("tool_target_binding_missing")
+        declared_tool = request.plan_step.get("tool_id")
+        declared_target = request.plan_step.get("target_id")
+        if declared_tool is not None and declared_tool != self.tool_id:
+            raise OmniGateError("tool_binding_mismatch")
+        if declared_target is not None and declared_target != self.target_id:
+            raise OmniGateError("target_binding_mismatch")
         if not self.runtime_id:
             raise OmniGateError("runtime_binding_missing")
         if not self.verifier_id:
             raise OmniGateError("verifier_binding_missing")
         if self.evidence_required is not True:
             raise OmniGateError("evidence_requirement_missing")
+        if request.environment == "production" and self.risk_verdict.risk is not EvidenceLevel.E0:
+            raise OmniGateError("production_mutation_requires_governed_read_only_verdict")
         if self.delegation is not None:
             if not self.delegation.parent_execution_id:
                 raise OmniGateError("delegation_parent_execution_id_missing")
