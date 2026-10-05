@@ -47,15 +47,11 @@ def test_otel_profile_cannot_become_verification_authority():
 def test_nist_tracker_separates_mapping_from_verification():
     schema = load("nist")
     statuses = set(schema["properties"]["ck_control_status"]["enum"])
-    assert "OBSERVED" in statuses
-    assert "MAPPED" in statuses
-    assert "IMPLEMENTED" in statuses
-    assert "VERIFIED" in statuses
-    assert statuses.index("VERIFIED") if isinstance(statuses, list) else "VERIFIED" in statuses
+    assert {"OBSERVED", "MAPPED", "IMPLEMENTED", "VERIFIED"} <= statuses
 
 
 def test_profiles_contain_no_secret_bearing_fields():
     forbidden = {"api_key", "access_token", "refresh_token", "client_secret", "private_key"}
-    for schema in SCHEMAS.values():
-        properties = set(load(schema.stem.removesuffix(".schema"))["properties"])
+    for name in SCHEMAS:
+        properties = set(load(name)["properties"])
         assert properties.isdisjoint(forbidden)
