@@ -1,23 +1,73 @@
 {
-  "actual_kernel_enforcement": false,
-  "artifact_digest": "sha256:79f26c88f7ca31bfa04e432526ecaba983ab49e7fddbbf6b1523781bc0f7f2d0",
-  "artifact_id": 9226066833,
-  "controllers": ["cpuset", "cpu", "io", "memory", "hugetlb", "pids", "rdma", "misc", "dmem"],
-  "delegated_root": "/sys/fs/cgroup/cknexus-q12-final-31818756811",
-  "delegation_ready": false,
-  "diagnostic": "non-root migration to the candidate delegated cgroup failed with Permission denied",
-  "environment_class": "github-hosted-ubuntu-24.04",
+  "schema_version": 6,
   "gate": "Q12",
-  "gate_exit_code": null,
-  "github_run_id": 31818756811,
-  "production_promotion_allowed": false,
-  "raw": null,
+  "result": "PASS",
+  "source_sha": "512837c8b1a3e6e8e844252a1b0781d8de011b07",
+  "source_tree": "43f9cb9691a0d028a1ef396a0a475c5cd80c4a99",
   "release_subject_manifest_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f",
+  "github_run_id": 37416992838,
+  "github_run_number": 19,
+  "verifier_branch": "verify/q12-final-subject",
+  "verifier_workflow_commit": "89a07606a8fa29520f3825a319998463ccd79196",
+  "runner_id": 22,
+  "runner_name": "cknexus-q12",
+  "runner_os": "Linux",
+  "runner_arch": "X64",
+  "runner_user": "runner",
   "required_identity": "non-root CK-NEXUS service identity",
-  "required_next_environment": "staging/self-hosted Linux service with explicit writable cgroup v2 cpu,memory,pids delegation",
-  "result": "BLOCKED",
-  "schema_version": 4,
-  "setup_exit_code": 1,
-  "source_sha": "4cf17cd3befaafeaf64cd4c149739133aa220f73",
-  "source_tree": "dfe3888bb6adc9aebbb0351efe4a06006f4e0a48"
+  "environment_class": "self-hosted-linux-delegated-cgroup-v2",
+  "delegated_root": "/sys/fs/cgroup/cknexus-delegated",
+  "controllers": [
+    "cpu",
+    "memory",
+    "pids"
+  ],
+  "delegation_ready": true,
+  "actual_kernel_enforcement": true,
+  "gate_exit_code": 0,
+  "production_promotion_allowed": true,
+  "raw": {
+    "health": {
+      "controllers": [
+        "cpu",
+        "memory",
+        "pids"
+      ],
+      "delegated_writable": true,
+      "missing_controllers": [],
+      "ready": true,
+      "required_controllers": [
+        "cpu",
+        "memory",
+        "pids"
+      ],
+      "root": "/sys/fs/cgroup/cknexus-delegated",
+      "unified_v2": true
+    },
+    "observed": {
+      "cpu.max": "20000 100000",
+      "memory.max": "67108864",
+      "pid_attached": true,
+      "pids.max": "16"
+    },
+    "status": "PASS"
+  },
+  "artifact_id": 11392155692,
+  "artifact_name": "q12-final-512837c8b1a3e6e8e844252a1b0781d8de011b07",
+  "artifact_size_bytes": 1706,
+  "artifact_digest": "sha256:7af26ec7b2fee353cbd7aebb502a13f221325d3277e18187211bcca765632e1c",
+  "independent_verification": {
+    "artifact_zip_sha256_match": true,
+    "source_sha_match": true,
+    "source_tree_match": true,
+    "release_subject_match": true,
+    "runner_listener_cgroup": "/cknexus-delegated/runner",
+    "cross_checked_at": "2026-10-06T05:09:00Z"
+  },
+  "supersedes": {
+    "previous_result": "BLOCKED",
+    "previous_source_sha": "4cf17cd3befaafeaf64cd4c149739133aa220f73",
+    "previous_github_run_id": 31818756811,
+    "previous_artifact_id": 9226066833
+  }
 }
