@@ -8,7 +8,6 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "evidence" / "ai_factory"
 CONFIG = ROOT / "config" / "ai_factory.json"
