@@ -5,6 +5,8 @@ Scope: model-agnostic, runtime-agnostic, tool-agnostic
 Authority: Policy Kernel / authorized human governance
 Canonical law: NO EVIDENCE → NO DONE
 
+> Mainline integration baseline: post-security-remediation.
+
 ## 1. Purpose
 One operating standard for GPT, Codex, Claude, OpenClaw, n8n, agents, runtimes, tools, and future systems. The required outcome and evidence quality stay fixed while multiple valid execution paths are allowed.
 
