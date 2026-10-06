@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import shutil
@@ -69,12 +70,10 @@ def main() -> int:
         }
 
     git_sha = None
-    try:
+    with contextlib.suppress(OSError, subprocess.SubprocessError):
         git_sha = subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
         ).strip()
-    except (OSError, subprocess.SubprocessError):
-        pass
 
     result = {
         "schema_version": 1,
