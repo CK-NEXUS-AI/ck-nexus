@@ -140,5 +140,6 @@ class GitHubAppAuth:
             import jwt
         except ImportError as exc:
             raise GitHubAppAuthError("GitHub App JWT signing dependency is unavailable.") from exc
-        # nosemgrep: python.jwt.security.audit.jwt-exposed-data.jwt-python-exposed-data -- payload is only iat/exp/iss; private key is signing material and never part of the JWT payload.\n        encoded = jwt.encode(payload, private_key, algorithm="RS256")
+        # nosemgrep: python.jwt.security.audit.jwt-exposed-data.jwt-python-exposed-data -- payload is only iat/exp/iss; private key is signing material and never part of the JWT payload.
+        encoded = jwt.encode(payload, private_key, algorithm="RS256")
         return str(encoded)
