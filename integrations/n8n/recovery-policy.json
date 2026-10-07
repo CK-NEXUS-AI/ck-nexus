@@ -1,0 +1,35 @@
+{
+  "schema_version":"1.0",
+  "name":"CK-NEXUS Development Agent Recovery Policy",
+  "mode":"development_only",
+  "max_attempts_per_step":3,
+  "retryable_failures":[
+    "transient_network_error",
+    "rate_limit",
+    "provider_timeout",
+    "temporary_tool_unavailable",
+    "non_authoritative_test_flake"
+  ],
+  "non_retryable_failures":[
+    "policy_denied",
+    "protected_ref_targeted",
+    "pr14_targeted",
+    "raw_secret_detected",
+    "production_mutation_requested",
+    "subject_mismatch",
+    "evidence_chain_mismatch"
+  ],
+  "strategies":[
+    {"name":"retry_same","when":"transient","limit":2},
+    {"name":"fallback_provider","when":"provider_failure","limit":1},
+    {"name":"replan","when":"candidate_invalid","limit":2},
+    {"name":"reduce_scope","when":"resource_pressure","limit":1},
+    {"name":"request_human","when":"approval_or_ambiguity","limit":1}
+  ],
+  "circuit_breaker": {
+    "open_after_consecutive_failures":3,
+    "production_mutation_attempt_opens_immediately":true,
+    "secret_policy_violation_opens_immediately":true
+  },
+  "resume_rule":"Every resume must re-check branch, PR, authority, evidence state and denied actions before executing another tool."
+}

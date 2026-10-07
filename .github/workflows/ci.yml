@@ -63,16 +63,20 @@ jobs:
         if: >-
           github.event_name == 'pull_request' &&
           (startsWith(github.head_ref, 'post-p0/') ||
+           startsWith(github.head_ref, 'dev/') ||
            startsWith(github.base_ref, 'post-p0/') ||
+           startsWith(github.base_ref, 'dev/') ||
            startsWith(github.head_ref, 'fix/pr46-'))
         run: |
-          echo "Release-bound Q05/Q08/Q09 exact-tree evidence is not reused for this Post-P0 development PR."
+          echo "Release-bound Q05/Q08/Q09 exact-tree evidence is not reused for this development PR."
           echo "Quality/security/regression gates above remain mandatory; production closure remains unchanged."
       - name: Exact-tree external evidence
         if: >-
           github.event_name != 'pull_request' ||
           (startsWith(github.head_ref, 'post-p0/') == false &&
+           startsWith(github.head_ref, 'dev/') == false &&
            startsWith(github.base_ref, 'post-p0/') == false &&
+           startsWith(github.base_ref, 'dev/') == false &&
            startsWith(github.head_ref, 'fix/pr46-') == false)
         shell: bash
         run: |

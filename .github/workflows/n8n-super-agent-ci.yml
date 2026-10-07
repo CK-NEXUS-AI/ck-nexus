@@ -1,0 +1,98 @@
+name: n8n Super-Agent CI
+
+on:
+  pull_request:
+    paths:
+      - 'integrations/n8n/**'
+      - 'tests/test_n8n_development_agent_fabric.py'
+      - 'tests/test_agnes_cognitive_fabric_v1.py'
+      - '.github/workflows/n8n-super-agent-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Node syntax
+        run: |
+          node --check integrations/n8n/ck_nexus_agent_sidecar.mjs
+          node --check integrations/n8n/ck_nexus_agent_sidecar_v2.mjs
+          node --check integrations/n8n/ck_nexus_dev_tool_gateway.mjs
+          node --check integrations/n8n/ck_nexus_openai_dev_adapter.mjs
+          node --check integrations/n8n/ck_nexus_groq_dev_adapter.mjs
+          node --check integrations/n8n/agnes_fabric_runtime.mjs
+      - name: JSON syntax and safety contract
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          base=Path('integrations/n8n')
+          for path in sorted(base.glob('*.json')):
+              json.loads(path.read_text(encoding='utf-8'))
+              print('JSON PASS', path)
+          workflows=list(base.glob('*.workflow.json'))
+          assert workflows
+          for path in workflows:
+              data=json.loads(path.read_text(encoding='utf-8'))
+              assert data['active'] is False, path
+              text=path.read_text(encoding='utf-8').lower()
+              assert 'release/q10-q16-closure' in text, path
+              assert 'production_mutation' in text, path
+              assert 'sk-proj-' not in text, path
+              assert 'password=' not in text, path
+          print('workflow safety contract PASS')
+          PY
+      - name: Local-only runtime contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          base=Path('integrations/n8n')
+          side=(base/'ck_nexus_agent_sidecar.mjs').read_text()
+          side_v2=(base/'ck_nexus_agent_sidecar_v2.mjs').read_text()
+          tools=(base/'ck_nexus_dev_tool_gateway.mjs').read_text()
+          openai_adapter=(base/'ck_nexus_openai_dev_adapter.mjs').read_text()
+          groq_adapter=(base/'ck_nexus_groq_dev_adapter.mjs').read_text()
+          stack=(base/'start_super_agent_stack.ps1').read_text()
+          agnes_stack=(base/'start_agnes_groq_dev_stack.ps1').read_text()
+          for text in (side, side_v2, tools, openai_adapter, groq_adapter):
+              assert '127.0.0.1' in text
+          assert 'CK_NEXUS_TOOL_TOKEN' in tools and 'CK_NEXUS_TOOL_TOKEN' in side
+          assert 'OPENAI_API_KEY' in openai_adapter
+          assert 'GROQ_API_KEY' in groq_adapter
+          assert 'production_ready:false' in groq_adapter
+          assert 'allow_secret_export' in groq_adapter
+          assert 'CK_NEXUS_INTELLIGENCE_TOKEN' in openai_adapter
+          assert 'CK_NEXUS_INTELLIGENCE_TOKEN' in groq_adapter
+          assert 'CK_NEXUS_INTELLIGENCE_TOKEN' in stack
+          assert 'ck_nexus_agent_sidecar_v2.mjs' in agnes_stack
+          assert 'ck_nexus_groq_dev_adapter.mjs' in agnes_stack
+          assert 'ck_nexus_dev_tool_gateway.mjs' in agnes_stack
+          assert 'ConvertTo-SecureString' in agnes_stack
+          assert 'ZeroFreeBSTR' in agnes_stack
+          assert 'production_mutation=$false' in agnes_stack
+          assert 'production_ready=$false' in agnes_stack
+          assert 'q10_q11_q12_evidence=$false' in agnes_stack
+          assert 'release/q10-q16-closure' in side_v2
+          assert 'production_mutation_denied' in side_v2
+          assert 'secret_export_denied' in side_v2
+          assert 'shell:false' in tools
+          print('local-only runtime contract PASS')
+          PY
+      - name: No embedded credential patterns
+        shell: bash
+        run: |
+          if grep -R -nE '(sk-proj-[A-Za-z0-9_-]+|gsk_[A-Za-z0-9_-]+|-----BEGIN (RSA |OPENSSH |EC )?PRIVATE KEY-----)' integrations/n8n; then
+            echo 'embedded credential material detected'
+            exit 1
+          fi
+          echo 'credential pattern scan PASS'
