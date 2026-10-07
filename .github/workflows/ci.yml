@@ -27,6 +27,11 @@ jobs:
           uv lock --check
           uv sync --all-extras --dev --frozen
           .venv/bin/python -c "import aiosqlite,asyncpg,psycopg,redis; print('Q04 PASS')"
+      - name: Forbidden Unicode gate
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: .venv/bin/python scripts/check_forbidden_unicode.py --changed-from "$BASE_SHA"
       - name: Compile and Ruff
         run: |
           .venv/bin/python -m compileall -q main.py creator_app services scripts
@@ -59,20 +64,23 @@ jobs:
         run: .venv/bin/python scripts/secret_scan.py
       - name: Portable regression
         run: .venv/bin/pytest -q --ignore=tests/test_agnes_execution_kernel_phase2.py --ignore=tests/test_agnes_execution_kernel_phase3.py
-      - name: Post-P0 development evidence boundary
+      - name: Development evidence boundary
         if: >-
           github.event_name == 'pull_request' &&
           (startsWith(github.head_ref, 'post-p0/') ||
            startsWith(github.base_ref, 'post-p0/') ||
+           startsWith(github.head_ref, 'dev/') ||
            startsWith(github.head_ref, 'fix/pr46-'))
         run: |
-          echo "Release-bound Q05/Q08/Q09 exact-tree evidence is not reused for this Post-P0 development PR."
-          echo "Quality/security/regression gates above remain mandatory; production closure remains unchanged."
+          echo "Release-bound Q05/Q08/Q09 exact-tree evidence is not reused for this development PR."
+          echo "Quality, security, regression, and changed-file Unicode gates remain mandatory."
+          echo "Production closure remains unchanged."
       - name: Exact-tree external evidence
         if: >-
           github.event_name != 'pull_request' ||
           (startsWith(github.head_ref, 'post-p0/') == false &&
            startsWith(github.base_ref, 'post-p0/') == false &&
+           startsWith(github.head_ref, 'dev/') == false &&
            startsWith(github.head_ref, 'fix/pr46-') == false)
         shell: bash
         run: |
