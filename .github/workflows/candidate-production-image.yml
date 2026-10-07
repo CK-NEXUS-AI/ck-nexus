@@ -12,7 +12,7 @@ jobs:
   docker_image:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
       - name: Validate Compose fail-closed Phase3 default
@@ -133,7 +133,7 @@ jobs:
         run: docker rm -f cknexus-candidate 2>/dev/null || true
       - name: Upload production-image evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: q16-production-image-${{ github.sha }}
           path: |
