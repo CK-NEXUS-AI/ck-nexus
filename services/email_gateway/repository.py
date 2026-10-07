@@ -216,25 +216,26 @@ class EmailGatewayRepository:
             if not ids:
                 connection.commit()
                 return []
-            placeholders = ",".join("?" for _ in ids)
+            # Bind the locally-derived id list as one JSON parameter; avoid dynamic SQL.
+            ids_json = json.dumps(ids, separators=(",", ":"))
             connection.execute(
-                f"""
+                """
                 UPDATE email_outbox
                 SET status='SENDING', claimed_by=?, locked_until=?,
                     attempt_count=attempt_count+1, updated_at=?
-                WHERE id IN ({placeholders})
+                WHERE id IN (SELECT value FROM json_each(?))
                 """,
-                (worker_id, iso(lease_until), iso(timestamp), *ids),
+                (worker_id, iso(lease_until), iso(timestamp), ids_json),
             )
             claimed = connection.execute(
-                f"""
+                """
                 SELECT id, email_journal_id, action_type, destination, payload_json,
                        deduplication_key, attempt_count
                 FROM email_outbox
-                WHERE id IN ({placeholders})
+                WHERE id IN (SELECT value FROM json_each(?))
                 ORDER BY created_at ASC
                 """,
-                ids,
+                (ids_json,),
             ).fetchall()
             connection.commit()
         return [
