@@ -12,10 +12,10 @@ jobs:
   q10_dependency_component:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
       - name: Frozen candidate environment
@@ -87,7 +87,7 @@ jobs:
           print(json.dumps(evidence,indent=2,sort_keys=True))
           assert passed
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: q10-candidate-${{ github.sha }}
           path: |
@@ -117,10 +117,10 @@ jobs:
       CKNEXUS_RESTORE_TARGET_CLASS: isolated-dr
       CKNEXUS_ALLOW_DESTRUCTIVE_RESTORE: YES
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
       - name: Ensure PostgreSQL client tools
@@ -174,7 +174,7 @@ jobs:
           open('Q13_POSTGRES_DR.json','a').write('\n')
           print(json.dumps(raw,indent=2,sort_keys=True))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: q13-postgres-dr-${{ github.sha }}
           path: Q13_POSTGRES_DR.json
@@ -183,10 +183,10 @@ jobs:
   q15_clean_machine:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
       - name: Fresh-host install
@@ -261,7 +261,7 @@ jobs:
           open('Q15_CLEAN_MACHINE.json','a').write('\n')
           print(json.dumps(evidence,indent=2,sort_keys=True))
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: q15-clean-machine-${{ github.sha }}
           path: |

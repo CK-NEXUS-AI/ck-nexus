@@ -1,0 +1,69 @@
+name: Semgrep SAST
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+
+      - name: Install pinned Semgrep
+        run: python3 -m pip install --disable-pip-version-check "semgrep==1.175.0"
+
+      - name: Scan without blocking the first rollout
+        id: scan
+        shell: bash
+        run: |
+          set +e
+          semgrep scan --config auto --json --output semgrep.json .
+          rc=$?
+          set -e
+          echo "scanner_exit_code=$rc" >> "$GITHUB_OUTPUT"
+          test -s semgrep.json || printf '{"results":[],"errors":[{"message":"semgrep produced no JSON result"}]}\n' > semgrep.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path("semgrep.json").read_text(encoding="utf-8"))
+          results = data.get("results", [])
+          severities = {}
+          for finding in results:
+              sev = str(finding.get("extra", {}).get("severity", "UNKNOWN")).upper()
+              severities[sev] = severities.get(sev, 0) + 1
+          with open("semgrep-summary.txt", "w", encoding="utf-8") as out:
+              out.write(f"findings={len(results)}\n")
+              for sev in sorted(severities):
+                  out.write(f"{sev.lower()}={severities[sev]}\n")
+          with open(Path.home() / "semgrep-step-summary.md", "w", encoding="utf-8") as out:
+              out.write("## Semgrep SAST\n\n")
+              out.write(f"- Findings: {len(results)}\n")
+              for sev in sorted(severities):
+                  out.write(f"- {sev}: {severities[sev]}\n")
+              out.write("\nERROR-severity findings are high-priority review candidates. This first rollout is intentionally non-blocking.\n")
+          PY
+          cat "$HOME/semgrep-step-summary.md" >> "$GITHUB_STEP_SUMMARY"
+          error_count="$(python3 -c 'import json; d=json.load(open("semgrep.json")); print(sum(1 for x in d.get("results",[]) if str(x.get("extra",{}).get("severity","")).upper()=="ERROR"))')"
+          if [ "$error_count" -gt 0 ]; then
+            echo "::warning title=Semgrep high-priority findings::$error_count ERROR-severity findings require review"
+          fi
+          exit 0
+
+      - name: Upload raw SAST evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: semgrep-sast-${{ github.sha }}
+          path: |
+            semgrep.json
+            semgrep-summary.txt
+          if-no-files-found: error
+          retention-days: 30
