@@ -228,11 +228,11 @@ class EmailGatewayRepository:
                 (worker_id, iso(lease_until), iso(timestamp), ids_json),
             )
             claimed = connection.execute(
-                f"""
+                """
                 SELECT id, email_journal_id, action_type, destination, payload_json,
                        deduplication_key, attempt_count
                 FROM email_outbox
-                WHERE id IN ({placeholders})
+                WHERE id IN (SELECT value FROM json_each(?))
                 ORDER BY created_at ASC
                 """,
                 (ids_json,),
