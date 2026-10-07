@@ -61,7 +61,10 @@ class SandboxWorkspaceManager:
                 capture_output=True,
             ).stdout
             with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as tf:
-                tf.extractall(path, filter="data")
+                # Extract each member through Python's data filter; avoid extractall
+                # so the sandbox never performs a bulk archive extraction.
+                for member in tf.getmembers():
+                    tf.extract(member, path, filter="data")
             self._reject_symlinks(path)
             hashes = self.hashes(path)
             (path / ".agnes").mkdir(parents=True, exist_ok=True)
