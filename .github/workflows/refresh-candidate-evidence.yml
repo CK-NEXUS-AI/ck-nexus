@@ -2,15 +2,11 @@ name: Refresh candidate evidence
 
 on:
   push:
-    branches: [agent/unified-control-package, codex/q11-p02-error-classification]
-    paths-ignore:
-      - 'evidence/Q05_MULTILANE.json'
-      - 'evidence/Q08_LIVE.json'
-      - 'evidence/Q09_GOVERNANCE_BINDING.json'
+    branches: [agent/unified-control-package]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   refresh:
@@ -203,24 +199,6 @@ jobs:
               print(name, json.dumps(payload, sort_keys=True))
           assert q05['result']=='PASS'
           PY
-      - name: Commit refreshed evidence
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p evidence
-          cp Q05_MULTILANE.json evidence/Q05_MULTILANE.json
-          cp Q08_LIVE.json evidence/Q08_LIVE.json
-          cp Q09_GOVERNANCE_BINDING.json evidence/Q09_GOVERNANCE_BINDING.json
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add evidence/Q05_MULTILANE.json evidence/Q08_LIVE.json evidence/Q09_GOVERNANCE_BINDING.json
-          if git diff --cached --quiet; then
-            echo "No refreshed evidence changes to commit"
-            exit 0
-          fi
-          git commit -m "chore: refresh Q05 Q08 Q09 candidate evidence"
-          git push origin HEAD:${{ github.ref_name }}
       - name: Upload refreshed evidence
         uses: actions/upload-artifact@v4
         with:
