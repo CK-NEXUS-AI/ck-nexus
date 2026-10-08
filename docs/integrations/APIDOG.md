@@ -1,4 +1,4 @@
-# CK-NEXUS × Apidog capability gateway
+# CK-NEXUS x Apidog capability gateway
 
 This integration keeps Apidog as a capability provider while CK-NEXUS remains the governance authority.
 
@@ -13,7 +13,7 @@ This integration keeps Apidog as a capability provider while CK-NEXUS remains th
 - Future MCP specification access
 - Enterprise audit/policy evidence where the Apidog plan supports it
 
-Apidog CLI can manage API resources and execute test scenarios from CI/CD. Enterprise Audit Logs and Enterprise Policies are available on eligible Enterprise plans. citeturn0search0turn0search1turn0search2
+Apidog CLI can manage API resources and execute test scenarios from CI/CD. Enterprise Audit Logs and Enterprise Policies are available on eligible Enterprise plans.
 
 ## Security boundary
 
@@ -23,11 +23,11 @@ Required secret:
 
 - `APIDOG_ACCESS_TOKEN`
 
-The token must be stored as a GitHub Actions secret. Apidog documents that access tokens grant the account's Apidog permissions and should not be committed or exposed. citeturn0search7
+The token must be stored as a GitHub Actions secret. Never commit it to source, workflow files, logs, or documentation.
 
 ## Current state
 
-- Adapter code: IMPLEMENTED
+- Adapter workflow: IMPLEMENTED
 - CLI installation path: IMPLEMENTED
 - Evidence artifact upload: IMPLEMENTED
 - Live Apidog execution: **NOT VERIFIED** until a valid secret, project ID, scenario ID, and optional environment ID are supplied.
@@ -35,4 +35,14 @@ The token must be stored as a GitHub Actions secret. Apidog documents that acces
 
 ## n8n role
 
-n8n remains the orchestration layer. Its MCP server can expose selected workflows to AI clients, while CK-NEXUS keeps policy/evidence authority. citeturn0search4
+n8n remains the orchestration layer. Its MCP server can expose selected workflows to AI clients, while CK-NEXUS keeps policy and evidence authority.
+
+The n8n instance currently exposes CK-NEXUS workflows through MCP. Apidog is intentionally kept behind a credential boundary until an Apidog token and project identifiers are available.
+
+## Activation gate
+
+1. Add `APIDOG_ACCESS_TOKEN` to GitHub Actions Secrets.
+2. Run `CK-NEXUS Apidog API Gate` manually with the real Apidog project/scenario/environment IDs.
+3. Verify the CLI exit status.
+4. Verify the JUnit/HTML artifacts.
+5. Only then promote the capability from EXECUTED to VERIFIED.
