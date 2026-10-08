@@ -49,3 +49,22 @@ Only after Q10-Q15 PASS:
 - merge through reviewed GitHub PR and create the final immutable release tag/artifact.
 
 Q16 is PASS only when all prior gates and final-tree checks are PASS. Until then the decision remains **NO-GO FOR PRODUCTION CLAIMS**.
+
+### Q11 capability sub-gates
+
+The Q11 implementation exposes independently inspectable capability gates:
+
+- Q11-A credential integrity
+- Q11-B runtime execution
+- Q11-C provider reachability
+- Q11-D provider authorization
+- Q11-E provider quota
+- Q11-F live provider execution
+- Q11-G evidence integrity
+
+The aggregate remains fail-closed. The current OpenAI-specific acceptance
+condition is not weakened or replaced: a live OpenAI response with the required
+sentinel is still required before Q11 can become VERIFIED. A provider error such
+as HTTP 429 insufficient_quota is recorded as a provider-specific BLOCKED
+condition and cannot be promoted to VERIFIED. Independent gates retain their
+own statuses and evidence.
