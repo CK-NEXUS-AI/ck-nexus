@@ -1,6 +1,6 @@
 {
   "gate": "Q05",
-  "github_run_id": 31815676512,
+  "github_run_id": 37726935313,
   "quality_lanes": {
     "bandit_reviewed_gate": "PASS",
     "compile": "PASS",
@@ -9,11 +9,11 @@
   },
   "result": "PASS",
   "schema_version": 2,
-  "source_sha": "cff65b59081036498b15eab837ffb4196c5f4523",
-  "source_tree": "5384506c020b83530c24255b9bf38cb00a7f683c",
+  "source_sha": "db30d2e4816cc77f8dc5ad45634ae6abec1cf795",
+  "source_tree": "952398650b83e8951c2fbd038cdd9c236a2264de",
   "stale_on_subject_change": true,
-  "subject_manifest_sha256": "f4282bb352af74c2d7bc0148c3230d51207a4154956a650901403ff17868280c",
+  "subject_manifest_sha256": "f903ddb876d0734ee11938eac707cc1dbd890dd1d2a481345298d048ea43677c",
   "tests_failed": 0,
-  "tests_passed": 218,
+  "tests_passed": 236,
   "verification_level": "GITHUB_VERIFIED_CANDIDATE_TREE"
 }
