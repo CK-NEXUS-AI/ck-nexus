@@ -70,12 +70,11 @@ jobs:
           echo "Release-bound Q05/Q08/Q09 exact-tree evidence is not reused for this Post-P0 development PR."
           echo "Quality/security/regression gates above remain mandatory; production closure remains unchanged."
       - name: Exact-tree external evidence
+        # Q05/Q08/Q09 are release-bound exact-tree evidence. Do not apply
+        # historical release evidence to ordinary mainline development.
         if: >-
-          github.event_name != 'pull_request' ||
-          (startsWith(github.head_ref, 'post-p0/') == false &&
-           startsWith(github.base_ref, 'post-p0/') == false &&
-           startsWith(github.head_ref, 'fix/pr46-') == false &&
-           startsWith(github.head_ref, 'fix/280-') == false)
+          github.ref == 'refs/heads/release/q04-q08-clean' ||
+          (github.event_name == 'pull_request' && startsWith(github.base_ref, 'release/'))
         shell: bash
         run: |
           m=$(git ls-tree -r HEAD -- creator_app services tests scripts main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
