@@ -22,21 +22,30 @@ def inspect_workflow(workflow: dict[str, Any], source: str = "<memory>") -> list
             continue
         name = str(node.get("name") or "<unnamed>")
         node_type = str(node.get("type") or "")
-        params = node.get("parameters") if isinstance(node.get("parameters"), dict) else {}
+        params = node.get("parameters")
+        if not isinstance(params, dict):
+            params = {}
 
         if node_type.endswith(".webhook"):
             auth = params.get("authentication")
             if not isinstance(auth, str) or auth.lower() in {"", "none"}:
-                findings.append(f"{source}: webhook node '{name}' has no configured authentication")
+                findings.append(
+                    f"{source}: webhook node '{name}' has no configured authentication"
+                )
 
         if node_type.endswith(".httpRequest"):
             url = params.get("url")
             if isinstance(url, str) and url.lower().startswith("http://"):
                 host = urlparse(url).hostname or ""
                 if host not in {"localhost", "127.0.0.1", "::1"}:
-                    findings.append(f"{source}: HTTP request node '{name}' uses non-local cleartext HTTP")
+                    findings.append(
+                        f"{source}: HTTP request node '{name}' uses non-local cleartext HTTP"
+                    )
 
-            headers = params.get("headerParameters", {}).get("parameters", [])
+            header_config = params.get("headerParameters")
+            if not isinstance(header_config, dict):
+                header_config = {}
+            headers = header_config.get("parameters", [])
             if isinstance(headers, list):
                 for header in headers:
                     if not isinstance(header, dict):
@@ -46,14 +55,20 @@ def inspect_workflow(workflow: dict[str, Any], source: str = "<memory>") -> list
                     if header_name == "authorization" and isinstance(header_value, str):
                         value = header_value.strip()
                         # Credential expressions are references; literal bearer strings are not.
-                        if value.lower().startswith("bearer ") and "{{" not in value and "$credentials" not in value:
-                            findings.append(f"{source}: HTTP request node '{name}' has a literal bearer authorization value")
+                        if (
+                            value.lower().startswith("bearer ")
+                            and "{{" not in value
+                            and "$credentials" not in value
+                        ):
+                            findings.append(
+                                f"{source}: HTTP request node '{name}' has a literal bearer authorization value"
+                            )
     return findings
 
 
 def tracked_files() -> list[Path]:
     out = subprocess.check_output(["git", "ls-files", "-z"])
-    return [Path(item.decode()) for item in out.split(b"\\0") if item]
+    return [Path(item.decode()) for item in out.split(b"\0") if item]
 
 
 def main() -> int:
@@ -72,10 +87,13 @@ def main() -> int:
 
     if findings:
         print("N8N P0 EXPORT GUARD: FAIL")
-        print("\\n".join(findings))
+        print("\n".join(findings))
         return 1
     if workflow_count == 0:
-        print("N8N P0 EXPORT GUARD: NOT_APPLICABLE (no tracked n8n workflow exports; live workflow configuration is not verified)")
+        print(
+            "N8N P0 EXPORT GUARD: NOT_APPLICABLE "
+            "(no tracked n8n workflow exports; live workflow configuration is not verified)"
+        )
         return 0
     print(f"N8N P0 EXPORT GUARD: PASS ({workflow_count} tracked workflow exports checked)")
     return 0
