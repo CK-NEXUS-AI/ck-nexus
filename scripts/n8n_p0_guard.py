@@ -61,7 +61,8 @@ def inspect_workflow(workflow: dict[str, Any], source: str = "<memory>") -> list
                             and "$credentials" not in value
                         ):
                             findings.append(
-                                f"{source}: HTTP request node '{name}' has a literal bearer authorization value"
+                                f"{source}: HTTP request node '{name}' has a literal "
+                                "bearer authorization value"
                             )
     return findings
 
