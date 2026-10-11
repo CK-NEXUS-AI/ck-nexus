@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from contextlib import suppress
-
 import hmac
 import os
 import sqlite3
 import tempfile
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
