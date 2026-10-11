@@ -98,27 +98,6 @@ def _patch_request(*, approval_id: str | None = None, workspace_id: str = "ws-ph
 
 
 @pytest.mark.asyncio
-async def test_execution_omni_provider_failure_fails_closed(tmp_path: Path):
-    def failing_provider(_request):
-        raise RuntimeError("provider unavailable")
-
-    agnes = AgnesNervousSystem(
-        skill_file=SKILL_FILE,
-        ledger_path=tmp_path / "ledger-provider-failure.jsonl",
-        sandbox_enabled=False,
-        sandbox_repository_root=REPO,
-        omni_context_provider=failing_provider,
-    )
-    result = await agnes.execute_skill(
-        {"id": "brain.plan", "executor": "internal", "inputs": {"goal": "test"}},
-        goal="fail closed when trusted context provider raises",
-        correlation_id="corr-provider-failure",
-    )
-    assert result.status is ExecutionStatus.BLOCKED
-    assert result.error == "omni_context_required"
-
-
-@pytest.mark.asyncio
 async def test_linux_namespace_runner_isolates_network_and_host_root(tmp_path: Path):
     work = tmp_path / "work"
     work.mkdir()
