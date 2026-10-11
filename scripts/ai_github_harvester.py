@@ -19,7 +19,11 @@ def classify_cli_error(stderr: str) -> str:
         or "http 429" in message
     ):
         return "rate_limited"
-    if "bad credentials" in message or "http 401" in message or "authentication required" in message:
+    if (
+        "bad credentials" in message
+        or "http 401" in message
+        or "authentication required" in message
+    ):
         return "authentication_failed"
     if "resource not accessible by integration" in message or "http 403" in message:
         return "permission_denied"
