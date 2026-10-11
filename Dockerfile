@@ -4,6 +4,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     CKNEXUS_HOST=0.0.0.0 \
     PORT=8000 \
+    CKNEXUS_DEVELOPMENT_STATUS_DB=/app/data/development-status.sqlite3 \
     PATH=/app/.venv/bin:$PATH
 
 WORKDIR /app
