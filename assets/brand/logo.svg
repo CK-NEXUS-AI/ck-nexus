@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 160" role="img" aria-labelledby="title desc">
+<title>CK-NEXUS — Governed AI Agent Execution Control Plane</title><desc>CK-NEXUS Nexus Gate wordmark</desc>
+<defs><linearGradient id="g" x1="18" y1="18" x2="110" y2="110" gradientUnits="userSpaceOnUse"><stop stop-color="#7C3AED"/><stop offset="1" stop-color="#06B6D4"/></linearGradient></defs>
+<rect width="720" height="160" rx="32" fill="#09090B"/>
+<g transform="translate(24 16)">
+<path d="M64 22 98 42v44L64 106 30 86V42L64 22Z" fill="none" stroke="url(#g)" stroke-width="7"/>
+<path d="M46 48h36M46 64h36M46 80h36" stroke="#FAFAFA" stroke-width="6" stroke-linecap="round"/>
+<circle cx="64" cy="64" r="9" fill="#09090B" stroke="#FAFAFA" stroke-width="5"/>
+</g>
+<text x="145" y="77" fill="#FAFAFA" font-family="Inter, Geist, Arial, sans-serif" font-size="42" font-weight="750" letter-spacing="3">CK-NEXUS</text>
+<text x="148" y="112" fill="#A1A1AA" font-family="Inter, Geist, Arial, sans-serif" font-size="17" font-weight="500" letter-spacing="1.2">GOVERNED AI AGENT EXECUTION CONTROL PLANE</text>
+</svg>

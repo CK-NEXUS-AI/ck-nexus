@@ -1,3 +1,14 @@
+<p align="center">
+  <img src="assets/brand/logo.svg" alt="CK-NEXUS — Governed AI Agent Execution Control Plane" width="720">
+</p>
+
+<p align="center"><strong>Governed AI Agent Execution Control Plane</strong><br>
+Policy-aware orchestration, bounded execution, verification, and evidence — built to keep autonomous systems accountable.</p>
+
+> **Evidence-first status:** This repository contains a development candidate and implementation artifacts. Production certification, live provider authorization, recurring revenue, and independent verification are only claimed when supported by current evidence.
+
+---
+
 # CK-NEXUS Creator Edition
 
 ระบบ AI แบบเมนูสำหรับครีเอเตอร์: เลือก Agent, ใส่ Creative Brief สั้น ๆ, สร้างผลงาน และเก็บประวัติไว้ใน SQLite บนเครื่องของผู้ใช้
