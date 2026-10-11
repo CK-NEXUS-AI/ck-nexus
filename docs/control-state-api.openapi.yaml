@@ -1,0 +1,164 @@
+openapi: 3.1.0
+info:
+  title: CK-NEXUS Control State API
+  version: 0.1.0
+  description: >
+    Design contract only. These endpoints are not implemented or deployed by this document.
+    All responses are read-only summaries and must exclude secrets and email content.
+servers:
+  - url: https://control-state.example.invalid
+    description: Placeholder only; replace after an approved deployment.
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      summary: Service process health
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is responding; this is not a production-readiness assertion.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /readiness:
+    get:
+      summary: Read-only system readiness snapshot
+      operationId: getReadiness
+      responses:
+        '200':
+          description: Readiness summary, including staleness and blockers.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Readiness'
+  /evidence:
+    get:
+      summary: Sanitized evidence metadata
+      operationId: listEvidence
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: cursor
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated evidence metadata; never raw evidence secrets or mailbox contents.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvidencePage'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    Envelope:
+      type: object
+      required: [observed_at, as_of, stale, source, limitations]
+      properties:
+        observed_at:
+          type: string
+          format: date-time
+        as_of:
+          type: string
+          format: date-time
+        stale:
+          type: boolean
+        source:
+          type: string
+        limitations:
+          type: array
+          items:
+            type: string
+    Health:
+      allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required: [service, status]
+          properties:
+            service:
+              type: string
+              example: cknexus-control-state-api
+            status:
+              type: string
+              enum: [HEALTHY, DEGRADED, UNAVAILABLE]
+            production:
+              type: string
+              enum: [NO_GO, GO]
+              description: Separate release decision; never inferred from HTTP 200.
+    Readiness:
+      allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required: [workflows, credentials, incidents, production_gates, production]
+          properties:
+            workflows:
+              type: object
+              required: [total, active, inactive]
+              properties:
+                total: {type: integer, minimum: 0}
+                active: {type: integer, minimum: 0}
+                inactive: {type: integer, minimum: 0}
+            credentials:
+              type: object
+              required: [known, verified, not_verified]
+              properties:
+                known: {type: integer, minimum: 0}
+                verified: {type: integer, minimum: 0}
+                not_verified: {type: integer, minimum: 0}
+            incidents:
+              type: object
+              required: [open, critical]
+              properties:
+                open: {type: integer, minimum: 0}
+                critical: {type: integer, minimum: 0}
+            production_gates:
+              type: object
+              additionalProperties:
+                type: string
+                enum: [PASS, FAIL, BLOCKED, NOT_VERIFIED, PASS_CANDIDATE]
+            production:
+              type: string
+              enum: [NO_GO, GO]
+    Evidence:
+      type: object
+      required: [evidence_id, evidence_type, source_system, source_record_id, observed_at, status]
+      properties:
+        evidence_id: {type: string}
+        evidence_type: {type: string}
+        source_system: {type: string}
+        source_record_id: {type: string}
+        source_revision: {type: [string, 'null']}
+        observed_at: {type: string, format: date-time}
+        status:
+          type: string
+          enum: [VERIFIED, EXECUTED, NOT_VERIFIED, BLOCKED]
+        artifact_uri: {type: [string, 'null']}
+        sha256_hex:
+          type: [string, 'null']
+          pattern: '^[0-9a-f]{64}$'
+        limitations:
+          type: array
+          items: {type: string}
+    EvidencePage:
+      allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required: [items, next_cursor]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Evidence'
+            next_cursor:
+              type: [string, 'null']
