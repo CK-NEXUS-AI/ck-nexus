@@ -107,7 +107,7 @@ class LinuxNamespaceSandboxExecutor:
     async def _test(self, request: SkillExecutionRequest, workspace) -> SkillExecutionResult:
         commands = self._commands(request.inputs.get("commands"))
         if not commands:
-            commands = [("python", "-m", "compileall", "-q", ".")]
+            commands = [("python3", "-m", "compileall", "-q", ".")]
         results: list[dict[str, Any]] = []
         for index, command in enumerate(commands, start=1):
             execution = await self.runner.run(
@@ -144,7 +144,7 @@ class LinuxNamespaceSandboxExecutor:
         helper = workspace.path / ".agnes" / "phase2_secret_scan.py"
         helper.parent.mkdir(parents=True, exist_ok=True)
         helper.write_text(_SECRET_SCAN_HELPER, encoding="utf-8")
-        command = ("python", "/workspace/.agnes/phase2_secret_scan.py")
+        command = ("python3", "/workspace/.agnes/phase2_secret_scan.py")
         scan = await self.runner.run(
             workspace=workspace.path,
             execution_id=request.execution_id + "-scan",

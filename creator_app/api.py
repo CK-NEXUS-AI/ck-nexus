@@ -3,6 +3,7 @@ from __future__ import annotations
 import hmac
 import os
 import time
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path as FilePath
 from typing import Annotated
@@ -23,6 +24,8 @@ from fastapi import (
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
+from creator_app.agnes.execution.omni import OMNIExecutionContext
+from creator_app.agnes.execution.request import SkillExecutionRequest
 from creator_app.agnes_runtime import AgnesNervousSystem, AgnesPolicy
 from creator_app.catalog import get_agent_spec, list_agent_cards
 from creator_app.codex_bridge import (
@@ -103,7 +106,13 @@ WEB_DIR = FilePath(__file__).resolve().parent / "web"
 SESSION_ID_PATTERN = r"^[A-Za-z0-9_:-]+$"
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    agnes_omni_context_provider: (
+        Callable[[SkillExecutionRequest], OMNIExecutionContext | None] | None
+    ) = None,
+) -> FastAPI:
     resolved_settings = settings or Settings.from_env()
     resolved_settings.validate_startup()
     credential_vault = build_credential_vault(
@@ -173,6 +182,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         environment=resolved_settings.environment,
         phase3_redis_url=resolved_settings.agnes_redis_url,
         phase3_cgroup_root=resolved_settings.agnes_cgroup_root,
+        omni_context_provider=agnes_omni_context_provider,
     )
     gmail_oauth = GmailOAuthManager(
         credential_broker,

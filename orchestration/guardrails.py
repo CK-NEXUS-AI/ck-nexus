@@ -24,11 +24,17 @@ class GuardrailEvaluator:
         elapsed_seconds: float = 0.0,
     ) -> GuardrailDecision:
         if self._kill_switch_active(context.tenant_id):
-            return GuardrailDecision(False, "KILL_SWITCH", "Execution is disabled by control policy.")
+            return GuardrailDecision(
+                False, "KILL_SWITCH", "Execution is disabled by control policy."
+            )
         if context.pattern_id != pattern.id or context.pattern_version != pattern.version:
-            return GuardrailDecision(False, "PATTERN_VERSION", "Execution pattern version mismatch.")
+            return GuardrailDecision(
+                False, "PATTERN_VERSION", "Execution pattern version mismatch."
+            )
         if request.tool in pattern.forbidden_tools:
-            return GuardrailDecision(False, "FORBIDDEN_TOOL", "Tool is explicitly forbidden by pattern.")
+            return GuardrailDecision(
+                False, "FORBIDDEN_TOOL", "Tool is explicitly forbidden by pattern."
+            )
         if request.tool not in pattern.allowed_tools:
             return GuardrailDecision(False, "TOOL_NOT_ALLOWED", "Tool is not allowed by pattern.")
         if request.required_permission and request.required_permission not in context.permissions:
@@ -36,13 +42,19 @@ class GuardrailEvaluator:
         if self._circuit_open(request.tool):
             return GuardrailDecision(False, "CIRCUIT_OPEN", "Tool/provider circuit is open.")
         if request.credential_scope and request.credential_scope.startswith("raw:"):
-            return GuardrailDecision(False, "CREDENTIAL_SCOPE", "Raw credential scope is forbidden.")
+            return GuardrailDecision(
+                False, "CREDENTIAL_SCOPE", "Raw credential scope is forbidden."
+            )
         if request.requires_approval and context.approval_state != "approved":
             return GuardrailDecision(False, "APPROVAL_REQUIRED", "Human approval is required.")
         if elapsed_seconds >= context.timeout_seconds:
-            return GuardrailDecision(False, "TIMEOUT_BUDGET", "Execution timeout budget is exhausted.")
+            return GuardrailDecision(
+                False, "TIMEOUT_BUDGET", "Execution timeout budget is exhausted."
+            )
         if context.idempotency_key is None and pattern.side_effect_policy not in {
-            "draft_only", "proposal_only", "knowledge_write_only"
+            "draft_only",
+            "proposal_only",
+            "knowledge_write_only",
         }:
             return GuardrailDecision(False, "IDEMPOTENCY_REQUIRED", "Idempotency key is required.")
         return GuardrailDecision(True, "ALLOW", "Tool request satisfies policy checks.")

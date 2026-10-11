@@ -131,7 +131,7 @@ class AutonomousDevController:
                         "inputs": {
                             "command": list(
                                 request.inputs.get(
-                                    "test_command", ["python", "-m", "compileall", "-q", "."]
+                                    "test_command", ["python3", "-m", "compileall", "-q", "."]
                                 )
                             )
                         },
@@ -162,7 +162,7 @@ class AutonomousDevController:
                         "inputs": {
                             "command": list(
                                 request.inputs.get(
-                                    "scan_command", ["python", "-c", "print('security-scan:PASS')"]
+                                    "scan_command", ["python3", "-c", "print('security-scan:PASS')"]
                                 )
                             )
                         },

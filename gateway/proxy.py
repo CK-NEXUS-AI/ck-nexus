@@ -68,7 +68,11 @@ class HttpxUpstreamClient:
                 status_code=response.status_code,
                 body=response.content,
                 content_type=response.headers.get("content-type", "application/json"),
-                headers={"location": response.headers.get("location", "")} if response.is_redirect else {},
+                headers={"location": response.headers.get("location", "")}
+                if response.is_redirect
+                else {},
             )
         except Exception:
-            raise GatewayError("UPSTREAM_UNAVAILABLE", "Upstream service is unavailable.", 502, True) from None
+            raise GatewayError(
+                "UPSTREAM_UNAVAILABLE", "Upstream service is unavailable.", 502, True
+            ) from None

@@ -19,6 +19,55 @@ SKILL_FILE = REPO / "creator_app" / "skills" / "agnes" / "SKILL.md"
 BASELINE = "8f37036d73e2172fd74dd9687bc2e1264c248fdc"
 
 
+def _test_omni_context(request):
+    import time
+
+    from creator_app.agnes.execution.omni import (
+        AgentIdentity,
+        CapabilityLease,
+        EvidenceLevel,
+        OMNIExecutionContext,
+        PreExecutionRiskVerdict,
+        RiskDecision,
+    )
+
+    now = time.time()
+    capability = request.granted_capabilities[0] if request.granted_capabilities else "code.read"
+    agent_id = "test-agent"
+    policy_id = "test-policy"
+    return OMNIExecutionContext(
+        identity=AgentIdentity(agent_id, "test-model", "test-fixture", "fixture:test-agent"),
+        capability_id=capability,
+        lease=CapabilityLease(
+            "test-lease-" + request.execution_id,
+            agent_id,
+            (capability,),
+            now - 1,
+            now + 300,
+        ),
+        policy_id=policy_id,
+        risk_verdict=PreExecutionRiskVerdict(
+            "test-risk-" + request.execution_id,
+            request.execution_id,
+            agent_id,
+            capability,
+            policy_id,
+            RiskDecision.ALLOW,
+            EvidenceLevel.E1,
+            "LOCAL",
+            "reversible",
+            "test-data",
+            False,
+        ),
+        tool_id=str(request.plan_step.get("tool_id") or "test-tool"),
+        target_id=str(request.plan_step.get("target_id") or "test-target"),
+        runtime_id="test-runtime",
+        verifier_id="test-verifier",
+        evidence_required=True,
+        intent_id=request.correlation_id,
+    )
+
+
 def _agnes(tmp_path: Path) -> AgnesNervousSystem:
     return AgnesNervousSystem(
         skill_file=SKILL_FILE,
@@ -26,6 +75,7 @@ def _agnes(tmp_path: Path) -> AgnesNervousSystem:
         sandbox_enabled=True,
         sandbox_root=tmp_path / "sandbox",
         sandbox_repository_root=REPO,
+        omni_context_provider=_test_omni_context,
     )
 
 
@@ -45,6 +95,23 @@ def _patch_request(*, approval_id: str | None = None, workspace_id: str = "ws-ph
         "granted_capabilities": ["code_write", "patch"],
         "execution_id": "exec-patch-phase2",
     }
+
+
+@pytest.mark.asyncio
+async def test_execution_without_trusted_omni_provider_fails_closed(tmp_path: Path):
+    agnes = AgnesNervousSystem(
+        skill_file=SKILL_FILE,
+        ledger_path=tmp_path / "ledger-no-omni.jsonl",
+        sandbox_enabled=False,
+        sandbox_repository_root=REPO,
+    )
+    result = await agnes.execute_skill(
+        {"id": "brain.plan", "executor": "internal", "inputs": {"goal": "test"}},
+        goal="fail closed without identity lease and policy context",
+        correlation_id="corr-no-omni",
+    )
+    assert result.status is ExecutionStatus.BLOCKED
+    assert result.error == "omni_context_required"
 
 
 @pytest.mark.asyncio
@@ -68,7 +135,7 @@ async def test_linux_namespace_runner_isolates_network_and_host_root(tmp_path: P
     result = await runner.run(
         workspace=work,
         execution_id="probe",
-        command=["python", "/workspace/probe.py"],
+        command=["python3", "/workspace/probe.py"],
         timeout_seconds=10,
     )
     assert result.returncode == 0
@@ -86,14 +153,14 @@ async def test_timeout_kills_process_group(tmp_path: Path):
     )
     code = (
         "import subprocess,time; "
-        "subprocess.Popen(['python','-c',\"import time,pathlib; time.sleep(2); "
+        "subprocess.Popen(['python3','-c',\"import time,pathlib; time.sleep(2); "
         "pathlib.Path('/workspace/child-survived').write_text('bad')\"]); "
         "time.sleep(20)"
     )
     result = await runner.run(
         workspace=work,
         execution_id="timeout",
-        command=["python", "-c", code],
+        command=["python3", "-c", code],
         timeout_seconds=1,
     )
     assert result.timed_out is True
@@ -168,7 +235,7 @@ async def test_test_and_security_scan_run_on_same_isolated_workspace(tmp_path: P
         {
             "id": "hands.test",
             "executor": "sandbox",
-            "inputs": {"commands": [["python", "/workspace/phase2_sandbox_probe.py"]]},
+            "inputs": {"commands": [["python3", "/workspace/phase2_sandbox_probe.py"]]},
             "granted_capabilities": ["test", "shell"],
             "execution_id": "exec-test-phase2",
         },
@@ -287,7 +354,7 @@ async def test_system_mounts_are_read_only_and_output_is_bounded(tmp_path: Path)
         workspace=work,
         execution_id="readonly",
         command=[
-            "python",
+            "python3",
             "-c",
             "import pathlib; p=pathlib.Path('/usr/agnes-phase2-write');\n"
             "\ntry: p.write_text('x'); print('write-open')\n"
@@ -302,7 +369,7 @@ async def test_system_mounts_are_read_only_and_output_is_bounded(tmp_path: Path)
     flood = await runner.run(
         workspace=work,
         execution_id="flood",
-        command=["python", "-c", "print('x'*100000)"],
+        command=["python3", "-c", "print('x'*100000)"],
         timeout_seconds=10,
     )
     assert flood.output_limited is True
@@ -347,7 +414,7 @@ async def test_api_phase2_approval_then_execute(tmp_path: Path):
         "allowlist_paths": ["api_phase2_probe.py"],
         "granted_capabilities": ["code_write", "patch"],
     }
-    with TestClient(create_app(settings)) as client:
+    with TestClient(create_app(settings, agnes_omni_context_provider=_test_omni_context)) as client:
         first = client.post("/api/agnes/execute", json=payload)
         assert first.status_code == 200
         waiting = first.json()
