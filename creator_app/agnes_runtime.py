@@ -317,9 +317,16 @@ class AgnesNervousSystem:
             allowlist_paths=tuple(plan_step.get("allowlist_paths", ())),
             granted_capabilities=tuple(plan_step.get("granted_capabilities", ())),
         )
-        omni_context = (
-            self.omni_context_provider(request) if self.omni_context_provider is not None else None
-        )
+        try:
+            omni_context = (
+                self.omni_context_provider(request)
+                if self.omni_context_provider is not None
+                else None
+            )
+        except Exception:
+            # A failed trusted-context provider must not escape the runtime or
+            # grant execution; the dispatcher receives no context and blocks.
+            omni_context = None
         return await self.dispatcher.execute(request, omni_context=omni_context)
 
     def discovery_sources(self) -> list[dict[str, object]]:
