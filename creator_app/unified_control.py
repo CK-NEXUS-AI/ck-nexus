@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import suppress
+
 import hmac
 import os
 import sqlite3
@@ -211,12 +213,10 @@ def _migrate_legacy_development_status_db(target: Path, legacy: Path) -> None:
         finally:
             destination.close()
             source.close()
-        try:
-            # Hard-link publication is atomic and will not overwrite a target created
-            # by another application worker during the migration.
+        # Hard-link publication is atomic and will not overwrite a target
+        # created by another application worker during the migration.
+        with suppress(FileExistsError):
             os.link(temporary, target)
-        except FileExistsError:
-            pass
     finally:
         temporary.unlink(missing_ok=True)
 
