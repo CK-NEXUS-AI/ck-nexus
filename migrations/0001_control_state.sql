@@ -21,6 +21,10 @@ CREATE TABLE IF NOT EXISTS evidence_registry (
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     CHECK (sha256_hex IS NULL OR sha256_hex ~ '^[0-9a-f]{64}$')
 );
+CREATE INDEX IF NOT EXISTS idx_evidence_source_lookup
+    ON evidence_registry (source_system, source_record_id, observed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_evidence_status_time
+    ON evidence_registry (verification_status, observed_at DESC);
 
 CREATE TABLE IF NOT EXISTS workflow_registry (
     workflow_observation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -38,6 +42,8 @@ CREATE TABLE IF NOT EXISTS workflow_registry (
 );
 CREATE INDEX IF NOT EXISTS idx_workflow_registry_lookup
     ON workflow_registry (source_instance, workflow_id, observed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_workflow_registry_evidence
+    ON workflow_registry (evidence_id);
 
 CREATE TABLE IF NOT EXISTS credential_registry (
     credential_observation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -54,6 +60,10 @@ CREATE TABLE IF NOT EXISTS credential_registry (
     recorded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (credential_ref, observed_at)
 );
+CREATE INDEX IF NOT EXISTS idx_credential_registry_evidence
+    ON credential_registry (evidence_id);
+CREATE INDEX IF NOT EXISTS idx_credential_registry_status_time
+    ON credential_registry (status, observed_at DESC);
 
 CREATE TABLE IF NOT EXISTS incident_registry (
     incident_id TEXT PRIMARY KEY,
@@ -68,6 +78,10 @@ CREATE TABLE IF NOT EXISTS incident_registry (
     evidence_ids UUID[] NOT NULL DEFAULT '{}',
     resolution_summary TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_incident_registry_status_severity
+    ON incident_registry (status, severity, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_incident_registry_evidence_ids
+    ON incident_registry USING GIN (evidence_ids);
 
 CREATE TABLE IF NOT EXISTS approval_registry (
     approval_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -83,6 +97,10 @@ CREATE TABLE IF NOT EXISTS approval_registry (
     evidence_id UUID REFERENCES evidence_registry(evidence_id),
     CHECK (decision <> 'APPROVED' OR (approved_by IS NOT NULL AND decided_at IS NOT NULL))
 );
+CREATE INDEX IF NOT EXISTS idx_approval_registry_target_decision
+    ON approval_registry (target_ref, decision, requested_at DESC);
+CREATE INDEX IF NOT EXISTS idx_approval_registry_evidence
+    ON approval_registry (evidence_id);
 
 CREATE TABLE IF NOT EXISTS audit_registry (
     audit_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -100,6 +118,8 @@ CREATE INDEX IF NOT EXISTS idx_audit_registry_time
     ON audit_registry (occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_registry_target
     ON audit_registry (target_ref, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_registry_evidence
+    ON audit_registry (evidence_id);
 
 CREATE TABLE IF NOT EXISTS production_gate_registry (
     gate_observation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -118,6 +138,8 @@ CREATE TABLE IF NOT EXISTS production_gate_registry (
 );
 CREATE INDEX IF NOT EXISTS idx_gate_release
     ON production_gate_registry (release_ref, gate_id, observed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_gate_evidence
+    ON production_gate_registry (evidence_id);
 
 -- Append-only intent is enforced by application roles/permissions in deployment.
 -- Do not grant UPDATE/DELETE to collector/API roles for audit/evidence records.
