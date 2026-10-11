@@ -10,11 +10,20 @@ servers:
     description: Placeholder only; replace after an approved deployment.
 security:
   - bearerAuth: []
+x-control-state-security:
+  authentication: "Bearer authentication required on every endpoint."
+  authorization: "Enforce least-privilege read-only role and endpoint-specific authorization server-side."
+  audit: "Record actor, operation, target, decision, timestamp, and correlation ID; never log bearer tokens."
+  redaction: "Exclude secrets, OAuth tokens, API keys, email bodies, and attachment contents."
+  rate_limit: "Enforce server-side rate limits and return 429 with a bounded retry policy."
 paths:
   /health:
     get:
       summary: Service process health
       operationId: getHealth
+      x-required-permission: control_state:health:read
+      x-audit-required: true
+      x-redaction-required: true
       responses:
         '200':
           description: Service is responding; this is not a production-readiness assertion.
@@ -22,10 +31,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Health'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalError'}
   /readiness:
     get:
       summary: Read-only system readiness snapshot
       operationId: getReadiness
+      x-required-permission: control_state:readiness:read
+      x-audit-required: true
+      x-redaction-required: true
       responses:
         '200':
           description: Readiness summary, including staleness and blockers.
@@ -33,10 +51,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Readiness'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalError'}
   /evidence:
     get:
       summary: Sanitized evidence metadata
       operationId: listEvidence
+      x-required-permission: control_state:evidence:read
+      x-audit-required: true
+      x-redaction-required: true
       parameters:
         - in: query
           name: limit
@@ -56,30 +83,71 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/EvidencePage'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalError'}
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
+  responses:
+    BadRequest:
+      description: Request parameters or cursor are invalid.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    Unauthorized:
+      description: Missing or invalid authentication credentials.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    Forbidden:
+      description: Authenticated caller lacks the required permission.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    NotFound:
+      description: Requested resource or cursor was not found.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    RateLimited:
+      description: Rate limit exceeded; response may include Retry-After.
+      headers:
+        Retry-After:
+          schema: {type: integer, minimum: 0}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    InternalError:
+      description: Unexpected server error; response must not disclose internals or secrets.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
   schemas:
+    ApiError:
+      type: object
+      required: [code, message, correlation_id]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        correlation_id: {type: string}
+      additionalProperties: false
     Envelope:
       type: object
       required: [observed_at, as_of, stale, source, limitations]
       properties:
-        observed_at:
-          type: string
-          format: date-time
-        as_of:
-          type: string
-          format: date-time
-        stale:
-          type: boolean
-        source:
-          type: string
+        observed_at: {type: string, format: date-time}
+        as_of: {type: string, format: date-time}
+        stale: {type: boolean}
+        source: {type: string}
         limitations:
           type: array
-          items:
-            type: string
+          items: {type: string}
     Health:
       allOf:
         - $ref: '#/components/schemas/Envelope'
@@ -134,7 +202,7 @@ components:
       type: object
       required: [evidence_id, evidence_type, source_system, source_record_id, observed_at, status]
       properties:
-        evidence_id: {type: string}
+        evidence_id: {type: string, format: uuid}
         evidence_type: {type: string}
         source_system: {type: string}
         source_record_id: {type: string}
@@ -158,7 +226,5 @@ components:
           properties:
             items:
               type: array
-              items:
-                $ref: '#/components/schemas/Evidence'
-            next_cursor:
-              type: [string, 'null']
+              items: {$ref: '#/components/schemas/Evidence'}
+            next_cursor: {type: [string, 'null']}
