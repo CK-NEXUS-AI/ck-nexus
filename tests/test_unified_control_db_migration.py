@@ -21,7 +21,9 @@ def _read_value(path: Path) -> str:
 
 
 def test_migrates_legacy_state_to_persistent_path(tmp_path: Path):
-    legacy = tmp_path / "home" / ".local" / "state" / "ck-nexus" / "development-status.sqlite3"
+    legacy = (
+        tmp_path / "home" / ".local" / "state" / "ck-nexus" / "development-status.sqlite3"
+    )
     target = tmp_path / "data" / "development-status.sqlite3"
     _create_database(legacy, "preserve-me")
 
