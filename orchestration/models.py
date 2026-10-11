@@ -25,15 +25,35 @@ class ExecutionState(StrEnum):
 
 ALLOWED_TRANSITIONS: dict[ExecutionState, frozenset[ExecutionState]] = {
     ExecutionState.CREATED: frozenset({ExecutionState.PLANNING}),
-    ExecutionState.PLANNING: frozenset({ExecutionState.READY, ExecutionState.BLOCKED, ExecutionState.FAILED}),
+    ExecutionState.PLANNING: frozenset(
+        {ExecutionState.READY, ExecutionState.BLOCKED, ExecutionState.FAILED}
+    ),
     ExecutionState.READY: frozenset({ExecutionState.RUNNING, ExecutionState.BLOCKED}),
-    ExecutionState.RUNNING: frozenset({ExecutionState.VERIFYING, ExecutionState.RETRY_WAIT, ExecutionState.BLOCKED, ExecutionState.FAILED}),
+    ExecutionState.RUNNING: frozenset(
+        {
+            ExecutionState.VERIFYING,
+            ExecutionState.RETRY_WAIT,
+            ExecutionState.BLOCKED,
+            ExecutionState.FAILED,
+        }
+    ),
     ExecutionState.RETRY_WAIT: frozenset({ExecutionState.RUNNING, ExecutionState.FAILED}),
-    ExecutionState.VERIFYING: frozenset({ExecutionState.WAITING_APPROVAL, ExecutionState.DELIVERING, ExecutionState.REPAIRING, ExecutionState.FAILED}),
-    ExecutionState.REPAIRING: frozenset({ExecutionState.VERIFYING, ExecutionState.ROLLBACK, ExecutionState.FAILED}),
+    ExecutionState.VERIFYING: frozenset(
+        {
+            ExecutionState.WAITING_APPROVAL,
+            ExecutionState.DELIVERING,
+            ExecutionState.REPAIRING,
+            ExecutionState.FAILED,
+        }
+    ),
+    ExecutionState.REPAIRING: frozenset(
+        {ExecutionState.VERIFYING, ExecutionState.ROLLBACK, ExecutionState.FAILED}
+    ),
     ExecutionState.ROLLBACK: frozenset({ExecutionState.RECOVERED, ExecutionState.FAILED}),
     ExecutionState.RECOVERED: frozenset({ExecutionState.DELIVERING, ExecutionState.COMPLETED}),
-    ExecutionState.WAITING_APPROVAL: frozenset({ExecutionState.DELIVERING, ExecutionState.BLOCKED, ExecutionState.FAILED}),
+    ExecutionState.WAITING_APPROVAL: frozenset(
+        {ExecutionState.DELIVERING, ExecutionState.BLOCKED, ExecutionState.FAILED}
+    ),
     ExecutionState.DELIVERING: frozenset({ExecutionState.COMPLETED, ExecutionState.FAILED}),
     ExecutionState.COMPLETED: frozenset(),
     ExecutionState.BLOCKED: frozenset(),
@@ -60,8 +80,16 @@ class WorkflowPattern:
     @classmethod
     def from_mapping(cls, raw: dict[str, Any]) -> WorkflowPattern:
         required = {
-            "id", "version", "intent_tags", "agents", "allowed_tools", "forbidden_tools",
-            "approval_policy", "side_effect_policy", "max_steps", "timeout_seconds",
+            "id",
+            "version",
+            "intent_tags",
+            "agents",
+            "allowed_tools",
+            "forbidden_tools",
+            "approval_policy",
+            "side_effect_policy",
+            "max_steps",
+            "timeout_seconds",
         }
         missing = sorted(required - raw.keys())
         if missing:
@@ -155,17 +183,19 @@ class ExecutionRecord:
             raise ValueError(f"invalid execution transition {self.state} -> {target}")
         previous = self.state
         self.state = target
-        self.audit.append({
-            "event": "state_transition",
-            "from": previous.value,
-            "to": target.value,
-            "reason": reason,
-            "at": datetime.now(UTC).isoformat(),
-            "pattern_id": self.context.pattern_id,
-            "pattern_version": self.context.pattern_version,
-            "execution_id": self.context.execution_id,
-            "correlation_id": self.context.correlation_id,
-        })
+        self.audit.append(
+            {
+                "event": "state_transition",
+                "from": previous.value,
+                "to": target.value,
+                "reason": reason,
+                "at": datetime.now(UTC).isoformat(),
+                "pattern_id": self.context.pattern_id,
+                "pattern_version": self.context.pattern_version,
+                "execution_id": self.context.execution_id,
+                "correlation_id": self.context.correlation_id,
+            }
+        )
 
 
 @dataclass(slots=True)

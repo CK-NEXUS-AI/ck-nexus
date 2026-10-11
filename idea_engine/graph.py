@@ -71,15 +71,25 @@ class IdeaGraph:
         self._save()
         return node
 
-
     def get_node(self, node_id: str) -> IdeaNode | None:
         return self.nodes.get(node_id)
 
-    def update_node(self, node_id: str, *, actor: str = "idea-engine", **changes: object) -> IdeaNode:
+    def update_node(
+        self, node_id: str, *, actor: str = "idea-engine", **changes: object
+    ) -> IdeaNode:
         node = self.nodes.get(node_id)
         if node is None:
             raise KeyError(node_id)
-        allowed = {"title", "summary", "status", "tags", "source_refs", "confidence", "raw_input", "lens_notes"}
+        allowed = {
+            "title",
+            "summary",
+            "status",
+            "tags",
+            "source_refs",
+            "confidence",
+            "raw_input",
+            "lens_notes",
+        }
         unknown = set(changes) - allowed
         if unknown:
             raise ValueError("unsupported node fields: " + ", ".join(sorted(unknown)))
@@ -87,11 +97,17 @@ class IdeaGraph:
         for key, value in changes.items():
             setattr(node, key, value)
         from datetime import UTC, datetime
+
         node.updated_at = datetime.now(UTC).isoformat()
-        self.history.append({
-            "action": "node_updated", "node_id": node_id, "actor": actor,
-            "changed_fields": sorted(changes), "before": before
-        })
+        self.history.append(
+            {
+                "action": "node_updated",
+                "node_id": node_id,
+                "actor": actor,
+                "changed_fields": sorted(changes),
+                "before": before,
+            }
+        )
         self._save()
         return node
 
@@ -138,14 +154,18 @@ class IdeaGraph:
                 to_node_id=item.node.id,
                 type=edge_type.value,
                 weight=round(item.score, 4),
-                reason="Similarity/dedup linker preserved both nodes and linked their relationship.",
+                reason=(
+                    "Similarity/dedup linker preserved both nodes "
+                    "and linked their relationship."
+                ),
                 created_by=actor,
             )
             links.append(self.add_edge(edge, actor=actor))
         return tuple(links)
 
     def export_safe(self) -> dict[str, object]:
-        # Graph model intentionally has no credential field; source refs are metadata identifiers only.
+        # Graph model intentionally has no credential field.
+        # Source refs are metadata identifiers only.
         return {
             "nodes": [node.as_dict() for node in self.nodes.values()],
             "edges": [edge.as_dict() for edge in self.edges.values()],

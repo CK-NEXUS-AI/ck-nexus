@@ -13,7 +13,9 @@ async def bounded_fanout(
         raise ValueError("max_parallelism must be >= 1")
     semaphore = asyncio.Semaphore(max_parallelism)
 
-    async def run(name: str, call: Callable[[], Awaitable[object]]) -> tuple[str, dict[str, object]]:
+    async def run(
+        name: str, call: Callable[[], Awaitable[object]]
+    ) -> tuple[str, dict[str, object]]:
         async with semaphore:
             try:
                 value = await call()

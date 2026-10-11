@@ -29,7 +29,7 @@ class EvalBackend(Protocol):
     async def eval(self, script: str, numkeys: int, *args: object) -> object: ...
 
 
-TOKEN_BUCKET_LUA = r'''
+TOKEN_BUCKET_LUA = r"""
 local key = KEYS[1]
 local capacity = tonumber(ARGV[1])
 local refill_per_ms = tonumber(ARGV[2])
@@ -58,7 +58,7 @@ if allowed == 0 and refill_per_ms > 0 then
   retry_ms = math.ceil(missing / refill_per_ms)
 end
 return {allowed, math.floor(refilled), retry_ms}
-'''
+"""
 
 
 class RedisTokenBucket:
@@ -72,7 +72,9 @@ class RedisTokenBucket:
             import redis.asyncio as aioredis
         except ImportError as exc:
             raise RuntimeError("redis package is required for gateway Redis rate limiting") from exc
-        return cls(aioredis.from_url(redis_url, decode_responses=True), policy_version=policy_version)
+        return cls(
+            aioredis.from_url(redis_url, decode_responses=True), policy_version=policy_version
+        )
 
     async def ping(self) -> bool:
         try:
@@ -82,7 +84,10 @@ class RedisTokenBucket:
             return False
 
     def key(self, tenant_id: str, actor_id: str, route_id: str) -> str:
-        return f"ratelimit:{self._policy_version}:{safe_fragment(tenant_id)}:{safe_fragment(actor_id)}:{safe_fragment(route_id)}"
+        return (
+            f"ratelimit:{self._policy_version}:"
+            f"{safe_fragment(tenant_id)}:{safe_fragment(actor_id)}:{safe_fragment(route_id)}"
+        )
 
     async def consume(
         self,
@@ -129,7 +134,9 @@ class _MemoryBucket:
 class InMemoryTokenBucket:
     """Deterministic test/local backend. Never selected automatically in production."""
 
-    def __init__(self, *, policy_version: str, shared_state: dict[str, _MemoryBucket] | None = None) -> None:
+    def __init__(
+        self, *, policy_version: str, shared_state: dict[str, _MemoryBucket] | None = None
+    ) -> None:
         self.policy_version = safe_fragment(policy_version)
         self._state = shared_state if shared_state is not None else {}
         self._lock = asyncio.Lock()
@@ -138,7 +145,10 @@ class InMemoryTokenBucket:
         return True
 
     def key(self, tenant_id: str, actor_id: str, route_id: str) -> str:
-        return f"ratelimit:{self.policy_version}:{safe_fragment(tenant_id)}:{safe_fragment(actor_id)}:{safe_fragment(route_id)}"
+        return (
+            f"ratelimit:{self.policy_version}:"
+            f"{safe_fragment(tenant_id)}:{safe_fragment(actor_id)}:{safe_fragment(route_id)}"
+        )
 
     async def consume(
         self,
@@ -155,7 +165,9 @@ class InMemoryTokenBucket:
         async with self._lock:
             bucket = self._state.get(key) or _MemoryBucket(float(policy.capacity), timestamp)
             elapsed = max(0, timestamp - bucket.last_ms)
-            tokens = min(policy.capacity, bucket.tokens + elapsed * policy.refill_per_second / 1000.0)
+            tokens = min(
+                policy.capacity, bucket.tokens + elapsed * policy.refill_per_second / 1000.0
+            )
             if tokens < requested_tokens:
                 missing = requested_tokens - tokens
                 retry = math.ceil(missing / policy.refill_per_second)
