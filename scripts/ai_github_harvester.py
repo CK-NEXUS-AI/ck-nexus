@@ -13,7 +13,11 @@ OUT = ROOT / "evidence" / "ai_factory" / "github_signals.jsonl"
 def classify_cli_error(stderr: str) -> str:
     """Return a safe error category without exposing raw CLI output or credentials."""
     message = stderr.lower()
-    if "api rate limit exceeded" in message or "rate limit" in message or "http 429" in message:
+    if (
+        "api rate limit exceeded" in message
+        or "rate limit" in message
+        or "http 429" in message
+    ):
         return "rate_limited"
     if "bad credentials" in message or "http 401" in message or "authentication required" in message:
         return "authentication_failed"
