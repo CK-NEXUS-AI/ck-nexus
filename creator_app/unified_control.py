@@ -3,6 +3,7 @@ from __future__ import annotations
 import hmac
 import os
 import sqlite3
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -189,15 +190,48 @@ def _safe_call(func: Any, fallback: Any = None) -> Any:
         return {"available": False, "error": type(exc).__name__} if fallback is None else fallback
 
 
+def _migrate_legacy_development_status_db(target: Path, legacy: Path) -> None:
+    """Copy the legacy SQLite state into the persistent path once, without overwriting data."""
+    target = target.expanduser()
+    legacy = legacy.expanduser()
+    if target == legacy or target.exists() or not legacy.is_file():
+        return
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary_name = tempfile.mkstemp(
+        prefix=f".{target.name}.migration-", dir=target.parent
+    )
+    os.close(fd)
+    temporary = Path(temporary_name)
+    try:
+        with sqlite3.connect(legacy) as source, sqlite3.connect(temporary) as destination:
+            source.backup(destination)
+        try:
+            # Hard-link publication is atomic and will not overwrite a target created
+            # by another application worker during the migration.
+            os.link(temporary, target)
+        except FileExistsError:
+            pass
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def install_unified_control(app: FastAPI) -> FastAPI:
     """Attach a compact control plane without duplicating or bypassing CK-NEXUS runtime policy."""
     settings = app.state.settings
-    development_store = DevelopmentStatusStore(
+    legacy_development_status_path = Path(
+        "~/.local/state/ck-nexus/development-status.sqlite3"
+    ).expanduser()
+    development_status_path = Path(
         os.environ.get(
             "CKNEXUS_DEVELOPMENT_STATUS_DB",
             "~/.local/state/ck-nexus/development-status.sqlite3",
         )
+    ).expanduser()
+    _migrate_legacy_development_status_db(
+        development_status_path, legacy_development_status_path
     )
+    development_store = DevelopmentStatusStore(development_status_path)
     human_approval_token = os.environ.get("CKNEXUS_HUMAN_APPROVAL_TOKEN", "").strip()
 
     def require_human_approval_token(supplied: str | None) -> None:
