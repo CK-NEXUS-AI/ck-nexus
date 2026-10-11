@@ -25,6 +25,12 @@ def classify_cli_error(stderr: str) -> str:
         or "authentication required" in message
     ):
         return "authentication_failed"
+    if (
+        "http 422" in message
+        or "validation failed" in message
+        or "invalid query" in message
+    ):
+        return "invalid_query"
     if "resource not accessible by integration" in message or "http 403" in message:
         return "permission_denied"
     if "could not resolve host" in message or "name or service not known" in message:
