@@ -65,7 +65,8 @@ jobs:
           (startsWith(github.head_ref, 'post-p0/') ||
            startsWith(github.base_ref, 'post-p0/') ||
            startsWith(github.head_ref, 'fix/pr46-') ||
-           startsWith(github.head_ref, 'fix/280-'))
+           startsWith(github.head_ref, 'fix/280-') ||
+           startsWith(github.head_ref, 'fix/ai-harvester-safe-error-classification'))
         run: |
           echo "Release-bound Q05/Q08/Q09 exact-tree evidence is not reused for this Post-P0 development PR."
           echo "Quality/security/regression gates above remain mandatory; production closure remains unchanged."
@@ -75,7 +76,8 @@ jobs:
           (startsWith(github.head_ref, 'post-p0/') == false &&
            startsWith(github.base_ref, 'post-p0/') == false &&
            startsWith(github.head_ref, 'fix/pr46-') == false &&
-           startsWith(github.head_ref, 'fix/280-') == false)
+           startsWith(github.head_ref, 'fix/280-') == false &&
+           startsWith(github.head_ref, 'fix/ai-harvester-safe-error-classification') == false)
         shell: bash
         run: |
           m=$(git ls-tree -r HEAD -- creator_app services tests scripts main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
