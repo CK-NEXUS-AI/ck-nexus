@@ -204,8 +204,13 @@ def _migrate_legacy_development_status_db(target: Path, legacy: Path) -> None:
     os.close(fd)
     temporary = Path(temporary_name)
     try:
-        with sqlite3.connect(legacy) as source, sqlite3.connect(temporary) as destination:
+        source = sqlite3.connect(legacy)
+        destination = sqlite3.connect(temporary)
+        try:
             source.backup(destination)
+        finally:
+            destination.close()
+            source.close()
         try:
             # Hard-link publication is atomic and will not overwrite a target created
             # by another application worker during the migration.
