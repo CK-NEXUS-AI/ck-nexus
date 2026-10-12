@@ -85,7 +85,8 @@ class ScannerApiTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(response["status"], "EXECUTED_NOT_VERIFIED")
         artifact = self.evidence / (response["scan_id"] + ".json")
-        self.assertEqual(hashlib.sha256(artifact.read_bytes()).hexdigest(), response["artifact_sha256"])
+        actual_hash = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        self.assertEqual(actual_hash, response["artifact_sha256"])
         stored = json.loads(artifact.read_bytes())
         expected_sha = subprocess.check_output(
             ["git", "-C", str(self.repo), "rev-parse", "HEAD"], text=True
