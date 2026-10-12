@@ -3,9 +3,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
+from urllib.parse import quote
 from pathlib import Path
 from typing import Any
 
@@ -76,6 +78,8 @@ def verify(
         artifact_id = evidence.get("artifact_id")
         artifact_digest = evidence.get("artifact_digest")
         run_id = evidence.get("github_run_id")
+        source_sha = evidence.get("source_sha")
+        source_tree = evidence.get("source_tree")
         row: dict[str, Any] = {
             "file": filename,
             "gate": gate,
@@ -96,6 +100,14 @@ def verify(
             failures.append(f"{filename}: artifact_digest missing or invalid")
             rows.append(row)
             continue
+        if not isinstance(source_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", source_sha):
+            failures.append(f"{filename}: source_sha missing or invalid")
+            rows.append(row)
+            continue
+        if not isinstance(source_tree, str) or not re.fullmatch(r"[0-9a-f]{40}", source_tree):
+            failures.append(f"{filename}: source_tree missing or invalid")
+            rows.append(row)
+            continue
 
         try:
             artifact = _api_json(
@@ -104,6 +116,10 @@ def verify(
             )
             run = _api_json(
                 f"https://api.github.com/repos/{repository}/actions/runs/{run_id}",
+                token,
+            )
+            source_commit = _api_json(
+                f"https://api.github.com/repos/{repository}/commits/{quote(source_sha, safe='')}",
                 token,
             )
         except (urllib.error.URLError, TimeoutError, ValueError) as exc:
@@ -121,6 +137,9 @@ def verify(
             "artifact_run_match": workflow_run.get("id") == run_id,
             "run_repository_match": (run.get("repository") or {}).get("full_name") == repository,
             "branch_allowed": allowed_branches is None or actual_branch in allowed_branches,
+            "run_head_sha_matches_evidence": run.get("head_sha") == source_sha,
+            "artifact_head_sha_matches_evidence": workflow_run.get("head_sha") == source_sha,
+            "source_tree_matches_github_commit": (source_commit.get("commit") or {}).get("tree", {}).get("sha") == source_tree,
         }
         for check, passed in checks.items():
             if not passed:
@@ -156,6 +175,9 @@ def verify(
                 "artifact_name": artifact.get("name"),
                 "artifact_head_branch": actual_branch,
                 "artifact_head_sha": workflow_run.get("head_sha"),
+                "evidence_source_sha": source_sha,
+                "evidence_source_tree": source_tree,
+                "verified_commit_tree": (source_commit.get("commit") or {}).get("tree", {}).get("sha"),
                 "workflow_name": run.get("name"),
                 "workflow_conclusion": run.get("conclusion"),
                 "checks": checks,
