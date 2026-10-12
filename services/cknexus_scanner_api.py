@@ -211,7 +211,10 @@ def create_handler(
             try:
                 summaries = {name: _run_scanner(name, root) for name in scanners}
                 evidence_path.mkdir(parents=True, exist_ok=True)
-                scan_id = "scan-" + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()) + "-" + secrets.token_hex(4)
+                scan_id = (
+                    "scan-" + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+                    + "-" + secrets.token_hex(4)
+                )
                 artifact = {
                     "schema_version": 2,
                     "scan_id": scan_id,
