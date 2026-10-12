@@ -238,7 +238,9 @@ def create_handler(
                         "summary": summaries,
                         "status": "EXECUTED_NOT_VERIFIED",
                     }
-                    raw = json.dumps(artifact, sort_keys=True, separators=(",", ":")).encode("utf-8")
+                    raw = json.dumps(
+                        artifact, sort_keys=True, separators=(",", ":")
+                    ).encode("utf-8")
                     digest = hashlib.sha256(raw).hexdigest()
                     destination = evidence_path / (scan_id + ".json")
                     fd, temp_name = tempfile.mkstemp(prefix=".scan-", dir=evidence_path)
