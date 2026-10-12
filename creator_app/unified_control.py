@@ -206,14 +206,16 @@ def _migrate_legacy_development_status_db(target: Path, legacy: Path) -> None:
     temporary = Path(temporary_name)
     try:
         source = sqlite3.connect(legacy)
-        destination = sqlite3.connect(temporary)
         try:
-            source.backup(destination)
+            destination = sqlite3.connect(temporary)
+            try:
+                source.backup(destination)
+            finally:
+                destination.close()
         finally:
-            destination.close()
             source.close()
-        # Hard-link publication is atomic and will not overwrite a target
-        # created by another application worker during the migration.
+        # Publish only after the backup and both connection closes succeeded.
+        # Hard-link publication is atomic and never overwrites a concurrent target.
         with suppress(FileExistsError):
             os.link(temporary, target)
     finally:
@@ -223,8 +225,14 @@ def _migrate_legacy_development_status_db(target: Path, legacy: Path) -> None:
 def install_unified_control(app: FastAPI) -> FastAPI:
     """Attach a compact control plane without duplicating or bypassing CK-NEXUS runtime policy."""
     settings = app.state.settings
+    # Allow deployments to point at a mounted legacy database explicitly. The
+    # default preserves the historical per-user location; missing legacy state
+    # remains a no-op and is never fabricated.
     legacy_development_status_path = Path(
-        "~/.local/state/ck-nexus/development-status.sqlite3"
+        os.environ.get(
+            "CKNEXUS_LEGACY_DEVELOPMENT_STATUS_DB",
+            "~/.local/state/ck-nexus/development-status.sqlite3",
+        )
     ).expanduser()
     development_status_path = Path(
         os.environ.get(

@@ -159,13 +159,9 @@ class AutonomousDevController:
                     {
                         "id": "hands.security_scan",
                         "executor": "sandbox",
-                        "inputs": {
-                            "command": list(
-                                request.inputs.get(
-                                    "scan_command", ["python3", "-c", "print('security-scan:PASS')"]
-                                )
-                            )
-                        },
+                        # The sandbox adapter owns the fixed secret scanner. Do not
+                        # pass a caller-controlled command that could fake a PASS.
+                        "inputs": {},
                         "allowlist_paths": list(request.allowlist_paths),
                         "granted_capabilities": ["security_scan", "shell"],
                         "execution_id": request.execution_id + "-scan",

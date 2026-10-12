@@ -27,6 +27,7 @@ services:
       CKNEXUS_HOST: 0.0.0.0
       PORT: 8000
       CKNEXUS_DEVELOPMENT_STATUS_DB: /app/data/development-status.sqlite3
+      CKNEXUS_LEGACY_DEVELOPMENT_STATUS_DB: ${CKNEXUS_LEGACY_DEVELOPMENT_STATUS_DB:-/home/cknexus/.local/state/ck-nexus/development-status.sqlite3}
       CKNEXUS_MOCK_AI: "false"
       CKNEXUS_DATABASE_URL: postgresql://cknexus:${CKNEXUS_DB_PASSWORD}@db:5432/cknexus
       DATABASE_URL: postgresql://cknexus:${CKNEXUS_DB_PASSWORD}@db:5432/cknexus

@@ -105,7 +105,11 @@ class LinuxNamespaceSandboxExecutor:
         )
 
     async def _test(self, request: SkillExecutionRequest, workspace) -> SkillExecutionResult:
-        commands = self._commands(request.inputs.get("commands"))
+        # The phase-3 controller sends one argv vector as "command"; accept
+        # the plural form too for callers that intentionally run several commands.
+        commands = self._commands(
+            request.inputs.get("commands", request.inputs.get("command"))
+        )
         if not commands:
             commands = [("python3", "-m", "compileall", "-q", ".")]
         results: list[dict[str, Any]] = []
