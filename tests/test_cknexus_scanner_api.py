@@ -6,9 +6,9 @@ import threading
 import unittest
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
-from unittest.mock import patch
 
 from services import cknexus_scanner_api as scanner
 
@@ -21,7 +21,10 @@ class ScannerApiTests(unittest.TestCase):
         self.repo.mkdir()
         subprocess.run(["git", "init", "-q", str(self.repo)], check=True)
         subprocess.run(["git", "-C", str(self.repo), "config", "user.name", "test"], check=True)
-        subprocess.run(["git", "-C", str(self.repo), "config", "user.email", "test@example.invalid"], check=True)
+        subprocess.run(
+            ["git", "-C", str(self.repo), "config", "user.email", "test@example.invalid"],
+            check=True,
+        )
         (self.repo / "README.md").write_text("fixture\n", encoding="utf-8")
         subprocess.run(["git", "-C", str(self.repo), "add", "README.md"], check=True)
         subprocess.run(["git", "-C", str(self.repo), "commit", "-qm", "fixture"], check=True)
@@ -45,7 +48,12 @@ class ScannerApiTests(unittest.TestCase):
         headers = {"Content-Type": "application/json"}
         if token is not None:
             headers["Authorization"] = "Bearer " + token
-        request = Request(self.url + "/api/scan", data=json.dumps(payload).encode(), headers=headers, method="POST")
+        request = Request(
+            self.url + "/api/scan",
+            data=json.dumps(payload).encode(),
+            headers=headers,
+            method="POST",
+        )
         try:
             with urlopen(request, timeout=3) as response:
                 return response.status, json.loads(response.read())
@@ -57,7 +65,10 @@ class ScannerApiTests(unittest.TestCase):
         self.assertEqual(self.post({"target": str(self.repo)}, token="bad-\u00ff")[0], 401)
 
     def test_target_and_scanner_allowlist(self):
-        self.assertEqual(self.post({"target": {"path": str(self.repo)}, "scanners": ["trivy"]})[0], 400)
+        status, _ = self.post(
+            {"target": {"path": str(self.repo)}, "scanners": ["trivy"]}
+        )
+        self.assertEqual(status, 400)
         status, payload = self.post({"target": str(self.repo), "scanners": ["trivy", "custom"]})
         self.assertEqual(status, 400)
         self.assertEqual(payload["error"], "no_allowed_scanners")
@@ -76,9 +87,10 @@ class ScannerApiTests(unittest.TestCase):
         artifact = self.evidence / (response["scan_id"] + ".json")
         self.assertEqual(hashlib.sha256(artifact.read_bytes()).hexdigest(), response["artifact_sha256"])
         stored = json.loads(artifact.read_bytes())
-        self.assertEqual(stored["source_sha"], subprocess.check_output(
+        expected_sha = subprocess.check_output(
             ["git", "-C", str(self.repo), "rev-parse", "HEAD"], text=True
-        ).strip())
+        ).strip()
+        self.assertEqual(stored["source_sha"], expected_sha)
         self.assertNotIn("artifact_sha256", stored)
 
 
