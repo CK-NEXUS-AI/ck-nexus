@@ -7,9 +7,9 @@ import re
 import sys
 import urllib.error
 import urllib.request
-from urllib.parse import quote
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 EVIDENCE_FILES = (
     "Q10_DEPENDENCY_AUDIT.json",
@@ -139,7 +139,10 @@ def verify(
             "branch_allowed": allowed_branches is None or actual_branch in allowed_branches,
             "run_head_sha_matches_evidence": run.get("head_sha") == source_sha,
             "artifact_head_sha_matches_evidence": workflow_run.get("head_sha") == source_sha,
-            "source_tree_matches_github_commit": (source_commit.get("commit") or {}).get("tree", {}).get("sha") == source_tree,
+            "source_tree_matches_github_commit": (
+                (source_commit.get("commit") or {}).get("tree", {}).get("sha")
+                == source_tree
+            ),
         }
         for check, passed in checks.items():
             if not passed:
@@ -177,7 +180,9 @@ def verify(
                 "artifact_head_sha": workflow_run.get("head_sha"),
                 "evidence_source_sha": source_sha,
                 "evidence_source_tree": source_tree,
-                "verified_commit_tree": (source_commit.get("commit") or {}).get("tree", {}).get("sha"),
+                "verified_commit_tree": (
+                    (source_commit.get("commit") or {}).get("tree", {}).get("sha")
+                ),
                 "workflow_name": run.get("name"),
                 "workflow_conclusion": run.get("conclusion"),
                 "checks": checks,

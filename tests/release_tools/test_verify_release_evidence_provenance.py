@@ -7,7 +7,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-MODULE_PATH = Path(__file__).parents[2] / ".github/release-tools/verify_release_evidence_provenance.py"
+MODULE_PATH = (
+    Path(__file__).parents[2]
+    / ".github/release-tools/verify_release_evidence_provenance.py"
+)
 SPEC = importlib.util.spec_from_file_location("release_evidence_verifier", MODULE_PATH)
 assert SPEC and SPEC.loader
 verifier = importlib.util.module_from_spec(SPEC)
@@ -37,7 +40,12 @@ def _evidence(tmp_path: Path) -> Path:
     return evidence_dir
 
 
-def _api_responses(*, run_sha: str = SOURCE_SHA, artifact_sha: str = SOURCE_SHA, tree_sha: str = SOURCE_TREE):
+def _api_responses(
+    *,
+    run_sha: str = SOURCE_SHA,
+    artifact_sha: str = SOURCE_SHA,
+    tree_sha: str = SOURCE_TREE,
+):
     return [
         {"expired": False, "digest": "sha256:abc123", "workflow_run": {
             "id": 456, "head_branch": "release/q10-q16-closure", "head_sha": artifact_sha}},
@@ -49,18 +57,23 @@ def _api_responses(*, run_sha: str = SOURCE_SHA, artifact_sha: str = SOURCE_SHA,
 
 class ProvenanceVerifierTests(unittest.TestCase):
     def verify_case(self, *, run_sha=SOURCE_SHA, artifact_sha=SOURCE_SHA, tree_sha=SOURCE_TREE):
-        with tempfile.TemporaryDirectory() as tmp:
-            with patch.object(verifier, "EVIDENCE_FILES", ("Q13_POSTGRES_DR.json",)), patch.object(
-                verifier, "_api_json", side_effect=_api_responses(
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch.object(verifier, "EVIDENCE_FILES", ("Q13_POSTGRES_DR.json",)),
+            patch.object(
+                verifier,
+                "_api_json",
+                side_effect=_api_responses(
                     run_sha=run_sha, artifact_sha=artifact_sha, tree_sha=tree_sha
-                )
-            ):
-                return verifier.verify(
-                    repository=REPOSITORY,
-                    token="test-token-not-a-real-secret",
-                    expected_subject=EXPECTED_SUBJECT,
-                    evidence_dir=_evidence(Path(tmp)),
-                )
+                ),
+            ),
+        ):
+            return verifier.verify(
+                repository=REPOSITORY,
+                token="test-token-not-a-real-secret",
+                expected_subject=EXPECTED_SUBJECT,
+                evidence_dir=_evidence(Path(tmp)),
+            )
 
     def test_matching_run_commit_and_tree_pass(self):
         report = self.verify_case()
@@ -71,17 +84,32 @@ class ProvenanceVerifierTests(unittest.TestCase):
     def test_mismatched_workflow_head_sha_fails_closed(self):
         report = self.verify_case(run_sha="d" * 40)
         self.assertEqual(report["result"], "FAIL")
-        self.assertTrue(any("run_head_sha_matches_evidence" in item for item in report["provenance_failures"]))
+        self.assertTrue(
+            any(
+                "run_head_sha_matches_evidence" in item
+                for item in report["provenance_failures"]
+            )
+        )
 
     def test_mismatched_artifact_head_sha_fails_closed(self):
         report = self.verify_case(artifact_sha="e" * 40)
         self.assertEqual(report["result"], "FAIL")
-        self.assertTrue(any("artifact_head_sha_matches_evidence" in item for item in report["provenance_failures"]))
+        self.assertTrue(
+            any(
+                "artifact_head_sha_matches_evidence" in item
+                for item in report["provenance_failures"]
+            )
+        )
 
     def test_mismatched_commit_tree_fails_closed(self):
         report = self.verify_case(tree_sha="f" * 40)
         self.assertEqual(report["result"], "FAIL")
-        self.assertTrue(any("source_tree_matches_github_commit" in item for item in report["provenance_failures"]))
+        self.assertTrue(
+            any(
+                "source_tree_matches_github_commit" in item
+                for item in report["provenance_failures"]
+            )
+        )
 
 
 if __name__ == "__main__":
