@@ -22,7 +22,12 @@ SOURCE_TREE = "b" * 40
 EXPECTED_SUBJECT = "c" * 64
 
 
-def _evidence(tmp_path: Path) -> Path:
+def _evidence(
+    tmp_path: Path,
+    *,
+    source_sha: object = SOURCE_SHA,
+    source_tree: object = SOURCE_TREE,
+) -> Path:
     evidence_dir = tmp_path / "evidence"
     evidence_dir.mkdir()
     (evidence_dir / "Q13_POSTGRES_DR.json").write_text(
@@ -32,8 +37,8 @@ def _evidence(tmp_path: Path) -> Path:
             "artifact_id": 123,
             "artifact_digest": "sha256:abc123",
             "github_run_id": 456,
-            "source_sha": SOURCE_SHA,
-            "source_tree": SOURCE_TREE,
+            "source_sha": source_sha,
+            "source_tree": source_tree,
             "result": "PASS_CANDIDATE",
         }), encoding="utf-8"
     )
@@ -56,7 +61,15 @@ def _api_responses(
 
 
 class ProvenanceVerifierTests(unittest.TestCase):
-    def verify_case(self, *, run_sha=SOURCE_SHA, artifact_sha=SOURCE_SHA, tree_sha=SOURCE_TREE):
+    def verify_case(
+        self,
+        *,
+        run_sha=SOURCE_SHA,
+        artifact_sha=SOURCE_SHA,
+        tree_sha=SOURCE_TREE,
+        source_sha=SOURCE_SHA,
+        source_tree=SOURCE_TREE,
+    ):
         with (
             tempfile.TemporaryDirectory() as tmp,
             patch.object(verifier, "EVIDENCE_FILES", ("Q13_POSTGRES_DR.json",)),
@@ -72,7 +85,9 @@ class ProvenanceVerifierTests(unittest.TestCase):
                 repository=REPOSITORY,
                 token="test-token-not-a-real-secret",
                 expected_subject=EXPECTED_SUBJECT,
-                evidence_dir=_evidence(Path(tmp)),
+                evidence_dir=_evidence(
+                    Path(tmp), source_sha=source_sha, source_tree=source_tree
+                ),
             )
 
     def test_matching_run_commit_and_tree_pass(self):
@@ -80,6 +95,20 @@ class ProvenanceVerifierTests(unittest.TestCase):
         self.assertEqual(report["result"], "PASS")
         self.assertTrue(report["evidence"][0]["checks"]["run_head_sha_matches_evidence"])
         self.assertTrue(report["evidence"][0]["checks"]["source_tree_matches_github_commit"])
+
+    def test_malformed_source_sha_fails_closed_before_api_lookup(self):
+        report = self.verify_case(source_sha="z" * 40)
+        self.assertEqual(report["result"], "FAIL")
+        self.assertTrue(
+            any("source_sha missing or invalid" in item for item in report["provenance_failures"])
+        )
+
+    def test_missing_source_tree_fails_closed_before_api_lookup(self):
+        report = self.verify_case(source_tree=None)
+        self.assertEqual(report["result"], "FAIL")
+        self.assertTrue(
+            any("source_tree missing or invalid" in item for item in report["provenance_failures"])
+        )
 
     def test_mismatched_workflow_head_sha_fails_closed(self):
         report = self.verify_case(run_sha="d" * 40)
