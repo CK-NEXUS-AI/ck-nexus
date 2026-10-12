@@ -56,7 +56,7 @@ def _api_responses(
         {"expired": False, "digest": "sha256:abc123", "workflow_run": {
             "id": 456, "head_branch": "release/q10-q16-closure", "head_sha": artifact_sha}},
         {"repository": {"full_name": REPOSITORY}, "head_sha": run_sha,
-         "conclusion": "success", "name": "Q13 gate"},
+         "head_branch": "release/q10-q16-closure", "conclusion": "success", "name": "Q13 gate"},
         {"commit": {"tree": {"sha": tree_sha}}},
     ]
 
