@@ -137,8 +137,8 @@ def verify(
             "artifact_run_match": workflow_run.get("id") == run_id,
             "run_repository_match": (run.get("repository") or {}).get("full_name") == repository,
             "branch_allowed": allowed_branches is None or actual_branch in allowed_branches,
-            "run_head_sha_matches_evidence": run.get("head_sha") == source_sha,
-            "artifact_head_sha_matches_evidence": workflow_run.get("head_sha") == source_sha,
+            "artifact_head_sha_matches_run": workflow_run.get("head_sha") == run.get("head_sha"),
+            "run_branch_matches_artifact": run.get("head_branch") == actual_branch,
             "source_tree_matches_github_commit": (
                 (source_commit.get("commit") or {}).get("tree", {}).get("sha")
                 == source_tree
