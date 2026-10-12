@@ -132,8 +132,13 @@ class ProvenanceVerifierTests(unittest.TestCase):
                 side_effect=[
                     {"expired": False, "digest": "sha256:abc123", "workflow_run": {
                         "id": 456, "head_branch": "release/q10-q16-closure", "head_sha": RUN_SHA}},
-                    {"repository": {"full_name": REPOSITORY}, "head_sha": RUN_SHA,
-                     "head_branch": "different-branch", "conclusion": "success", "name": "Q13 gate"},
+                    {
+                        "repository": {"full_name": REPOSITORY},
+                        "head_sha": RUN_SHA,
+                        "head_branch": "different-branch",
+                        "conclusion": "success",
+                        "name": "Q13 gate",
+                    },
                     {"commit": {"tree": {"sha": SOURCE_TREE}}},
                 ],
             ),
