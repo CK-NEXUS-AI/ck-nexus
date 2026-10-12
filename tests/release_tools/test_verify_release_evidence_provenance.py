@@ -19,6 +19,7 @@ SPEC.loader.exec_module(verifier)
 REPOSITORY = "spinlnw10-art/ck-nexus"
 SOURCE_SHA = "a" * 40
 SOURCE_TREE = "b" * 40
+RUN_SHA = "d" * 40
 EXPECTED_SUBJECT = "c" * 64
 
 
@@ -47,8 +48,8 @@ def _evidence(
 
 def _api_responses(
     *,
-    run_sha: str = SOURCE_SHA,
-    artifact_sha: str = SOURCE_SHA,
+    run_sha: str = RUN_SHA,
+    artifact_sha: str = RUN_SHA,
     tree_sha: str = SOURCE_TREE,
 ):
     return [
@@ -64,8 +65,8 @@ class ProvenanceVerifierTests(unittest.TestCase):
     def verify_case(
         self,
         *,
-        run_sha=SOURCE_SHA,
-        artifact_sha=SOURCE_SHA,
+        run_sha=RUN_SHA,
+        artifact_sha=RUN_SHA,
         tree_sha=SOURCE_TREE,
         source_sha=SOURCE_SHA,
         source_tree=SOURCE_TREE,
@@ -93,7 +94,8 @@ class ProvenanceVerifierTests(unittest.TestCase):
     def test_matching_run_commit_and_tree_pass(self):
         report = self.verify_case()
         self.assertEqual(report["result"], "PASS")
-        self.assertTrue(report["evidence"][0]["checks"]["run_head_sha_matches_evidence"])
+        self.assertNotEqual(SOURCE_SHA, RUN_SHA)
+        self.assertTrue(report["evidence"][0]["checks"]["artifact_head_sha_matches_run"])
         self.assertTrue(report["evidence"][0]["checks"]["source_tree_matches_github_commit"])
 
     def test_malformed_source_sha_fails_closed_before_api_lookup(self):
@@ -110,24 +112,41 @@ class ProvenanceVerifierTests(unittest.TestCase):
             any("source_tree missing or invalid" in item for item in report["provenance_failures"])
         )
 
-    def test_mismatched_workflow_head_sha_fails_closed(self):
-        report = self.verify_case(run_sha="d" * 40)
-        self.assertEqual(report["result"], "FAIL")
-        self.assertTrue(
-            any(
-                "run_head_sha_matches_evidence" in item
-                for item in report["provenance_failures"]
-            )
-        )
-
-    def test_mismatched_artifact_head_sha_fails_closed(self):
+    def test_artifact_head_sha_must_match_workflow_run(self):
         report = self.verify_case(artifact_sha="e" * 40)
         self.assertEqual(report["result"], "FAIL")
         self.assertTrue(
             any(
-                "artifact_head_sha_matches_evidence" in item
+                "artifact_head_sha_matches_run" in item
                 for item in report["provenance_failures"]
             )
+        )
+
+    def test_run_branch_must_match_artifact_branch(self):
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch.object(verifier, "EVIDENCE_FILES", ("Q13_POSTGRES_DR.json",)),
+            patch.object(
+                verifier,
+                "_api_json",
+                side_effect=[
+                    {"expired": False, "digest": "sha256:abc123", "workflow_run": {
+                        "id": 456, "head_branch": "release/q10-q16-closure", "head_sha": RUN_SHA}},
+                    {"repository": {"full_name": REPOSITORY}, "head_sha": RUN_SHA,
+                     "head_branch": "different-branch", "conclusion": "success", "name": "Q13 gate"},
+                    {"commit": {"tree": {"sha": SOURCE_TREE}}},
+                ],
+            ),
+        ):
+            report = verifier.verify(
+                repository=REPOSITORY,
+                token="test-token-not-a-real-secret",
+                expected_subject=EXPECTED_SUBJECT,
+                evidence_dir=_evidence(Path(tmp)),
+            )
+        self.assertEqual(report["result"], "FAIL")
+        self.assertTrue(
+            any("run_branch_matches_artifact" in item for item in report["provenance_failures"])
         )
 
     def test_mismatched_commit_tree_fails_closed(self):
