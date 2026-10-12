@@ -73,6 +73,14 @@ class ScannerApiTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertEqual(payload["error"], "no_allowed_scanners")
 
+    def test_concurrent_scan_is_rejected(self):
+        with patch.object(scanner.SCAN_LOCK, "acquire", return_value=False):
+            status, payload = self.post(
+                {"target": str(self.repo), "scanners": ["trivy"]}
+            )
+        self.assertEqual(status, 429)
+        self.assertEqual(payload["error"], "scan_in_progress")
+
     def test_dirty_checkout_fails_closed(self):
         (self.repo / "untracked.txt").write_text("dirty\n", encoding="utf-8")
         status, payload = self.post({"target": str(self.repo), "scanners": ["trivy"]})
