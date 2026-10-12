@@ -12,6 +12,7 @@ import re
 import secrets
 import subprocess
 import tempfile
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -34,6 +35,7 @@ SEMGREP_BIN = os.environ.get("CKNEXUS_SEMGREP_BIN", "/usr/local/bin/semgrep")
 MAX_BODY_BYTES = 1_048_576
 ALLOWED_SCANNERS = frozenset({"trivy", "semgrep"})
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+SCAN_LOCK = threading.BoundedSemaphore(value=1)
 
 
 class ScannerError(RuntimeError):
@@ -91,8 +93,12 @@ def _run_scanner(name: str, root: Path) -> dict[str, Any]:
             data = json.loads(output_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise ScannerError("scanner_output_invalid") from exc
+        if not isinstance(data, dict):
+            raise ScannerError("scanner_output_invalid")
         if name == "trivy":
             results = data.get("Results") or []
+            if not isinstance(results, list) or any(not isinstance(item, dict) for item in results):
+                raise ScannerError("scanner_output_invalid")
             vulnerabilities = sum(len(item.get("Vulnerabilities") or []) for item in results)
             secrets_found = sum(len(item.get("Secrets") or []) for item in results)
             summary = {
@@ -101,10 +107,14 @@ def _run_scanner(name: str, root: Path) -> dict[str, Any]:
                 "secrets": secrets_found,
             }
         else:
+            findings = data.get("results") or []
+            errors = data.get("errors") or []
+            if not isinstance(findings, list) or not isinstance(errors, list):
+                raise ScannerError("scanner_output_invalid")
             summary = {
                 "exit_code": result.returncode,
-                "findings": len(data.get("results") or []),
-                "errors": len(data.get("errors") or []),
+                "findings": len(findings),
+                "errors": len(errors),
             }
         return summary
     except subprocess.TimeoutExpired as exc:
@@ -198,51 +208,57 @@ def create_handler(
                 self._reply(400, {"error": "no_allowed_scanners"})
                 return
 
-            try:
-                identity = _source_identity(root)
-            except ScannerError as exc:
-                status = 409 if str(exc) == "source_not_clean" else 503
-                self._reply(status, {"error": str(exc)})
+            if not SCAN_LOCK.acquire(blocking=False):
+                self._reply(429, {"error": "scan_in_progress"})
                 return
-            except (OSError, subprocess.SubprocessError):
-                self._reply(503, {"error": "source_identity_unavailable"})
-                return
-
             try:
-                summaries = {name: _run_scanner(name, root) for name in scanners}
-                evidence_path.mkdir(parents=True, exist_ok=True)
-                scan_id = (
-                    "scan-" + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-                    + "-" + secrets.token_hex(4)
-                )
-                artifact = {
-                    "schema_version": 2,
-                    "scan_id": scan_id,
-                    "source_sha": identity["source_sha"],
-                    "source_tree": identity["source_tree"],
-                    "source_state": "CLEAN",
-                    "summary": summaries,
-                    "status": "EXECUTED_NOT_VERIFIED",
-                }
-                raw = json.dumps(artifact, sort_keys=True, separators=(",", ":")).encode("utf-8")
-                digest = hashlib.sha256(raw).hexdigest()
-                destination = evidence_path / (scan_id + ".json")
-                fd, temp_name = tempfile.mkstemp(prefix=".scan-", dir=evidence_path)
                 try:
-                    with os.fdopen(fd, "wb") as stream:
-                        stream.write(raw)
-                        stream.flush()
-                        os.fsync(stream.fileno())
-                    os.chmod(temp_name, 0o600)
-                    os.replace(temp_name, destination)
-                finally:
-                    Path(temp_name).unlink(missing_ok=True)
-                self._reply(200, {**artifact, "artifact_sha256": digest})
-            except ScannerError as exc:
-                self._reply(502, {"error": str(exc)})
-            except (OSError, subprocess.SubprocessError, ValueError):
-                self._reply(502, {"error": "scan_execution_failed"})
-
+                    identity = _source_identity(root)
+                except ScannerError as exc:
+                    status = 409 if str(exc) == "source_not_clean" else 503
+                    self._reply(status, {"error": str(exc)})
+                    return
+                except (OSError, subprocess.SubprocessError):
+                    self._reply(503, {"error": "source_identity_unavailable"})
+                    return
+    
+                try:
+                    summaries = {name: _run_scanner(name, root) for name in scanners}
+                    evidence_path.mkdir(parents=True, exist_ok=True)
+                    scan_id = (
+                        "scan-" + time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+                        + "-" + secrets.token_hex(4)
+                    )
+                    artifact = {
+                        "schema_version": 2,
+                        "scan_id": scan_id,
+                        "source_sha": identity["source_sha"],
+                        "source_tree": identity["source_tree"],
+                        "source_state": "CLEAN",
+                        "summary": summaries,
+                        "status": "EXECUTED_NOT_VERIFIED",
+                    }
+                    raw = json.dumps(artifact, sort_keys=True, separators=(",", ":")).encode("utf-8")
+                    digest = hashlib.sha256(raw).hexdigest()
+                    destination = evidence_path / (scan_id + ".json")
+                    fd, temp_name = tempfile.mkstemp(prefix=".scan-", dir=evidence_path)
+                    try:
+                        with os.fdopen(fd, "wb") as stream:
+                            stream.write(raw)
+                            stream.flush()
+                            os.fsync(stream.fileno())
+                        os.chmod(temp_name, 0o600)
+                        os.replace(temp_name, destination)
+                    finally:
+                        Path(temp_name).unlink(missing_ok=True)
+                    self._reply(200, {**artifact, "artifact_sha256": digest})
+                except ScannerError as exc:
+                    self._reply(502, {"error": str(exc)})
+                except (OSError, subprocess.SubprocessError, ValueError):
+                    self._reply(502, {"error": "scan_execution_failed"})
+    
+            finally:
+                SCAN_LOCK.release()
     return Handler
 
 
