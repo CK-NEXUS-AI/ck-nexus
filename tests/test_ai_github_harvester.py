@@ -1,6 +1,23 @@
 from __future__ import annotations
 
+import subprocess
+
+from scripts import ai_github_harvester as harvester
 from scripts.ai_github_harvester import classify_cli_error
+
+
+def test_search_uses_get_for_repository_search(monkeypatch) -> None:
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(command, **kwargs):
+        captured["command"] = command
+        return subprocess.CompletedProcess(command, 0, '{"items": []}', "")
+
+    monkeypatch.setattr(harvester.subprocess, "run", fake_run)
+
+    assert harvester.search("topic:ai-agents stars:>100", limit=1) == []
+    assert captured["command"][:4] == ["gh", "api", "-X", "GET"]
+    assert "q=topic:ai-agents stars:>100" in captured["command"]
 
 
 def test_classify_rate_limit_without_echoing_cli_output() -> None:
