@@ -42,7 +42,7 @@ def classify_cli_error(stderr: str) -> str:
 
 def search(query: str, limit: int = 20) -> list[dict]:
     command = [
-        "gh", "api", "search/repositories",
+        "gh", "api", "-X", "GET", "search/repositories",
         "-f", "q=" + query,
         "-f", "per_page=" + str(limit),
     ]
