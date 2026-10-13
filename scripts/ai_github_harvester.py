@@ -13,11 +13,7 @@ OUT = ROOT / "evidence" / "ai_factory" / "github_signals.jsonl"
 def classify_cli_error(stderr: str) -> str:
     """Return a safe error category without exposing raw CLI output or credentials."""
     message = stderr.lower()
-    if (
-        "api rate limit exceeded" in message
-        or "rate limit" in message
-        or "http 429" in message
-    ):
+    if "api rate limit exceeded" in message or "rate limit" in message or "http 429" in message:
         return "rate_limited"
     if (
         "bad credentials" in message
@@ -25,11 +21,7 @@ def classify_cli_error(stderr: str) -> str:
         or "authentication required" in message
     ):
         return "authentication_failed"
-    if (
-        "http 422" in message
-        or "validation failed" in message
-        or "invalid query" in message
-    ):
+    if "http 422" in message or "validation failed" in message or "invalid query" in message:
         return "invalid_query"
     if "resource not accessible by integration" in message or "http 403" in message:
         return "permission_denied"
@@ -42,18 +34,20 @@ def classify_cli_error(stderr: str) -> str:
 
 def search(query: str, limit: int = 20) -> list[dict]:
     command = [
-        "gh", "api", "-X", "GET", "search/repositories",
-        "-f", "q=" + query,
-        "-f", "per_page=" + str(limit),
+        "gh",
+        "api",
+        "-X",
+        "GET",
+        "search/repositories",
+        "-f",
+        "q=" + query,
+        "-f",
+        "per_page=" + str(limit),
     ]
-    result = subprocess.run(
-        command, cwd=ROOT, text=True, capture_output=True, check=False
-    )
+    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
     if result.returncode != 0:
         category = classify_cli_error(result.stderr)
-        raise RuntimeError(
-            f"github_search_failed:{category}:exit={result.returncode}"
-        )
+        raise RuntimeError(f"github_search_failed:{category}:exit={result.returncode}")
     payload = json.loads(result.stdout)
     return payload.get("items", [])
 
@@ -86,12 +80,17 @@ def main() -> int:
                     "license": (item.get("license") or {}).get("spdx_id"),
                 }
                 handle.write(json.dumps(signal, sort_keys=True) + "\n")
-    print(json.dumps({
-        "kind": "GITHUB_MARKET_HARVEST",
-        "queries": len(queries),
-        "output": str(OUT),
-        "provenance": True,
-    }, indent=2))
+    print(
+        json.dumps(
+            {
+                "kind": "GITHUB_MARKET_HARVEST",
+                "queries": len(queries),
+                "output": str(OUT),
+                "provenance": True,
+            },
+            indent=2,
+        )
+    )
     return 0
 
 
