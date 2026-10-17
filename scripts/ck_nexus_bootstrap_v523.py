@@ -288,7 +288,7 @@ def _run_bounded(
     deadline = started + max(0.0, timeout)
     term_grace = 0.5
     drain_grace = 0.25
-    with subprocess.Popen(
+    proc = subprocess.Popen(
         list(argv),
         shell=False,
         cwd=cwd,
@@ -296,7 +296,8 @@ def _run_bounded(
         stderr=subprocess.STDOUT,
         start_new_session=True,
         bufsize=0,
-    ) as proc:
+    )
+    try:
         assert proc.stdout is not None
         with selectors.DefaultSelector() as selector:
             selector.register(proc.stdout, selectors.EVENT_READ)
@@ -342,21 +343,23 @@ def _run_bounded(
             # pipe beyond the deadline; EOF is not a prerequisite for returning.
             if selector.get_map():
                 selector.unregister(proc.stdout)
-        proc.stdout.close()
+    finally:
+        if proc.stdout is not None and not proc.stdout.closed:
+            proc.stdout.close()
+    try:
+        return_code = proc.wait(timeout=0.25)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(proc.pid, signal.SIGKILL)
+        with contextlib.suppress(ProcessLookupError):
+            proc.kill()
         try:
-            return_code = proc.wait(timeout=0.25)
+            return_code = proc.wait(timeout=0.5)
         except subprocess.TimeoutExpired:
-            with contextlib.suppress(ProcessLookupError):
-                os.killpg(proc.pid, signal.SIGKILL)
-            with contextlib.suppress(ProcessLookupError):
-                proc.kill()
-            try:
-                return_code = proc.wait(timeout=0.5)
-            except subprocess.TimeoutExpired:
-                # A process in uninterruptible kernel sleep cannot be reaped
-                # synchronously; preserve bounded return behavior and timeout.
-                return_code = 124
-                timed_out = True
+            # Do not call an unbounded wait here: a process stuck in kernel
+            # uninterruptible sleep must not defeat the caller's deadline.
+            return_code = 124
+            timed_out = True
     if timed_out:
         return_code = 124
     return bytes(kept), return_code, timed_out, total > len(kept), total
