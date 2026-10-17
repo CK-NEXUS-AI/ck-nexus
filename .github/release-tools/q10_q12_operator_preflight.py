@@ -109,7 +109,10 @@ def main() -> int:
         "failures": failures,
         "result": "PASS" if not failures else "FAIL",
         "production_ready": False,
-        "note": "This preflight validates operator inputs only; it never promotes Q10/Q11/Q12 to PASS.",
+        "note": (
+            "This preflight validates operator inputs only; "
+            "it never promotes Q10/Q11/Q12 to PASS."
+        ),
     }
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if not failures else 1

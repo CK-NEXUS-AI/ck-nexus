@@ -51,13 +51,13 @@ if [ -n "$LAUNCHER" ]; then
   touch "$ROOT/agnes-seccomp"
   mount --bind "$LAUNCHER" "$ROOT/agnes-seccomp"
   mount -o remount,bind,ro "$ROOT/agnes-seccomp"
-  exec chroot "$ROOT" /usr/bin/env -i \
+  exec /usr/sbin/chroot "$ROOT" /usr/bin/env -i \
     PATH=/opt/pyvenv/bin:/usr/local/bin:/usr/bin:/bin \
     HOME=/tmp TMPDIR=/tmp PYTHONPATH=/workspace CKNEXUS_SANDBOX=hardened_linux_namespace \
     /usr/bin/setpriv --no-new-privs --bounding-set=-all --inh-caps=-all --ambient-caps=-all \
     /bin/bash -c 'cd /workspace && exec /agnes-seccomp "$@"' _ "$@"
 fi
-exec chroot "$ROOT" /usr/bin/env -i \
+exec /usr/sbin/chroot "$ROOT" /usr/bin/env -i \
   PATH=/opt/pyvenv/bin:/usr/local/bin:/usr/bin:/bin \
   HOME=/tmp \
   TMPDIR=/tmp \

@@ -23,10 +23,17 @@ STAGES = (
 class IdeaEngine:
     """Proposal-only R11 engine. It has no mutation/deploy/send/billing credential tools."""
 
-    FORBIDDEN_CAPABILITIES = frozenset({
-        "deploy", "external_send", "publish", "billing_mutation", "credential_export",
-        "approval_mutation", "release_gate_mutation",
-    })
+    FORBIDDEN_CAPABILITIES = frozenset(
+        {
+            "deploy",
+            "external_send",
+            "publish",
+            "billing_mutation",
+            "credential_export",
+            "approval_mutation",
+            "release_gate_mutation",
+        }
+    )
 
     def __init__(self, graph: IdeaGraph | None = None) -> None:
         self.graph = graph or IdeaGraph(Path("idea_graph.json"))
@@ -69,9 +76,7 @@ class IdeaEngine:
         next_experiments: list[str] | None = None,
     ) -> ProposalPacket:
         related = tuple(
-            edge.to_node_id
-            for edge in self.graph.edges.values()
-            if edge.from_node_id == node.id
+            edge.to_node_id for edge in self.graph.edges.values() if edge.from_node_id == node.id
         )
         return ProposalPacket(
             proposal_id=str(uuid.uuid4()),
@@ -90,4 +95,6 @@ class IdeaEngine:
 
     def assert_capability_allowed(self, capability: str) -> None:
         if capability in self.FORBIDDEN_CAPABILITIES:
-            raise PermissionError("Idea Engine is proposal-only and cannot perform this capability.")
+            raise PermissionError(
+                "Idea Engine is proposal-only and cannot perform this capability."
+            )

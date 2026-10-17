@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -17,6 +17,7 @@ from creator_app.agnes.execution.dispatcher import (
 )
 from creator_app.agnes.execution.guards import ExecutionPolicyEngine
 from creator_app.agnes.execution.idempotency import SQLiteIdempotencyStore
+from creator_app.agnes.execution.omni import OMNIExecutionContext
 from creator_app.agnes.execution.phase3 import (
     AutonomousDevController,
     RedisIdempotencyStore,
@@ -82,8 +83,12 @@ class AgnesNervousSystem:
         environment: str = "development",
         phase3_redis_url: str = "",
         phase3_cgroup_root: Path = Path("/sys/fs/cgroup"),
+        omni_context_provider: (
+            Callable[[SkillExecutionRequest], OMNIExecutionContext | None] | None
+        ) = None,
     ) -> None:
         self.skill_file = skill_file
+        self.omni_context_provider = omni_context_provider
         self.registry = AgnesSkillRegistry.load(skill_file)
         self.ledger = AppendOnlyLedger(ledger_path)
         self.provider_router = provider_router
@@ -148,7 +153,8 @@ class AgnesNervousSystem:
             )
             workspace_manager = SandboxWorkspaceManager(sandbox_policy)
             if phase3_enabled:
-                assert cgroups is not None
+                if cgroups is None:
+                    raise RuntimeError("cgroup_v2_enforcement_required: manager unavailable")
                 runner = HardenedLinuxNamespaceRunner(sandbox_policy, cgroups=cgroups)
             else:
                 runner = LinuxNamespaceRunner(sandbox_policy)
@@ -311,7 +317,17 @@ class AgnesNervousSystem:
             allowlist_paths=tuple(plan_step.get("allowlist_paths", ())),
             granted_capabilities=tuple(plan_step.get("granted_capabilities", ())),
         )
-        return await self.dispatcher.execute(request)
+        try:
+            omni_context = (
+                self.omni_context_provider(request)
+                if self.omni_context_provider is not None
+                else None
+            )
+        except Exception:
+            # A failed trusted-context provider must not escape the runtime or
+            # grant execution; the dispatcher receives no context and blocks.
+            omni_context = None
+        return await self.dispatcher.execute(request, omni_context=omni_context)
 
     def discovery_sources(self) -> list[dict[str, object]]:
         return self.discovery.source_catalog()

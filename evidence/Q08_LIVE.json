@@ -1,7 +1,7 @@
 {
   "gate": "Q08",
-  "github_head_sha": "cd84d0d3953032b05aa0304a5f9fda1dc0e26f18",
-  "github_run_id": 34926729111,
+  "github_head_sha": "75cc79b1a431652ac7a282a424d1101a9e412f07",
+  "github_run_id": 38155124592,
   "postgresql_live": "PASS",
   "properties_verified": [
     "concurrent_single_winner",
@@ -11,7 +11,7 @@
   "redis_live": "PASS",
   "result": "PASS",
   "schema_version": 2,
-  "source_subject_manifest_sha256": "bc77d4edf8615762fbb38331ea954f0ed5e3c44b3bc4a6df676410048685c45a",
+  "source_subject_manifest_sha256": "8a23045d61a40c672ee6a8b92e9daca2fdde20f773f2c2fe48c69ca89b4f20ec",
   "stale_on_subject_change": true,
-  "verified_source_sha": "cd84d0d3953032b05aa0304a5f9fda1dc0e26f18"
+  "verified_source_sha": "75cc79b1a431652ac7a282a424d1101a9e412f07"
 }
