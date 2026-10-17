@@ -13,9 +13,12 @@ import json
 import os
 import re
 import secrets
+import selectors
+import signal
 import stat
 import subprocess
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -63,9 +66,9 @@ class SecurePathManager:
     @staticmethod
     def create_run_dir(base_dir: str, run_id: str) -> tuple[Path, int]:
         validate_name(run_id)
-        raw = os.path.abspath(base_dir)
-        if not os.path.isabs(raw):
+        if not isinstance(base_dir, str) or not os.path.isabs(base_dir):
             raise ValueError("evidence base must be absolute")
+        raw = os.path.abspath(base_dir)
         parts = [p for p in raw.split(os.sep) if p]
         fd = os.open(os.sep, DIR_FLAGS)
         try:
@@ -86,6 +89,14 @@ class SecurePathManager:
 
 
 class EvidenceStore:
+    """Local integrity checks; not an authenticated tamper-proof trust anchor.
+
+    The hash chain detects accidental corruption and edits that do not also
+    rewrite the chain. A writer with access to this directory can recompute it.
+    Production evidence must be externally signed or anchored in an append-only
+    store before it is treated as independently tamper-evident.
+    """
+
     def __init__(self, run_dir: Path, run_fd: int):
         self.run_dir = run_dir
         self.run_fd = run_fd
@@ -244,10 +255,73 @@ class EvidenceStore:
         try:
             fcntl.flock(lock_fd, fcntl.LOCK_EX)
             records = self._load_chain_locked()
-            return {"chain_intact": bool(records), "records": len(records), "recovery_log": []}
+            return {
+                "chain_intact": bool(records),
+                "records": len(records),
+                "recovery_log": [],
+                "trust_boundary": (
+                    "local_hash_chain_only_not_authenticated_against_same_user_writer"
+                ),
+            }
         finally:
             fcntl.flock(lock_fd, fcntl.LOCK_UN)
             os.close(lock_fd)
+
+
+def _run_bounded(
+    argv: tuple[str, ...], cwd: str, timeout: float, limit: int
+) -> tuple[bytes, int, bool, bool, int]:
+    """Drain child output continuously while retaining at most `limit` bytes.
+
+    A new session lets timeout handling terminate the entire process group,
+    including descendants that inherited stdout. Output is retained as bytes so
+    invalid UTF-8 cannot prevent evidence collection.
+    """
+    kept = bytearray()
+    total = 0
+    timed_out = False
+    term_sent_at: float | None = None
+    started = time.monotonic()
+    with subprocess.Popen(
+        list(argv),
+        shell=False,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+        bufsize=0,
+    ) as proc:
+        assert proc.stdout is not None
+        with selectors.DefaultSelector() as selector:
+            selector.register(proc.stdout, selectors.EVENT_READ)
+            while selector.get_map():
+                now = time.monotonic()
+                if not timed_out and now - started >= timeout:
+                    timed_out = True
+                    term_sent_at = now
+                    with contextlib.suppress(ProcessLookupError):
+                        os.killpg(proc.pid, signal.SIGTERM)
+                elif timed_out and term_sent_at is not None and now - term_sent_at >= 1.0:
+                    with contextlib.suppress(ProcessLookupError):
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    term_sent_at = None
+                events = selector.select(timeout=0.05)
+                for key, _ in events:
+                    try:
+                        chunk = os.read(key.fd, 65536)
+                    except InterruptedError:
+                        continue
+                    if not chunk:
+                        selector.unregister(key.fileobj)
+                        continue
+                    total += len(chunk)
+                    remaining = limit - len(kept)
+                    if remaining > 0:
+                        kept.extend(chunk[:remaining])
+        return_code = proc.wait()
+    if timed_out:
+        return_code = 124
+    return bytes(kept), return_code, timed_out, total > len(kept), total
 
 
 def execute(profile: str, evidence_base: str, timeout: int = 300) -> dict[str, Any]:
@@ -267,40 +341,22 @@ def execute(profile: str, evidence_base: str, timeout: int = 300) -> dict[str, A
         run_id = datetime.now(UTC).strftime("run_%Y%m%dT%H%M%S_") + secrets.token_hex(4)
         run_dir, run_fd = SecurePathManager.create_run_dir(evidence_base, run_id)
         store = EvidenceStore(run_dir, run_fd)
-        timed_out = False
-        try:
-            proc = subprocess.run(
-                list(PROFILES[profile]),
-                shell=False,
-                cwd=str(PROJECT_ROOT),
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                check=False,
-            )
-            output = (proc.stdout or "") + (proc.stderr or "")
-            process_code = proc.returncode
-        except subprocess.TimeoutExpired as exc:
-            timed_out = True
-            out = exc.stdout or b""
-            err = exc.stderr or b""
-            if isinstance(out, bytes):
-                out = out.decode("utf-8", errors="replace")
-            if isinstance(err, bytes):
-                err = err.decode("utf-8", errors="replace")
-            output = str(out) + str(err) + "\n[PROCESS TIMEOUT]\n"
-            process_code = 124
-        raw = output.encode("utf-8", errors="replace")
         limit = 1_048_576
-        stored = raw[:limit]
-        truncated = len(raw) > limit
+        stored, process_code, timed_out, truncated, total_output_bytes = _run_bounded(
+            PROFILES[profile], str(PROJECT_ROOT), timeout, limit
+        )
+        if timed_out:
+            marker = b"\n[PROCESS TIMEOUT]\n"
+            kept_output_bytes = max(0, limit - len(marker))
+            truncated = truncated or total_output_bytes > kept_output_bytes
+            stored = stored[:kept_output_bytes] + marker
         write_meta = store.write_artifact("terminal.log", stored)
         store.append_lineage(
             "terminal.log",
             {
                 "exit_code": process_code,
                 "truncated": truncated,
-                "original_size_bytes": len(raw),
+                "original_size_bytes": total_output_bytes,
                 "stored_size_bytes": len(stored),
                 "output_sha256": write_meta["sha256"],
                 "timed_out": timed_out,

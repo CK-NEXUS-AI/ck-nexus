@@ -1,7 +1,10 @@
+import json
 import os
+import sys
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
+from pathlib import Path
+from unittest.mock import patch
 
 from scripts import ck_nexus_bootstrap_v523 as bootstrap
 
@@ -60,6 +63,10 @@ class EvidenceStoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.store.append_lineage("..", {"exit_code": 0, "truncated": False})
 
+    def test_relative_evidence_base_rejected(self):
+        with self.assertRaisesRegex(ValueError, "must be absolute"):
+            bootstrap.SecurePathManager.create_run_dir("relative-evidence", "run_test")
+
     def test_reserved_metadata_rejected(self):
         self.store.write_artifact("terminal.log", b"x")
         with self.assertRaises(ValueError):
@@ -99,28 +106,70 @@ class ExecutionContractTests(unittest.TestCase):
             self.assertEqual(result["status"], "POLICY_REJECTED")
             self.assertEqual(result["exit_code"], 126)
 
-    @patch("scripts.ck_nexus_bootstrap_v523.subprocess.run")
-    def test_pass_requires_artifact_and_reconciliation(self, mock_run):
-        mock_run.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
-        with tempfile.TemporaryDirectory() as base:
+    def test_pass_requires_artifact_and_reconciliation(self):
+        command = (sys.executable, "-c", "print('ok')")
+        with (
+            patch.dict(bootstrap.PROFILES, {"bootstrap-tests": command}),
+            tempfile.TemporaryDirectory() as base,
+        ):
             result = bootstrap.execute("bootstrap-tests", base)
+            run_dir = next(Path(base).iterdir())
+            log = (run_dir / "terminal.log").read_bytes()
         self.assertEqual(result["status"], "PASS")
         self.assertEqual(result["exit_code"], 0)
         self.assertTrue(result["terminal_recorded"])
         self.assertTrue(result["reconciliation"]["chain_intact"])
-        self.assertTrue(mock_run.call_args.kwargs["shell"] is False)
+        self.assertIn(b"ok", log)
 
-    @patch("scripts.ck_nexus_bootstrap_v523.subprocess.run")
-    def test_timeout_is_recorded_as_failure(self, mock_run):
-        mock_run.side_effect = __import__("subprocess").TimeoutExpired(
-            ["pytest"], 1, output=b"partial", stderr=b"timeout"
+    def test_output_is_bounded_during_capture(self):
+        command = (
+            sys.executable,
+            "-c",
+            "import sys; sys.stdout.buffer.write(b'x' * 2200000)",
         )
-        with tempfile.TemporaryDirectory() as base:
-            result = bootstrap.execute("bootstrap-tests", base, timeout=1)
+        with (
+            patch.dict(bootstrap.PROFILES, {"bootstrap-tests": command}),
+            tempfile.TemporaryDirectory() as base,
+        ):
+            result = bootstrap.execute("bootstrap-tests", base)
+            run_dir = next(Path(base).iterdir())
+            log = (run_dir / "terminal.log").read_bytes()
+            chain = json.loads((run_dir / "chain.json").read_text())
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(len(log), 1048576)
+        self.assertTrue(chain[0]["truncated"])
+        self.assertEqual(chain[0]["original_size_bytes"], 2200000)
+
+    def test_binary_output_is_preserved(self):
+        command = (
+            sys.executable,
+            "-c",
+            "import sys; sys.stdout.buffer.write(bytes([255, 0, 128]))",
+        )
+        with (
+            patch.dict(bootstrap.PROFILES, {"bootstrap-tests": command}),
+            tempfile.TemporaryDirectory() as base,
+        ):
+            result = bootstrap.execute("bootstrap-tests", base)
+            run_dir = next(Path(base).iterdir())
+            log = (run_dir / "terminal.log").read_bytes()
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(log, bytes([255, 0, 128]))
+
+    def test_timeout_is_recorded_as_failure(self):
+        command = (sys.executable, "-c", "import time; time.sleep(5)")
+        with (
+            patch.dict(bootstrap.PROFILES, {"bootstrap-tests": command}),
+            tempfile.TemporaryDirectory() as base,
+        ):
+            result = bootstrap.execute("bootstrap-tests", base, timeout=0.1)
+            run_dir = next(Path(base).iterdir())
+            log = (run_dir / "terminal.log").read_bytes()
         self.assertEqual(result["status"], "TEST_FAILURE")
         self.assertEqual(result["exit_code"], 124)
         self.assertTrue(result["terminal_recorded"])
         self.assertTrue(result["reconciliation"]["chain_intact"])
+        self.assertIn(b"[PROCESS TIMEOUT]", log)
 
 
 if __name__ == "__main__":
