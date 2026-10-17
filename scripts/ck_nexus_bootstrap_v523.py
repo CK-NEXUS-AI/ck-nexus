@@ -1,0 +1,350 @@
+"""CK-NEXUS Bootstrap v5.2.3: fail-closed evidence runner.
+
+This module is intentionally not wired into production services. Use only a
+predefined test profile; never pass an arbitrary shell command.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import fcntl
+import hashlib
+import json
+import os
+import re
+import secrets
+import stat
+import subprocess
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROFILES = {
+    "bootstrap-tests": (
+        sys.executable,
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_ck_nexus_bootstrap_v523.py",
+        "-v",
+    ),
+}
+DIR_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+FILE_FLAGS = os.O_RDONLY | os.O_NOFOLLOW
+WRITE_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+
+
+class EvidenceError(RuntimeError):
+    pass
+
+
+def validate_name(name: str) -> None:
+    if not isinstance(name, str) or not SAFE_NAME.fullmatch(name) or name in {".", ".."}:
+        raise ValueError("invalid single-component name")
+
+
+def canonical_json(value: Any) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+        "utf-8"
+    )
+
+
+def sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+class SecurePathManager:
+    @staticmethod
+    def create_run_dir(base_dir: str, run_id: str) -> tuple[Path, int]:
+        validate_name(run_id)
+        raw = os.path.abspath(base_dir)
+        if not os.path.isabs(raw):
+            raise ValueError("evidence base must be absolute")
+        parts = [p for p in raw.split(os.sep) if p]
+        fd = os.open(os.sep, DIR_FLAGS)
+        try:
+            for part in parts:
+                validate_name(part)
+                nxt = os.open(part, DIR_FLAGS, dir_fd=fd)
+                os.close(fd)
+                fd = nxt
+            os.mkdir(run_id, mode=0o700, dir_fd=fd)
+            run_fd = os.open(run_id, DIR_FLAGS, dir_fd=fd)
+            st = os.fstat(run_fd)
+            if not stat.S_ISDIR(st.st_mode):
+                os.close(run_fd)
+                raise EvidenceError("run path is not a directory")
+            return Path(raw) / run_id, run_fd
+        finally:
+            os.close(fd)
+
+
+class EvidenceStore:
+    def __init__(self, run_dir: Path, run_fd: int):
+        self.run_dir = run_dir
+        self.run_fd = run_fd
+        self._tracking: dict[str, dict[str, Any]] = {}
+
+    def _read_file(self, name: str) -> bytes:
+        validate_name(name)
+        fd = os.open(name, FILE_FLAGS, dir_fd=self.run_fd)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise EvidenceError(f"not a regular evidence file: {name}")
+            chunks = []
+            while True:
+                chunk = os.read(fd, 65536)
+                if not chunk:
+                    return b"".join(chunks)
+                chunks.append(chunk)
+        finally:
+            os.close(fd)
+
+    def write_artifact(self, name: str, content: bytes) -> dict[str, Any]:
+        validate_name(name)
+        fd = os.open(name, WRITE_FLAGS, 0o600, dir_fd=self.run_fd)
+        written = 0
+        self._tracking[name] = {"state": "OPENED", "written": 0, "expected": len(content)}
+        try:
+            while written < len(content):
+                n = os.write(fd, content[written:])
+                if n <= 0:
+                    raise OSError("zero-byte write")
+                written += n
+                self._tracking[name]["written"] = written
+            os.fsync(fd)
+            self._tracking[name]["state"] = "SYNCED"
+        except Exception:
+            self._tracking[name]["state"] = "FAILED"
+            raise
+        finally:
+            os.close(fd)
+        os.fsync(self.run_fd)
+        actual = self._read_file(name)
+        digest = sha256(actual)
+        if actual != content:
+            raise EvidenceError(f"read-back mismatch: {name}")
+        return {"stored_size_bytes": len(actual), "sha256": digest}
+
+    def _load_chain_locked(self) -> list[dict[str, Any]]:
+        try:
+            raw_bytes = self._read_file("chain.json")
+        except FileNotFoundError:
+            return []
+        try:
+            records = json.loads(raw_bytes)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise EvidenceError("chain JSON is corrupt") from exc
+        if not isinstance(records, list):
+            raise EvidenceError("chain root must be a list")
+        previous = "0" * 64
+        for idx, rec in enumerate(records):
+            if not isinstance(rec, dict):
+                raise EvidenceError(f"invalid chain record at {idx}")
+            required = {
+                "idx",
+                "artifact",
+                "timestamp",
+                "sha256",
+                "size_bytes",
+                "prev_record_hash",
+                "record_hash",
+                "exit_code",
+                "truncated",
+            }
+            if not required.issubset(rec):
+                raise EvidenceError(f"missing fields at chain index {idx}")
+            if rec["idx"] != idx or rec["prev_record_hash"] != previous:
+                raise EvidenceError(f"broken sequence/linkage at chain index {idx}")
+            validate_name(rec["artifact"])
+            unhashed = {k: v for k, v in rec.items() if k != "record_hash"}
+            if sha256(canonical_json(unhashed)) != rec["record_hash"]:
+                raise EvidenceError(f"record hash mismatch at chain index {idx}")
+            artifact = self._read_file(rec["artifact"])
+            if len(artifact) != rec["size_bytes"] or sha256(artifact) != rec["sha256"]:
+                raise EvidenceError(f"artifact hash/size mismatch: {rec['artifact']}")
+            previous = rec["record_hash"]
+        return records
+
+    def append_lineage(self, artifact: str, meta: dict[str, Any]) -> None:
+        validate_name(artifact)
+        reserved = {
+            "idx",
+            "artifact",
+            "timestamp",
+            "sha256",
+            "size_bytes",
+            "prev_record_hash",
+            "record_hash",
+        }
+        if reserved.intersection(meta):
+            raise ValueError("metadata contains reserved fields")
+        lock_fd = os.open(
+            ".chain.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600, dir_fd=self.run_fd
+        )
+        try:
+            if not stat.S_ISREG(os.fstat(lock_fd).st_mode):
+                raise EvidenceError("chain lock is not a regular file")
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            records = self._load_chain_locked()
+            artifact_bytes = self._read_file(artifact)
+            prev = records[-1]["record_hash"] if records else "0" * 64
+            record = {
+                "idx": len(records),
+                "artifact": artifact,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "sha256": sha256(artifact_bytes),
+                "size_bytes": len(artifact_bytes),
+                "prev_record_hash": prev,
+                **meta,
+            }
+            record["record_hash"] = sha256(canonical_json(record))
+            records.append(record)
+            tmp = f".chain.tmp.{os.getpid()}.{secrets.token_hex(8)}"
+            tmp_fd = os.open(tmp, WRITE_FLAGS, 0o600, dir_fd=self.run_fd)
+            try:
+                payload = canonical_json(records) + b"\n"
+                offset = 0
+                while offset < len(payload):
+                    n = os.write(tmp_fd, payload[offset:])
+                    if n <= 0:
+                        raise OSError("zero-byte chain write")
+                    offset += n
+                os.fsync(tmp_fd)
+            except Exception:
+                os.close(tmp_fd)
+                with contextlib.suppress(OSError):
+                    os.unlink(tmp, dir_fd=self.run_fd)
+                raise
+            else:
+                os.close(tmp_fd)
+            try:
+                os.replace(tmp, "chain.json", src_dir_fd=self.run_fd, dst_dir_fd=self.run_fd)
+                os.fsync(self.run_fd)
+            except Exception:
+                with contextlib.suppress(OSError):
+                    os.unlink(tmp, dir_fd=self.run_fd)
+                raise
+        finally:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            finally:
+                os.close(lock_fd)
+
+    def reconcile(self) -> dict[str, Any]:
+        lock_fd = os.open(
+            ".chain.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600, dir_fd=self.run_fd
+        )
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            records = self._load_chain_locked()
+            return {"chain_intact": bool(records), "records": len(records), "recovery_log": []}
+        finally:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            os.close(lock_fd)
+
+
+def execute(profile: str, evidence_base: str, timeout: int = 300) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "status": "UNKNOWN",
+        "exit_code": 125,
+        "infra_failure": False,
+        "evidence_failure": False,
+        "terminal_recorded": False,
+    }
+    run_fd = None
+    store = None
+    try:
+        if profile not in PROFILES:
+            result.update(status="POLICY_REJECTED", exit_code=126)
+            return result
+        run_id = datetime.now(UTC).strftime("run_%Y%m%dT%H%M%S_") + secrets.token_hex(4)
+        run_dir, run_fd = SecurePathManager.create_run_dir(evidence_base, run_id)
+        store = EvidenceStore(run_dir, run_fd)
+        timed_out = False
+        try:
+            proc = subprocess.run(
+                list(PROFILES[profile]),
+                shell=False,
+                cwd=str(PROJECT_ROOT),
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+            output = (proc.stdout or "") + (proc.stderr or "")
+            process_code = proc.returncode
+        except subprocess.TimeoutExpired as exc:
+            timed_out = True
+            out = exc.stdout or b""
+            err = exc.stderr or b""
+            if isinstance(out, bytes):
+                out = out.decode("utf-8", errors="replace")
+            if isinstance(err, bytes):
+                err = err.decode("utf-8", errors="replace")
+            output = str(out) + str(err) + "\n[PROCESS TIMEOUT]\n"
+            process_code = 124
+        raw = output.encode("utf-8", errors="replace")
+        limit = 1_048_576
+        stored = raw[:limit]
+        truncated = len(raw) > limit
+        write_meta = store.write_artifact("terminal.log", stored)
+        store.append_lineage(
+            "terminal.log",
+            {
+                "exit_code": process_code,
+                "truncated": truncated,
+                "original_size_bytes": len(raw),
+                "stored_size_bytes": len(stored),
+                "output_sha256": write_meta["sha256"],
+                "timed_out": timed_out,
+            },
+        )
+        result["terminal_recorded"] = True
+        result["status"] = "TEST_FAILURE" if process_code else "PASS"
+        result["exit_code"] = process_code
+    except Exception as exc:
+        result.update(
+            status="EVIDENCE_INCOMPLETE",
+            exit_code=126,
+            infra_failure=True,
+            evidence_failure=True,
+            error_type=type(exc).__name__,
+            error=str(exc)[:500],
+        )
+    finally:
+        if store is not None:
+            try:
+                reconciled = store.reconcile()
+                if not reconciled["chain_intact"]:
+                    result.update(
+                        status="RECONCILIATION_FAILED", exit_code=127, evidence_failure=True
+                    )
+                result["reconciliation"] = reconciled
+            except Exception as exc:
+                result.update(
+                    status="RECONCILIATION_FAILED",
+                    exit_code=127,
+                    evidence_failure=True,
+                    reconciliation_error=type(exc).__name__,
+                )
+        if run_fd is not None:
+            os.close(run_fd)
+    return result
+
+
+def main() -> int:
+    base = os.environ.get("CKNEXUS_EVIDENCE_BASE", "/opt/cknexus/evidence")
+    result = execute("bootstrap-tests", base)
+    print(json.dumps(result, sort_keys=True))
+    return int(result["exit_code"])
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
