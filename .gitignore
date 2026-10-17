@@ -24,3 +24,4 @@ evals/results/*.json
 .env.p0
 releases/p0-evidence/private/
 backups/
+.venv*/
