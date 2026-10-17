@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -170,6 +171,57 @@ class ExecutionContractTests(unittest.TestCase):
         self.assertTrue(result["terminal_recorded"])
         self.assertTrue(result["reconciliation"]["chain_intact"])
         self.assertIn(b"[PROCESS TIMEOUT]", log)
+
+    def test_timeout_returns_when_escaped_descendant_holds_pipe(self):
+        command = (
+            sys.executable,
+            "-c",
+            "import os, subprocess, sys, time; "
+            "p=subprocess.Popen([sys.executable, '-c', "
+            "'import os,time; os.setsid(); time.sleep(30)'], "
+            "stdout=sys.stdout, stderr=sys.stderr); "
+            "print(p.pid, flush=True); time.sleep(30)",
+        )
+        started = time.monotonic()
+        descendant_pid = None
+        try:
+            output, code, timed_out, truncated, total = bootstrap._run_bounded(
+                command, os.getcwd(), timeout=0.2, limit=4096
+            )
+            elapsed = time.monotonic() - started
+            descendant_pid = int(output.strip().splitlines()[0])
+            self.assertTrue(timed_out)
+            self.assertEqual(code, 124)
+            self.assertLess(elapsed, 2.5, f"timeout path took {elapsed:.2f}s")
+            self.assertGreater(descendant_pid, 1)
+            self.assertGreaterEqual(total, len(output))
+        finally:
+            # The test intentionally creates a descendant that escapes the
+            # process group; clean it up explicitly so the test leaves no child.
+            if descendant_pid is not None:
+                try:
+                    os.kill(descendant_pid, 9)
+                except ProcessLookupError:
+                    pass
+
+    def test_timeout_bounds_continuous_output_flood(self):
+        command = (
+            sys.executable,
+            "-c",
+            "import os; chunk=b'z'*65536; "
+            "exec('while True: os.write(1, chunk)')",
+        )
+        started = time.monotonic()
+        output, code, timed_out, truncated, total = bootstrap._run_bounded(
+            command, os.getcwd(), timeout=0.2, limit=8192
+        )
+        elapsed = time.monotonic() - started
+        self.assertTrue(timed_out)
+        self.assertEqual(code, 124)
+        self.assertEqual(len(output), 8192)
+        self.assertTrue(truncated)
+        self.assertGreater(total, len(output))
+        self.assertLess(elapsed, 2.5, f"output flood took {elapsed:.2f}s")
 
 
 if __name__ == "__main__":

@@ -271,17 +271,23 @@ class EvidenceStore:
 def _run_bounded(
     argv: tuple[str, ...], cwd: str, timeout: float, limit: int
 ) -> tuple[bytes, int, bool, bool, int]:
-    """Drain child output continuously while retaining at most `limit` bytes.
+    """Drain child output under both an execution and pipe-drain deadline.
 
-    A new session lets timeout handling terminate the entire process group,
-    including descendants that inherited stdout. Output is retained as bytes so
-    invalid UTF-8 cannot prevent evidence collection.
+    The retained output is capped at ``limit`` bytes. On timeout, terminate the
+    process group, escalate to SIGKILL, and stop waiting for inherited pipe FDs
+    after a short bounded drain period. A descendant that escapes the process
+    group must not be able to keep this function blocked forever by holding the
+    stdout pipe open.
     """
     kept = bytearray()
     total = 0
     timed_out = False
     term_sent_at: float | None = None
+    drain_deadline: float | None = None
     started = time.monotonic()
+    deadline = started + max(0.0, timeout)
+    term_grace = 0.5
+    drain_grace = 0.25
     with subprocess.Popen(
         list(argv),
         shell=False,
@@ -294,18 +300,32 @@ def _run_bounded(
         assert proc.stdout is not None
         with selectors.DefaultSelector() as selector:
             selector.register(proc.stdout, selectors.EVENT_READ)
-            while selector.get_map():
+            while selector.get_map() or proc.poll() is None:
                 now = time.monotonic()
-                if not timed_out and now - started >= timeout:
+                if not timed_out and now >= deadline:
                     timed_out = True
                     term_sent_at = now
                     with contextlib.suppress(ProcessLookupError):
                         os.killpg(proc.pid, signal.SIGTERM)
-                elif timed_out and term_sent_at is not None and now - term_sent_at >= 1.0:
+                elif (
+                    timed_out
+                    and term_sent_at is not None
+                    and now - term_sent_at >= term_grace
+                ):
                     with contextlib.suppress(ProcessLookupError):
                         os.killpg(proc.pid, signal.SIGKILL)
                     term_sent_at = None
-                events = selector.select(timeout=0.05)
+                    drain_deadline = now + drain_grace
+                if drain_deadline is not None and now >= drain_deadline:
+                    break
+                wait_for = 0.05
+                if not timed_out:
+                    wait_for = min(wait_for, max(0.0, deadline - now))
+                elif term_sent_at is not None:
+                    wait_for = min(wait_for, max(0.0, term_grace - (now - term_sent_at)))
+                elif drain_deadline is not None:
+                    wait_for = min(wait_for, max(0.0, drain_deadline - now))
+                events = selector.select(timeout=wait_for)
                 for key, _ in events:
                     try:
                         chunk = os.read(key.fd, 65536)
@@ -318,7 +338,25 @@ def _run_bounded(
                     remaining = limit - len(kept)
                     if remaining > 0:
                         kept.extend(chunk[:remaining])
-        return_code = proc.wait()
+            # Closing our read end is intentional when a descendant retains the
+            # pipe beyond the deadline; EOF is not a prerequisite for returning.
+            if selector.get_map():
+                selector.unregister(proc.stdout)
+        proc.stdout.close()
+        try:
+            return_code = proc.wait(timeout=0.25)
+        except subprocess.TimeoutExpired:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(proc.pid, signal.SIGKILL)
+            with contextlib.suppress(ProcessLookupError):
+                proc.kill()
+            try:
+                return_code = proc.wait(timeout=0.5)
+            except subprocess.TimeoutExpired:
+                # A process in uninterruptible kernel sleep cannot be reaped
+                # synchronously; preserve bounded return behavior and timeout.
+                return_code = 124
+                timed_out = True
     if timed_out:
         return_code = 124
     return bytes(kept), return_code, timed_out, total > len(kept), total
