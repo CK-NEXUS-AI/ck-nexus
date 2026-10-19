@@ -171,10 +171,10 @@ class AgnesPipelineStartRequest(BaseModel):
     environment: Literal["development", "test", "staging", "production"] = "development"
     allowlist_paths: list[str] = Field(default_factory=lambda: ["**"], max_length=128)
     test_command: list[str] = Field(
-        default_factory=lambda: ["python", "-m", "compileall", "-q", "."], max_length=64
+        default_factory=lambda: ["python3", "-m", "compileall", "-q", "."], max_length=64
     )
     scan_command: list[str] = Field(
-        default_factory=lambda: ["python", "-c", "print('security-scan:PASS')"], max_length=64
+        default_factory=lambda: ["python3", "-c", "print('security-scan:PASS')"], max_length=64
     )
 
 

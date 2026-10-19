@@ -51,13 +51,13 @@ if [ -n "$LAUNCHER" ]; then
   touch "$ROOT/agnes-seccomp"
   mount --bind "$LAUNCHER" "$ROOT/agnes-seccomp"
   mount -o remount,bind,ro "$ROOT/agnes-seccomp"
-  exec chroot "$ROOT" /usr/bin/env -i \
+  exec /usr/sbin/chroot "$ROOT" /usr/bin/env -i \
     PATH=/opt/pyvenv/bin:/usr/local/bin:/usr/bin:/bin \
     HOME=/tmp TMPDIR=/tmp PYTHONPATH=/workspace CKNEXUS_SANDBOX=hardened_linux_namespace \
     /usr/bin/setpriv --no-new-privs --bounding-set=-all --inh-caps=-all --ambient-caps=-all \
     /bin/bash -c 'cd /workspace && exec /agnes-seccomp "$@"' _ "$@"
 fi
-exec chroot "$ROOT" /usr/bin/env -i \
+exec /usr/sbin/chroot "$ROOT" /usr/bin/env -i \
   PATH=/opt/pyvenv/bin:/usr/local/bin:/usr/bin:/bin \
   HOME=/tmp \
   TMPDIR=/tmp \
@@ -109,9 +109,14 @@ class LinuxNamespaceRunner:
         executable = shutil.which(command[0])
         if executable is None:
             raise SandboxViolation(f"command_unavailable:{command[0]}")
+        import os as _os
         allowed_roots = ("/usr/", "/bin/", "/opt/", "/usr/local/")
-        if not executable.startswith(allowed_roots):
-            raise SandboxViolation("executable_outside_readonly_system_roots")
+        real_exec = _os.path.realpath(executable)
+        if real_exec.startswith(allowed_roots):
+            return (real_exec, *command[1:])
+        if executable.startswith(allowed_roots):
+            return (executable, *command[1:])
+        raise SandboxViolation(f"executable_outside_readonly_system_roots:{executable}")
         return (executable, *command[1:])
 
     def _launcher_path(self) -> str:

@@ -16,6 +16,55 @@ ROOT = Path(__file__).resolve().parents[1]
 SKILLS = ROOT / "creator_app" / "skills" / "agnes" / "SKILL.md"
 
 
+def _test_omni_context(request):
+    import time
+
+    from creator_app.agnes.execution.omni import (
+        AgentIdentity,
+        CapabilityLease,
+        EvidenceLevel,
+        OMNIExecutionContext,
+        PreExecutionRiskVerdict,
+        RiskDecision,
+    )
+
+    now = time.time()
+    capability = request.granted_capabilities[0] if request.granted_capabilities else "code.read"
+    agent_id = "test-agent"
+    policy_id = "test-policy"
+    return OMNIExecutionContext(
+        identity=AgentIdentity(agent_id, "test-model", "test-fixture", "fixture:test-agent"),
+        capability_id=capability,
+        lease=CapabilityLease(
+            "test-lease-" + request.execution_id,
+            agent_id,
+            (capability,),
+            now - 1,
+            now + 300,
+        ),
+        policy_id=policy_id,
+        risk_verdict=PreExecutionRiskVerdict(
+            "test-risk-" + request.execution_id,
+            request.execution_id,
+            agent_id,
+            capability,
+            policy_id,
+            RiskDecision.ALLOW,
+            EvidenceLevel.E1,
+            "LOCAL",
+            "reversible",
+            "test-data",
+            False,
+        ),
+        tool_id=str(request.plan_step.get("tool_id") or "test-tool"),
+        target_id=str(request.plan_step.get("target_id") or "test-target"),
+        runtime_id="test-runtime",
+        verifier_id="test-verifier",
+        evidence_required=True,
+        intent_id=request.correlation_id,
+    )
+
+
 def _agnes(tmp_path: Path) -> AgnesNervousSystem:
     return AgnesNervousSystem(
         skill_file=SKILLS,
@@ -24,6 +73,7 @@ def _agnes(tmp_path: Path) -> AgnesNervousSystem:
         sandbox_root=tmp_path / "sandbox",
         sandbox_repository_root=ROOT,
         phase3_enabled=True,
+        omni_context_provider=_test_omni_context,
     )
 
 
@@ -40,7 +90,7 @@ async def test_hardened_runner_enables_no_new_privs_and_seccomp(tmp_path: Path):
         workspace=ws.path,
         execution_id="seccomp-test",
         command=[
-            "python",
+            "python3",
             "-c",
             "import ctypes,errno; l=ctypes.CDLL(None,use_errno=True); "
             "print('nnp',l.prctl(39,0,0,0,0)); "
@@ -117,8 +167,8 @@ async def test_autonomous_pipeline_stops_at_candidate_and_can_discard(tmp_path: 
         goal="phase3 pipeline",
         inputs={
             "patch": patch,
-            "test_command": ["python", "-m", "compileall", "-q", "."],
-            "scan_command": ["python", "-c", "print('security-scan:PASS')"],
+            "test_command": ["python3", "-m", "compileall", "-q", "."],
+            "scan_command": ["python3", "-c", "print('security-scan:PASS')"],
         },
         workspace_id="p3ws",
         baseline_commit=BASELINE,
@@ -206,7 +256,7 @@ async def test_pipeline_failure_rolls_back_workspace(tmp_path: Path):
         skill_version=agnes.registry.get("hands.code_patch").version,
         executor=ExecutorType.SANDBOX,
         goal="failure rollback",
-        inputs={"patch": patch, "test_command": ["python", "-c", "raise SystemExit(7)"]},
+        inputs={"patch": patch, "test_command": ["python3", "-c", "raise SystemExit(7)"]},
         workspace_id="fail-ws",
         baseline_commit=BASELINE,
         idempotency_key="fail-idem",
@@ -267,7 +317,7 @@ def test_phase3_api_pending_approval_then_advance_to_candidate(tmp_path: Path):
         "สั้น ๆ, สร้างผลงาน "
         "และเก็บประวัติไว้ใน SQLite บนเครื่องของผู้ใช้\n"
     )
-    with TestClient(create_app(settings)) as client:
+    with TestClient(create_app(settings, agnes_omni_context_provider=_test_omni_context)) as client:
         start = client.post(
             "/api/agnes/pipeline/start",
             json={
