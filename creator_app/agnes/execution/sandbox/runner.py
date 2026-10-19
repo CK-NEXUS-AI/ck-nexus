@@ -109,9 +109,14 @@ class LinuxNamespaceRunner:
         executable = shutil.which(command[0])
         if executable is None:
             raise SandboxViolation(f"command_unavailable:{command[0]}")
+        import os as _os
         allowed_roots = ("/usr/", "/bin/", "/opt/", "/usr/local/")
-        if not executable.startswith(allowed_roots):
-            raise SandboxViolation("executable_outside_readonly_system_roots")
+        real_exec = _os.path.realpath(executable)
+        if real_exec.startswith(allowed_roots):
+            return (real_exec, *command[1:])
+        if executable.startswith(allowed_roots):
+            return (executable, *command[1:])
+        raise SandboxViolation(f"executable_outside_readonly_system_roots:{executable}")
         return (executable, *command[1:])
 
     def _launcher_path(self) -> str:

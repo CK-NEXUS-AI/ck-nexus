@@ -49,8 +49,8 @@ AUTO_DISCOVER_PROVIDERS: tuple[FreeProvider, ...] = (
     FreeProvider(
         "qwen",
         "DASHSCOPE_API_KEY",
-        "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "qwen-turbo",
+        "https://ws-6qwky1k48cpsbpbq.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+        "qwen3.6-plus",
     ),
     FreeProvider(
         "gemini",
