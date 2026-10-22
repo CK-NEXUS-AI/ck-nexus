@@ -31,6 +31,7 @@ from creator_app.ai_team.agents import (
     GuardianAgent,
     ResearcherAgent,
 )
+from creator_app.ai_team.auto_response import AgentMessage, AgentMessageBus
 from creator_app.ai_team.shared_knowledge import SharedKnowledge
 from creator_app.development_control import DevelopmentStatusStore
 
@@ -59,6 +60,9 @@ class TeamDirector:
             "connector": ConnectorAgent(),
         }
         self.knowledge = SharedKnowledge(persistence_path=knowledge_path)
+        self.message_bus = AgentMessageBus(max_hops=4, max_history=500)
+        for agent_name, agent in self.agents.items():
+            self._register_auto_responder(agent_name, agent)
         self._development_status_path = development_status_path or os.environ.get(
             "CKNEXUS_DEVELOPMENT_STATUS_DB",
             "~/.local/state/ck-nexus/development-status.sqlite3",
@@ -211,9 +215,7 @@ class TeamDirector:
                 admitted=False,
                 reason="competency_assessment_missing",
             )
-            raise PermissionError(
-                "dynamic development agent has no competency assessment"
-            ) from exc
+            raise PermissionError("dynamic development agent has no competency assessment") from exc
         except PermissionError as exc:
             store.record_agent_admission(
                 agent_id=competency_agent_id,
@@ -226,6 +228,7 @@ class TeamDirector:
             ) from exc
 
         self.agents[name] = agent
+        self._register_auto_responder(name, agent)
         store.record_agent_admission(
             agent_id=competency_agent_id,
             team_key=name,
@@ -233,13 +236,50 @@ class TeamDirector:
             reason="human_confirmed_pro_level",
         )
 
+    def _register_auto_responder(self, name: str, agent: Agent) -> None:
+        """Register a bounded request/response adapter for one team member."""
+
+        def respond(message: AgentMessage) -> str:
+            from creator_app.ai_team.agent_models import RequestPriority
+
+            request = TeamRequest(
+                request_id=message.correlation_id,
+                description=message.content,
+                priority=RequestPriority.NORMAL,
+                context=f"Automated peer request from {message.sender}",
+                metadata={"conversation_id": message.conversation_id},
+            )
+            result = agent.process(request, context={"message": message.as_dict()})
+            agent.record_result(result)
+            return result.output
+
+        self.message_bus.register(name, respond)
+
+    def send_agent_message(
+        self,
+        *,
+        sender: str,
+        recipient: str,
+        content: str,
+        idempotency_key: str | None = None,
+    ) -> AgentMessage:
+        """Send a peer request and return its automatic response."""
+        return self.message_bus.request(
+            sender=sender,
+            recipient=recipient,
+            content=content,
+            idempotency_key=idempotency_key,
+        )
+
     def add_agent(self, name: str, agent: Agent) -> None:
         """Internal/bootstrap compatibility path; external AI must use admit_agent."""
         self.agents[name] = agent
+        self._register_auto_responder(name, agent)
 
     def remove_agent(self, name: str) -> bool:
         if name in self.agents:
             del self.agents[name]
+            self.message_bus.unregister(name)
             return True
         return False
 

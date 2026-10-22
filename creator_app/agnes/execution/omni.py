@@ -116,6 +116,7 @@ class OMNIExecutionContext:
     evidence_required: bool = True
     intent_id: str = ""
     delegation: DelegationContext | None = None
+    proof: str = ""
 
     def validate(self, request: SkillExecutionRequest) -> None:
         if not self.identity.agent_id or not self.identity.model_id or not self.identity.issuer:
@@ -210,7 +211,5 @@ class OMNIExecutionContext:
             runtime_id=self.runtime_id,
             verifier_id=self.verifier_id,
             evidence_id=evidence_id,
-            parent_execution_id=(
-                self.delegation.parent_execution_id if self.delegation else None
-            ),
+            parent_execution_id=(self.delegation.parent_execution_id if self.delegation else None),
         )

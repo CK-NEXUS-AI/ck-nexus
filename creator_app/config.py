@@ -37,7 +37,7 @@ class Settings:
     openai_model: str = "gpt-5.6-sol"
     openai_tracing_enabled: bool = False
     provider_local_first: bool = True
-    provider_allow_cloud: bool = True
+    provider_allow_cloud: bool = False
     provider_max_attempts: int = 3
     provider_failure_threshold: int = 2
     provider_circuit_cooldown_seconds: int = 30
@@ -188,7 +188,7 @@ class Settings:
                 os.getenv("CKNEXUS_OPENAI_TRACING_ENABLED"), default=False
             ),
             provider_local_first=_as_bool(os.getenv("CKNEXUS_PROVIDER_LOCAL_FIRST"), default=True),
-            provider_allow_cloud=_as_bool(os.getenv("CKNEXUS_PROVIDER_ALLOW_CLOUD"), default=True),
+            provider_allow_cloud=_as_bool(os.getenv("CKNEXUS_PROVIDER_ALLOW_CLOUD"), default=False),
             provider_max_attempts=_as_int(
                 os.getenv("CKNEXUS_PROVIDER_MAX_ATTEMPTS"),
                 default=3,

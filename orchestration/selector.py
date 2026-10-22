@@ -14,7 +14,9 @@ class PatternSelector:
         self.registry = registry
 
     def select(self, text: str, *, intent_tags: tuple[str, ...] = ()) -> PatternSelection:
-        tokens = {token.lower() for token in _TOKEN.findall(text)} | {item.lower() for item in intent_tags}
+        tokens = {token.lower() for token in _TOKEN.findall(text)} | {
+            item.lower() for item in intent_tags
+        }
         ranked: list[tuple[float, object, tuple[str, ...]]] = []
         for pattern in self.registry.all():
             matches = tuple(sorted(tokens & set(pattern.intent_tags)))

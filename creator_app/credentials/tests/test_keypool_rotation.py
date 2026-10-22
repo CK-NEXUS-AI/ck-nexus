@@ -14,10 +14,18 @@ def test_keypool_rotates_at_95_percent_quota() -> None:
     """When a key reaches 95% usage, it should be marked exhausted."""
     specs = [
         LlmKeySpec(
-            id="key1", env_var="TEST_KEY1", base_url="https://api.test.com/v1", model="gpt-4"
+            id="key1",
+            env_var="TEST_KEY1",
+            base_url="http://127.0.0.1:11434/v1",
+            model="local-test-model",
+            free=True,
         ),
         LlmKeySpec(
-            id="key2", env_var="TEST_KEY2", base_url="https://api.test.com/v1", model="gpt-4"
+            id="key2",
+            env_var="TEST_KEY2",
+            base_url="http://127.0.0.1:11434/v1",
+            model="local-test-model",
+            free=True,
         ),
     ]
     os.environ["TEST_KEY1"] = "sk-test-key1"
@@ -46,19 +54,25 @@ def test_keypool_auto_rotation_preserves_other_keys() -> None:
     """When one key is exhausted, the pool should fall back to the next."""
     specs = [
         LlmKeySpec(
-            id="primary", env_var="TEST_PRIMARY", base_url="https://api.test.com/v1", model="gpt-4"
+            id="primary",
+            env_var="TEST_PRIMARY",
+            base_url="http://127.0.0.1:11434/v1",
+            model="local-test-model",
+            free=True,
         ),
         LlmKeySpec(
             id="secondary",
             env_var="TEST_SECONDARY",
-            base_url="https://api.test.com/v1",
-            model="gpt-4",
+            base_url="http://127.0.0.1:11434/v1",
+            model="local-test-model",
+            free=True,
         ),
         LlmKeySpec(
             id="fallback",
             env_var="TEST_FALLBACK",
-            base_url="https://api.test.com/v1",
-            model="gpt-4",
+            base_url="http://127.0.0.1:11434/v1",
+            model="local-test-model",
+            free=True,
         ),
     ]
     os.environ["TEST_PRIMARY"] = "sk-primary"
@@ -97,7 +111,11 @@ def test_keypool_cooldown_on_rate_limit() -> None:
     """429 rate limit should trigger cooldown, not exhaustion."""
     specs = [
         LlmKeySpec(
-            id="key1", env_var="TEST_RL_KEY", base_url="https://api.test.com/v1", model="gpt-4"
+            id="key1",
+            env_var="TEST_RL_KEY",
+            base_url="http://127.0.0.1:11434/v1",
+            model="local-test-model",
+            free=True,
         ),
     ]
     os.environ["TEST_RL_KEY"] = "sk-test"
@@ -117,7 +135,11 @@ def test_keypool_exhaustion_on_auth_failure() -> None:
     """401/402/403 should mark key as exhausted, not just cooldown."""
     specs = [
         LlmKeySpec(
-            id="key1", env_var="TEST_E_KEY", base_url="https://api.test.com/v1", model="gpt-4"
+            id="key1",
+            env_var="TEST_E_KEY",
+            base_url="http://127.0.0.1:11434/v1",
+            model="local-test-model",
+            free=True,
         ),
     ]
     os.environ["TEST_E_KEY"] = "sk-test"
@@ -139,9 +161,9 @@ def test_keypool_free_fallback_when_all_unavailable() -> None:
         LlmKeySpec(
             id="k1",
             env_var="TEST_F1",
-            base_url="https://api.test.com/v1",
-            model="gpt-4",
-            free=False,
+            base_url="http://127.0.0.1:11434/v1",
+            model="local-test-model",
+            free=True,
         ),
     ]
     os.environ["TEST_F1"] = "sk-test"
@@ -154,3 +176,38 @@ def test_keypool_free_fallback_when_all_unavailable() -> None:
     assert pool.free_fallback is True
 
     del os.environ["TEST_F1"]
+
+
+def test_unattended_pool_rejects_cloud_route_even_if_marked_free(monkeypatch) -> None:
+    """A free-tier label must not authorize an unbounded hosted API route."""
+    monkeypatch.setenv("TEST_CLOUD_KEY", "test-cloud-key")
+    pool = LlmKeyPool([
+        LlmKeySpec(
+            id="cloud-free-label",
+            env_var="TEST_CLOUD_KEY",
+            base_url="https://api.example.com/v1",
+            model="some-free-model",
+            free=True,
+        )
+    ])
+
+    assert pool.acquire() is None
+    assert pool.free_fallback is True
+
+
+def test_unattended_pool_allows_local_model_endpoint(monkeypatch) -> None:
+    """A configured loopback inference endpoint has no hosted API billing path."""
+    monkeypatch.setenv("TEST_LOCAL_KEY", "local-placeholder")
+    pool = LlmKeyPool([
+        LlmKeySpec(
+            id="local-model",
+            env_var="TEST_LOCAL_KEY",
+            base_url="http://127.0.0.1:11434/v1",
+            model="local-model",
+            free=True,
+        )
+    ])
+
+    selection = pool.acquire()
+    assert selection is not None
+    assert selection.provider == "local-model"

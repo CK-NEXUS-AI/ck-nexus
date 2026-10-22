@@ -80,3 +80,12 @@ def test_production_oauth_requires_encrypted_vault(tmp_path: Path, monkeypatch):
     message = str(exc_info.value)
     assert "CKNEXUS_VAULT_ENABLED" in message
     assert "CKNEXUS_VAULT_KEY" in message
+
+
+def test_cloud_providers_are_disabled_by_default_for_zero_cost_mode(
+    tmp_path: Path, monkeypatch
+):
+    monkeypatch.setenv("CKNEXUS_HOME", str(tmp_path))
+    monkeypatch.delenv("CKNEXUS_PROVIDER_ALLOW_CLOUD", raising=False)
+    configured = Settings.from_env()
+    assert configured.provider_allow_cloud is False

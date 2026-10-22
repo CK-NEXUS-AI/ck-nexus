@@ -84,8 +84,7 @@ class ParallelExecutor:
 
         results = list(await asyncio.gather(*coros, return_exceptions=False))
         batch = ParallelBatch(
-            batch_id=batch_id, tasks=results,
-            max_concurrency=self._max_concurrency
+            batch_id=batch_id, tasks=results, max_concurrency=self._max_concurrency
         )
         self._history.append(batch)
         return results
@@ -93,19 +92,17 @@ class ParallelExecutor:
     async def _run_single(
         self,
         task_id: str,
-        func: Callable[[], Awaitable[Any]]
-        | Callable[[], Any],
+        func: Callable[[], Awaitable[Any]] | Callable[[], Any],
         timeout: float,
         fallback: Callable[[str, Exception], Any] | None,
     ) -> TaskResult:
         """รัน task เดียว — พร้อม timeout และ error handling."""
-        result = TaskStatus.PENDING
+        result = TaskResult(task_id=task_id, status=TaskStatus.PENDING)
         start = time.time()
 
         async with self._semaphore:  # type: ignore[misc]
             try:
                 start = time.time()
-                result.task_id = task_id
                 result.status = TaskStatus.RUNNING
                 result.started_at = start
 
@@ -178,13 +175,9 @@ class ParallelExecutor:
     def stats(self) -> dict[str, Any]:
         total_tasks = sum(len(b.tasks) for b in self._history)
         completed = sum(
-            1 for b in self._history for t in b.tasks
-            if t.status == TaskStatus.COMPLETED
+            1 for b in self._history for t in b.tasks if t.status == TaskStatus.COMPLETED
         )
-        failed = sum(
-            1 for b in self._history for t in b.tasks
-            if t.status == TaskStatus.FAILED
-        )
+        failed = sum(1 for b in self._history for t in b.tasks if t.status == TaskStatus.FAILED)
         return {
             "total_batches": len(self._history),
             "total_tasks": total_tasks,

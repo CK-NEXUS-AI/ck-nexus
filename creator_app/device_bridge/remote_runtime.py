@@ -20,7 +20,9 @@ def build_remote_server_from_environment(
     issuer_url = _required(values, "CKNEXUS_REMOTE_ISSUER_URL")
     jwks_url = _required(values, "CKNEXUS_REMOTE_JWKS_URL")
     algorithms = tuple(
-        item.strip() for item in _required(values, "CKNEXUS_REMOTE_ALLOWED_ALGORITHMS").split(",") if item.strip()
+        item.strip()
+        for item in _required(values, "CKNEXUS_REMOTE_ALLOWED_ALGORITHMS").split(",")
+        if item.strip()
     )
     bridge_config = RemoteBridgeConfig(
         resource_server_url=resource_url,

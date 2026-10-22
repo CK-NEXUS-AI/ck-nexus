@@ -5,20 +5,19 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True, slots=True)
 class FreeProvider:
-    """OpenAI-compatible free-tier provider with a verified endpoint.
+    """Hosted OpenAI-compatible provider candidate.
 
-    Endpoints below were probe-verified (2026-08): Groq/Mistral/DeepSeek/Together
-    return 401 without a key (endpoint live, auth required); SambaNova and
-    OpenRouter serve public model lists; Cerebras returns 403 (auth required).
-    Free-tier quotas and rate limits change over time — check each provider's
-    pricing page before relying on limits.
+    ``free`` means a verified unlimited zero-cost entitlement, not merely a
+    provider that advertises a free tier. No hosted provider below is guaranteed
+    unlimited and free, so every entry defaults to ``False``. Unattended key-pool
+    routing independently blocks all hosted endpoints.
     """
 
     id: str
     env_var: str
     base_url: str
     model: str
-    free: bool = True
+    free: bool = False
 
 
 # Auto-discovered when the matching env var is present. CKNEXUS_LLM_KEYS takes

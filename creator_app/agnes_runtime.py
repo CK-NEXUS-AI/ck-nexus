@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -17,6 +17,7 @@ from creator_app.agnes.execution.dispatcher import (
 )
 from creator_app.agnes.execution.guards import ExecutionPolicyEngine
 from creator_app.agnes.execution.idempotency import SQLiteIdempotencyStore
+from creator_app.agnes.execution.omni import OMNIExecutionContext
 from creator_app.agnes.execution.phase3 import (
     AutonomousDevController,
     RedisIdempotencyStore,
@@ -82,11 +83,15 @@ class AgnesNervousSystem:
         environment: str = "development",
         phase3_redis_url: str = "",
         phase3_cgroup_root: Path = Path("/sys/fs/cgroup"),
+        execution_context_factory: Callable[[SkillExecutionRequest], OMNIExecutionContext]
+        | None = None,
     ) -> None:
         self.skill_file = skill_file
         self.registry = AgnesSkillRegistry.load(skill_file)
         self.ledger = AppendOnlyLedger(ledger_path)
         self.provider_router = provider_router
+        self.execution_context_factory = execution_context_factory
+        self.environment = environment.strip().lower() or "development"
         self.policy = policy or AgnesPolicy()
         self.workspace_broker = WorkspaceBroker()
         self.discovery = SkillDiscoveryPolicy()
@@ -311,7 +316,19 @@ class AgnesNervousSystem:
             allowlist_paths=tuple(plan_step.get("allowlist_paths", ())),
             granted_capabilities=tuple(plan_step.get("granted_capabilities", ())),
         )
-        return await self.dispatcher.execute(request)
+        # Until a production-trusted OMNI issuer is configured and independently
+        # verified, production requests must not accept arbitrary injected callables
+        # (including test factories) as authorization. Dispatcher receives no context
+        # and therefore blocks the request.
+        production_mode = (
+            self.environment == "production" or request.environment.strip().lower() == "production"
+        )
+        omni_context = (
+            self.execution_context_factory(request)
+            if self.execution_context_factory is not None and not production_mode
+            else None
+        )
+        return await self.dispatcher.execute(request, omni_context=omni_context)
 
     def discovery_sources(self) -> list[dict[str, object]]:
         return self.discovery.source_catalog()

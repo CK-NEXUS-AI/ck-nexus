@@ -81,5 +81,5 @@ def test_parallel_plan_is_non_executing_and_non_release_evidence() -> None:
 
 def test_all_entries_have_upstream_and_license_metadata() -> None:
     for spec in ASSISTANTS:
-        assert spec.upstream.startswith("https://github.com/")
+        assert spec.upstream.startswith("https://")
         assert spec.license

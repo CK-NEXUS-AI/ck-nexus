@@ -18,11 +18,17 @@ Defaults:
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from creator_app.ai_team.auto_reply_plugin import AutoReplyError, AutoReplyPlugin
 from creator_app.ai_team.universal_system import UniversalSystem
+from creator_app.control_plane import ControlPlaneOrchestrator
+from creator_app.control_plane.task_store import TaskStore
+from creator_app.control_plane.verification import ControlPlaneVerifier
+from creator_app.control_plane.worker import RepairWorker
 from creator_app.core.self_capability_manager import (
     CORE_CAPABILITIES,
     LEARNING_SOURCES,
@@ -37,6 +43,94 @@ from creator_app.dev_assistants import (
 
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 _DEFAULT_PORT = 8765
+_TASK_MAX_BYTES = 32_768
+_TASK_ID_MAX_CHARS = 128
+_WORKER_ID_MAX_CHARS = 128
+_TASK_DEFAULT_LEASE_SECONDS = 300
+_TASK_MAX_LEASE_SECONDS = 86_400
+_APPROVED_TASK_HANDLERS = frozenset({"safe_canary"})
+_SENSITIVE_KEY_TERMS = frozenset(
+    {
+        "api_key",
+        "apikey",
+        "access_token",
+        "auth_token",
+        "authorization",
+        "client_secret",
+        "password",
+        "private_key",
+        "secret_key",
+        "refresh_token",
+    }
+)
+
+
+def _task_store_path() -> Path:
+    configured = os.getenv("CKNEXUS_TASK_DB", "").strip()
+    if configured:
+        return Path(configured).expanduser()
+    home = Path(os.path.expanduser("~"))
+    working_dir = Path.cwd().resolve()
+    if (
+        working_dir == Path("/opt/cknexus-mcp")
+        or Path("/opt/cknexus-mcp").resolve() in working_dir.parents
+    ):
+        return Path("/opt/cknexus-mcp/.state/control-plane.sqlite3")
+    return home / ".local" / "state" / "cknexus" / "control-plane.sqlite3"
+
+
+def get_task_store() -> TaskStore:
+    """Return the durable task store without invoking any provider or worker."""
+    return TaskStore(_task_store_path())
+
+
+def _task_text(value: str, field: str, *, max_chars: int = _TASK_ID_MAX_CHARS) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field} must not be empty")
+    value = value.strip()
+    if len(value) > max_chars:
+        raise OverflowError(f"{field} exceeds the maximum length")
+    return value
+
+
+def _contains_sensitive_shape(value: Any, key: str = "") -> bool:
+    normalized_key = key.casefold().replace("-", "_")
+    if any(term in normalized_key for term in _SENSITIVE_KEY_TERMS):
+        return True
+    if isinstance(value, dict):
+        return any(
+            _contains_sensitive_shape(item, str(child_key)) for child_key, item in value.items()
+        )
+    if isinstance(value, (list, tuple)):
+        return any(_contains_sensitive_shape(item) for item in value)
+    return False
+
+
+def _task_payload(
+    description: str, context: Any, *, handler: str | None = None, job_id: str | None = None
+) -> dict[str, Any]:
+    payload = {"description": description}
+    if handler is not None:
+        payload["handler"] = handler
+    if job_id is not None:
+        payload["job_id"] = job_id
+    if context not in (None, ""):
+        payload["context"] = context
+    if _contains_sensitive_shape(payload):
+        raise ValueError("payload contains sensitive credential-shaped fields")
+    if len(TaskStore._json(payload).encode("utf-8")) > _TASK_MAX_BYTES:
+        raise OverflowError("payload exceeds the maximum serialized size")
+    return payload
+
+
+def _task_result_error(code: str, message: str) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "error_code": code,
+        "message": message,
+        "production_status": "NO-GO",
+        "release_evidence": False,
+    }
 
 
 def _configured_host() -> str:
@@ -102,6 +196,9 @@ mcp = FastMCP(
     "CK-NEXUS Universal Development",
     instructions=(
         "Post-P0 development tools only. CK-NEXUS remains authority. "
+        "For each new user request, prefer cknexus_auto_dispatch first. "
+        "It selects a concise AI answer or a development plan; plan output is not "
+        "execution evidence. Use cknexus_ai_provider_status for redacted readiness. "
         "Results do not promote Q10/Q11/Q12, do not constitute release evidence, "
         "and do not authorize production mutation or merging PR #14."
     ),
@@ -110,6 +207,427 @@ mcp = FastMCP(
     stateless_http=True,
     json_response=True,
 )
+
+
+_DEVELOPMENT_INTENT_TERMS = (
+    "code",
+    "coding",
+    "repository",
+    "repo",
+    "github",
+    "debug",
+    "fix bug",
+    "implement",
+    "build",
+    "deploy",
+    "install",
+    "test",
+    "integrate",
+    "connect",
+    "refactor",
+    "แก้โค้ด",
+    "เขียนโค้ด",
+    "แก้ไข",
+    "พัฒนา",
+    "สร้าง",
+    "ปรับใช้",
+    "เพิ่มความสามารถ",
+    "แก้บั๊ก",
+    "ทดสอบ",
+    "ติดตั้ง",
+    "รันคำสั่ง",
+    "ทำต่อ",
+    "ลุยต่อ",
+    "ต่อยอด",
+    "รีโป",
+    "deploy",
+    "เชื่อมต่อ",
+)
+
+
+@mcp.tool()
+def cknexus_task_enqueue(
+    job_id: str,
+    description: str,
+    priority: int = 2,
+    context: Any = "",
+    handler: str | None = None,
+) -> dict[str, Any]:
+    """Persist a bounded task request; never execute it."""
+    try:
+        job_id = _task_text(job_id, "job_id")
+        description = _task_text(description, "description", max_chars=20_000)
+        if priority not in {1, 2, 3}:
+            return _task_result_error("INVALID_PRIORITY", "priority must be 1, 2, or 3")
+        if handler is not None and (
+            not isinstance(handler, str) or handler not in _APPROVED_TASK_HANDLERS
+        ):
+            return _task_result_error(
+                "UNAPPROVED_HANDLER", "only the safe_canary handler is currently approved"
+            )
+        payload = _task_payload(description, context, handler=handler, job_id=job_id)
+        payload["priority"] = priority
+        get_task_store().enqueue(job_id, payload)
+    except OverflowError as exc:
+        return _task_result_error("PAYLOAD_TOO_LARGE", str(exc))
+    except ValueError as exc:
+        code = (
+            "DUPLICATE_JOB"
+            if "already exists" in str(exc)
+            else "SENSITIVE_INPUT"
+            if "sensitive" in str(exc)
+            else "INVALID_INPUT"
+        )
+        return _task_result_error(code, str(exc))
+    return {
+        "ok": True,
+        "job_id": job_id,
+        "state": "queued",
+        "execution_state": "NOT_EXECUTED",
+        "production_status": "NO-GO",
+        "release_evidence": False,
+    }
+
+
+@mcp.tool()
+def cknexus_control_plane_enqueue(
+    job_prefix: str, request: str, priority: int = 2, context: Any = ""
+) -> dict[str, Any]:
+    """Queue a deterministic four-role plan atomically without executing any role."""
+    try:
+        job_prefix = _task_text(job_prefix, "job_prefix", max_chars=80)
+        request = _task_text(request, "request", max_chars=20_000)
+        if priority not in {1, 2, 3}:
+            return _task_result_error("INVALID_PRIORITY", "priority must be 1, 2, or 3")
+        context_payload = _task_payload("context", context)
+        graph = ControlPlaneOrchestrator().plan(
+            request,
+            priority=priority,
+            context=str(context_payload.get("context", "")),
+        )
+        queue_payloads = ControlPlaneOrchestrator.queue_payloads(graph)
+        batch: list[tuple[str, dict[str, Any]]] = []
+        jobs: list[dict[str, str]] = []
+        for payload in queue_payloads:
+            node_id = payload["node_id"]
+            job_id = f"{job_prefix}-{node_id}"
+            if len(job_id) > _TASK_ID_MAX_CHARS:
+                return _task_result_error("INVALID_INPUT", "job prefix creates an oversized job ID")
+            payload["request"] = request
+            payload["priority"] = priority
+            if context not in (None, ""):
+                payload["context"] = context
+            if _contains_sensitive_shape(payload):
+                return _task_result_error(
+                    "SENSITIVE_INPUT", "plan contains credential-shaped fields"
+                )
+            if len(TaskStore._json(payload).encode("utf-8")) > _TASK_MAX_BYTES:
+                return _task_result_error("PAYLOAD_TOO_LARGE", "plan task exceeds the maximum size")
+            batch.append((job_id, payload))
+            jobs.append({"job_id": job_id, "node_id": node_id, "state": "queued"})
+        get_task_store().enqueue_many(batch)
+    except OverflowError as exc:
+        return _task_result_error("PAYLOAD_TOO_LARGE", str(exc))
+    except ValueError as exc:
+        code = "DUPLICATE_JOB" if "already exists" in str(exc) else "INVALID_INPUT"
+        return _task_result_error(code, str(exc))
+    return {
+        "ok": True,
+        "jobs": jobs,
+        "execution_state": "QUEUED_NOT_EXECUTED",
+        "production_status": "NO-GO",
+        "external_mutation_authorized": False,
+        "release_evidence": False,
+    }
+
+
+@mcp.tool()
+def cknexus_task_worker_once(job_id: str) -> dict[str, Any]:
+    """Execute one explicitly opted-in safe canary task; never runs user code."""
+    try:
+        job_id = _task_text(job_id, "job_id")
+        store = get_task_store()
+        task = store.get(job_id)
+        if task is None:
+            return _task_result_error("TASK_NOT_FOUND", "task does not exist")
+        if task["state"] != "queued":
+            return _task_result_error("TASK_NOT_QUEUED", "task must be queued before execution")
+        import json
+
+        payload = json.loads(task["payload_json"])
+        if payload.get("handler") != "safe_canary":
+            return _task_result_error(
+                "WORKER_NOT_OPTED_IN", "task must explicitly opt in to safe_canary execution"
+            )
+
+        def safe_canary(task_payload: dict[str, Any]) -> dict[str, Any]:
+            # Deterministic local canary only: no shell, model, network, or file mutation.
+            canary_job_id = task_payload["job_id"]
+            return {
+                "ok": True,
+                "security_ok": True,
+                "evidence_refs": [f"cknexus://task/{canary_job_id}/safe-canary"],
+            }
+
+        worker = RepairWorker(
+            store=store,
+            verifier=ControlPlaneVerifier(max_repairs=0),
+            handlers={"safe_canary": safe_canary},
+            worker_id="mcp-safe-canary-worker",
+            execution_timeout=5,
+            lease_seconds=30,
+        )
+        result = worker.run_once(job_id=job_id)
+    except (ValueError, KeyError, TypeError) as exc:
+        return _task_result_error("INVALID_INPUT", str(exc))
+    if result.state != "completed":
+        return _task_result_error("WORKER_FAILED", result.error or result.state)
+    return {
+        "ok": True,
+        "job_id": job_id,
+        "state": result.state,
+        "attempts": result.attempts,
+        "evidence_refs": list(result.evidence_refs),
+        "execution_state": "VERIFIED",
+        "production_status": "NO-GO",
+        "external_mutation_authorized": False,
+        "release_evidence": result.release_evidence,
+    }
+
+
+@mcp.tool()
+def cknexus_task_claim(
+    worker_id: str, lease_seconds: float = _TASK_DEFAULT_LEASE_SECONDS
+) -> dict[str, Any]:
+    """Atomically claim one queued task with a bounded lease."""
+    try:
+        worker_id = _task_text(worker_id, "worker_id", max_chars=_WORKER_ID_MAX_CHARS)
+        task = get_task_store().claim_next(worker_id, lease_seconds=lease_seconds)
+    except ValueError as exc:
+        return _task_result_error("INVALID_INPUT", str(exc))
+    if task is None:
+        return _task_result_error("EMPTY_QUEUE", "no queued task is available")
+    return {
+        "ok": True,
+        "task": task,
+        "execution_state": "CLAIMED",
+        "production_status": "NO-GO",
+        "release_evidence": False,
+    }
+
+
+@mcp.tool()
+def cknexus_task_checkpoint(
+    job_id: str, worker_id: str, lease_token: str, checkpoint: dict[str, Any]
+) -> dict[str, Any]:
+    """Persist a checkpoint only for the current lease owner."""
+    try:
+        job_id = _task_text(job_id, "job_id")
+        worker_id = _task_text(worker_id, "worker_id", max_chars=_WORKER_ID_MAX_CHARS)
+        lease_token = _task_text(lease_token, "lease_token", max_chars=256)
+        if not isinstance(checkpoint, dict) or _contains_sensitive_shape(checkpoint):
+            return _task_result_error(
+                "SENSITIVE_INPUT", "checkpoint must be an object without credential-shaped fields"
+            )
+        if len(TaskStore._json(checkpoint).encode("utf-8")) > _TASK_MAX_BYTES:
+            return _task_result_error(
+                "PAYLOAD_TOO_LARGE", "checkpoint exceeds the maximum serialized size"
+            )
+        get_task_store().save_checkpoint(
+            job_id, checkpoint, worker_id=worker_id, lease_token=lease_token
+        )
+    except ValueError as exc:
+        code = "LEASE_CONFLICT" if "valid lease" in str(exc) else "INVALID_INPUT"
+        return _task_result_error(code, str(exc))
+    return {
+        "ok": True,
+        "job_id": job_id,
+        "state": "running",
+        "execution_state": "CHECKPOINTED",
+        "production_status": "NO-GO",
+        "release_evidence": False,
+    }
+
+
+@mcp.tool()
+def cknexus_task_finish(
+    job_id: str,
+    worker_id: str,
+    lease_token: str,
+    success: bool,
+    result: dict[str, Any] | None = None,
+    error: str | None = None,
+) -> dict[str, Any]:
+    """Finish a task only while its lease is valid; never certify a release."""
+    try:
+        job_id = _task_text(job_id, "job_id")
+        worker_id = _task_text(worker_id, "worker_id", max_chars=_WORKER_ID_MAX_CHARS)
+        lease_token = _task_text(lease_token, "lease_token", max_chars=256)
+        if result is not None and _contains_sensitive_shape(result):
+            return _task_result_error("SENSITIVE_INPUT", "result contains credential-shaped fields")
+        if error is not None and len(error) > 4_096:
+            return _task_result_error("PAYLOAD_TOO_LARGE", "error exceeds the maximum length")
+        serialized_result = TaskStore._json(result) if result is not None else ""
+        if len(serialized_result.encode("utf-8")) > _TASK_MAX_BYTES:
+            return _task_result_error(
+                "PAYLOAD_TOO_LARGE", "result exceeds the maximum serialized size"
+            )
+        get_task_store().finish(
+            job_id,
+            success=bool(success),
+            result=result,
+            error=error,
+            worker_id=worker_id,
+            lease_token=lease_token,
+        )
+    except ValueError as exc:
+        code = "LEASE_CONFLICT" if "valid lease" in str(exc) else "INVALID_INPUT"
+        return _task_result_error(code, str(exc))
+    return {
+        "ok": True,
+        "job_id": job_id,
+        "state": "completed" if success else "failed",
+        "execution_state": "FINISHED",
+        "production_status": "NO-GO",
+        "release_evidence": False,
+    }
+
+
+@mcp.tool()
+def cknexus_task_status(job_id: str) -> dict[str, Any]:
+    """Return task state without exposing its lease token."""
+    try:
+        job_id = _task_text(job_id, "job_id")
+        task = get_task_store().get(job_id)
+    except ValueError as exc:
+        return _task_result_error("INVALID_INPUT", str(exc))
+    if task is None:
+        return _task_result_error("TASK_NOT_FOUND", "task does not exist")
+    return {"ok": True, "task": task, "production_status": "NO-GO", "release_evidence": False}
+
+
+@mcp.tool()
+def cknexus_task_requeue_expired(max_attempts: int = 3) -> dict[str, Any]:
+    """Requeue expired tasks within the bounded retry budget; no task execution occurs."""
+    try:
+        requeued = get_task_store().requeue_expired(max_attempts=max_attempts)
+    except ValueError as exc:
+        return _task_result_error("INVALID_INPUT", str(exc))
+    return {
+        "ok": True,
+        "requeued": requeued,
+        "execution_state": "NOT_EXECUTED",
+        "production_status": "NO-GO",
+        "release_evidence": False,
+    }
+
+
+@mcp.tool()
+def cknexus_auto_dispatch(
+    request: str,
+    mode: str = "auto",
+    priority: int = 2,
+    max_tokens: int = 512,
+) -> dict[str, Any]:
+    """Route a user command to a fast AI answer or a bounded development plan.
+
+    In auto mode, development-oriented requests are sent to the existing
+    CK-NEXUS planning path; other requests use the configured external model.
+    Planning never executes shell commands, changes files, or grants authority.
+    """
+    request = request.strip()
+    if not request:
+        return {"ok": False, "error_code": "EMPTY_REQUEST", "message": "Request must not be empty."}
+    if mode not in {"auto", "answer", "plan"}:
+        return {
+            "ok": False,
+            "error_code": "INVALID_MODE",
+            "message": "mode must be auto, answer, or plan.",
+        }
+    if priority not in {1, 2, 3}:
+        return {
+            "ok": False,
+            "error_code": "INVALID_PRIORITY",
+            "message": "priority must be 1, 2, or 3.",
+        }
+
+    selected_mode = mode
+    if selected_mode == "auto":
+        normalized = request.casefold()
+        selected_mode = (
+            "plan"
+            if any(term.casefold() in normalized for term in _DEVELOPMENT_INTENT_TERMS)
+            else "answer"
+        )
+
+    if selected_mode == "answer":
+        try:
+            result = AutoReplyPlugin().reply(request, max_tokens=max_tokens)
+        except AutoReplyError as exc:
+            return {
+                "ok": False,
+                "mode": "answer",
+                "error_code": exc.code,
+                "message": str(exc),
+                "execution_state": "NOT_EXECUTED",
+                "secret_values_exposed": False,
+            }
+        return {
+            "ok": True,
+            "mode": "answer",
+            "execution_state": "ANSWER_RETURNED",
+            "production_status": "NO-GO",
+            "release_evidence": False,
+            **result,
+        }
+
+    try:
+        plan_output = get_system().process(request, priority=priority)
+        control_plane = ControlPlaneOrchestrator().plan(request, priority=priority).as_dict()
+    except Exception as exc:
+        return {
+            "ok": False,
+            "mode": "plan",
+            "error_code": "PLANNING_FAILED",
+            "message": f"Planning failed ({type(exc).__name__}).",
+            "execution_state": "NOT_EXECUTED",
+            "production_status": "NO-GO",
+            "release_evidence": False,
+        }
+    return {
+        "ok": True,
+        "mode": "plan",
+        "plan": plan_output,
+        "control_plane": control_plane,
+        "execution_state": "PLANNED_NOT_EXECUTED",
+        "external_mutation_authorized": False,
+        "production_status": "NO-GO",
+        "release_evidence": False,
+    }
+
+
+@mcp.tool()
+def cknexus_ai_reply(request: str, max_tokens: int = 512) -> dict[str, Any]:
+    """Return a fast AI answer using configured providers with bounded fallback.
+
+    Credentials are read only from the protected runtime environment. Provider
+    output is untrusted and does not prove that an external action succeeded.
+    """
+    try:
+        return AutoReplyPlugin().reply(request, max_tokens=max_tokens)
+    except AutoReplyError as exc:
+        return {
+            "ok": False,
+            "error_code": exc.code,
+            "message": str(exc),
+            "provider_status": "unavailable_or_degraded",
+        }
+
+
+@mcp.tool()
+def cknexus_ai_provider_status() -> dict[str, Any]:
+    """Show configured provider/model readiness without exposing secrets."""
+    return AutoReplyPlugin().status()
 
 
 @mcp.tool()
@@ -194,6 +712,37 @@ def cknexus_dev_assistants() -> dict[str, Any]:
         "release_evidence": False,
         "external_mutation_authorized": False,
         "assistants": fabric.discover(),
+    }
+
+
+@mcp.tool()
+def cknexus_autonomy_status() -> dict[str, Any]:
+    """Aggregate current local worker availability, provider health, and role routing.
+
+    This is an inventory-only probe: it does not invoke workers, mutate files,
+    or treat configured credentials as proof of a successful live inference.
+    """
+    fabric = get_dev_assistant_fabric()
+    graph = ControlPlaneOrchestrator(fabric=fabric).plan("autonomy capability inventory")
+    return {
+        "status": "inventory_only",
+        "authority": "CK-NEXUS",
+        "production_status": "NO-GO",
+        "execution_state": "NOT_EXECUTED",
+        "external_mutation_authorized": False,
+        "release_evidence": False,
+        "assistants": fabric.discover(),
+        "providers": AutoReplyPlugin().status(),
+        "routing_roles": [
+            {
+                "role": node.role,
+                "required_capabilities": list(node.required_capabilities),
+                "available_candidates": list(node.candidates),
+                "candidate_count": len(node.candidates),
+            }
+            for node in graph.nodes
+        ],
+        "secret_values_exposed": False,
     }
 
 

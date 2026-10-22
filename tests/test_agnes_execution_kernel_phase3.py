@@ -10,6 +10,7 @@ from creator_app.agnes.execution.phase3.hardening import CgroupV2Manager
 from creator_app.agnes.execution.phase3.sandbox import HardenedLinuxNamespaceRunner
 from creator_app.agnes.execution.sandbox import SandboxPolicy, SandboxWorkspaceManager
 from creator_app.agnes_runtime import AgnesNervousSystem
+from tests.omni_context_factory import make_test_omni_context
 
 BASELINE = "dce9e0f30e4e17d43c794c7f8ddb1e7d6e85f17e"
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +25,7 @@ def _agnes(tmp_path: Path) -> AgnesNervousSystem:
         sandbox_root=tmp_path / "sandbox",
         sandbox_repository_root=ROOT,
         phase3_enabled=True,
+        execution_context_factory=make_test_omni_context,
     )
 
 
@@ -267,7 +269,9 @@ def test_phase3_api_pending_approval_then_advance_to_candidate(tmp_path: Path):
         "สั้น ๆ, สร้างผลงาน "
         "และเก็บประวัติไว้ใน SQLite บนเครื่องของผู้ใช้\n"
     )
-    with TestClient(create_app(settings)) as client:
+    app = create_app(settings)
+    app.state.agnes.execution_context_factory = make_test_omni_context
+    with TestClient(app) as client:
         start = client.post(
             "/api/agnes/pipeline/start",
             json={

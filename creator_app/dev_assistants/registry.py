@@ -61,6 +61,44 @@ ASSISTANTS: tuple[AssistantSpec, ...] = (
         notes="Use OAuth/login flow; never copy account tokens into CK-NEXUS source.",
     ),
     AssistantSpec(
+        assistant_id="codex",
+        name="OpenAI Codex CLI",
+        upstream="https://github.com/openai/codex",
+        license="Apache-2.0",
+        status=AssistantStatus.ACTIVE,
+        commands=("codex",),
+        capabilities=frozenset(
+            {"code_edit", "repo_analysis", "shell", "git", "test_fix", "mcp", "subagents"}
+        ),
+        free_entry_path=(
+            "Open-source CLI; model/provider access may require an eligible account or API billing."
+        ),
+        inference_may_cost=True,
+        notes=(
+            "Use as a scoped coding worker through CK-NEXUS policy; "
+            "never grant production authority directly."
+        ),
+    ),
+    AssistantSpec(
+        assistant_id="claude_code",
+        name="Claude Code",
+        upstream="https://code.claude.com/docs/en/overview",
+        license="Proprietary CLI",
+        status=AssistantStatus.ACTIVE,
+        commands=("claude",),
+        capabilities=frozenset(
+            {"code_edit", "repo_analysis", "shell", "git", "test_fix", "mcp", "subagents"}
+        ),
+        free_entry_path=(
+            "CLI availability depends on the user's Claude plan or configured API access."
+        ),
+        inference_may_cost=True,
+        notes=(
+            "Use as a scoped coding/review worker; "
+            "keep authentication in the local credential store."
+        ),
+    ),
+    AssistantSpec(
         assistant_id="cline",
         name="Cline",
         upstream="https://github.com/cline/cline",
@@ -110,8 +148,7 @@ ASSISTANTS: tuple[AssistantSpec, ...] = (
         free_entry_path="Open-source local agent; model/provider charges may still apply.",
         inference_may_cost=True,
         notes=(
-            "Use MCP extensions through CK-NEXUS capability boundaries, "
-            "not direct secret sharing."
+            "Use MCP extensions through CK-NEXUS capability boundaries, not direct secret sharing."
         ),
     ),
     AssistantSpec(

@@ -36,7 +36,7 @@ def test_provider_and_credential_status_are_redacted(tmp_path: Path, monkeypatch
         assert any(item["id"] == "openai.api_key" and item["configured"] for item in openai)
 
 
-def test_openai_is_preferred_when_mock_and_ollama_are_unavailable(
+def test_cloud_provider_is_not_preferred_by_default_in_zero_cost_mode(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "sk-r7-openai")
@@ -44,7 +44,8 @@ def test_openai_is_preferred_when_mock_and_ollama_are_unavailable(
     with TestClient(create_app(settings)) as client:
         response = client.get("/api/providers/status")
         assert response.status_code == 200
-        assert response.json()["preferred"] == "openai"
+        assert response.json()["preferred"] is None
+        assert response.json()["policy"]["allow_cloud"] is False
         assert "sk-r7-openai" not in response.text
 
 

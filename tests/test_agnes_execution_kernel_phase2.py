@@ -13,6 +13,7 @@ from creator_app.agnes.execution.sandbox import (
     SandboxViolation,
 )
 from creator_app.agnes_runtime import AgnesNervousSystem
+from tests.omni_context_factory import make_test_omni_context
 
 REPO = Path(__file__).resolve().parents[1]
 SKILL_FILE = REPO / "creator_app" / "skills" / "agnes" / "SKILL.md"
@@ -26,7 +27,23 @@ def _agnes(tmp_path: Path) -> AgnesNervousSystem:
         sandbox_enabled=True,
         sandbox_root=tmp_path / "sandbox",
         sandbox_repository_root=REPO,
+        execution_context_factory=make_test_omni_context,
     )
+
+
+def test_python_alias_resolves_to_trusted_system_python_when_missing(monkeypatch, tmp_path: Path):
+    runner = LinuxNamespaceRunner(
+        SandboxPolicy(base_dir=tmp_path / "runtime", repository_root=REPO)
+    )
+    monkeypatch.setattr("creator_app.agnes.execution.sandbox.runner.shutil.which", lambda _: None)
+    resolved = runner._resolve_executable(("python", "-c", "print(1)"))
+    assert resolved[0] in {
+        "/opt/pyvenv/bin/python",
+        "/usr/local/bin/python3",
+        "/usr/bin/python3",
+        "/bin/python3",
+    }
+    assert Path(resolved[0]).is_file()
 
 
 def _patch_request(*, approval_id: str | None = None, workspace_id: str = "ws-phase2") -> dict:
@@ -99,6 +116,27 @@ async def test_timeout_kills_process_group(tmp_path: Path):
     assert result.timed_out is True
     await asyncio.sleep(3)
     assert not (work / "child-survived").exists()
+
+
+@pytest.mark.asyncio
+async def test_runtime_fails_closed_without_omni_context_factory(tmp_path: Path):
+    agnes = AgnesNervousSystem(
+        skill_file=SKILL_FILE,
+        ledger_path=tmp_path / "ledger-no-omni.jsonl",
+        sandbox_enabled=True,
+        sandbox_root=tmp_path / "sandbox-no-omni",
+        sandbox_repository_root=REPO,
+    )
+    result = await agnes.execute_skill(
+        _patch_request(),
+        goal="fail closed without trusted OMNI context",
+        correlation_id="corr-no-omni",
+        workspace_id="ws-no-omni",
+        baseline_commit=BASELINE,
+        idempotency_key="idem-no-omni",
+    )
+    assert result.status is ExecutionStatus.BLOCKED
+    assert result.error == "omni_context_required"
 
 
 @pytest.mark.asyncio
@@ -347,7 +385,9 @@ async def test_api_phase2_approval_then_execute(tmp_path: Path):
         "allowlist_paths": ["api_phase2_probe.py"],
         "granted_capabilities": ["code_write", "patch"],
     }
-    with TestClient(create_app(settings)) as client:
+    app = create_app(settings)
+    app.state.agnes.execution_context_factory = make_test_omni_context
+    with TestClient(app) as client:
         first = client.post("/api/agnes/execute", json=payload)
         assert first.status_code == 200
         waiting = first.json()

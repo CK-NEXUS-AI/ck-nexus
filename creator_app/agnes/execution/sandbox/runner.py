@@ -40,6 +40,8 @@ done
 mkdir -p "$ROOT/workspace" "$ROOT/tmp" "$ROOT/dev" "$ROOT/opt"
 mount --bind "$WORK" "$ROOT/workspace"
 mount -t tmpfs -o nodev,nosuid,noexec,size=64m tmpfs "$ROOT/tmp"
+mkdir -p "$ROOT/tmp/bin"
+if [ -x "$ROOT/usr/bin/python3" ]; then ln -s /usr/bin/python3 "$ROOT/tmp/bin/python"; fi
 for dev in null zero random urandom; do
   if [ -e "/dev/$dev" ]; then
     touch "$ROOT/dev/$dev"
@@ -52,13 +54,13 @@ if [ -n "$LAUNCHER" ]; then
   mount --bind "$LAUNCHER" "$ROOT/agnes-seccomp"
   mount -o remount,bind,ro "$ROOT/agnes-seccomp"
   exec chroot "$ROOT" /usr/bin/env -i \
-    PATH=/opt/pyvenv/bin:/usr/local/bin:/usr/bin:/bin \
+    PATH=/tmp/bin:/opt/pyvenv/bin:/usr/local/bin:/usr/bin:/bin \
     HOME=/tmp TMPDIR=/tmp PYTHONPATH=/workspace CKNEXUS_SANDBOX=hardened_linux_namespace \
     /usr/bin/setpriv --no-new-privs --bounding-set=-all --inh-caps=-all --ambient-caps=-all \
     /bin/bash -c 'cd /workspace && exec /agnes-seccomp "$@"' _ "$@"
 fi
 exec chroot "$ROOT" /usr/bin/env -i \
-  PATH=/opt/pyvenv/bin:/usr/local/bin:/usr/bin:/bin \
+  PATH=/tmp/bin:/opt/pyvenv/bin:/usr/local/bin:/usr/bin:/bin \
   HOME=/tmp \
   TMPDIR=/tmp \
   PYTHONPATH=/workspace \
@@ -107,6 +109,21 @@ class LinuxNamespaceRunner:
 
     def _resolve_executable(self, command: tuple[str, ...]) -> tuple[str, ...]:
         executable = shutil.which(command[0])
+        # Ubuntu may omit the unversioned python alias; use only trusted system interpreters.
+        if executable is None and command[0] == "python":
+            executable = next(
+                (
+                    candidate
+                    for candidate in (
+                        "/opt/pyvenv/bin/python",
+                        "/usr/local/bin/python3",
+                        "/usr/bin/python3",
+                        "/bin/python3",
+                    )
+                    if Path(candidate).is_file() and os.access(candidate, os.X_OK)
+                ),
+                None,
+            )
         if executable is None:
             raise SandboxViolation(f"command_unavailable:{command[0]}")
         allowed_roots = ("/usr/", "/bin/", "/opt/", "/usr/local/")

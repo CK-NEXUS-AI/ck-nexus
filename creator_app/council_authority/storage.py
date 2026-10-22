@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import sqlite3
@@ -12,12 +13,17 @@ from pathlib import Path
 class AuthorityStore:
     def __init__(self, path: str):
         self.path = path
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         self._lock = threading.RLock()
         self._init()
+        # Deployment checks surface inability to chmod; never hide other errors.
+        with contextlib.suppress(OSError):
+            Path(self.path).chmod(0o600)
 
     def _db(self):
         db = sqlite3.connect(self.path, timeout=30, isolation_level=None)
+        db.execute("PRAGMA busy_timeout=30000")
+        db.execute("PRAGMA synchronous=FULL")
         db.row_factory = sqlite3.Row
         return db
 
@@ -167,20 +173,31 @@ class AuthorityStore:
     def consume_grant(
         self, grant_id: str, *, agent_id: str, capability_id: str, params_hash: str
     ) -> bool:
-        with self._lock, self._db() as db:
-            db.execute("BEGIN IMMEDIATE")
-            row = db.execute("SELECT * FROM grants WHERE grant_id=?", (grant_id,)).fetchone()
-            ok = bool(
-                row
-                and not row["used"]
-                and row["expires_at"] > int(time.time())
-                and row["agent_id"] == agent_id
-                and row["capability_id"] == capability_id
-                and row["params_hash"] == params_hash
-            )
-            if ok:
+        # Explicitly close every connection and rollback every failed transaction.
+        # Expiry and used-state checks happen under the same write lock as consume.
+        with self._lock:
+            db = self._db()
+            try:
+                db.execute("BEGIN IMMEDIATE")
+                row = db.execute("SELECT * FROM grants WHERE grant_id=?", (grant_id,)).fetchone()
+                ok = bool(
+                    row
+                    and not row["used"]
+                    and row["expires_at"] > int(time.time())
+                    and row["agent_id"] == agent_id
+                    and row["capability_id"] == capability_id
+                    and row["params_hash"] == params_hash
+                )
+                if not ok:
+                    db.execute("ROLLBACK")
+                    return False
                 db.execute("UPDATE grants SET used=1 WHERE grant_id=?", (grant_id,))
                 db.execute("COMMIT")
-            else:
-                db.execute("ROLLBACK")
-            return ok
+                return True
+            except Exception:
+                if db.in_transaction:
+                    with contextlib.suppress(sqlite3.Error):
+                        db.execute("ROLLBACK")
+                raise
+            finally:
+                db.close()

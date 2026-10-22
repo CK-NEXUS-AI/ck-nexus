@@ -8,6 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from time import monotonic
 from typing import Protocol
+from urllib.parse import urlparse
 
 from creator_app.credentials.free_providers import AUTO_DISCOVER_PROVIDERS
 
@@ -118,8 +119,10 @@ class LlmKeyPool:
     * ``401/402/403`` (invalid or out of credit) mark a key exhausted and rotate.
     * Round-robin pointer + least-recently-used ordering spread load across keys.
     * Cooldown/exhaustion state persists to a JSON file so it survives restarts.
-    * When every key is unavailable the pool reports ``free_fallback`` so callers
-      can switch to local/free mode instead of failing hard.
+    * Unattended mode only selects loopback inference endpoints. Hosted APIs are
+      blocked even when their metadata claims ``free=True`` because free tiers are
+      quota-limited and do not guarantee unlimited zero-cost use.
+    * When every eligible key is unavailable the pool reports ``free_fallback``.
     * Quota monitoring: when usage reaches the warning threshold (default 95%),
       the key is marked for automatic rotation to the next healthy candidate.
 
@@ -187,8 +190,62 @@ class LlmKeyPool:
                     free=provider.free,
                 )
                 for provider in AUTO_DISCOVER_PROVIDERS
-                if os.getenv(provider.env_var, "").strip()
+                if provider.id != "qwen" and os.getenv(provider.env_var, "").strip()
             ]
+
+            # Model Studio keys are region-bound. Prefer this workspace's
+            # Singapore endpoint and never silently route its key to the global endpoint.
+            model_studio_base_url = os.getenv(
+                "MODEL_STUDIO_BASE_URL",
+                os.getenv(
+                    "DASHSCOPE_BASE_URL",
+                    "https://ws-6qwky1k48cpsbpbq.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+                ),
+            ).strip().rstrip("/")
+            model_studio_model = os.getenv(
+                "MODEL_STUDIO_MODEL", os.getenv("QWEN_MODEL", "qwen3.6-plus")
+            ).strip()
+            from urllib.parse import urlparse
+
+            parsed_url = urlparse(model_studio_base_url)
+            host = (parsed_url.hostname or "").lower()
+            allowed_host = (
+                host == "dashscope-intl.aliyuncs.com"
+                or host.endswith(".ap-southeast-1.maas.aliyuncs.com")
+            )
+            if (
+                parsed_url.scheme != "https"
+                or not allowed_host
+                or parsed_url.path != "/compatible-mode/v1"
+                or parsed_url.query
+                or parsed_url.fragment
+            ):
+                raise KeyPoolError(
+                    "MODEL_STUDIO_BASE_URL must be an HTTPS Singapore Model Studio "
+                    "endpoint ending in /compatible-mode/v1"
+                )
+            if not model_studio_model:
+                raise KeyPoolError("MODEL_STUDIO_MODEL must not be empty")
+
+            model_studio_envs = [
+                *(f"MODEL_STUDIO_API_KEY_{index}" for index in range(1, 10)),
+                "MODEL_STUDIO_API_KEY",
+                "DASHSCOPE_API_KEY",
+            ]
+            model_studio_key_index = 0
+            for env_var in model_studio_envs:
+                if not os.getenv(env_var, "").strip():
+                    continue
+                model_studio_key_index += 1
+                specs.append(
+                    LlmKeySpec(
+                        id=f"model-studio-{model_studio_key_index}",
+                        env_var=env_var,
+                        base_url=model_studio_base_url,
+                        model=model_studio_model,
+                        free=False,
+                    )
+                )
 
         if not specs:
             return None
@@ -203,6 +260,13 @@ class LlmKeyPool:
         for _ in range(len(self.specs)):
             spec = self.specs[self._pointer]
             api_key = os.getenv(spec.env_var, "").strip()
+
+            # Free-tier labels cannot prove unlimited usage or zero billing. In
+            # unattended mode only accept loopback endpoints; all hosted routes
+            # are blocked regardless of custom CKNEXUS_LLM_KEYS metadata.
+            if not self._is_local_endpoint(spec.base_url):
+                self._advance_pointer()
+                continue
 
             if not api_key:
                 self._advance_pointer()
@@ -241,6 +305,17 @@ class LlmKeyPool:
 
         self.free_fallback = True
         return None
+
+    @staticmethod
+    def _is_local_endpoint(base_url: str) -> bool:
+        """Return true only for loopback endpoints suitable for local inference."""
+        try:
+            parsed = urlparse(base_url)
+            return parsed.scheme in {"http", "https"} and parsed.hostname in {
+                "localhost", "127.0.0.1", "::1"
+            }
+        except (TypeError, ValueError):
+            return False
 
     def report_success(self, key_id: str) -> None:
         self._failures.pop(key_id, None)

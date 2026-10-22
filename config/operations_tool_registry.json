@@ -1,0 +1,289 @@
+{
+  "schema_version": "1.0.0",
+  "registry_name": "CK-NEXUS Unified Operations Tool Registry",
+  "purpose": "Single inventory and policy source for routing work to existing automation tools; registry entries do not grant runtime permissions by themselves.",
+  "default_policy": {
+    "execution_mode": "read_only_first",
+    "unknown_tool": "deny",
+    "unknown_workflow": "deny",
+    "evidence_required": true,
+    "secrets_in_logs": false,
+    "production_deploy_requires_human_approval": true,
+    "external_send_requires_explicit_approval": true,
+    "fail_closed": true
+  },
+  "priority_order": [
+    "health_and_recovery",
+    "evidence_and_release_gates",
+    "security_and_access_audit",
+    "error_alerting_and_daily_reporting",
+    "read_only_integrations",
+    "approved_mutations"
+  ],
+  "tools": [
+    {
+      "id": "vps_health",
+      "priority": 1,
+      "class": "health_and_recovery",
+      "source": "systemd + CK-NEXUS Watchdog",
+      "capabilities": [
+        "service_status",
+        "health_probe",
+        "container_heartbeat",
+        "bounded_restart_policy"
+      ],
+      "mode": "read_only_with_bounded_recovery",
+      "evidence": [
+        "systemd journal",
+        "/var/lib/cknexus-watchdog/"
+      ],
+      "approval": "restart policy must remain bounded; no destructive repair",
+      "status": "observed_active_2026-10-21"
+    },
+    {
+      "id": "n8n_health_report",
+      "priority": 1,
+      "class": "health_and_recovery",
+      "source": "/opt/cknexus/storage/cknexus_n8n_health_report.py",
+      "capabilities": [
+        "n8n_health",
+        "sqlite_integrity",
+        "backup_hash_check",
+        "disk_usage",
+        "cloud_snapshot_freshness"
+      ],
+      "mode": "read_only_report_write",
+      "evidence": [
+        "/opt/cknexus/storage/execution-reports/"
+      ],
+      "approval": "no secret values in reports",
+      "status": "script_and_recent_reports_verified"
+    },
+    {
+      "id": "n8n_backup",
+      "priority": 1,
+      "class": "health_and_recovery",
+      "source": "/opt/cknexus/storage/backup_n8n.py",
+      "capabilities": [
+        "sqlite_consistent_backup",
+        "manifest_sha256",
+        "retention_of_seven_auto_backups"
+      ],
+      "mode": "backup_write_only",
+      "evidence": [
+        "/opt/cknexus/storage/backups/n8n-auto-*/manifest.json"
+      ],
+      "approval": "preserve sensitive config root-only; verify restore separately",
+      "status": "timer_enabled_recent_backup_hashes_match"
+    },
+    {
+      "id": "evidence_gate",
+      "priority": 2,
+      "class": "evidence_and_release_gates",
+      "source": "n8n Cloud snapshot 2026-10-14",
+      "workflow_id": "DNY1Ta0KuZumRxAV",
+      "capabilities": [
+        "input_validation",
+        "github_commit_lookup",
+        "compare_and_decide",
+        "data_table_result"
+      ],
+      "mode": "read_only_validation_then_evidence_write",
+      "evidence": [
+        "workflow snapshot and manifest"
+      ],
+      "approval": "PASS only from current verifiable evidence",
+      "status": "active_in_snapshot_not_live_verified"
+    },
+    {
+      "id": "evidence_gate_helper",
+      "priority": 2,
+      "class": "evidence_and_release_gates",
+      "source": "n8n Cloud snapshot 2026-10-14",
+      "workflow_id": "tOsg3K1xcrxI1GOM",
+      "capabilities": [
+        "form_input",
+        "call_evidence_gate",
+        "return_result"
+      ],
+      "mode": "bounded_subworkflow",
+      "evidence": [
+        "workflow snapshot and manifest"
+      ],
+      "approval": "inherits Evidence Gate policy",
+      "status": "active_in_snapshot_not_live_verified"
+    },
+    {
+      "id": "production_error_alert",
+      "priority": 3,
+      "class": "error_alerting_and_daily_reporting",
+      "source": "n8n Cloud snapshot 2026-10-14",
+      "workflow_id": "ASq906OfEaDqjGug",
+      "capabilities": [
+        "capture_workflow_error",
+        "redact_failure_evidence",
+        "email_alert"
+      ],
+      "mode": "alert_only",
+      "evidence": [
+        "redacted error summary",
+        "execution history when available"
+      ],
+      "approval": "sanitize before outbound notification",
+      "status": "active_in_snapshot_not_live_verified"
+    },
+    {
+      "id": "ai_ops_daily_digest",
+      "priority": 4,
+      "class": "error_alerting_and_daily_reporting",
+      "source": "n8n Cloud snapshot 2026-10-14",
+      "workflow_id": "DX6ROxvvgE0iU7K5",
+      "capabilities": [
+        "gmail_metadata_read",
+        "outlook_metadata_read",
+        "merge_signals",
+        "thai_digest",
+        "email_digest"
+      ],
+      "mode": "read_only_collect_then_approved_send",
+      "evidence": [
+        "workflow snapshot",
+        "future execution report"
+      ],
+      "approval": "verify account scopes and recipients before enabling sends",
+      "status": "active_in_snapshot_not_live_verified"
+    },
+    {
+      "id": "email_tools",
+      "priority": 5,
+      "class": "read_only_integrations",
+      "source": "n8n Cloud snapshot 2026-10-14",
+      "workflow_id": "nfx2SidgLjMULigp",
+      "capabilities": [
+        "search_email",
+        "read_email",
+        "create_draft",
+        "send_approved_email"
+      ],
+      "mode": "read_only_by_default_draft_before_send",
+      "evidence": [
+        "workflow snapshot",
+        "future execution report"
+      ],
+      "approval": "explicit approval required for send; verify auth and account routing",
+      "status": "inactive_in_snapshot_not_live_verified"
+    },
+    {
+      "id": "operations_orchestrator",
+      "priority": 5,
+      "class": "read_only_integrations",
+      "source": "n8n Cloud snapshot 2026-10-14",
+      "workflow_id": "QYr9oAO6hWv5QcT9",
+      "capabilities": [
+        "operations_index",
+        "safe_registry",
+        "call_read_only_diagnostic"
+      ],
+      "mode": "read_only_first",
+      "evidence": [
+        "workflow snapshot",
+        "future execution report"
+      ],
+      "approval": "deny unknown tools and unapproved side effects",
+      "status": "inactive_in_snapshot_not_live_verified"
+    },
+    {
+      "id": "hotmail_diagnostic",
+      "priority": 5,
+      "class": "read_only_integrations",
+      "source": "n8n Cloud snapshot 2026-10-14",
+      "workflow_id": "vPc9I9AICVGaeXEK",
+      "capabilities": [
+        "outlook_metadata_read",
+        "seven_day_read_only_diagnostic",
+        "redacted_summary"
+      ],
+      "mode": "read_only",
+      "evidence": [
+        "workflow snapshot",
+        "future execution report"
+      ],
+      "approval": "verify least-privilege scopes before use",
+      "status": "inactive_in_snapshot_not_live_verified"
+    },
+    {
+      "id": "n8n_mcp",
+      "priority": 6,
+      "class": "approved_mutations",
+      "source": "n8n instance MCP endpoint",
+      "capabilities": [
+        "future_scoped_workflow_discovery_and_invocation"
+      ],
+      "mode": "disabled_until_security_gates_pass",
+      "evidence": [
+        "local endpoint returned MCP access disabled"
+      ],
+      "approval": "real authentication, least privilege, loopback/tunnel controls, read-only canary, audit and revocation tests",
+      "status": "disabled_verified_2026-10-21"
+    }
+  ],
+  "implementation_gates": [
+    {
+      "id": "G1",
+      "name": "refresh_cloud_inventory",
+      "exit_criteria": [
+        "fresh workflow list",
+        "node type map",
+        "active status",
+        "credential references without secret values",
+        "SHA-256 manifest"
+      ]
+    },
+    {
+      "id": "G2",
+      "name": "validate_registry",
+      "exit_criteria": [
+        "schema validation",
+        "unknown-tool deny tests",
+        "secret-redaction tests",
+        "policy review"
+      ]
+    },
+    {
+      "id": "G3",
+      "name": "read_only_canary",
+      "exit_criteria": [
+        "execute one harmless read-only workflow",
+        "capture execution ID and sanitized output",
+        "verify no external side effects"
+      ]
+    },
+    {
+      "id": "G4",
+      "name": "secure_mcp_canary",
+      "exit_criteria": [
+        "authentication and scope tests",
+        "loopback-only or authenticated tunnel",
+        "rate limit and request size controls",
+        "audit and revocation tests"
+      ]
+    },
+    {
+      "id": "G5",
+      "name": "controlled_mutations",
+      "exit_criteria": [
+        "draft/preview",
+        "explicit human approval",
+        "idempotency and rollback",
+        "verified post-action evidence"
+      ]
+    }
+  ],
+  "known_gaps": [
+    "Cloud inventory is dated 2026-10-14 and must not be treated as live state",
+    "n8n VPS database had 2 workflows, 0 executions, 0 credential rows, and 0 webhook rows at inspection time",
+    "n8n MCP endpoint returned MCP access is disabled",
+    "no successful end-to-end Cloud workflow execution was verified during this inspection",
+    "existing working-tree changes in pyproject.toml and pyproject.toml.bak-mcp-20261021 must be preserved"
+  ]
+}

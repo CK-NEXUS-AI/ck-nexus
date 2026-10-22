@@ -76,7 +76,11 @@ class JwtJwksTokenVerifier(TokenVerifier):
             header = jwt.get_unverified_header(token)
             algorithm = header.get("alg")
             kid = header.get("kid")
-            if algorithm not in self.config.allowed_algorithms or not isinstance(kid, str) or not kid:
+            if (
+                algorithm not in self.config.allowed_algorithms
+                or not isinstance(kid, str)
+                or not kid
+            ):
                 return None
             jwk = await self._get_key(kid, refresh_if_missing=True)
             if jwk is None:
@@ -147,7 +151,10 @@ class JwtJwksTokenVerifier(TokenVerifier):
                     if response.status_code != 200:
                         return False
                     content_length = response.headers.get("content-length")
-                    if content_length is not None and int(content_length) > self.config.max_jwks_bytes:
+                    if (
+                        content_length is not None
+                        and int(content_length) > self.config.max_jwks_bytes
+                    ):
                         return False
                     body = await response.aread()
                     if len(body) > self.config.max_jwks_bytes:

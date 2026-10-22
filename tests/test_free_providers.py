@@ -194,13 +194,17 @@ class TestGeminiAdapter:
 
 
 class TestBuildFreeAdapters:
+    def test_hosted_adapters_are_disabled_by_default_even_with_keys(self):
+        with patch.dict(os.environ, {"GROQ_API_KEY": "gsk_test"}):
+            assert build_free_adapters() == []
+
     def test_empty_without_keys(self):
         adapters = build_free_adapters()
         assert len(adapters) == 0
 
     def test_builds_groq_when_key_set(self):
         with patch.dict(os.environ, {"GROQ_API_KEY": "gsk_test"}):
-            adapters = build_free_adapters()
+            adapters = build_free_adapters(allow_limited_free_tier=True)
             names = [a.name for a in adapters]
             assert "groq" in names
 
@@ -211,7 +215,7 @@ class TestBuildFreeAdapters:
             "DEEPSEEK_API_KEY": "sk_test",
         }
         with patch.dict(os.environ, env, clear=False):
-            adapters = build_free_adapters()
+            adapters = build_free_adapters(allow_limited_free_tier=True)
             names = [a.name for a in adapters]
             assert "groq" in names
             assert "gemini" in names
@@ -220,7 +224,9 @@ class TestBuildFreeAdapters:
     def test_shared_quota_tracker(self):
         with patch.dict(os.environ, {"GROQ_API_KEY": "gsk_test"}):
             qt = QuotaTracker()
-            adapters = build_free_adapters(quota_tracker=qt)
+            adapters = build_free_adapters(
+                quota_tracker=qt, allow_limited_free_tier=True
+            )
             assert len(adapters) >= 1
             # Record on adapter's tracker should reflect in shared tracker
             adapters[0]._quota.record("groq", tokens=100)

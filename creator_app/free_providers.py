@@ -289,8 +289,17 @@ class GeminiAdapter:
 
 def build_free_adapters(
     quota_tracker: QuotaTracker | None = None,
+    *,
+    allow_limited_free_tier: bool = False,
 ) -> list[Any]:
-    """Build all free-tier provider adapters based on available env keys."""
+    """Build bounded hosted free-tier adapters only after explicit opt-in.
+
+    Free hosted tiers are quota-limited and are not an unlimited inference path.
+    Unattended callers therefore receive no hosted adapters by default. The
+    opt-in exists for separately approved, quota-bounded development workflows.
+    """
+    if not allow_limited_free_tier:
+        return []
     qt = quota_tracker or QuotaTracker()
     adapters: list[Any] = []
 

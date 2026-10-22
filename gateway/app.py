@@ -17,7 +17,9 @@ from .routing import RouteRegistry
 
 
 class RateLimiter(Protocol):
-    async def consume(self, tenant_id: str, actor_id: str, route_id: str, policy: object, **kwargs: object): ...
+    async def consume(
+        self, tenant_id: str, actor_id: str, route_id: str, policy: object, **kwargs: object
+    ): ...
 
 
 @dataclass(slots=True)
@@ -35,7 +37,9 @@ def _default_dependencies(settings: GatewaySettings) -> GatewayDependencies:
     return GatewayDependencies(
         settings=settings,
         decoder=PyJWTDecoder(settings.jwt_public_key, settings.jwt_algorithm, settings.issuer),
-        limiter=RedisTokenBucket.from_url(settings.redis_url, policy_version=settings.policy_version),
+        limiter=RedisTokenBucket.from_url(
+            settings.redis_url, policy_version=settings.policy_version
+        ),
         proxy=HttpxUpstreamClient(),
         audit=InMemoryAuditSink(),
         routes=RouteRegistry(settings.route_policies, settings.upstreams),
@@ -96,7 +100,9 @@ def create_app(
         request_path = "/" + path
         match = deps.routes.match(request_path, request.method)
         identity = authenticate(
-            request.headers.get("authorization"), decoder=deps.decoder, audience=match.policy.audience
+            request.headers.get("authorization"),
+            decoder=deps.decoder,
+            audience=match.policy.audience,
         )
         authorize(identity, match.policy.permissions)
         rate_policy = deps.settings.rate_policies[match.policy.rate_limit_policy]
@@ -123,9 +129,14 @@ def create_app(
                 **{
                     key: value
                     for key, value in request.headers.items()
-                    if key.lower() not in {
-                        "authorization", "cookie", "proxy-authorization", "host",
-                        "content-length", "connection"
+                    if key.lower()
+                    not in {
+                        "authorization",
+                        "cookie",
+                        "proxy-authorization",
+                        "host",
+                        "content-length",
+                        "connection",
                     }
                 },
                 HEADER: request.state.correlation_id,
@@ -149,7 +160,7 @@ def create_app(
         )
         headers = {HEADER: request.state.correlation_id}
         if upstream.headers and upstream.headers.get("location"):
-            # Redirect is returned without following it. No credentials are forwarded to redirected hosts.
+            # Return redirects without following them; never forward credentials to another host.
             headers["Location"] = upstream.headers["location"]
         return Response(
             content=upstream.body,
