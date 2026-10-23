@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily CK-NEXUS n8n backup timer
+
+[Timer]
+OnCalendar=*-*-* 20:00:00 UTC
+Persistent=true
+RandomizedDelaySec=5m
+Unit=cknexus-n8n-backup.service
+
+[Install]
+WantedBy=timers.target

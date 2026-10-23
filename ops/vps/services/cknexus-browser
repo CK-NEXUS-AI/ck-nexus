@@ -1,0 +1,12 @@
+#!/bin/bash
+set -euo pipefail
+BASE=/home/kvm/.local/share/cknexus-webdesktop
+ACTION=${1:-status}
+if ! curl -fsS --max-time 1 http://127.0.0.1:9222/json/version >/dev/null 2>&1; then
+  if [ "$ACTION" = "status" ]; then echo 'Browser not running; use cknexus-browser start'; exit 3; fi
+  if [ "$ACTION" = "start" ]; then shift || true; else :; fi
+  nohup runuser -u kvm -- env HOME=/home/kvm DISPLAY=:1 XAUTHORITY="$BASE/Xauthority" XDG_RUNTIME_DIR=/tmp/cknexus-kvm-runtime /opt/google/chrome/google-chrome --user-data-dir="$BASE/chrome-profile" --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 --no-first-run --disable-dev-shm-usage --disable-extensions --disable-background-networking --disable-sync --disable-gpu --renderer-process-limit=1 about:blank > "$BASE/logs/chrome.log" 2>&1 < /dev/null &
+  for i in $(seq 1 25); do curl -fsS --max-time 1 http://127.0.0.1:9222/json/version >/dev/null 2>&1 && break; sleep 1; done
+fi
+if [ "$ACTION" = "start" ]; then ACTION=status; fi
+exec node /usr/local/lib/cknexus-browser.cjs "$ACTION" "${2:-}"

@@ -1,0 +1,16 @@
+[Unit]
+Description=CK-NEXUS Scanner API (localhost only)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/libexec/cknexus_scanner_api.py
+Restart=on-failure
+RestartSec=5
+User=root
+NoNewPrivileges=true
+ReadOnlyPaths=/etc/cknexus-scanner
+ReadWritePaths=/opt/cknexus/evidence
+
+[Install]
+WantedBy=multi-user.target

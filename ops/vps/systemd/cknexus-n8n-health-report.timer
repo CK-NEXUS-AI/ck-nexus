@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily CK-NEXUS n8n health/evidence report timer
+
+[Timer]
+OnCalendar=*-*-* 20:15:00 UTC
+Persistent=true
+RandomizedDelaySec=2m
+Unit=cknexus-n8n-health-report.service
+
+[Install]
+WantedBy=timers.target

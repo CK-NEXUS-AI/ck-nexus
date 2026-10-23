@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+"""Narrow privileged wrapper for CK-NEXUS read-only browser automation."""
+from __future__ import annotations
+
+import ipaddress
+import os
+import subprocess
+import sys
+from urllib.parse import urlsplit
+
+HELPER = "/usr/local/bin/cknexus-browser"
+ALLOWED_HOSTS = {
+    "github.com",
+    "docs.github.com",
+    "raw.githubusercontent.com",
+    "progressive-clouds-sellers-cube.trycloudflare.com",
+    "commodity-reveal-flexible-catalog.trycloudflare.com",
+}
+ACTIONS = {"status", "open", "text", "title", "url", "screenshot"}
+
+
+def valid_url(value: str) -> bool:
+    if not value or len(value) > 2048:
+        return False
+    try:
+        parsed = urlsplit(value)
+        host = (parsed.hostname or "").lower().rstrip(".")
+        if parsed.scheme != "https" or parsed.username is not None or parsed.password is not None:
+            return False
+        if parsed.port not in (None, 443) or host not in ALLOWED_HOSTS:
+            return False
+        try:
+            if not ipaddress.ip_address(host).is_global:
+                return False
+        except ValueError:
+            pass
+        return True
+    except ValueError:
+        return False
+
+
+def main() -> int:
+    if len(sys.argv) < 2 or sys.argv[1] not in ACTIONS:
+        print("Denied browser action.", file=sys.stderr)
+        return 2
+    action = sys.argv[1]
+    expected = 3 if action in {"open", "screenshot"} else 2
+    if len(sys.argv) != expected:
+        print("Invalid browser arguments.", file=sys.stderr)
+        return 2
+    if action == "open" and not valid_url(sys.argv[2]):
+        print("Denied URL.", file=sys.stderr)
+        return 2
+    if action == "screenshot" and sys.argv[2] != "/tmp/cknexus-browser-mcp.png":
+        print("Denied screenshot path.", file=sys.stderr)
+        return 2
+    args = [HELPER, action]
+    if len(sys.argv) == 3:
+        args.append(sys.argv[2])
+    try:
+        result = subprocess.run(args, capture_output=True, text=True, timeout=32, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        print("Browser helper unavailable or timed out.", file=sys.stderr)
+        return 3
+    if result.stdout:
+        print(result.stdout[:14000], end="" if result.stdout.endswith("\n") else "\n")
+    if result.returncode and result.stderr:
+        print(result.stderr[:1000], file=sys.stderr)
+    return result.returncode
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,22 @@
+[Unit]
+Description=CK Search MCP REST Gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/search-gateway
+Environment=PATH=/root/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HOME=/opt/search-gateway/home
+EnvironmentFile=/etc/ck-search-gateway.env
+ExecStart=/root/.local/share/uv/tools/mcp-actions-adapter/bin/uvicorn gateway:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/search-gateway /root/.cache /root/.npm /root/.local/share/uv
+
+[Install]
+WantedBy=multi-user.target

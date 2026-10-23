@@ -1,0 +1,12 @@
+[Unit]
+Description=Run CK-NEXUS heartbeat watchdog every two minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+AccuracySec=15s
+Persistent=true
+Unit=cknexus-watchdog.service
+
+[Install]
+WantedBy=timers.target

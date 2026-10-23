@@ -1,0 +1,35 @@
+#!/bin/sh
+set -eu
+REPO=/opt/actions-runner/_work/ck-nexus/ck-nexus
+DEPLOY=/opt/cknexus/q11-release-b960
+if [ ! -d "$REPO/.git" ] && [ ! -f "$REPO/.git" ]; then
+  printf '%s\n' '{"schema":"cknexus-vps-evidence-v1","status":"ERROR","reason":"runner_checkout_missing"}'
+  exit 0
+fi
+commit=$(git -c safe.directory="$REPO" -C "$REPO" rev-parse HEAD 2>/dev/null || printf '')
+tree=$(git -c safe.directory="$REPO" -C "$REPO" rev-parse 'HEAD^{tree}' 2>/dev/null || printf '')
+branch=$(git -c safe.directory="$REPO" -C "$REPO" symbolic-ref --short -q HEAD 2>/dev/null || printf 'DETACHED')
+status_count=$(git -c safe.directory="$REPO" -C "$REPO" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+if [ "$status_count" = 0 ]; then clean=true; else clean=false; fi
+if git -c safe.directory="$DEPLOY" -C "$DEPLOY" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  deploy_git=true
+  deploy_commit=$(git -c safe.directory="$DEPLOY" -C "$DEPLOY" rev-parse HEAD 2>/dev/null || printf '')
+  deploy_tree=$(git -c safe.directory="$DEPLOY" -C "$DEPLOY" rev-parse 'HEAD^{tree}' 2>/dev/null || printf '')
+else
+  deploy_git=false
+  deploy_commit=''
+  deploy_tree=''
+fi
+export commit tree branch status_count clean deploy_git deploy_commit deploy_tree
+python3 - <<'PY'
+import json, os
+obj={
+  "schema":"cknexus-vps-evidence-v1",
+  "source_host":os.uname().nodename,
+  "collected_at_utc":__import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(),
+  "runner_checkout":{"path":"/opt/actions-runner/_work/ck-nexus/ck-nexus","commit_sha":os.environ.get('commit') or None,"tree_sha":os.environ.get('tree') or None,"branch":os.environ.get('branch'),"status_entry_count":int(os.environ.get('status_count','-1')),"working_tree_clean":os.environ.get('clean')=='true'},
+  "q11_release_path":{"path":"/opt/cknexus/q11-release-b960","is_git_worktree":os.environ.get('deploy_git')=='true',"commit_sha":os.environ.get('deploy_commit') or None,"tree_sha":os.environ.get('deploy_tree') or None},
+  "limitations":["reports Git metadata and dirty-state count only","does not attest running process or deployed file contents","must be compared with GitHub Candidate identity"]
+}
+print(json.dumps(obj,sort_keys=True,separators=(',',':')))
+PY
