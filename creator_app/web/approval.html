@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0a1020">
+  <meta name="referrer" content="same-origin">
+  <title>CK-NEXUS · Human Approval</title>
+  <link rel="stylesheet" href="/static/approval.css">
+  <script defer src="/static/approval.js"></script>
+</head>
+<body>
+  <main class="wrap">
+    <header class="top">
+      <a href="/development" class="brand">CK-NEXUS <span>HUMAN APPROVAL</span></a>
+      <span class="tag">MANUAL CONFIRMATION</span>
+    </header>
+    <section class="hero">
+      <p class="eyebrow">CONTROL PLANE / EXPLICIT HUMAN GATE</p>
+      <h1>ตรวจสอบก่อน <span>ยืนยัน</span></h1>
+      <p>ปุ่มนี้จะส่งคำขออนุมัติไปยัง CK-NEXUS หลังจากคุณตรวจสอบข้อมูลครบถ้วนเท่านั้น การเปิดหน้านี้ยังไม่ถือว่าอนุมัติ</p>
+    </section>
+    <section class="panel">
+      <div class="warning"><strong>โปรดตรวจสอบ</strong><span>อนุมัติเฉพาะคำขอที่คุณรู้จักและตรวจสอบ fingerprint จากแหล่งที่เชื่อถือได้แล้ว การอนุมัติจะให้สิทธิ์ตาม request นั้น ไม่ใช่การอนุมัติทุกงานในระบบ</span></div>
+      <form id="approval-form" autocomplete="off">
+        <label>Approval ID
+          <input id="approval-id" name="approval_id" required maxlength="128" autocomplete="off" placeholder="ใส่ approval_id ของคำขอ">
+        </label>
+        <label>Fingerprint (SHA-256 / 64 ตัวอักษร)
+          <input id="fingerprint" name="fingerprint" required minlength="64" maxlength="64" pattern="[a-fA-F0-9]{64}" autocomplete="off" placeholder="วาง fingerprint ที่ตรวจสอบแล้ว">
+        </label>
+        <label>ชื่อผู้อนุมัติ
+          <input id="approved-by" name="approved_by" required maxlength="128" autocomplete="name" placeholder="ชื่อหรือรหัสผู้อนุมัติ">
+        </label>
+        <label>อายุการอนุมัติ
+          <select id="ttl" name="ttl_seconds">
+            <option value="300">5 นาที</option>
+            <option value="900" selected>15 นาที</option>
+            <option value="1800">30 นาที</option>
+            <option value="3600">60 นาที</option>
+          </select>
+        </label>
+        <label>CK-NEXUS Access Token
+          <input id="access-token" name="access_token" type="password" required autocomplete="new-password" spellcheck="false" placeholder="ใช้ token สำหรับ API นี้เท่านั้น">
+          <small>Token จะอยู่ในหน่วยความจำของหน้านี้ชั่วคราว ไม่บันทึกใน localStorage/sessionStorage และล้างหลังส่งคำขอ</small>
+        </label>
+        <label class="confirm"><input id="confirm-check" type="checkbox" required> ฉันตรวจสอบ Approval ID และ fingerprint แล้ว และต้องการอนุมัติคำขอนี้</label>
+        <div class="actions">
+          <button type="submit" id="approve-button">ยืนยันอนุมัติคำขอนี้</button>
+          <button type="button" id="clear-button" class="secondary">ล้างข้อมูล</button>
+        </div>
+        <p id="status" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+    <footer><a href="/development">กลับหน้า Development Dashboard</a><span>ไม่เก็บ token · ไม่อนุมัติอัตโนมัติ · ไม่เปิดเผย secret</span></footer>
+  </main>
+</body>
+</html>

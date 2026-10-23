@@ -251,6 +251,7 @@ def test_phase3_api_pending_approval_then_advance_to_candidate(tmp_path: Path):
 
     settings = Settings(
         mock_ai=True,
+        access_token="test-access-token",
         database_path=tmp_path / "db.sqlite",
         agnes_ledger_path=tmp_path / "ledger.jsonl",
         agnes_sandbox_enabled=True,
@@ -272,6 +273,7 @@ def test_phase3_api_pending_approval_then_advance_to_candidate(tmp_path: Path):
     app = create_app(settings)
     app.state.agnes.execution_context_factory = make_test_omni_context
     with TestClient(app) as client:
+        client.headers.update({"Authorization": "Bearer test-access-token"})
         start = client.post(
             "/api/agnes/pipeline/start",
             json={

@@ -1,6 +1,75 @@
-# CK-NEXUS Creator Edition
+# CK-NEXUS — System Development Dashboard
 
-ระบบ AI แบบเมนูสำหรับครีเอเตอร์: เลือก Agent, ใส่ Creative Brief สั้น ๆ, สร้างผลงาน และเก็บประวัติไว้ใน SQLite บนเครื่องของผู้ใช้
+> **สถานะระบบ:** 🚧 Development / Pre-Production · `production_status = NO-GO` · อัปเดตจากการตรวจ VPS และ Repository วันที่ 23 ตุลาคม 2026
+> **หลักฐานสำคัญ:** ชุดทดสอบ Control Plane + Remote MCP ที่เลือกผ่าน 84 tests; ยังไม่ใช่ผลทดสอบเต็มทั้ง Repository หรือการรับรอง Production
+> **หน้า UI:** เปิด `/development` หลังรัน Creator App เพื่อดูเปอร์เซ็นต์ถ่วงน้ำหนัก, workstreams, เครื่องมือ, ผลตรวจสอบ และงานถัดไป
+
+## ภาพรวมใน 1 นาที
+
+| หมวด | สถานะจริงล่าสุด | หลักฐาน / ข้อจำกัด |
+|---|---|---|
+| Control Plane | ✅ ทดสอบชุดเป้าหมายผ่าน | 84 passed หลังแก้ MCP SDK compatibility |
+| MCP Service | ✅ Active · Localhost only | `127.0.0.1:8765`; ห้ามเปิดสู่ Internet |
+| API Gateway / Scanner | ✅ Active | ตรวจสถานะ systemd จาก VPS |
+| Watchdog | ✅ Timer Active | ต้องตรวจผลการฟื้นตัวเมื่อเกิดเหตุจริงแยกต่างหาก |
+| Disk | ⚠️ เฝ้าระวัง | Root 81% ใช้ 32 GB / เหลือ 7.5 GB |
+| Git worktree | ⚠️ มีงานค้าง | `main` ahead 7; `uv.lock` ถูกแก้ไข และมีไฟล์สถานะใหม่ 2 ไฟล์ก่อนการแก้รอบนี้ |
+| Model Studio | ⏳ ยังไม่ยืนยัน Inference | HTTPS เชื่อมต่อได้; ยังไม่ได้ทดสอบ API Key/เรียกโมเดลจริง |
+| Production | 🔒 **NO-GO** | ยังไม่ผ่าน End-to-End และ Deployment Verification |
+
+> **เปอร์เซ็นต์ความคืบหน้า:** ยังไม่แสดงตัวเลขรวม เพราะยังไม่มีสูตรคำนวณที่ผูกกับ GitHub Issues/Milestones และหลักฐานการทดสอบอย่างครบถ้วน การใส่เปอร์เซ็นต์ตอนนี้จะเป็นการคาดเดา
+
+## แผนผังสถาปัตยกรรม
+
+```text
+                    CK-NEXUS PLATFORM
+                            |
+            +---------------+----------------+
+            |                                |
+       Control Plane                    MCP / API Layer
+   Task Store · Worker · Verify       Gateway · MCP Tools
+            |                                |
+            +---------------+----------------+
+                            |
+                 Safety / Execution Gates
+          Safe Canary only · Least Privilege
+                            |
+                Evidence · Tests · Audit Logs
+
+   Model Studio / Qwen ── pending authenticated inference
+   Production Gate     ── NO-GO (locked)
+```
+
+## Roadmap ตามลำดับความสำคัญ
+
+1. **P0 — รักษาสถานะและตรวจความต่าง**: เก็บ Git diff/ไฟล์ที่ยังไม่ติดตาม ตรวจ Dependency และแยกโค้ดใน Repository ออกจากโค้ดที่ Deploy อยู่
+2. **P1 — MCP Regression & Deployment**: ตรวจ SDK compatibility, ทดสอบ Auth/Resource/Audience และทำ Canary หลัง Deploy ก่อน Restart บริการ
+3. **P2 — Model Studio**: ตรวจ Credential ผ่านช่องทางปลอดภัยและเรียกโมเดลจริงเมื่อได้รับอนุญาตด้านค่าใช้จ่าย
+4. **P3 — Autonomous Workflow**: เพิ่ม Handler ที่ได้รับอนุมัติ, Sandbox และ Dependency-aware dispatch; คงการทำงานไว้ที่ Safe Canary จนกว่าจะผ่าน Gate
+5. **P4 — Production Readiness**: End-to-End, Security Review, Rollback และหลักฐานการทดสอบครบก่อนเปลี่ยน NO-GO
+
+## Safety Gates
+
+- `production_status = NO-GO`
+- `external_mutation_authorized = false`
+- MCP bind ต้องคงเป็น `127.0.0.1:8765`
+- ห้าม Reset/Clean/Merge/Auto-commit งานเดิมโดยไม่ตรวจ diff และเก็บหลักฐาน
+- ห้ามแสดง API Key, Token หรือข้อมูลรับรองใน Log/README
+- ห้ามอ้างว่า Model Studio ทำงานจริงจนกว่าจะมีผล Inference ที่ยืนยันได้
+
+## ลิงก์และหลักฐาน
+
+- [Repository บน GitHub](https://github.com/CK-NEXUS-AI/ck-nexus)
+- [GitHub Issues](https://github.com/CK-NEXUS-AI/ck-nexus/issues)
+- [GitHub Actions](https://github.com/CK-NEXUS-AI/ck-nexus/actions)
+- [Execution Ledger / progress.md](progress.md)
+- [Project Status](PROJECT_STATUS.md)
+- [Control Plane tests](tests/)
+- [แผนงานและรายงาน](docs/plans/)
+- [รายงาน Hardening](docs/plans/2026-10-22-phase-abc-hardening-report.md)
+
+---
+
 
 > สถานะรุ่นนี้: **Creator Edition v0.2.0 candidate** — ใช้งานและทดสอบได้ครบใน Demo Mode, รองรับ Codex Bridge แบบ local และยังต้องมี `OPENAI_API_KEY` ที่ใช้งานได้ก่อนจึงจะยืนยัน Creator Live Mode ได้
 

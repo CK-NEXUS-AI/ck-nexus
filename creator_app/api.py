@@ -1192,6 +1192,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         payload: AgnesApprovalRequest,
         _: None = Depends(require_access_token),
     ) -> dict[str, object]:
+        if not resolved_settings.access_token:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "error": "APPROVAL_AUTH_NOT_CONFIGURED",
+                    "message": "Human approval is disabled until CK-NEXUS access-token authentication is configured.",
+                },
+            )
         grant = agnes.approvals.grant(
             approval_id=payload.approval_id,
             fingerprint=payload.fingerprint,
@@ -1375,6 +1383,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             # Creator history deletion must still succeed; production images install the SDK.
             pass
         return {"status": "deleted", "records": deleted}
+
+    @app.get("/development", include_in_schema=False)
+    async def development_dashboard() -> FileResponse:
+        return FileResponse(WEB_DIR / "development.html")
+
+    @app.get("/approval", include_in_schema=False)
+    async def human_approval_page() -> FileResponse:
+        return FileResponse(WEB_DIR / "approval.html")
 
     @app.get("/demo", include_in_schema=False)
     async def full_system_demo() -> FileResponse:

@@ -209,7 +209,7 @@ class GeminiAdapter:
     def __init__(
         self,
         *,
-        model: str = "gemini-2.0-flash",
+        model: str = "gemini-2.5-flash",
         timeout_seconds: int = 30,
         quota_tracker: QuotaTracker | None = None,
     ) -> None:
@@ -219,7 +219,7 @@ class GeminiAdapter:
         self._quota = quota_tracker
         self.capabilities = ProviderCapabilities(
             features=frozenset({"text", "vision"}),
-            models=("gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"),
+            models=("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"),
         )
 
     def _get_key(self) -> str:
@@ -409,7 +409,7 @@ def build_free_adapters(
     if gemini_key:
         adapters.append(
             GeminiAdapter(
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash",
                 timeout_seconds=30,
                 quota_tracker=qt,
             )

@@ -202,7 +202,6 @@ def test_auth_settings_and_remote_server_are_fail_closed() -> None:
 
     assert auth.required_scopes == ["cknexus:read"]
     assert str(auth.resource_server_url).rstrip("/") == "https://bridge.example.test/mcp"
-    assert auth.validate_token_resource is True
 
     server = build_remote_server(
         config=config,

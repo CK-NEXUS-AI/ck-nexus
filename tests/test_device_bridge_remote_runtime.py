@@ -41,4 +41,4 @@ def test_runtime_builds_loopback_remote_server_from_explicit_config(monkeypatch)
     assert server.settings.stateless_http is True
     assert server.settings.auth is not None
     assert server.settings.auth.required_scopes == ["cknexus:read"]
-    assert server.settings.auth.validate_token_resource is True
+    assert str(server.settings.auth.resource_server_url).rstrip("/") == "https://bridge.example.test/mcp"

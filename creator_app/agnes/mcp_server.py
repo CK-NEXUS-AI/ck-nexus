@@ -17,9 +17,12 @@ Defaults:
 
 from __future__ import annotations
 
+import json
 import os
+import subprocess
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from mcp.server.fastmcp import FastMCP
 
@@ -759,6 +762,136 @@ def cknexus_dev_execution_plan(
         workstream_id=workstream_id,
     )
     return get_dev_execution_contract().build_plan(request, ExecutionPolicy())
+
+
+_BROWSER_ALLOWED_HOSTS = frozenset({
+    "github.com",
+    "docs.github.com",
+    "raw.githubusercontent.com",
+    "progressive-clouds-sellers-cube.trycloudflare.com",
+    "commodity-reveal-flexible-catalog.trycloudflare.com",
+})
+_BROWSER_WRAPPER = "/usr/local/sbin/cknexus-browser-mcp"
+
+
+def _browser_url_denial(url: str) -> str | None:
+    """Fail closed: HTTPS only, exact public host allowlist, no embedded credentials."""
+    if not isinstance(url, str) or not url or len(url) > 2048:
+        return "URL is empty or too long."
+    try:
+        parsed = urlsplit(url)
+        hostname = (parsed.hostname or "").lower().rstrip(".")
+        if (
+            parsed.scheme != "https"
+            or not hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.port not in (None, 443)
+            or hostname not in _BROWSER_ALLOWED_HOSTS
+        ):
+            return "Only approved HTTPS hosts are allowed."
+    except ValueError:
+        return "URL is malformed."
+    return None
+
+
+def _run_browser_tool(action: str, argument: str | None = None) -> dict[str, Any]:
+    """Invoke the root-owned allowlisting wrapper; never pass shell text."""
+    command = ["sudo", "-n", _BROWSER_WRAPPER, action]
+    if argument is not None:
+        command.append(argument)
+    try:
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=35,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return {
+            "ok": False,
+            "error_code": "BROWSER_UNAVAILABLE",
+            "message": "Browser helper unavailable or timed out.",
+            "execution_state": "NOT_EXECUTED",
+            "secret_values_exposed": False,
+        }
+    if completed.returncode != 0:
+        return {
+            "ok": False,
+            "error_code": "BROWSER_UNAVAILABLE",
+            "message": "Browser action failed; check the local desktop service.",
+            "execution_state": "NOT_EXECUTED",
+            "secret_values_exposed": False,
+        }
+    if action == "text":
+        payload: Any = completed.stdout[:12000]
+    else:
+        try:
+            payload = json.loads(completed.stdout)
+        except json.JSONDecodeError:
+            payload = {"result": completed.stdout[:4000]}
+    return {
+        "ok": True,
+        "action": action,
+        "result": payload,
+        "execution_state": "READ_ONLY_BROWSER_ACTION",
+        "external_mutation_authorized": False,
+        "release_evidence": False,
+        "secret_values_exposed": False,
+    }
+
+
+@mcp.tool()
+def cknexus_browser_status() -> dict[str, Any]:
+    """Inspect local Chrome status and open tabs; no web page is changed."""
+    return _run_browser_tool("status")
+
+
+@mcp.tool()
+def cknexus_browser_open(url: str) -> dict[str, Any]:
+    """Open an approved HTTPS page in the isolated browser; navigation only."""
+    denial = _browser_url_denial(url)
+    if denial:
+        return {
+            "ok": False,
+            "error_code": "BROWSER_URL_DENIED",
+            "message": denial,
+            "execution_state": "NOT_EXECUTED",
+            "external_mutation_authorized": False,
+            "secret_values_exposed": False,
+        }
+    return _run_browser_tool("open", url)
+
+
+@mcp.tool()
+def cknexus_browser_read_page() -> dict[str, Any]:
+    """Read current page title, URL, and visible text; no clicks or form submission."""
+    title = _run_browser_tool("title")
+    if not title.get("ok"):
+        return title
+    url = _run_browser_tool("url")
+    if not url.get("ok"):
+        return url
+    text_result = _run_browser_tool("text")
+    if not text_result.get("ok"):
+        return text_result
+    return {
+        "ok": True,
+        "title": title.get("result"),
+        "url": url.get("result"),
+        "visible_text": text_result.get("result"),
+        "execution_state": "READ_ONLY_BROWSER_ACTION",
+        "external_mutation_authorized": False,
+        "release_evidence": False,
+        "secret_values_exposed": False,
+    }
+
+
+@mcp.tool()
+def cknexus_browser_screenshot() -> dict[str, Any]:
+    """Capture the current browser page to a fixed temporary path; read-only."""
+    return _run_browser_tool("screenshot", "/tmp/cknexus-browser-mcp.png")
 
 
 def run_server() -> None:

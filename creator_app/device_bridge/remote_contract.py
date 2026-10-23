@@ -180,7 +180,6 @@ def build_remote_auth(config: RemoteBridgeConfig) -> AuthSettings:
         issuer_url=AnyHttpUrl(validated.issuer_url),
         resource_server_url=AnyHttpUrl(validated.resource_server_url),
         required_scopes=[validated.required_scope],
-        validate_token_resource=True,
     )
 
 

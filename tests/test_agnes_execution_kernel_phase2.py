@@ -365,6 +365,7 @@ async def test_api_phase2_approval_then_execute(tmp_path: Path):
 
     settings = Settings(
         mock_ai=True,
+        access_token="test-access-token",
         database_path=tmp_path / "db.sqlite",
         agnes_ledger_path=tmp_path / "ledger.jsonl",
         agnes_sandbox_enabled=True,
@@ -388,6 +389,7 @@ async def test_api_phase2_approval_then_execute(tmp_path: Path):
     app = create_app(settings)
     app.state.agnes.execution_context_factory = make_test_omni_context
     with TestClient(app) as client:
+        client.headers.update({"Authorization": "Bearer test-access-token"})
         first = client.post("/api/agnes/execute", json=payload)
         assert first.status_code == 200
         waiting = first.json()

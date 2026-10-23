@@ -92,6 +92,7 @@ PROVIDER_REGISTRY: list[ProviderSpec] = [
         tier=ProviderTier.FREE,
         key_validation_endpoint="https://generativelanguage.googleapis.com/v1beta/models?key={key}",
         free_models=(
+            "gemini-2.5-flash",
             "gemini-2.0-flash",
             "gemini-1.5-flash",
             "gemini-1.5-pro",
