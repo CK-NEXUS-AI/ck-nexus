@@ -37,9 +37,13 @@ class PathGuard:
         normalized = path.as_posix()
         if normalized.startswith("./"):
             normalized = normalized[2:]
+        parts = PurePosixPath(normalized).parts
         if any(
+            part == ".git" or part == ".env" or part.startswith(".env.") or part == "secrets"
+            for part in parts
+        ) or any(
             normalized == prefix or normalized.startswith(prefix + "/")
-            for prefix in cls._forbidden_prefixes
+            for prefix in ("data/credential", "data/agnes-ledger")
         ):
             raise SandboxViolation("forbidden_path")
         return normalized

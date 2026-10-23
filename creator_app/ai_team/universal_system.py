@@ -499,9 +499,21 @@ class EnhancedUniversalSystem:
             if past:
                 self.memory.store_experience(request, "processing", importance=0.5)
 
-        # 1. ตรวจแคช
-        if self.cache:
-            cached = self.cache.get(request)
+        # 1. ตรวจแคชเฉพาะคำขอที่ไม่ขึ้นกับสถานะสดหรือการกระทำภายนอก
+        cache_bypass_terms = (
+            "latest", "current", "right now", "today", "live", "status", "check",
+            "verify", "read", "fetch", "search", "retrieve", "send", "write",
+            "update", "delete", "remove", "run", "execute", "restart", "deploy",
+            "scan", "connect", "download", "upload", "email", "inbox", "calendar",
+            "price", "weather", "news", "ล่าสุด", "ตอนนี้", "วันนี้", "ปัจจุบัน",
+            "สถานะ", "ตรวจ", "อ่าน", "ดึง", "ค้นหา", "ส่ง", "เขียน", "แก้ไข",
+            "ลบ", "รัน", "เรียก", "รีสตาร์ต", "ติดตั้ง", "เชื่อม", "อีเมล", "ข่าว", "ราคา",
+        )
+        normalized_request = request.casefold()
+        cache_safe = not any(term in normalized_request for term in cache_bypass_terms)
+        if self.cache and cache_safe:
+            # Approximate semantic hits can return stale/wrong answers for changed parameters.
+            cached = self.cache.get(request, allow_semantic=False)
             if cached:
                 return f"⚡ [Cache Hit] {cached.response}"
 
@@ -533,8 +545,8 @@ class EnhancedUniversalSystem:
                 result = self.correction.refine(result, check.suggestions)
                 result += f"\n\n🔧 Self-Correction: {check.summary}"
 
-        # 6. เก็บในแคช
-        if self.cache:
+        # 6. เก็บเฉพาะคำขอที่เหมาะกับ exact cache; ข้ามคำขอที่ต้องใช้ข้อมูลสด/มีผลข้างเคียง
+        if self.cache and cache_safe:
             self.cache.set(request, result, tags=("universal",))
 
         # 7. เก็บในความจำ

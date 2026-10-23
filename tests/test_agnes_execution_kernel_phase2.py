@@ -426,3 +426,11 @@ def test_workspace_requires_full_commit_and_rejects_symlinks(tmp_path: Path):
     (workspace.path / "allowed-link").symlink_to("/etc/passwd")
     with pytest.raises(SandboxViolation):
         manager.validate_diff(workspace, ("allowed-link",))
+
+
+def test_path_guard_denies_env_variant_files(tmp_path: Path):
+    from creator_app.agnes.execution.sandbox import PathGuard
+
+    for relative in (".env.local", ".env.production", "services/api/.env.test"):
+        with pytest.raises(SandboxViolation):
+            PathGuard.normalize_relative(relative)

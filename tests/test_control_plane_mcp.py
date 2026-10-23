@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 import creator_app.agnes.mcp_server as mcp_server
 
 
@@ -190,7 +192,7 @@ def test_control_plane_enqueue_persists_plan_graph_without_execution(monkeypatch
     import json
 
     payload = json.loads(implementation["task"]["payload_json"])
-    assert payload["depends_on"] == ["task-01-research"]
+    assert payload["depends_on"] == ["plan-1-task-01-research"]
     assert payload["external_mutation_authorized"] is False
 
 
@@ -201,3 +203,135 @@ def test_control_plane_enqueue_rejects_duplicate_prefix_atomically_enough(monkey
     second = mcp_server.cknexus_control_plane_enqueue("plan-dup", "two")
     assert second["ok"] is False
     assert second["error_code"] == "DUPLICATE_JOB"
+
+
+def test_ai_analysis_handler_is_explicitly_allowlisted(monkeypatch, tmp_path):
+    monkeypatch.setenv("CKNEXUS_TASK_DB", str(tmp_path / "tasks.sqlite3"))
+    result = mcp_server.cknexus_task_enqueue(
+        "job-analysis", "summarize current worker limitations", handler="ai_analysis"
+    )
+    assert result["ok"] is True
+
+
+def test_ai_analysis_worker_returns_model_answer_without_authorizing_mutation(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("CKNEXUS_TASK_DB", str(tmp_path / "tasks.sqlite3"))
+
+    class FakeReply:
+        def reply(self, request: str, *, max_tokens: int = 512):
+            assert "Do not execute commands or modify files" in request
+            return {
+                "ok": True,
+                "provider": "gemini",
+                "model": "gemini-test",
+                "response": "Analysis only: queue execution is canary-only.",
+                "latency_ms": 10,
+                "attempts": 1,
+                "fallback_used": False,
+            }
+
+    monkeypatch.setattr(mcp_server, "AutoReplyPlugin", FakeReply)
+    assert (
+        mcp_server.cknexus_task_enqueue(
+            "job-analysis", "summarize worker limitations", handler="ai_analysis"
+        )["ok"]
+        is True
+    )
+
+    result = mcp_server.cknexus_task_worker_once("job-analysis")
+
+    assert result["ok"] is True
+    assert result["state"] == "completed"
+    assert result["analysis"] == "Analysis only: queue execution is canary-only."
+    assert result["provider"] == "gemini"
+    assert result["production_status"] == "NO-GO"
+    assert result["external_mutation_authorized"] is False
+    assert result["release_evidence"] is False
+    status = mcp_server.cknexus_task_status("job-analysis")["task"]
+    assert status["state"] == "completed"
+    import json
+
+    assert json.loads(status["result_json"])["release_evidence"] is False
+
+
+def test_ai_analysis_worker_fails_closed_when_provider_fails(monkeypatch, tmp_path):
+    monkeypatch.setenv("CKNEXUS_TASK_DB", str(tmp_path / "tasks.sqlite3"))
+
+    class FakeReply:
+        def reply(self, request: str, *, max_tokens: int = 512):
+            raise mcp_server.AutoReplyError("PROVIDER_UNAVAILABLE", "provider unavailable")
+
+    monkeypatch.setattr(mcp_server, "AutoReplyPlugin", FakeReply)
+    assert (
+        mcp_server.cknexus_task_enqueue(
+            "job-analysis-fail", "summarize worker limitations", handler="ai_analysis"
+        )["ok"]
+        is True
+    )
+    result = mcp_server.cknexus_task_worker_once("job-analysis-fail")
+    assert result["ok"] is False
+    assert result["error_code"] == "WORKER_FAILED"
+    assert result["release_evidence"] is False
+    assert mcp_server.cknexus_task_status("job-analysis-fail")["task"]["state"] == "failed"
+
+
+@pytest.mark.parametrize("handler", ["research", "implementation", "verification", "security"])
+def test_control_plane_roles_use_bounded_analysis_handler(monkeypatch, tmp_path, handler):
+    monkeypatch.setenv("CKNEXUS_TASK_DB", str(tmp_path / "tasks.sqlite3"))
+
+    class FakeReply:
+        def reply(self, request: str, *, max_tokens: int = 512):
+            assert "Do not execute commands or modify files" in request
+            return {
+                "ok": True,
+                "provider": "mock",
+                "model": "mock-model",
+                "response": f"{handler} analysis",
+            }
+
+    monkeypatch.setattr(mcp_server, "AutoReplyPlugin", FakeReply)
+    assert (
+        mcp_server.cknexus_task_enqueue(
+            f"job-{handler}", f"review {handler} scope", handler=handler
+        )["ok"]
+        is True
+    )
+    result = mcp_server.cknexus_task_worker_once(f"job-{handler}")
+    assert result["ok"] is True
+    assert result["analysis"] == f"{handler} analysis"
+    assert result["release_evidence"] is False
+    assert result["external_mutation_authorized"] is False
+
+
+def test_worker_blocks_control_plane_task_until_dependency_has_verified_evidence(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("CKNEXUS_TASK_DB", str(tmp_path / "tasks.sqlite3"))
+    queued = mcp_server.cknexus_control_plane_enqueue("plan-deps", "test dependency gating")
+    assert queued["ok"] is True
+
+    blocked = mcp_server.cknexus_task_worker_once("plan-deps-task-02-implementation")
+    assert blocked["ok"] is False
+    assert blocked["error_code"] == "DEPENDENCY_NOT_COMPLETED"
+    assert (
+        mcp_server.cknexus_task_status("plan-deps-task-02-implementation")["task"]["state"]
+        == "queued"
+    )
+
+    class FakeReply:
+        def reply(self, request: str, *, max_tokens: int = 512):
+            assert "test dependency gating" in request
+            return {
+                "ok": True,
+                "provider": "mock",
+                "model": "mock-model",
+                "response": "Research findings",
+            }
+
+    monkeypatch.setattr(mcp_server, "AutoReplyPlugin", FakeReply)
+    research = mcp_server.cknexus_task_worker_once("plan-deps-task-01-research")
+    assert research["ok"] is True
+    implementation = mcp_server.cknexus_task_worker_once("plan-deps-task-02-implementation")
+    assert implementation["ok"] is True
+    assert implementation["analysis"] == "Research findings"

@@ -32,6 +32,12 @@ class TestSmartCache:
         result = cache.get("สรุปอีเมลล่าสุด 5 ฉบับ")
         assert result is not None
 
+    def test_exact_only_lookup_does_not_return_semantic_match(self):
+        cache = SmartCache(similarity_threshold=0.3)
+        cache.set("สรุปอีเมลล่าสุด 3 ฉบับ", "มี 3 ฉบับ")
+        result = cache.get("สรุปอีเมลล่าสุด 5 ฉบับ", allow_semantic=False)
+        assert result is None
+
     def test_cache_invalidation(self):
         cache = SmartCache()
         cache.set("test", "value")

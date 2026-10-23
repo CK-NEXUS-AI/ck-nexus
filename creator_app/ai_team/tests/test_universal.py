@@ -3,6 +3,7 @@ from __future__ import annotations
 from creator_app.ai_team.universal_system import (
     CrossPlatform,
     DataHub,
+    EnhancedUniversalSystem,
     SecurityLayer,
     SmartAgent,
     UniversalSystem,
@@ -137,6 +138,73 @@ class TestCrossPlatform:
         result = cp.cross_platform_task("deploy app")
         assert "current_platform" in result
         assert result["status"] == "ready"
+
+
+class TestEnhancedUniversalSystemCachePolicy:
+    def test_changed_parameters_do_not_use_semantic_cache(self):
+        system = EnhancedUniversalSystem(
+            enable_cache=True,
+            enable_parallel=False,
+            enable_auto_route=False,
+            enable_self_correction=False,
+            enable_perspective=False,
+            enable_memory=False,
+        )
+        calls = []
+
+        def process(request, *, priority=2):
+            calls.append(request)
+            return f"result for {request}"
+
+        system.base.process = process
+        first = system.process("explain 3 categories")
+        second = system.process("explain 5 categories")
+        assert "Cache Hit" not in first
+        assert "Cache Hit" not in second
+        assert calls == ["explain 3 categories", "explain 5 categories"]
+
+    def test_exact_static_request_can_still_use_cache(self):
+        system = EnhancedUniversalSystem(
+            enable_cache=True,
+            enable_parallel=False,
+            enable_auto_route=False,
+            enable_self_correction=False,
+            enable_perspective=False,
+            enable_memory=False,
+        )
+        calls = []
+
+        def process(request, *, priority=2):
+            calls.append(request)
+            return f"static result {len(calls)}"
+
+        system.base.process = process
+        system.process("explain a stable concept")
+        second = system.process("explain a stable concept")
+        assert "Cache Hit" in second
+        assert len(calls) == 1
+
+    def test_freshness_sensitive_request_bypasses_cache(self):
+        system = EnhancedUniversalSystem(
+            enable_cache=True,
+            enable_parallel=False,
+            enable_auto_route=False,
+            enable_self_correction=False,
+            enable_perspective=False,
+            enable_memory=False,
+        )
+        calls = []
+
+        def process(request, *, priority=2):
+            calls.append(request)
+            return f"live result {len(calls)}"
+
+        system.base.process = process
+        first = system.process("summarize latest email")
+        second = system.process("summarize latest email")
+        assert "Cache Hit" not in first
+        assert "Cache Hit" not in second
+        assert len(calls) == 2
 
 
 class TestUniversalSystem:

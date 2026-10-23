@@ -85,8 +85,8 @@ class SmartCache:
         union = set1 | set2
         return len(intersection) / len(union) if union else 0.0
 
-    def get(self, query: str) -> CacheEntry | None:
-        """ดึงจากแคช — ลอง exact ก่อน แล้ว semantic."""
+    def get(self, query: str, *, allow_semantic: bool = True) -> CacheEntry | None:
+        """ดึงจากแคช; ปิด semantic lookup ได้เมื่อต้องการผลตรงคำขอเท่านั้น."""
         now = time.time()
 
         # ชั้น 1: Exact Cache
@@ -99,7 +99,11 @@ class SmartCache:
         elif entry:
             del self._exact[key]
 
-        # ชั้น 2: Semantic Cache
+        # ชั้น 2: Semantic Cache (opt-in for callers that can tolerate approximate matches)
+        if not allow_semantic:
+            self._stats["misses"] += 1
+            return None
+
         query_kw = self._extract_keywords(query)
         best_match: CacheEntry | None = None
         best_score = 0.0
