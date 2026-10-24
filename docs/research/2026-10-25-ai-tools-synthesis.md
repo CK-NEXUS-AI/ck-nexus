@@ -25,14 +25,14 @@ Research date: 2026-10-25. Ratings are analyst judgments based on source verifia
 | LazyKeel | 5 | Claimed deterministic supervisor | Very low; canonical source not identified | No public evidence | No public evidence | 1 |
 | FailGate | 5 | Claimed test-lock/acceptance layer | Low for named product; stronger evidence for ImpossibleBench | No public evidence for product | Unknown | 1 |
 
-Evidence rubric: High = identifiable primary sources and testable details; Medium = primary-source feature evidence but limited independent evaluation; Low = incomplete replication or mostly project/vendor claims; Very low = no uniquely identifiable primary source. Maturity measures operational availability and inspectability, not intelligence.
+Evidence strength reflects source verifiability; maturity reflects availability and inspectability, not intelligence.
 
 ## B. Decision tree by team archetype
 
 - **Solo developer:** Start with Aider or Cline for provider flexibility; try Copilot Free or Cursor Hobby for low-friction editor workflows. If a supported ChatGPT plan is already available, evaluate Codex CLI before buying another subscription. Pick one primary agent.
 - **Small team:** Use Copilot/Cursor for daily editing and one bounded task agent (Claude Code, Codex CLI or OpenHands) behind PR review. Standardize tests, secret scanning and branch protection.
 - **Mid-size org:** Evaluate Copilot governance, OpenHands Control Plane or Qodo where RBAC, SSO, audit, budget and cross-repo rules matter. Add Constraints Registry for deterministic policy, but enforce hard rules in CI.
-- **Research lab:** Use OpenHands or Codex CLI/SDK for reproducible sandbox experiments. Keep held-out tasks and immutable oracles.
+- **Research lab:** Use OpenHands or Codex CLI/SDK with held-out tasks and immutable oracles.
 
 ## C. Top five red flags for production multi-agent systems
 
@@ -55,10 +55,10 @@ Evidence rubric: High = identifiable primary sources and testable details; Mediu
 - **Identity gaps:** SkillCode (`skillcode_optimize_self`, “23+ super skills”, Auto-Forge), BPS Agent Framework, LazyKeel and the named FailGate product could not be uniquely identified in authoritative primary sources. Claims remain **No public evidence** until a canonical repository and reproducible test are supplied.
 - **Hive:** ACMM levels and the repo-maintenance architecture are documented; “six types of suffering,” 74 CI/CD workflows, 32 nightly suites and bug-to-fix under 30 minutes were not independently corroborated.
 - **Jeffy Loop:** public source and receipts exist, but 132 projects / 103 converged / 56 merged PRs and corporate attributions were not verified.
-- **Kitchen Loop:** 285+ iterations, 1,094+ merged PRs, zero detected regressions and ~$0.38/PR are paper-reported results. “Zero detected” does not prove zero actual defects.
-- **ImpossibleBench:** the 76% GPT-5 result applies to a particular impossible-task split and scaffold. A later public audit reports issues in control tasks/scoring, so cite it with methodological caveats—not as a universal production cheating rate.
+- **Kitchen Loop:** 285+ iterations, 1,094+ merged PRs, zero detected regressions and ~$0.38/PR are paper-reported results. “Zero detected” is not zero actual defects.
+- **ImpossibleBench:** the 76% GPT-5 result applies to a particular impossible-task split and scaffold. A later audit reports control-task/scoring issues; this is not a universal cheating rate.
 - **Commercial tools:** official docs are useful for features/pricing but not independent performance rankings. Copilot's 55.8% productivity finding is task-specific, not a 2026 Copilot-vs-Cursor trial. Qodo's review claims need independent precision/recall evaluation.
-- **Control planes:** RBAC, budgets, SSO and audit features should be verified with negative tests. A policy dashboard does not prove runtime enforcement.
+- **Control planes:** RBAC, budgets, SSO and audit features should be verified with negative tests. A policy dashboard does not prove enforcement.
 
 ## CK-NEXUS disposition
 
