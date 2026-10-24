@@ -25,11 +25,10 @@ Research date: 2026-10-25. Ratings are analyst judgments based on source verifia
 | LazyKeel | 5 | Claimed deterministic supervisor | Very low; canonical source not identified | No public evidence | No public evidence | 1 |
 | FailGate | 5 | Claimed test-lock/acceptance layer | Low for named product; stronger evidence for ImpossibleBench | No public evidence for product | Unknown | 1 |
 
-Evidence strength reflects source verifiability; maturity reflects availability and inspectability, not intelligence.
 
 ## B. Decision tree by team archetype
 
-- **Solo developer:** Start with Aider or Cline for provider flexibility; try Copilot Free or Cursor Hobby for low-friction editor workflows. If a supported ChatGPT plan is already available, evaluate Codex CLI before buying another subscription. Pick one primary agent.
+- **Solo developer:** Start with Aider or Cline for provider flexibility; try Copilot Free or Cursor Hobby for low-friction editor workflows. If a supported ChatGPT plan is already available, evaluate Codex CLI before buying another subscription.
 - **Small team:** Use Copilot/Cursor for daily editing and one bounded task agent (Claude Code, Codex CLI or OpenHands) behind PR review. Standardize tests, secret scanning and branch protection.
 - **Mid-size org:** Evaluate Copilot governance, OpenHands Control Plane or Qodo where RBAC, SSO, audit, budget and cross-repo rules matter. Add Constraints Registry for deterministic policy, but enforce hard rules in CI.
 - **Research lab:** Use OpenHands or Codex CLI/SDK with held-out tasks and immutable oracles.
