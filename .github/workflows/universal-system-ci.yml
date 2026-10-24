@@ -32,7 +32,7 @@ jobs:
         run: |
           uv lock --check
           uv sync --all-extras --dev --frozen
-      - name: Verify original 45-test baseline
+      - name: Verify original 48-test baseline
         shell: bash
         run: |
           set -euo pipefail
@@ -42,8 +42,8 @@ jobs:
             | tee /tmp/universal-baseline-collect.txt
           count=$(grep -c '::' /tmp/universal-baseline-collect.txt || true)
           echo "baseline_test_nodes=$count"
-          test "$count" -eq 45
-      - name: Run original 45-test baseline
+          test "$count" -eq 48
+      - name: Run original 48-test baseline
         run: >-
           .venv/bin/pytest -q
           creator_app/ai_team/tests/test_team.py
