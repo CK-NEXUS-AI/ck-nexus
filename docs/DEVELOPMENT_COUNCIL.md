@@ -88,3 +88,32 @@ Possible moderation states:
 A debate consensus is advisory only. It cannot set VERIFIED, approve its own output, merge code, deploy Production, modify Q10/Q11/Q12, or replace independent human review or owner sign-off.
 
 V1 intentionally keeps live debate on the existing Agents-SDK-capable Council provider. Cross-provider role routing is a separate follow-on after provider registry/model/privacy compatibility is refreshed and measured.
+
+## Mandatory Team Workflow Rule — Research and Engineering (2026-10-25)
+
+This rule applies to every non-trivial research, design, implementation, and verification task. The Lead Orchestrator must assign bounded work to the existing specialist roles before synthesizing a result. It must not silently perform the entire task as a single undifferentiated role.
+
+### Required work split
+
+1. **Research & Analyst** — locate primary sources (official documentation, official repositories, peer-reviewed papers, benchmark owners, and attributable case studies); record access date and exact source URL.
+2. **Verification** — independently check each material claim, date, license, pricing, benchmark setup, and current project status; identify contradictions and state the closest verifiable proxy.
+3. **Architect & Strategist** — assess architecture, autonomy level, integration fit, migration cost, and alternatives.
+4. **Engineering & Automation Builder** — map verified capabilities to a bounded implementation plan; do not edit unrelated files or introduce duplicate runtimes.
+5. **Security / QA / DevOps Reviewer** — challenge evidence, inspect threat model and limits, and define acceptance tests and rollback conditions.
+6. **Lead Orchestrator** — consolidate only after the specialist findings exist; preserve dissent, cite primary evidence inline, and label unknowns `No public evidence` rather than infer them.
+
+### Participation and vote integrity
+
+- A role name or configured model slot is not proof of an independent live agent. Record agent/provider/model identity and actual response status when available.
+- Only eligible, responding, independently sourced voting units count. Do not count duplicate sessions or the same underlying model/provider/account as multiple independent votes without evidence of independence.
+- Require a quorum of at least three eligible independent voting units for an automated majority decision. Majority applies only to ordinary, reversible, sandboxed work; it does not override deterministic policy, tests, signed capability grants, or human-only approval gates.
+- A provider that is down, unauthorized, or quota-exhausted is `UNAVAILABLE`, not an implicit yes/no vote. If quorum is absent, gather more evidence or report the block.
+- Research consensus is not source verification. Worker output remains unverified until the designated independent verifier confirms it.
+
+### Execution and evidence
+
+- Research tasks proceed in the user-specified order; each item receives its own complete report and source list before the next item is synthesized. Large reports may be delivered in sequential installments, but must not merge tools into a shared section.
+- Preserve existing working-tree changes. Inspect `git status` before edits; use additive, bounded changes; do not reset, clean, overwrite, merge, or deploy unrelated work.
+- For code changes, work in an isolated branch/worktree or approved sandbox, write acceptance tests first where feasible, run targeted tests then relevant regression/security checks, and bind evidence to the exact commit SHA.
+- Never claim live capability, benchmark performance, test success, or production readiness without current, reproducible evidence. Keep production mutation and high-risk actions behind their existing authority gates.
+- Store reports under `docs/research/tool-reports/` using stable numbered names; record the research date, source URLs, evidence strength, unresolved claims, and CK-NEXUS integration disposition.
