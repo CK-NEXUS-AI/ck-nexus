@@ -14,7 +14,6 @@ CONFIG = ROOT / "config" / "ai_factory.json"
 
 TOOLS = ("git", "python", "pytest", "ruff", "docker", "gh")
 PROVIDER_COMMANDS = {
-    "codex": "codex",
     "claude": "claude",
     "gemini": "gemini",
     "goose": "goose",
@@ -64,7 +63,7 @@ def main() -> int:
         providers[provider] = {
             "command_available": shutil.which(command) is not None,
             "secret_present": any(bool(os.environ.get(name)) for name in SECRET_ENV_NAMES)
-            if provider in {"codex", "claude", "gemini"}
+            if provider in {"claude", "gemini"}
             else None,
         }
 

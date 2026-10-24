@@ -71,8 +71,8 @@ jobs:
           for item in (q10,q11,q12,q13,q14,q15,image,licenses):
               if item and item.get('release_subject_manifest_sha256') != expected:
                   reasons.append(f"{item.get('gate','unknown')}: stale subject")
-          if q10.get('gate_result') != 'PASS' or q10.get('codex_security_deep_scan') != 'PASS':
-              reasons.append('Q10 Deep Security Scan not PASS')
+          if q10.get('gate_result') != 'PASS' or q10.get('open_source_security_scan') != 'PASS':
+              reasons.append('Q10 open-source layered security scan not PASS')
           if q11.get('result') != 'PASS' or q11.get('production_promotion_allowed') is not True:
               reasons.append('Q11 live provider not PASS')
           if q12.get('result') != 'PASS' or q12.get('actual_kernel_enforcement') is not True:
@@ -139,7 +139,7 @@ jobs:
           rows={name:json.loads(Path('evidence',name).read_text(encoding='utf-8')) for name in names}
           assert all(row.get('release_subject_manifest_sha256')==subject for row in rows.values())
           assert rows['Q10_DEPENDENCY_AUDIT.json']['gate_result']=='PASS'
-          assert rows['Q10_DEPENDENCY_AUDIT.json']['codex_security_deep_scan']=='PASS'
+          assert rows['Q10_DEPENDENCY_AUDIT.json']['open_source_security_scan']=='PASS'
           assert rows['Q11_OPENAI_LIVE.json']['result']=='PASS'
           assert rows['Q12_CGROUP_V2.json']['result']=='PASS' and rows['Q12_CGROUP_V2.json']['actual_kernel_enforcement'] is True
           assert rows['Q13_POSTGRES_DR.json']['status']=='PASS'

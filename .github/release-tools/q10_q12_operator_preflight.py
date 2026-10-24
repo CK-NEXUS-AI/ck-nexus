@@ -6,11 +6,11 @@ import sys
 from pathlib import Path
 
 REPOSITORY = "spinlnw10-art/ck-nexus"
-CLOSURE_SHA = "512837c8b1a3e6e8e844252a1b0781d8de011b07"
-CLOSURE_TREE = "43f9cb9691a0d028a1ef396a0a475c5cd80c4a99"
-RUNTIME_SOURCE_SHA = "4cf17cd3befaafeaf64cd4c149739133aa220f73"
-RUNTIME_SOURCE_TREE = "dfe3888bb6adc9aebbb0351efe4a06006f4e0a48"
-RUNTIME_SUBJECT = "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f"
+CLOSURE_SHA = "a55a8d36b0a1b61b426c5d59ab44ebd841eb8d53"
+CLOSURE_TREE = "19038af4121b61667789bc7e83705e9dbf4cd141"
+RUNTIME_SOURCE_SHA = "39f5c1adb9d761ab418cf088ff1f051b1ca731d1"
+RUNTIME_SOURCE_TREE = "0525195934f703a8becf8a39f6397b2411e0bb2e"
+RUNTIME_SUBJECT = "89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52"
 RUNTIME_PATHS = (
     "app",
     "creator_app",
@@ -75,7 +75,7 @@ def main() -> int:
         q10 = load("evidence/Q10_DEPENDENCY_AUDIT.json")
         checks["q10_component_result"] = q10.get("component_result")
         checks["q10_gate_result"] = q10.get("gate_result")
-        checks["q10_deep_scan"] = q10.get("codex_security_deep_scan")
+        checks["q10_open_source_security_scan"] = q10.get("open_source_security_scan")
         if q10.get("release_subject_manifest_sha256") != RUNTIME_SUBJECT:
             failures.append("q10_stale_subject")
         if q10.get("component_result") != "PASS":

@@ -32,7 +32,7 @@ HUMAN INTENT -> AGENT IDENTITY -> CAPABILITY -> RISK VERDICT -> LEASE/AUTHORIZAT
 | Integration | Role | Authority allowed? | Required adapter boundary | Primary evidence | Main failure mode to test |
 |---|---|---:|---|---|---|
 | GPT | Model / proposer | NO | proposal envelope -> Policy Kernel | proposal_id, intent_id | model attempts authority |
-| Codex | Coding agent / executor client | NO | agent identity + capability + lease | execution/evidence IDs | repo mutation without authorization |
+| OpenCode | Coding agent / executor client | NO | agent identity + capability + lease | execution/evidence IDs | repo mutation without authorization |
 | Claude | Model / agent client | NO | same universal envelope | execution/evidence IDs | tool use outside declared scope |
 | OpenClaw | Agent runtime / tool orchestrator | NO | gateway -> policy/execution boundary | runtime_id + execution_id | tool escalation / unbounded autonomy |
 | n8n | Workflow/orchestration runtime | NO | workflow node -> governed tool boundary | workflow/execution ID | credential or external write bypass |

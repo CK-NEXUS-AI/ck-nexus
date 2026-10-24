@@ -8,7 +8,7 @@ Turn one human intent into a governed software-engineering improvement loop:
 
 HUMAN INTENT -> RESEARCH -> ARCHITECTURE -> BUILD/PATCH -> TEST -> SECURITY -> BENCHMARK -> INDEPENDENT VERIFICATION -> SCORE -> PROMOTE or REPAIR -> EVIDENCE -> REPEAT
 
-The factory is model-agnostic. GPT, Codex, Claude, Gemini, Goose, OpenHands, Ollama, future agents, and future runtimes are interchangeable providers rather than authorities.
+The factory is model-agnostic. GPT, OpenCode, Claude, Gemini, Goose, OpenHands, Ollama, future agents, and future runtimes are interchangeable providers rather than authorities.
 
 ## Non-negotiable laws
 

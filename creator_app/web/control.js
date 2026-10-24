@@ -115,7 +115,6 @@ function renderStatus(snapshot) {
     statusCard('AGNES', snapshot.skills?.agnes_enabled, `${snapshot.skills?.skill_count ?? 0} skill(s)`),
     statusCard('PHASE 3', snapshot.skills?.phase3_enabled, 'hardened pipeline'),
     statusCard('DEV COUNCIL', snapshot.development?.council_ready, 'multi-role advisory runtime'),
-    statusCard('CODEX', snapshot.development?.codex_ready, 'gated development execution'),
     statusCard('CONNECTOR FABRIC', snapshot.integrations?.dynamic_connector_fabric, `${snapshot.integrations?.dynamic_connector_count ?? 0} connector(s)`),
     statusCard('CREDENTIAL VAULT', snapshot.security?.credential_vault_enabled, snapshot.security?.secrets_exposed ? 'unsafe' : 'secrets redacted'),
     statusCard('EMAIL GATEWAY', snapshot.email?.enabled, 'ingress / routing / outbox'),

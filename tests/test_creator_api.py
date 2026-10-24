@@ -46,9 +46,9 @@ def test_health_status_and_security_headers(tmp_path: Path):
         assert status["mode"] == "mock"
         assert status["key_configured"] is False
         assert status["access_required"] is False
-        assert status["codex_enabled"] is False
-        assert status["codex_ready"] is False
-        assert status["codex_sandbox"] == "read-only"
+        assert "codex_enabled" not in status
+        assert "codex_ready" not in status
+        assert "codex_sandbox" not in status
 
 
 def test_split_liveness_and_readiness_probes(tmp_path: Path):
@@ -153,17 +153,12 @@ def test_optional_bearer_token(tmp_path: Path):
         assert response.status_code == 200
 
 
-def test_codex_endpoint_requires_explicit_enablement_and_access_token(tmp_path: Path):
+def test_legacy_executor_endpoints_are_removed(tmp_path: Path):
     with TestClient(create_app(settings(tmp_path))) as client:
-        response = client.post("/api/codex/tasks", json={"prompt": "Inspect this project"})
-        assert response.status_code == 503
-        assert response.json()["detail"]["error"] == "CODEX_DISABLED"
-
-    enabled = settings(tmp_path, codex_enabled=True, codex_workspace=tmp_path)
-    with TestClient(create_app(enabled)) as client:
-        response = client.post("/api/codex/tasks", json={"prompt": "Inspect this project"})
-        assert response.status_code == 503
-        assert response.json()["detail"]["error"] == "CODEX_ACCESS_TOKEN_REQUIRED"
+        assert client.get("/api/codex/status").status_code == 404
+        assert client.post(
+            "/api/codex/tasks", json={"prompt": "Inspect this project"}
+        ).status_code == 404
 
 
 def test_rate_limit_rejects_excess_generation(tmp_path: Path):
