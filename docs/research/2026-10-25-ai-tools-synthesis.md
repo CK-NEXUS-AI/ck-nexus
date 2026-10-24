@@ -58,7 +58,6 @@ Evidence strength reflects source verifiability; maturity reflects availability 
 - **Kitchen Loop:** 285+ iterations, 1,094+ merged PRs, zero detected regressions and ~$0.38/PR are paper-reported results. “Zero detected” is not zero actual defects.
 - **ImpossibleBench:** the 76% GPT-5 result applies to a particular impossible-task split and scaffold. A later audit reports control-task/scoring issues; this is not a universal cheating rate.
 - **Commercial tools:** official docs are useful for features/pricing but not independent performance rankings. Copilot's 55.8% productivity finding is task-specific, not a 2026 Copilot-vs-Cursor trial. Qodo's review claims need independent precision/recall evaluation.
-- **Control planes:** RBAC, budgets, SSO and audit features should be verified with negative tests. A policy dashboard does not prove enforcement.
 
 ## CK-NEXUS disposition
 
