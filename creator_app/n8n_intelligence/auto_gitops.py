@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from collections.abc import Callable
@@ -143,12 +144,15 @@ class AutoGitOps:
                     "blocked", "secret_pattern_detected", str(data.get("job_id") or "unknown")
                 )
             suffix = branch.rsplit("/", 1)[-1]
+            author_email = os.getenv(
+                "CKNEXUS_GIT_AUTHOR_EMAIL", "cknexus-auto@users.noreply.github.com"
+            )
             commit = self._git(
                 [
                     "-c",
                     "user.name=CK-NEXUS Auto Developer",
                     "-c",
-                    "user.email=cknexus-auto@users.noreply.github.com",
+                    f"user.email={author_email}",
                     "commit",
                     "-m",
                     f"auto: verified development task {suffix}",

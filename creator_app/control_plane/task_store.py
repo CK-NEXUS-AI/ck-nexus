@@ -113,6 +113,14 @@ class TaskStore:
             ).fetchone()
         return dict(row) if row is not None else None
 
+    def has_open_tasks(self) -> bool:
+        """Return whether any task is queued or running, without mutating the queue."""
+        with closing(self._connect()) as connection:
+            row = connection.execute(
+                "SELECT 1 FROM control_plane_tasks WHERE state IN ('queued','running') LIMIT 1"
+            ).fetchone()
+        return row is not None
+
     def claim_next(
         self, worker_id: str, *, lease_seconds: float = 300, job_id: str | None = None
     ) -> dict[str, Any] | None:

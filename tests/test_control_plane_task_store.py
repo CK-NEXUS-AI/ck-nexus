@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from pathlib import Path
 
 import pytest
 
@@ -203,3 +204,24 @@ def test_claim_rejects_invalid_lease_duration(tmp_path, lease_seconds) -> None:
     with pytest.raises(ValueError, match="lease_seconds must be finite and between 0 and 86400"):
         store.claim_next("worker-a", lease_seconds=lease_seconds)
     assert store.get("job-bad-lease")["state"] == "queued"
+
+
+def test_has_open_tasks_tracks_queued_and_running_states(tmp_path: Path):
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    assert store.has_open_tasks() is False
+
+    store.enqueue("open-task", {"handler": "test"})
+    assert store.has_open_tasks() is True
+
+    claimed = store.claim_next("test-worker", lease_seconds=60)
+    assert claimed is not None
+    assert store.has_open_tasks() is True
+
+    store.finish(
+        "open-task",
+        success=True,
+        result={},
+        worker_id="test-worker",
+        lease_token=claimed["lease_token"],
+    )
+    assert store.has_open_tasks() is False

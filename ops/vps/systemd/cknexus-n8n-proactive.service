@@ -1,0 +1,22 @@
+[Unit]
+Description=CK-NEXUS daily proactive development task seeder
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+WorkingDirectory=/root/ck-nexus
+ExecStart=/root/ck-nexus/.venv/bin/python -m ops.vps.scripts.cknexus_n8n_proactive
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadOnlyPaths=/root/ck-nexus
+ReadWritePaths=/root/.local/state/cknexus
+Environment=CKNEXUS_TASK_DATABASE=/root/.local/state/cknexus/control-plane.sqlite3

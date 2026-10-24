@@ -72,3 +72,20 @@
 - [x] Enable and observe the Auto GitOps timer.
 - [ ] Confirm the configured remote can publish a task branch; if credentials or remote policy block it, record the failure without bypassing authentication.
 - [ ] Preserve `main` and production deployment as human-reviewed promotion steps.
+
+### Task 5: Daily proactive improvement cycle
+
+**Files:**
+- Modify: `creator_app/control_plane/task_store.py`
+- Create: `creator_app/n8n_intelligence/proactive.py`
+- Create: `ops/vps/scripts/cknexus_n8n_proactive.py`
+- Create: `ops/vps/systemd/cknexus-n8n-proactive.service`
+- Create: `ops/vps/systemd/cknexus-n8n-proactive.timer`
+- Test: `tests/test_control_plane_task_store.py` and `tests/test_n8n_proactive.py`
+
+**Interfaces:**
+- `TaskStore.has_open_tasks() -> bool` returns whether queued or running work exists.
+- `ProactiveTaskSeeder.run_once() -> ProactiveSeedResult` adds at most one fixed-scope, low-priority task per UTC day and never competes with queued/running work.
+
+- [x] Verify queued/running task detection and duplicate-day prevention.
+- [x] Verify seeded tasks retain `production_status=NO-GO` and `external_mutation_authorized=false`.

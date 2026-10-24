@@ -7,8 +7,8 @@ Keep CK-NEXUS improving through a bounded observe → diagnose → task → isol
 ## Current integration
 
 ```text
-n8n execution signals
-  → Development Intelligence collector
+n8n execution signals + daily proactive seeder
+  → Development Intelligence collector / bounded task queue
   → deduplicated evidence + Control Plane task queue
   → Auto Developer eligibility gate
   → dedicated Git worktree / Codex sandbox
@@ -43,6 +43,7 @@ The next task receives a compact summary derived only from structured evidence: 
 - n8n intelligence collection: every two minutes (existing timer).
 - Auto Developer: every two minutes (existing timer, now uses isolated worktrees).
 - Auto GitOps: every five minutes.
+- Proactive maintenance seeder: once per day, only when the task queue has no queued/running work; one deterministic task ID per UTC day prevents duplicates.
 
 ## Success criteria
 
