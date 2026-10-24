@@ -6,4 +6,6 @@ def test_openai_key_pattern_does_not_match_task_queue_words() -> None:
 
 
 def test_openai_key_pattern_matches_key_shaped_value() -> None:
-    assert PATTERNS["openai_key"].search("OPENAI_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz012345")
+    key_prefix = "sk-" + "proj-"
+    candidate = "OPENAI_KEY=" + key_prefix + ("a" * 32)
+    assert PATTERNS["openai_key"].search(candidate)
