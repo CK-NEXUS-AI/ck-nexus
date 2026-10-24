@@ -29,9 +29,9 @@ Evidence rubric: High = identifiable primary sources and testable details; Mediu
 
 ## B. Decision tree by team archetype
 
-- **Solo developer:** Start with Aider or Cline for provider flexibility; try Copilot Free or Cursor Hobby for low-friction editor workflows. If a supported ChatGPT plan is already available, evaluate Codex CLI before buying another subscription. Pick one primary agent first.
+- **Solo developer:** Start with Aider or Cline for provider flexibility; try Copilot Free or Cursor Hobby for low-friction editor workflows. If a supported ChatGPT plan is already available, evaluate Codex CLI before buying another subscription. Pick one primary agent.
 - **Small team:** Use Copilot/Cursor for daily editing and one bounded task agent (Claude Code, Codex CLI or OpenHands) behind PR review. Standardize tests, secret scanning and branch protection.
-- **Mid-size org:** Evaluate Copilot governance, OpenHands Control Plane or Qodo where RBAC, SSO, audit, budget and cross-repo rules matter. Add Constraints Registry for deterministic policy, but enforce hard rules in CI. 
+- **Mid-size org:** Evaluate Copilot governance, OpenHands Control Plane or Qodo where RBAC, SSO, audit, budget and cross-repo rules matter. Add Constraints Registry for deterministic policy, but enforce hard rules in CI.
 - **Research lab:** Use OpenHands or Codex CLI/SDK for reproducible sandbox experiments. Keep held-out tasks and immutable oracles.
 
 ## C. Top five red flags for production multi-agent systems
