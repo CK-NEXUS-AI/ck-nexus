@@ -104,6 +104,15 @@ class TaskStore:
                 connection.rollback()
                 raise ValueError("job_id already exists in batch") from exc
 
+    def peek_next(self) -> dict[str, Any] | None:
+        """Return the oldest queued task without claiming or mutating it."""
+        with closing(self._connect()) as connection:
+            row = connection.execute(
+                "SELECT * FROM control_plane_tasks WHERE state='queued' "
+                "ORDER BY created_at, job_id LIMIT 1"
+            ).fetchone()
+        return dict(row) if row is not None else None
+
     def claim_next(
         self, worker_id: str, *, lease_seconds: float = 300, job_id: str | None = None
     ) -> dict[str, Any] | None:

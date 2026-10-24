@@ -1,0 +1,24 @@
+[Unit]
+Description=CK-NEXUS verified Auto Developer GitOps publisher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+WorkingDirectory=/root/ck-nexus
+ExecStart=/root/ck-nexus/.venv/bin/python -m ops.vps.scripts.cknexus_n8n_auto_gitops
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/root/ck-nexus /var/lib/cknexus/n8n-intelligence
+Environment=CKNEXUS_REPO=/root/ck-nexus
+Environment=CKNEXUS_AUTO_DEV_EVIDENCE=/var/lib/cknexus/n8n-intelligence/auto-dev
+Environment=CKNEXUS_GITOPS_REMOTE=origin

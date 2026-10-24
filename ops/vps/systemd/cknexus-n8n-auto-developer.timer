@@ -1,0 +1,10 @@
+[Unit]
+Description=Run CK-NEXUS n8n Auto Developer every two minutes
+
+[Timer]
+OnCalendar=*:0/2
+Persistent=true
+Unit=cknexus-n8n-auto-developer.service
+
+[Install]
+WantedBy=timers.target

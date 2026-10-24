@@ -1,0 +1,29 @@
+[Unit]
+Description=CK-NEXUS n8n Auto Developer
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+WorkingDirectory=/root/ck-nexus
+ExecStart=/root/ck-nexus/.venv/bin/python /root/ck-nexus/ops/vps/scripts/cknexus_n8n_auto_developer.py
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/root/ck-nexus /var/lib/cknexus/n8n-intelligence /root/.local/state/cknexus
+Environment=CKNEXUS_REPO=/root/ck-nexus
+Environment=CKNEXUS_TASK_DATABASE=/root/.local/state/cknexus/control-plane.sqlite3
+Environment=CKNEXUS_AUTO_DEV_EVIDENCE=/var/lib/cknexus/n8n-intelligence/auto-dev
+Environment=CKNEXUS_AUTO_DEV_WORKSPACES=/var/lib/cknexus/n8n-intelligence/worktrees
+Environment=CKNEXUS_AUTO_DEV_TIMEOUT=180
+
+[Install]
+WantedBy=multi-user.target

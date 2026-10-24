@@ -10,6 +10,9 @@ from creator_app.ai_team.intelligence.parallel_executor import ParallelExecutor,
 from creator_app.ai_team.team_director import TeamDirector
 from creator_app.dev_assistants.orchestrator import DevAssistantFabric
 
+from .fast_cache import ReadOnlyTTLCache
+from .fast_policy import FastDecision, decide_fast
+from .fast_probe import FastProbeRunner, Probe, ProbeResult
 from .models import ControlPlaneRequest, ExecutionState, TaskGraph, TaskNode
 
 NodeHandler = Callable[[TaskNode], Awaitable[Any] | Any]
@@ -45,6 +48,8 @@ class ControlPlaneOrchestrator:
     ) -> None:
         self.fabric = fabric or DevAssistantFabric()
         self.team_director = team_director or TeamDirector()
+        self._fast_probes = FastProbeRunner(max_concurrency=2)
+        self._health_cache = ReadOnlyTTLCache(ttl_seconds=5.0)
 
     def plan(
         self,
@@ -87,6 +92,26 @@ class ControlPlaneOrchestrator:
             for node in nodes
         ]
         return TaskGraph(request=request, nodes=tuple(nodes))
+
+    def fast_path(self, signal: str) -> FastDecision:
+        """Resolve known failures without invoking an AI diagnosis provider."""
+        return decide_fast(signal)
+
+    async def fast_probe(self, probes: dict[str, Probe]) -> dict[str, ProbeResult]:
+        """Run independent read-only probes under the VPS resource budget."""
+        return await self._fast_probes.run(probes)
+
+    async def health_cached(self, key: str, probe: Probe) -> ProbeResult:
+        """Return a fresh-enough read-only health observation, cached for five seconds."""
+        cached = self._health_cache.get(key)
+        if cached is not None:
+            return cached
+        result = (await self._fast_probes.run({key: probe}))[key]
+        if result.status == "ok":
+            self._health_cache.put(key, result)
+        else:
+            self._health_cache.invalidate(key)
+        return result
 
     @staticmethod
     def queue_payloads(graph: TaskGraph) -> list[dict[str, Any]]:
