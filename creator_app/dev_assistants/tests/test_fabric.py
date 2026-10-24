@@ -21,6 +21,8 @@ def test_registry_has_expected_active_assistants() -> None:
 def test_retired_and_reference_projects_are_not_active() -> None:
     active_ids = {item.assistant_id for item in active_assistants()}
     assert "roo_code" not in active_ids
+    assert "codex" not in active_ids
+    assert "codex" not in {item.assistant_id for item in ASSISTANTS}
     assert "continue" not in active_ids
     assert "mcp_reference_servers" not in active_ids
     assert get_assistant("roo_code").status is AssistantStatus.RETIRED

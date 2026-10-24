@@ -99,7 +99,7 @@ class AutoDeveloper:
         repo: str | Path,
         evidence_dir: str | Path,
         runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
-        assistant: str = "codex",
+        assistant: str = "opencode",
         timeout_seconds: int = 180,
         workspace_root: str | Path | None = None,
     ) -> None:
@@ -121,7 +121,7 @@ class AutoDeveloper:
         eligible, reason = self.policy.eligible(payload)
         if not eligible:
             return DevelopmentRun("blocked", reason)
-        if self.assistant != "codex":
+        if self.assistant != "opencode":
             return DevelopmentRun("blocked", "assistant_not_approved")
 
         task = self.store.claim_next(
@@ -146,19 +146,8 @@ class AutoDeveloper:
         result: subprocess.CompletedProcess[str]
         try:
             result = self.runner(
-                [
-                    self.assistant,
-                    "exec",
-                    "--sandbox",
-                    "workspace-write",
-                    "--approve-for-me",
-                    "--ephemeral",
-                    "-C",
-                    str(workspace),
-                    "-",
-                ],
+                [self.assistant, "run", "--dir", str(workspace), prompt],
                 cwd=workspace,
-                input=prompt,
                 capture_output=True,
                 text=True,
                 timeout=self.policy.timeout_seconds,
@@ -418,7 +407,7 @@ def _safe_environment() -> dict[str, str]:
         upper = key.upper()
         if any(
             token in upper for token in ("API_KEY", "TOKEN", "PASSWORD", "SECRET", "PRIVATE_KEY")
-        ) and key not in {"CODEX_HOME", "PATH", "HOME"}:
+        ) and key not in {"PATH", "HOME"}:
             env.pop(key, None)
     return env
 
