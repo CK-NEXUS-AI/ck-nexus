@@ -90,7 +90,11 @@ def _duration_seconds(execution: dict[str, object]) -> float | None:
     started = _parse_time(execution.get("startedAt"))
     stopped = _parse_time(execution.get("stoppedAt"))
     if started is not None and stopped is not None:
-        return max(0.0, (stopped - started).total_seconds())
+        try:
+            return max(0.0, (stopped - started).total_seconds())
+        except TypeError:
+            # Mixed naive and timezone-aware timestamps have no safe shared basis.
+            return None
     return None
 
 
