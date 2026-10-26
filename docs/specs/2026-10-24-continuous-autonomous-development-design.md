@@ -43,7 +43,7 @@ The next task receives a compact summary derived only from structured evidence: 
 - n8n intelligence collection: every two minutes (existing timer).
 - Auto Developer: every two minutes (existing timer, now uses isolated worktrees).
 - Auto GitOps: every five minutes.
-- Proactive maintenance seeder: once per day, only when the task queue has no queued/running work; one deterministic task ID per UTC day prevents duplicates.
+- Proactive maintenance seeder: once per day, only when the task queue has no queued/running work; one deterministic task ID per UTC day prevents duplicates; failed daily tasks may be requeued only within a three-attempt budget.
 
 ## Success criteria
 

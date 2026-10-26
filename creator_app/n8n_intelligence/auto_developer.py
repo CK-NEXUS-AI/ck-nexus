@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import time
 from collections.abc import Callable
@@ -149,8 +150,6 @@ class AutoDeveloper:
                 [
                     self.assistant,
                     "exec",
-                    "--sandbox",
-                    "workspace-write",
                     "--approve-for-me",
                     "--ephemeral",
                     "-C",
@@ -208,6 +207,7 @@ class AutoDeveloper:
                 "safe_paths": safe_paths,
                 "duration_seconds": round(time.time() - started, 3),
                 "assistant_output_chars": len(result.stdout or ""),
+                "assistant_error": _safe_error(result.stderr) if result.returncode else None,
             },
         )
         try:
@@ -425,3 +425,15 @@ def _safe_environment() -> dict[str, str]:
 
 def _safe_tail(text: str, limit: int = 2000) -> str:
     return str(text or "")[-limit:]
+
+
+def _safe_error(text: str, limit: int = 300) -> str:
+    """Keep one redacted diagnostic line without storing raw model output."""
+    line = next((item.strip() for item in str(text or "").splitlines() if item.strip()), "")
+    line = re.sub(r"\b(?:sk-[A-Za-z0-9_-]{10,}|gh[pousr]_[A-Za-z0-9_]{20,})\b", "[redacted]", line)
+    line = re.sub(
+        r"(?i)(api[_-]?key|access[_-]?token|password|secret)\s*[:=]\s*[^\s,;]+",
+        r"\1=[redacted]",
+        line,
+    )
+    return line[:limit]

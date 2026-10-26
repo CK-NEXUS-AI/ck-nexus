@@ -121,6 +121,28 @@ class TaskStore:
             ).fetchone()
         return row is not None
 
+    def requeue_failed(self, job_id: str, *, max_attempts: int = 3) -> bool:
+        """Requeue one failed task within a bounded retry budget."""
+        if not 1 <= max_attempts <= 10:
+            raise ValueError("max_attempts must be between 1 and 10")
+        now = time.time()
+        with closing(self._connect()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT state, attempts FROM control_plane_tasks WHERE job_id=?", (job_id,)
+            ).fetchone()
+            if row is None or row["state"] != "failed" or row["attempts"] >= max_attempts:
+                connection.commit()
+                return False
+            cursor = connection.execute(
+                "UPDATE control_plane_tasks SET state='queued', worker_id=NULL, lease_until=NULL, "
+                "lease_token=NULL, result_json=NULL, error_text=NULL, updated_at=? "
+                "WHERE job_id=? AND state='failed' AND attempts<?",
+                (now, job_id, max_attempts),
+            )
+            connection.commit()
+            return cursor.rowcount == 1
+
     def claim_next(
         self, worker_id: str, *, lease_seconds: float = 300, job_id: str | None = None
     ) -> dict[str, Any] | None:

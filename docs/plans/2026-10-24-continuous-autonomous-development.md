@@ -89,3 +89,4 @@
 
 - [x] Verify queued/running task detection and duplicate-day prevention.
 - [x] Verify seeded tasks retain `production_status=NO-GO` and `external_mutation_authorized=false`.
+- [x] Verify failed daily tasks can retry within a bounded three-attempt budget.

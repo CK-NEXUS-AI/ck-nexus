@@ -225,3 +225,22 @@ def test_has_open_tasks_tracks_queued_and_running_states(tmp_path: Path):
         lease_token=claimed["lease_token"],
     )
     assert store.has_open_tasks() is False
+
+
+def test_requeue_failed_task_respects_attempt_budget(tmp_path: Path):
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    store.enqueue("retry-task", {"handler": "test"})
+    for attempt in range(1, 4):
+        task = store.claim_next("worker", lease_seconds=60)
+        assert task is not None
+        store.finish(
+            "retry-task",
+            success=False,
+            error="failed",
+            worker_id="worker",
+            lease_token=task["lease_token"],
+        )
+        if attempt < 3:
+            assert store.requeue_failed("retry-task", max_attempts=3) is True
+        else:
+            assert store.requeue_failed("retry-task", max_attempts=3) is False

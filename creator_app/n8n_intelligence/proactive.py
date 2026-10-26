@@ -53,6 +53,13 @@ class ProactiveTaskSeeder:
             "release_evidence": False,
             "evidence_refs": ["policy://proactive-maintenance"],
         }
+        existing = self.store.get(job_id)
+        if existing is not None:
+            if existing.get("state") == "failed" and self.store.requeue_failed(
+                job_id, max_attempts=3
+            ):
+                return ProactiveSeedResult("seeded", "retrying_failed_task", job_id)
+            return ProactiveSeedResult("skipped", "already_seeded_today", job_id)
         try:
             self.store.enqueue(job_id, payload)
         except ValueError:

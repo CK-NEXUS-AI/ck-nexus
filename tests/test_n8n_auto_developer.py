@@ -62,6 +62,7 @@ def test_successful_run_requires_tests_and_keeps_head_unchanged(tmp_path: Path):
     repo = tmp_path / "repo"
     repo.mkdir()
     state = {"head": "abc", "status": ""}
+    codex_commands = []
 
     def runner(args, **kwargs):
         if args[:3] == ["git", "show-ref", "--verify"]:
@@ -78,6 +79,7 @@ def test_successful_run_requires_tests_and_keeps_head_unchanged(tmp_path: Path):
         if args[0].endswith("pytest") and args[1:] == ["-q"]:
             return subprocess.CompletedProcess(args, 0, "1 passed\n", "")
         if args[:2] == ["codex", "exec"]:
+            codex_commands.append(args)
             return subprocess.CompletedProcess(args, 0, "implemented\n", "")
         raise AssertionError(args)
 
@@ -86,6 +88,8 @@ def test_successful_run_requires_tests_and_keeps_head_unchanged(tmp_path: Path):
     ).run_once()
     assert result.state == "verified"
     assert result.tests_ok is True
+    assert "--approve-for-me" in codex_commands[0]
+    assert "--sandbox" not in codex_commands[0]
     assert store.get("n8n-job-1")["state"] == "completed"
     evidence = json.loads(Path(result.evidence_path).read_text(encoding="utf-8"))
     assert evidence["head_unchanged"] is True

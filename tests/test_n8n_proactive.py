@@ -53,3 +53,27 @@ def test_proactive_seeder_does_not_duplicate_same_day_task(tmp_path):
 
     assert result.state == "skipped"
     assert result.reason == "already_seeded_today"
+
+
+def test_proactive_seeder_retries_a_failed_daily_task_within_budget(tmp_path):
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+
+    def clock():
+        return datetime(2026, 10, 24, tzinfo=UTC)
+
+    seeder = ProactiveTaskSeeder(store, clock=clock)
+    assert seeder.run_once().state == "seeded"
+    task = store.claim_next("test-worker", lease_seconds=60)
+    store.finish(
+        task["job_id"],
+        success=False,
+        error="assistant_timeout",
+        worker_id="test-worker",
+        lease_token=task["lease_token"],
+    )
+
+    result = seeder.run_once()
+
+    assert result.state == "seeded"
+    assert result.reason == "retrying_failed_task"
+    assert store.peek_next()["job_id"] == "n8n-proactive-2026-10-24"
