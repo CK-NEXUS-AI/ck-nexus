@@ -14,6 +14,13 @@ def test_sanitize_message_redacts_secrets_and_bounds_text():
     assert len(result) <= 1000
 
 
+def test_sanitize_message_redacts_bearer_credentials():
+    result = sanitize_message("request failed: Bearer top-secret-token")
+
+    assert "top-secret-token" not in result
+    assert "Bearer [REDACTED]" in result
+
+
 def test_fingerprint_is_stable_for_same_execution():
     execution = {"id": "e1", "workflowId": "w1", "status": "error", "stoppedAt": "t1"}
     assert fingerprint_execution(execution) == fingerprint_execution(dict(execution))

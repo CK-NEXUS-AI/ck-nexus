@@ -18,10 +18,11 @@ _SECRET_PATTERNS = (
 
 def sanitize_message(text: str) -> str:
     value = str(text or "")
-    for pattern in _SECRET_PATTERNS:
-        value = pattern.sub(
-            lambda match: match.group(0).split("=", 1)[0].split(":", 1)[0] + "=[REDACTED]", value
-        )
+    value = _SECRET_PATTERNS[0].sub(
+        lambda match: match.group(0).split("=", 1)[0].split(":", 1)[0] + "=[REDACTED]",
+        value,
+    )
+    value = _SECRET_PATTERNS[1].sub("Bearer [REDACTED]", value)
     return value[:_MAX_MESSAGE]
 
 
