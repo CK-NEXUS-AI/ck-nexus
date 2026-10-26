@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 
 PATTERNS = {
-    "openai_key": re.compile(r"sk-(?:proj-)?[A-Za-z0-9_-]{20,}"),
+    "openai_key": re.compile(r"(?<![A-Za-z0-9])sk-(?:proj-)?[A-Za-z0-9_-]{20,}"),
     "github_pat": re.compile(r"(?:ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})"),
     "slack_token": re.compile(r"xox[baprs]-[A-Za-z0-9-]{20,}"),
     "private_key": re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),

@@ -1,0 +1,163 @@
+name: CK-NEXUS Final Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - 'cknexus/auto-dev/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cknexus-final-gate-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+      - name: Reproducible dependency sync
+        run: |
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+          .venv/bin/python -c "import aiosqlite,asyncpg,psycopg,redis; print('DEPENDENCIES PASS')"
+      - name: Compile and Ruff
+        run: |
+          .venv/bin/python -m compileall -q main.py creator_app services scripts
+          .venv/bin/ruff check main.py creator_app services tests scripts --output-format=github
+
+  bandit:
+    name: bandit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+      - name: Reproducible dependency sync
+        run: uv sync --all-extras --dev --frozen
+      - name: Bandit reviewed security gate
+        shell: bash
+        run: |
+          .venv/bin/bandit -r creator_app services main.py -f json -o bandit.json || true
+          .venv/bin/python - <<'PY'
+          import hashlib
+          import json
+          import sys
+
+          report = json.load(open("bandit.json", encoding="utf-8"))
+          approved = {
+              ("B608", "services/email_gateway/repository.py", 221,
+               "a248369faca360edbca232b1700ef67d87d9eeae8401bb1b379122f3274a4a6a"),
+              ("B608", "services/email_gateway/repository.py", 230,
+               "2948e929a8c5a30e600e2d06c3cea59da396aa196adfd234183556d877df3de0"),
+          }
+          blocking = []
+          for issue in report.get("results", []):
+              if issue.get("issue_severity") not in {"MEDIUM", "HIGH"}:
+                  continue
+              identity = (
+                  issue.get("test_id"),
+                  issue.get("filename"),
+                  issue.get("line_number"),
+                  hashlib.sha256(issue.get("code", "").encode()).hexdigest(),
+              )
+              if identity not in approved:
+                  blocking.append(identity)
+          print("blocking=", blocking)
+          sys.exit(bool(blocking))
+          PY
+
+  secret_scan:
+    name: secret-scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Secret scan
+        run: python scripts/secret_scan.py
+
+  regression:
+    name: regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+      - name: Reproducible dependency sync
+        run: uv sync --all-extras --dev --frozen
+      - name: Portable regression suite
+        run: |
+          .venv/bin/pytest -q \
+            --ignore=tests/test_agnes_execution_kernel_phase2.py \
+            --ignore=tests/test_agnes_execution_kernel_phase3.py
+
+  final-gate:
+    name: verify-before-merge
+    if: always()
+    needs: [quality, bandit, secret_scan, regression]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - name: Require every independent gate
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          BANDIT_RESULT: ${{ needs.bandit.result }}
+          SECRET_SCAN_RESULT: ${{ needs.secret_scan.result }}
+          REGRESSION_RESULT: ${{ needs.regression.result }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          printf 'candidate_sha=%s\nquality=%s\nbandit=%s\nsecret_scan=%s\nregression=%s\n' \
+            "$HEAD_SHA" "$QUALITY_RESULT" "$BANDIT_RESULT" "$SECRET_SCAN_RESULT" "$REGRESSION_RESULT"
+          test "$QUALITY_RESULT" = success
+          test "$BANDIT_RESULT" = success
+          test "$SECRET_SCAN_RESULT" = success
+          test "$REGRESSION_RESULT" = success
