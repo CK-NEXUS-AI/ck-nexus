@@ -44,8 +44,8 @@ jobs:
           .venv/bin/python -m compileall -q main.py creator_app services scripts
           .venv/bin/ruff check main.py creator_app services tests scripts --output-format=github
 
-  security:
-    name: security
+  bandit:
+    name: bandit
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -95,8 +95,22 @@ jobs:
           print("blocking=", blocking)
           sys.exit(bool(blocking))
           PY
+
+  secret_scan:
+    name: secret-scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
       - name: Secret scan
-        run: .venv/bin/python scripts/secret_scan.py
+        run: python scripts/secret_scan.py
 
   regression:
     name: regression
@@ -127,7 +141,7 @@ jobs:
   final-gate:
     name: verify-before-merge
     if: always()
-    needs: [quality, security, regression]
+    needs: [quality, bandit, secret_scan, regression]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
@@ -136,12 +150,14 @@ jobs:
       - name: Require every independent gate
         env:
           QUALITY_RESULT: ${{ needs.quality.result }}
-          SECURITY_RESULT: ${{ needs.security.result }}
+          BANDIT_RESULT: ${{ needs.bandit.result }}
+          SECRET_SCAN_RESULT: ${{ needs.secret_scan.result }}
           REGRESSION_RESULT: ${{ needs.regression.result }}
           HEAD_SHA: ${{ github.sha }}
         run: |
-          printf 'candidate_sha=%s\nquality=%s\nsecurity=%s\nregression=%s\n' \
-            "$HEAD_SHA" "$QUALITY_RESULT" "$SECURITY_RESULT" "$REGRESSION_RESULT"
+          printf 'candidate_sha=%s\nquality=%s\nbandit=%s\nsecret_scan=%s\nregression=%s\n' \
+            "$HEAD_SHA" "$QUALITY_RESULT" "$BANDIT_RESULT" "$SECRET_SCAN_RESULT" "$REGRESSION_RESULT"
           test "$QUALITY_RESULT" = success
-          test "$SECURITY_RESULT" = success
+          test "$BANDIT_RESULT" = success
+          test "$SECRET_SCAN_RESULT" = success
           test "$REGRESSION_RESULT" = success
