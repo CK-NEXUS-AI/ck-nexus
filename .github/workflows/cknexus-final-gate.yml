@@ -16,10 +16,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  final-gate:
-    name: verify-before-merge
+  quality:
+    name: quality
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -27,27 +27,43 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
-
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.12'
           cache: pip
-
       - name: Install uv
         run: python -m pip install --upgrade pip uv
-
       - name: Reproducible dependency sync
         run: |
           uv lock --check
           uv sync --all-extras --dev --frozen
           .venv/bin/python -c "import aiosqlite,asyncpg,psycopg,redis; print('DEPENDENCIES PASS')"
-
       - name: Compile and Ruff
         run: |
           .venv/bin/python -m compileall -q main.py creator_app services scripts
           .venv/bin/ruff check main.py creator_app services tests scripts --output-format=github
 
+  security:
+    name: security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+      - name: Reproducible dependency sync
+        run: uv sync --all-extras --dev --frozen
       - name: Bandit reviewed security gate
         shell: bash
         run: |
@@ -79,22 +95,53 @@ jobs:
           print("blocking=", blocking)
           sys.exit(bool(blocking))
           PY
-
       - name: Secret scan
         run: .venv/bin/python scripts/secret_scan.py
 
+  regression:
+    name: regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+      - name: Reproducible dependency sync
+        run: uv sync --all-extras --dev --frozen
       - name: Portable regression suite
         run: |
           .venv/bin/pytest -q \
             --ignore=tests/test_agnes_execution_kernel_phase2.py \
             --ignore=tests/test_agnes_execution_kernel_phase3.py
 
-      - name: Emit exact candidate identity
+  final-gate:
+    name: verify-before-merge
+    if: always()
+    needs: [quality, security, regression]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - name: Require every independent gate
         env:
-          EVENT_NAME: ${{ github.event_name }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
+          REGRESSION_RESULT: ${{ needs.regression.result }}
           HEAD_SHA: ${{ github.sha }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          printf 'event=%s\nhead_sha=%s\npr_number=%s\nbase_ref=%s\n' \
-            "$EVENT_NAME" "$HEAD_SHA" "$PR_NUMBER" "$BASE_REF"
+          printf 'candidate_sha=%s\nquality=%s\nsecurity=%s\nregression=%s\n' \
+            "$HEAD_SHA" "$QUALITY_RESULT" "$SECURITY_RESULT" "$REGRESSION_RESULT"
+          test "$QUALITY_RESULT" = success
+          test "$SECURITY_RESULT" = success
+          test "$REGRESSION_RESULT" = success

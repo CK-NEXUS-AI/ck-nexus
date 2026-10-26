@@ -4,14 +4,14 @@
 
 The CK-NEXUS Final Gate is the last required quality/security gate before a change is merged into main. It runs for pull requests targeting main and for cknexus/auto-dev/** candidate branches. It uses read-only GitHub Actions permissions and does not commit, push, merge, deploy, or modify repository settings.
 
-## Checks
+## Independent checks
 
-1. Reproducible dependency lock and environment sync.
-2. Python compilation and Ruff.
-3. Bandit findings against the repository's exact reviewed-finding allowlist.
-4. Repository secret scan.
-5. Portable regression test suite.
-6. Emits the exact candidate commit SHA and PR identity in the job log.
+- Quality: frozen dependency lock, compilation, and full Ruff checks.
+- Security: reviewed Bandit findings and repository secret scan.
+- Regression: portable pytest suite.
+- Final gate: requires all three independent jobs to succeed and emits the exact candidate SHA.
+
+Independent jobs ensure one failed lane does not hide evidence from the others. The final required check fails closed if any lane fails or is cancelled.
 
 ## Required repository configuration
 
@@ -25,7 +25,7 @@ A repository owner/admin must configure a GitHub ruleset or main branch protecti
 - Block force pushes and branch deletion.
 - Do not allow routine bypass of required checks.
 
-The status check must first be observed on a real pull request before selecting it in the ruleset. The GitHub API connector in the current operator session returned 404 for repository metadata, so this workflow cannot truthfully claim that branch protection has been enabled. Configure and verify the ruleset using an authorized repository/org administrator.
+The status check must first be observed on a real pull request before selecting it in the ruleset. The current main branch has no classic branch protection and the existing ruleset only enables Copilot review plus deletion/non-fast-forward protections. Enable the required checks only after the workflow's baseline failures are resolved; never waive a failing security or quality result merely to merge the gate.
 
 ## Publication boundary
 
