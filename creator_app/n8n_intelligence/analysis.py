@@ -90,6 +90,8 @@ def _duration_seconds(execution: dict[str, object]) -> float | None:
     started = _parse_time(execution.get("startedAt"))
     stopped = _parse_time(execution.get("stoppedAt"))
     if started is not None and stopped is not None:
+        if (started.utcoffset() is None) != (stopped.utcoffset() is None):
+            return None
         return max(0.0, (stopped - started).total_seconds())
     return None
 
