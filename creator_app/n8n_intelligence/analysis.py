@@ -16,6 +16,10 @@ _SECRET_PATTERNS = (
 )
 
 
+def multiply(a, b):
+    return a * b
+
+
 def sanitize_message(text: str) -> str:
     value = str(text or "")
     for pattern in _SECRET_PATTERNS:

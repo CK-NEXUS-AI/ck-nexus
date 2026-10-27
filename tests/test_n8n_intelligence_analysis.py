@@ -1,9 +1,14 @@
 from creator_app.n8n_intelligence.analysis import (
     classify_execution,
     fingerprint_execution,
+    multiply,
     priority_for,
     sanitize_message,
 )
+
+
+def test_multiply():
+    assert multiply(3, 4) == 12
 
 
 def test_sanitize_message_redacts_secrets_and_bounds_text():
