@@ -7,10 +7,16 @@ from creator_app.n8n_intelligence.analysis import (
 
 
 def test_sanitize_message_redacts_secrets_and_bounds_text():
-    text = "token=super-secret password: hunter2 " + "x" * 5000
+    text = (
+        "token=super-secret password: hunter2 Authorization: Bearer abc.def_123 "
+        "Bearer standalone.token "
+        + "x" * 5000
+    )
     result = sanitize_message(text)
     assert "super-secret" not in result
     assert "hunter2" not in result
+    assert "abc.def_123" not in result
+    assert "Bearer [REDACTED]" in result
     assert len(result) <= 1000
 
 

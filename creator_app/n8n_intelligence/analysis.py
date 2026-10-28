@@ -11,17 +11,17 @@ from .models import DevelopmentSignal
 
 _MAX_MESSAGE = 1000
 _SECRET_PATTERNS = (
-    re.compile(r"(?i)(api[_-]?key|token|password|secret|authorization)\s*[:=]\s*[^\s,;]+"),
-    re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+"),
+    re.compile(
+        r"(?i)((?:api[_-]?key|token|password|secret|authorization)\s*[:=])\s*(?:bearer\s+)?[^\s,;]+"
+    ),
+    re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~+/=-]+"),
 )
 
 
 def sanitize_message(text: str) -> str:
     value = str(text or "")
     for pattern in _SECRET_PATTERNS:
-        value = pattern.sub(
-            lambda match: match.group(0).split("=", 1)[0].split(":", 1)[0] + "=[REDACTED]", value
-        )
+        value = pattern.sub(lambda match: match.group(1) + "[REDACTED]", value)
     return value[:_MAX_MESSAGE]
 
 
