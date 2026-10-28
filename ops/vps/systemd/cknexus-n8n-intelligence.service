@@ -22,6 +22,7 @@ ReadOnlyPaths=/root/ck-nexus /root/.config/n8n/api_key
 ReadWritePaths=/var/lib/cknexus/n8n-intelligence /root/.local/state/cknexus
 Environment=N8N_INTEL_BASE_URL=https://xtzsfd91.rpcld.co/api/v1
 Environment=N8N_INTEL_DATABASE=/var/lib/cknexus/n8n-intelligence/events.db
+Environment=N8N_INTEL_CIRCUIT_STATE=/var/lib/cknexus/n8n-intelligence/circuit-breaker.json
 Environment=CKNEXUS_TASK_DATABASE=/root/.local/state/cknexus/control-plane.sqlite3
 Environment=N8N_INTEL_MAX_EXECUTIONS=50
 Environment=N8N_INTEL_SLOW_SECONDS=30

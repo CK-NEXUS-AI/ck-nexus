@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0a1020">
+  <meta name="referrer" content="same-origin">
+  <title>CK-NEXUS · Permission Center</title>
+  <link rel="stylesheet" href="/static/permissions.css">
+  <script defer src="/static/permissions.js"></script>
+</head>
+<body>
+  <main class="wrap">
+    <header class="top"><a href="/demo" class="brand">CK-NEXUS <span>PERMISSION CENTER</span></a><span class="tag">BATCH AUTHORIZATION</span></header>
+    <section class="hero">
+      <p class="eyebrow">CONTROL PLANE / HUMAN-DEFINED BOUNDARIES</p>
+      <h1>อนุมัติหลายสิทธิ์ <span>ครั้งเดียว</span></h1>
+      <p>เลือกโปรไฟล์หรือปรับสิทธิ์หลายรายการพร้อมกัน GPT สามารถทำงานต่อได้เฉพาะ permission และ target ที่ระบุไว้ใน grant นี้</p>
+    </section>
+    <section class="panel">
+      <label>โปรไฟล์เริ่มต้น
+        <select id="profile">
+          <option value="safe">Safe Autonomous Development — แนะนำ</option>
+          <option value="audit">Read-only Audit</option>
+          <option value="git">Development + Local Git</option>
+          <option value="custom">กำหนดเอง</option>
+        </select>
+      </label>
+      <h2>1. เลือกสิทธิ์</h2>
+      <div class="grid permissions">
+        <label class="choice"><input type="checkbox" value="system.inspect"> A1 · อ่านสถานะและตรวจสอบระบบ</label>
+        <label class="choice"><input type="checkbox" value="code.analyze"> A2 · วิเคราะห์และวางแผน</label>
+        <label class="choice"><input type="checkbox" value="repo.write"> A3 · แก้ไขโค้ดและเอกสาร</label>
+        <label class="choice"><input type="checkbox" value="tests.run"> A4 · รันทดสอบและ lint</label>
+        <label class="choice"><input type="checkbox" value="git.local"> A5 · Git branch / local commit</label>
+        <label class="choice"><input type="checkbox" value="github.publish"> A6 · Push / เปิด Pull Request</label>
+        <label class="choice"><input type="checkbox" value="repo.delete"> ลบไฟล์/ข้อมูล (ผลกระทบสูง)</label>
+        <label class="choice"><input type="checkbox" value="service.restart"> รีสตาร์ตบริการ (ผลกระทบสูง)</label>
+        <label class="choice"><input type="checkbox" value="access.change"> เปลี่ยนสิทธิ์เข้าถึง (ผลกระทบสูง)</label>
+        <label class="choice"><input type="checkbox" value="data.export"> ส่งออกข้อมูล (ผลกระทบสูง)</label>
+        <label class="choice"><input type="checkbox" value="billing.enable"> เปิดใช้บริการมีค่าใช้จ่าย (ผลกระทบสูง)</label>
+        <label class="choice"><input type="checkbox" value="infra.inspect"> A7 · ตรวจสอบ VPS และบริการ</label>
+        <label class="choice"><input type="checkbox" value="workflow.edit"> A8 · สร้างและแก้ workflow</label>
+        <label class="choice"><input type="checkbox" value="agents.parallel"> A9 · ทำงานหลาย Agent</label>
+        <label class="choice"><input type="checkbox" value="api.approved"> A10 · ใช้ API ภายใต้งบที่กำหนด</label>
+        <label class="choice"><input type="checkbox" value="infra.recover"> A11 · กู้คืนแบบจำกัดขอบเขต</label>
+      </div>
+      <h2>2. เลือกเครื่องและเป้าหมาย</h2>
+      <div class="grid targets">
+        <label class="choice"><input type="checkbox" value="repo:CK-NEXUS-AI/ck-nexus" checked> Repository CK-NEXUS</label>
+        <label class="choice"><input type="checkbox" value="vps:ck-nexus"> Linux VPS</label>
+        <label class="choice"><input type="checkbox" value="termux:ck-nexus"> Termux</label>
+        <label class="choice"><input type="checkbox" value="windows:ck-nexus"> Windows</label>
+        <label class="choice"><input type="checkbox" value="n8n:ck-nexus"> n8n Workflows</label>
+      </div>
+      <label>เป้าหมายเพิ่มเติม (หนึ่งรายการต่อบรรทัด)
+        <textarea id="custom-targets" rows="2" placeholder="เช่น service:cknexus-api-gateway"></textarea>
+      </label>
+      <div class="grid two">
+        <label>ผู้อนุมัติ / audit label
+          <input id="approved-by" maxlength="200" value="CK" required>
+        </label>
+        <label>ระยะเวลา
+          <select id="ttl"><option value="3600">1 ชั่วโมง</option><option value="28800" selected>8 ชั่วโมง</option><option value="86400">24 ชั่วโมง</option><option value="604800">7 วัน</option></select>
+        </label>
+        <label>วงเงิน API สูงสุด (USD)
+          <input id="budget" type="number" min="0" max="10000" step="0.01" value="0" required>
+          <small>0 = ไม่อนุญาตให้เกิดค่าใช้จ่ายที่ไม่ได้ระบุวงเงิน</small>
+        </label>
+        <label>อนุมัติการกระทำผลกระทบสูงแบบระบุรายการเท่านั้น
+          <div class="grid targets">
+            <label class="choice"><input type="checkbox" class="high-impact-permission" value="repo.delete"> ลบข้อมูล/ไฟล์ในขอบเขตที่ระบุ</label>
+            <label class="choice"><input type="checkbox" class="high-impact-permission" value="github.publish"> เผยแพร่โค้ดไปยัง GitHub</label>
+            <label class="choice"><input type="checkbox" class="high-impact-permission" value="service.restart"> รีสตาร์ตบริการ</label>
+            <label class="choice"><input type="checkbox" class="high-impact-permission" value="access.change"> เปลี่ยนสิทธิ์เข้าถึง</label>
+            <label class="choice"><input type="checkbox" class="high-impact-permission" value="data.export"> ส่งออกข้อมูล</label>
+            <label class="choice"><input type="checkbox" class="high-impact-permission" value="billing.enable"> เปิดใช้บริการที่อาจมีค่าใช้จ่าย</label>
+          </div>
+          <small>สิทธิ์ผลกระทบสูงต้องเลือกแยก และต้องอยู่ในรายการสิทธิ์หลักด้วย ไม่อนุมัติแบบครอบจักรวาล</small>
+        </label>
+      </div>
+      <label>CK-NEXUS Access Token
+        <input id="access-token" type="password" autocomplete="new-password" spellcheck="false" required placeholder="ใช้ token สำหรับ API นี้เท่านั้น">
+        <small>Token ใช้ในหน่วยความจำของหน้านี้เท่านั้น ไม่บันทึกใน localStorage/sessionStorage และล้างหลังส่ง</small>
+      </label>
+      <label class="confirm"><input id="confirm" type="checkbox" required> ฉันตรวจสอบรายการสิทธิ์ เป้าหมาย ระยะเวลา และวงเงินแล้ว</label>
+      <div class="actions"><button id="grant-button" type="button">ตรวจสอบและอนุมัติชุดสิทธิ์</button><button id="refresh-button" type="button" class="secondary">โหลดสถานะสิทธิ์</button></div>
+      <p id="status" role="status" aria-live="polite"></p>
+    </section>
+    <section class="panel"><h2>สิทธิ์ที่บันทึกไว้</h2><p class="muted">รายการนี้เป็นทะเบียน grant ที่มีวันหมดอายุและสามารถเพิกถอนได้</p><div id="grants"></div></section>
+    <footer><a href="/demo">กลับหน้า Dashboard</a><span>ไม่มี wildcard · grant หมดอายุได้ · เพิกถอนได้</span></footer>
+  </main>
+</body>
+</html>

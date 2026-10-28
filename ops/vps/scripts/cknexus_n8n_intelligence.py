@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 
 from creator_app.control_plane.task_store import TaskStore
+from creator_app.n8n_intelligence.circuit_breaker import PersistentCircuitBreaker
 from creator_app.n8n_intelligence.client import N8NReadClient
 from creator_app.n8n_intelligence.collector import CollectorConfig, N8NIntelligenceCollector
 from creator_app.n8n_intelligence.store import N8NIntelligenceStore
@@ -76,7 +77,18 @@ def run(
 def main() -> int:
     args = build_parser().parse_args()
     try:
-        client = N8NReadClient(args.base_url, args.key_file, max_items=args.max_executions)
+        circuit_path = Path(
+            os.getenv(
+                "N8N_INTEL_CIRCUIT_STATE",
+                "/var/lib/cknexus/n8n-intelligence/circuit-breaker.json",
+            )
+        )
+        client = N8NReadClient(
+            args.base_url,
+            args.key_file,
+            max_items=args.max_executions,
+            circuit_breaker=PersistentCircuitBreaker(circuit_path),
+        )
         return run(
             client, args.database, args.task_database, args.slow_seconds, args.max_executions
         )

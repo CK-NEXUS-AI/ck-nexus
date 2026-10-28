@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import json
+import random
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+
+from creator_app.n8n_intelligence.circuit_breaker import CircuitOpenError, PersistentCircuitBreaker
 
 
 class N8NReadError(RuntimeError):
@@ -15,7 +19,12 @@ class N8NReadError(RuntimeError):
 
 class N8NReadClient:
     def __init__(
-        self, base_url: str, key_file: Path, timeout: float = 10.0, max_items: int = 50
+        self,
+        base_url: str,
+        key_file: Path,
+        timeout: float = 10.0,
+        max_items: int = 50,
+        circuit_breaker: PersistentCircuitBreaker | None = None,
     ) -> None:
         parsed = urllib.parse.urlsplit(base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
@@ -26,6 +35,7 @@ class N8NReadClient:
         self.key_file = Path(key_file)
         self.timeout = timeout
         self.max_items = max_items
+        self.circuit_breaker = circuit_breaker
 
     def list_executions(
         self, cursor: str | None = None
@@ -51,18 +61,44 @@ class N8NReadClient:
             },
             method="GET",
         )
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                raw = response.read(2_000_001)
-            if len(raw) > 2_000_000:
-                raise N8NReadError("n8n response exceeds safe size")
-            data = json.loads(raw)
-        except urllib.error.HTTPError as exc:
-            raise N8NReadError(f"n8n HTTP error {exc.code}") from None
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            raise N8NReadError("n8n transport failure") from exc
-        except json.JSONDecodeError as exc:
-            raise N8NReadError("n8n returned invalid JSON") from exc
+        if self.circuit_breaker is not None:
+            try:
+                self.circuit_breaker.before_request()
+            except CircuitOpenError as exc:
+                raise N8NReadError(str(exc)) from None
+        data = None
+        for attempt in range(3):
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                    raw = response.read(2_000_001)
+                if len(raw) > 2_000_000:
+                    raise N8NReadError("n8n response exceeds safe size")
+                if self.circuit_breaker is not None:
+                    self.circuit_breaker.record_success()
+                data = json.loads(raw)
+                break
+            except urllib.error.HTTPError as exc:
+                # Authentication errors are deterministic and open the circuit immediately.
+                if exc.code in {401, 403}:
+                    if self.circuit_breaker is not None:
+                        self.circuit_breaker.record_failure(kind="auth")
+                    raise N8NReadError(f"n8n HTTP error {exc.code}") from None
+                if exc.code not in {408, 425, 429, 500, 502, 503, 504}:
+                    raise N8NReadError(f"n8n HTTP error {exc.code}") from None
+                if attempt == 2:
+                    if self.circuit_breaker is not None:
+                        self.circuit_breaker.record_failure(kind="transient")
+                    raise N8NReadError(f"n8n HTTP error {exc.code}") from None
+            except (urllib.error.URLError, TimeoutError, OSError):
+                if attempt == 2:
+                    if self.circuit_breaker is not None:
+                        self.circuit_breaker.record_failure(kind="transient")
+                    raise N8NReadError("n8n transport failure") from None
+            except json.JSONDecodeError:
+                raise N8NReadError("n8n returned invalid JSON") from None
+            time.sleep(0.25 * (2**attempt) + random.uniform(0, 0.15))
+        if data is None:
+            raise N8NReadError("n8n upstream unavailable")
         if not isinstance(data, dict) or not isinstance(data.get("data"), list):
             raise N8NReadError("n8n response schema invalid")
         rows = [item for item in data["data"] if isinstance(item, dict)]

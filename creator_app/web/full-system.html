@@ -258,7 +258,28 @@
       <div class="page-head"><p class="eyebrow">CONTROL HUB</p><h1>System <em>matrix.</em></h1></div>
       <div class="system-grid">
         <section class="panel"><div class="panel-head"><div><span class="step">01</span><h2>INTEGRATION HUB</h2></div><div class="button-row"><button class="ghost" id="test-integrations">TEST ALL</button><button class="ghost" id="test-github">TEST GITHUB</button></div></div><dl class="matrix"><div><dt>APPLICATION</dt><dd id="sys-app">—</dd></div><div><dt>AI MODE</dt><dd id="sys-ai">—</dd></div><div><dt>DATABASE</dt><dd id="sys-db">—</dd></div><div><dt>CODEX</dt><dd id="sys-codex">—</dd></div><div><dt>DEV TEAM</dt><dd id="sys-dev-team">CHECKING</dd></div><div><dt>GITHUB</dt><dd id="sys-github">CHECKING</dd></div><div><dt>GITHUB REPO</dt><dd id="sys-github-repo">—</dd></div><div><dt>SLACK</dt><dd id="sys-slack">CHECKING</dd></div><div><dt>GOOGLE DRIVE</dt><dd id="sys-drive">CHECKING</dd></div><div><dt>OPENAI LIVE GATE</dt><dd id="sys-openai">CHECKING</dd></div></dl><pre class="mini-console" id="github-output">Integration secrets are read only from the server environment. They are never returned to this browser.</pre></section>
-        <section class="panel"><div class="panel-head"><div><span class="step">02</span><h2>SECURE TOKENS</h2></div></div><p class="muted">เก็บเฉพาะใน sessionStorage ของ browser นี้ ไม่ส่งออกไปนอกจาก API request ที่เกี่ยวข้อง</p><div class="form-stack"><label>ACCESS TOKEN<input id="access-token" type="password" autocomplete="off" /></label><label>EMAIL WEBHOOK TOKEN<input id="email-token" type="password" autocomplete="off" /></label><button class="secondary" id="save-tokens">SAVE SESSION TOKENS</button></div></section>
+        <section class="panel" id="gmail-panel">
+          <div class="panel-head"><div><span class="step">02</span><h2>GMAIL OAUTH</h2></div><button class="ghost" id="gmail-refresh" type="button">REFRESH STATUS</button></div>
+          <p class="muted">เชื่อมต่อบัญชี Google ผ่าน OAuth อย่างเป็นทางการ ใช้สิทธิ์อ่าน Gmail เท่านั้นในค่าเริ่มต้น และไม่แสดง token ในเบราว์เซอร์</p>
+          <dl class="matrix">
+            <div><dt>STATUS</dt><dd id="gmail-connection-status">CHECKING</dd></div>
+            <div><dt>OAUTH CONFIGURATION</dt><dd id="gmail-config-status">CHECKING</dd></div>
+            <div><dt>TOKEN STORAGE</dt><dd id="gmail-storage-status">CHECKING</dd></div>
+            <div><dt>SCOPES</dt><dd id="gmail-scope-status">—</dd></div>
+          </dl>
+          <div class="button-row"><button class="primary" id="connect-gmail" type="button">เชื่อมต่อ Gmail</button></div>
+          <p class="muted" id="gmail-help">ต้องตั้งค่า Google OAuth Client ID, Client Secret และ Redirect URI บนเซิร์ฟเวอร์ก่อน</p>
+          <pre class="mini-console" id="gmail-output">Gmail status not loaded.</pre>
+        </section>
+        <section class="panel" id="uabc-panel">
+          <div class="panel-head"><div><span class="step">02</span><h2>UNIVERSAL AI BUILDER CONNECTOR</h2></div><button class="ghost" id="uabc-refresh">REFRESH INVENTORY</button></div>
+          <p class="muted">ทะเบียนแพลตฟอร์มสำหรับ CK-NEXUS — สถานะเอกสารไม่ใช่สถานะการเชื่อมต่อบัญชี ระบบจะแสดง CONNECTED เฉพาะเมื่อ adapter ตรวจสอบการยืนยันตัวตนจริงสำเร็จ</p>
+          <dl class="matrix" id="uabc-summary"><div><dt>DISCOVERED PLATFORMS</dt><dd id="uabc-total">—</dd></div><div><dt>DOCUMENTED API / MCP / CLI</dt><dd id="uabc-supported">—</dd></div><div><dt>IMPLEMENTED RUNTIME ADAPTERS</dt><dd id="uabc-adapters">—</dd></div><div><dt>RESEARCH REQUIRED</dt><dd id="uabc-research">—</dd></div></dl>
+          <div class="form-stack"><label>SEARCH PLATFORM<input id="uabc-search" placeholder="Base44, Lovable, GitHub, Ollama…" /></label><label>REGISTRY STATUS<select id="uabc-status"><option value="">ALL STATUSES</option><option>SUPPORTED_API</option><option>SUPPORTED_OAUTH</option><option>SUPPORTED_MCP</option><option>SUPPORTED_CLI</option><option>SUPPORTED_WEBHOOK</option><option>BROWSER_AUTOMATION_ONLY</option><option>MANUAL_SETUP_REQUIRED</option><option>RESEARCH_REQUIRED</option><option>UNAVAILABLE</option><option>BLOCKED_AUTH</option><option>BLOCKED_BY_PLAN</option></select></label></div>
+          <div id="uabc-platform-list" class="history-list"><p class="muted">INVENTORY NOT LOADED</p></div>
+          <pre class="mini-console" id="uabc-output">No live account connections have been verified by UABC yet.</pre>
+        </section>
+        <section class="panel"><div class="panel-head"><div><span class="step">03</span><h2>SECURE TOKENS</h2></div></div><p class="muted">เก็บเฉพาะใน sessionStorage ของ browser นี้ ไม่ส่งออกไปนอกจาก API request ที่เกี่ยวข้อง</p><div class="form-stack"><label>ACCESS TOKEN<input id="access-token" type="password" autocomplete="off" /></label><label>EMAIL WEBHOOK TOKEN<input id="email-token" type="password" autocomplete="off" /></label><button class="secondary" id="save-tokens">SAVE SESSION TOKENS</button></div></section>
         <section class="panel metrics-panel"><div class="panel-head"><div><span class="step">03</span><h2>METRICS</h2></div><button class="ghost" id="refresh-metrics">REFRESH</button></div><pre class="metrics" id="metrics-output">METRICS / IDLE</pre></section>
       </div>
     </section>

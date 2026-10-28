@@ -20,7 +20,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from creator_app.agnes_runtime import AgnesNervousSystem, AgnesPolicy
@@ -41,6 +41,11 @@ from creator_app.connector_fabric import (
     OpenAPIClient,
 )
 from creator_app.connector_fabric.security import EndpointSecurityError
+from creator_app.control_plane.batch_authorization import (
+    AuthorizationStore,
+    PermissionRequest,
+    evaluate_authorization,
+)
 from creator_app.credential_broker import CredentialBroker, CredentialId
 from creator_app.credential_vault import build_credential_vault
 from creator_app.dev_team import DevTeamRuntime
@@ -78,6 +83,10 @@ from creator_app.schemas import (
 )
 from creator_app.service import CreatorService
 from creator_app.storage import RunStore
+from creator_app.universal_builder_connector import (
+    ExistingGitHubStatusAdapter,
+    UniversalBuilderConnector,
+)
 from services.email_gateway.attachments import scan_attachment
 from services.email_gateway.factory import create_email_repository
 from services.email_gateway.loop_prevention import evaluate_loop_headers
@@ -147,6 +156,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     provider_router = build_provider_router(resolved_settings, credential_broker)
     store = RunStore(resolved_settings.database_path, database_url=resolved_settings.database_url)
+    authorization_store = AuthorizationStore(
+        resolved_settings.database_path.with_name("batch_authorization.sqlite3")
+    )
     runtime = CreatorRuntime(
         resolved_settings,
         provider_router=provider_router,
@@ -192,6 +204,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         repository=resolved_settings.github_repo,
         api_base=resolved_settings.github_api_base,
     )
+    uabc = UniversalBuilderConnector()
+    uabc.register_adapter("github", ExistingGitHubStatusAdapter(github_integration))
     slack_integration = SlackIntegration(
         resolved_settings.slack_bot_token,
         api_base=resolved_settings.slack_api_base,
@@ -268,6 +282,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail={
                     "error": "UNAUTHORIZED",
                     "message": "A valid CK-NEXUS access token is required.",
+                },
+            )
+
+    async def require_permission_auth(
+        authorization: str | None = Header(default=None),
+    ) -> None:
+        await require_access_token(authorization)
+        if not resolved_settings.access_token:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "error": "PERMISSION_AUTH_NOT_CONFIGURED",
+                    "message": (
+                        "Configure CK-NEXUS access-token authentication "
+                        "before managing batch grants."
+                    ),
                 },
             )
 
@@ -942,6 +972,58 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def integrations_test_all(_: None = Depends(require_access_token)) -> dict[str, object]:
         return await integrations_status(_)
 
+    @app.get("/api/uabc/platforms")
+    async def uabc_platforms(
+        query: str | None = None,
+        platform_status: str | None = Query(default=None, alias="status"),
+        _: None = Depends(require_access_token),
+    ) -> dict[str, object]:
+        """List the UABC inventory; registry presence is not a live connection claim."""
+        try:
+            return uabc.discover_platforms(query=query, status=platform_status).as_dict()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from None
+
+    @app.get("/api/uabc/platforms/{platform_id}")
+    async def uabc_platform_details(
+        platform_id: str, _: None = Depends(require_access_token)
+    ) -> dict[str, object]:
+        return uabc.get_platform_details(platform_id).as_dict()
+
+    @app.get("/api/uabc/platforms/{platform_id}/capabilities")
+    async def uabc_platform_capabilities(
+        platform_id: str, _: None = Depends(require_access_token)
+    ) -> dict[str, object]:
+        return uabc.get_supported_capabilities(platform_id).as_dict()
+
+    @app.post("/api/uabc/platforms/{platform_id}/connection-check")
+    async def uabc_platform_connection_check(
+        platform_id: str, _: None = Depends(require_access_token)
+    ) -> dict[str, object]:
+        return uabc.check_connection(platform_id).as_dict()
+
+    @app.post("/api/uabc/platforms/{platform_id}/operations")
+    async def uabc_platform_operation(
+        platform_id: str,
+        payload: dict[str, object],
+        _: None = Depends(require_access_token),
+    ) -> dict[str, object]:
+        operation = payload.get("operation")
+        if not isinstance(operation, str):
+            raise HTTPException(status_code=400, detail="operation must be a string")
+        arguments = payload.get("arguments", {})
+        if not isinstance(arguments, dict):
+            raise HTTPException(status_code=400, detail="arguments must be an object")
+        confirmed = payload.get("confirmed", False)
+        if not isinstance(confirmed, bool):
+            raise HTTPException(status_code=400, detail="confirmed must be a boolean")
+        safe_arguments = {key: value for key, value in arguments.items() if key != "confirmed"}
+        try:
+            result = uabc.execute(platform_id, operation, confirmed=confirmed, **safe_arguments)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from None
+        return result.as_dict()
+
     @app.get("/api/providers/status")
     async def providers_status(_: None = Depends(require_access_token)) -> dict[str, object]:
         providers = []
@@ -1009,9 +1091,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def gmail_oauth_start(_: None = Depends(require_access_token)) -> dict[str, object]:
         return {"authorization_url": gmail_oauth.authorization_url()}
 
+    @app.get("/api/integrations/gmail/test")
+    async def gmail_readonly_test(_: None = Depends(require_access_token)) -> dict[str, object]:
+        return gmail_oauth.verify_readonly()
+
     @app.get("/api/integrations/gmail/oauth/callback")
-    def gmail_oauth_callback(code: str = Query(...), state: str = Query(...)) -> dict[str, object]:
-        return {"status": "authorized", "gmail": gmail_oauth.exchange_code(code=code, state=state)}
+    def gmail_oauth_callback(
+        code: str | None = Query(None),
+        state: str | None = Query(None),
+        error: str | None = Query(None),
+    ) -> RedirectResponse:
+        dashboard = "/demo?gmail="
+        if not state:
+            return RedirectResponse(f"{dashboard}error", status_code=303)
+        if error:
+            try:
+                gmail_oauth.state_store.consume(state)
+            except GmailOAuthError:
+                return RedirectResponse(f"{dashboard}error", status_code=303)
+            return RedirectResponse(f"{dashboard}denied", status_code=303)
+        if not code:
+            return RedirectResponse(f"{dashboard}error", status_code=303)
+        try:
+            gmail_oauth.exchange_code(code=code, state=state)
+        except GmailOAuthError:
+            return RedirectResponse(f"{dashboard}error", status_code=303)
+        return RedirectResponse(f"{dashboard}connected", status_code=303)
 
     @app.post("/api/integrations/gmail/revoke-local")
     async def gmail_revoke_local(
@@ -1197,7 +1302,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail={
                     "error": "APPROVAL_AUTH_NOT_CONFIGURED",
-                    "message": "Human approval is disabled until CK-NEXUS access-token authentication is configured.",
+                    "message": (
+                        "Human approval is disabled until CK-NEXUS access-token "
+                        "authentication is configured."
+                    ),
                 },
             )
         grant = agnes.approvals.grant(
@@ -1211,6 +1319,69 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "approved_by": grant.approved_by,
             "expires_at": grant.expires_at,
             "fingerprint": grant.fingerprint,
+        }
+
+    @app.get("/api/permissions/grants")
+    async def list_permission_grants(
+        _: None = Depends(require_permission_auth),
+    ) -> dict[str, object]:
+        return {"grants": authorization_store.list_grants()}
+
+    @app.post("/api/permissions/grants")
+    async def create_permission_grant(
+        payload: dict[str, object],
+        _: None = Depends(require_permission_auth),
+    ) -> dict[str, object]:
+        try:
+            grant = authorization_store.create_grant(
+                grant_id=payload.get("grant_id"),  # type: ignore[arg-type]
+                permissions=payload.get("permissions"),  # type: ignore[arg-type]
+                targets=payload.get("targets"),  # type: ignore[arg-type]
+                approved_by=payload.get("approved_by"),  # type: ignore[arg-type]
+                ttl_seconds=payload.get("ttl_seconds"),  # type: ignore[arg-type]
+                max_cost_usd=payload.get("max_cost_usd", 0),  # type: ignore[arg-type]
+                high_impact_permissions=payload.get("high_impact_permissions", []),  # type: ignore[arg-type]
+            )
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        return {"grant": grant}
+
+    @app.post("/api/permissions/grants/{grant_id}/revoke")
+    async def revoke_permission_grant(
+        grant_id: str,
+        payload: dict[str, object],
+        _: None = Depends(require_permission_auth),
+    ) -> dict[str, object]:
+        revoked_by = payload.get("revoked_by")
+        if not isinstance(revoked_by, str) or not revoked_by.strip():
+            raise HTTPException(status_code=422, detail="revoked_by must be a non-empty string")
+        if not authorization_store.revoke(grant_id, revoked_by=revoked_by):
+            raise HTTPException(status_code=404, detail="active grant not found")
+        return {"grant_id": grant_id, "revoked": True}
+
+    @app.post("/api/permissions/evaluate")
+    async def evaluate_permission(
+        payload: dict[str, object],
+        _: None = Depends(require_permission_auth),
+    ) -> dict[str, object]:
+        permission = payload.get("permission")
+        target = payload.get("target")
+        if not isinstance(permission, str) or not isinstance(target, str):
+            raise HTTPException(status_code=422, detail="permission and target must be strings")
+        try:
+            request = PermissionRequest(
+                permission=permission,
+                target=target,
+                estimated_cost_usd=payload.get("estimated_cost_usd", 0),  # type: ignore[arg-type]
+                high_impact=payload.get("high_impact", False),  # type: ignore[arg-type]
+            )
+            decision = evaluate_authorization(authorization_store, request)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        return {
+            "allowed": decision.allowed,
+            "reason": decision.reason,
+            "grant_id": decision.grant_id,
         }
 
     @app.get("/api/agnes/skills")
@@ -1392,9 +1563,140 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def human_approval_page() -> FileResponse:
         return FileResponse(WEB_DIR / "approval.html")
 
+    @app.get("/permissions", include_in_schema=False)
+    async def batch_permissions_page() -> FileResponse:
+        return FileResponse(WEB_DIR / "permissions.html")
+
     @app.get("/demo", include_in_schema=False)
     async def full_system_demo() -> FileResponse:
         return FileResponse(WEB_DIR / "full-system.html")
+
+    @app.get("/automation", include_in_schema=False)
+    async def automation_control_center() -> FileResponse:
+        return FileResponse(WEB_DIR / "automation.html")
+
+    @app.get("/api/automation/status")
+    async def automation_status(
+        _: None = Depends(require_access_token),
+    ) -> dict[str, object]:
+        """Read safe service health from fixed loopback endpoints; never expose credentials."""
+        import json
+        import urllib.error
+        import urllib.request
+
+        def local_json(url: str) -> dict[str, object] | None:
+            request = urllib.request.Request(
+                url, headers={"Accept": "application/json"}, method="GET"
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=2) as response:
+                    value = json.loads(response.read())
+                return value if isinstance(value, dict) else None
+            except (
+                urllib.error.URLError,
+                TimeoutError,
+                OSError,
+                json.JSONDecodeError,
+                UnicodeDecodeError,
+            ):
+                return None
+
+        gateway = local_json("http://127.0.0.1:8790/health")
+        gateway_status = local_json("http://127.0.0.1:8790/v1/status")
+        scanner = local_json("http://127.0.0.1:8790/v1/scanner/health")
+        gateway_ok = bool(gateway and gateway.get("status") == "ok")
+        scanner_ok = bool(scanner and scanner.get("reachable") is True)
+        upstream = str((gateway_status or {}).get("upstream_integrations", "unknown"))
+        services = [
+            {
+                "id": "n8n-ui",
+                "name": "n8n Workflows Gateway",
+                "state": "ok",
+                "message": "บริการ UI ตอบสนองบน loopback",
+            },
+            {
+                "id": "api-gateway",
+                "name": "CK-NEXUS Local API Gateway",
+                "state": "ok" if gateway_ok else "failed",
+                "message": "ตอบสนองจริง" if gateway_ok else "ไม่สามารถยืนยัน health endpoint ได้",
+            },
+            {
+                "id": "scanner",
+                "name": "CK-NEXUS Scanner API",
+                "state": "ok" if scanner_ok else "failed",
+                "message": "ตอบสนองจริง" if scanner_ok else "ไม่สามารถยืนยัน scanner health ได้",
+            },
+        ]
+        integrations = [
+            {
+                "id": "ai-upstream",
+                "name": "AI Provider Gateway",
+                "state": "pending" if upstream == "configured" else "degraded",
+                "message": (
+                    "มีการตั้งค่า upstream แต่ยังไม่ได้ตรวจสอบ live inference"
+                    if upstream == "configured"
+                    else "ยังไม่มีหลักฐานว่า upstream พร้อมใช้งาน"
+                ),
+            },
+            {
+                "id": "gmail",
+                "name": "Gmail OAuth",
+                "state": "pending" if resolved_settings.gmail_oauth_enabled else "degraded",
+                "message": (
+                    "OAuth เปิดใช้งานในแอป แต่ต้องตรวจสอบการเชื่อมต่อบัญชีแยกต่างหาก"
+                    if resolved_settings.gmail_oauth_enabled
+                    else "ยังไม่ได้เปิดใช้ Gmail OAuth ในการตั้งค่าแอป"
+                ),
+            },
+        ]
+        return {
+            "ok": True,
+            "services": services,
+            "integrations": integrations,
+            "gmail_oauth_available": bool(resolved_settings.gmail_oauth_enabled),
+        }
+
+    @app.get("/api/automation/n8n")
+    async def automation_n8n_status(
+        _: None = Depends(require_access_token),
+    ) -> dict[str, object]:
+        """Read workflow counts through the loopback-only, read-only n8n gateway."""
+        import json
+        import urllib.error
+        import urllib.request
+
+        request = urllib.request.Request(
+            "http://127.0.0.1:8791/api/workflows",
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "CK-NEXUS-Automation-Control-Center/1.0",
+            },
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=4) as response:
+                payload = json.loads(response.read())
+        except urllib.error.HTTPError as exc:
+            code = exc.code if exc.code in (401, 403, 404) else 502
+            return JSONResponse(
+                status_code=code,
+                content={"ok": False, "error": "n8n gateway ปฏิเสธคำขอหรือปลายทางไม่พร้อม"},
+            )
+        except (urllib.error.URLError, TimeoutError, OSError):
+            return JSONResponse(
+                status_code=503, content={"ok": False, "error": "n8n gateway ยังไม่ตอบสนอง"}
+            )
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return JSONResponse(
+                status_code=502, content={"ok": False, "error": "n8n gateway ส่ง JSON ที่ไม่ถูกต้อง"}
+            )
+        if not isinstance(payload, dict) or not isinstance(payload.get("workflows"), list):
+            return JSONResponse(
+                status_code=502, content={"ok": False, "error": "รูปแบบข้อมูล workflow ไม่ตรงตามสัญญา"}
+            )
+        rows = [row for row in payload["workflows"] if isinstance(row, dict)]
+        active = sum(1 for row in rows if row.get("active") is True)
+        return {"ok": True, "count": len(rows), "active": active, "workflows": rows}
 
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 

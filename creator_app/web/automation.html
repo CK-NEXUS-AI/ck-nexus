@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b1220">
+  <meta name="referrer" content="same-origin">
+  <title>CK-NEXUS Automation Control Center</title>
+  <link rel="stylesheet" href="/static/automation.css">
+  <script defer src="/static/automation.js"></script>
+</head>
+<body>
+  <main id="automation-control-center" class="shell">
+    <header class="topbar"><a class="brand" href="/">CK-NEXUS <span>AUTOMATION CONTROL CENTER</span></a><nav><a href="/">n8n Workflows</a></nav></header>
+    <section class="hero">
+      <p class="eyebrow">CONTROL PLANE / LIVE EVIDENCE</p>
+      <h1>ศูนย์ควบคุม <span>Automation</span></h1>
+      <p>ดูสถานะจาก API จริง ตรวจสอบการเชื่อมต่อ และเตรียม Workflow เพื่อส่งออกไปตรวจสอบใน n8n โดยหน้านี้จะไม่สร้างหรือเปิดใช้งาน Workflow เอง</p>
+      <div class="hero-actions"><button id="refresh-all">ตรวจสอบสถานะล่าสุด</button><span id="last-checked" role="status">ยังไม่ได้ตรวจสอบ</span></div>
+    </section>
+    <section class="auth-strip"><label for="access-token">CK-NEXUS Access Token (เฉพาะเมื่อ API ขอสิทธิ์)</label><div class="auth-row"><input id="access-token" type="password" autocomplete="off" spellcheck="false" placeholder="ไม่จำเป็นถ้า API ไม่ได้เปิดการป้องกันด้วย token"><button id="clear-token" class="secondary" type="button">ล้าง Token</button></div><small>ใช้ในหน้านี้ชั่วคราวเท่านั้น ไม่บันทึกลง browser storage และไม่ใช่ API key ของผู้ให้บริการ</small></section>
+    <section class="section"><div class="section-heading"><div><p class="eyebrow">01 / SYSTEM</p><h2>สถานะระบบ</h2></div><span class="muted">ข้อมูลจริงเท่านั้น</span></div><div id="system-cards" class="cards"><article class="card"><span class="state pending">กำลังโหลด</span><h3>CK-NEXUS API</h3><p>กำลังตรวจสอบ...</p></article></div></section>
+    <section class="section"><div class="section-heading"><div><p class="eyebrow">02 / CONNECTIONS</p><h2>การเชื่อมต่อ</h2></div><span class="muted">สถานะไม่เท่ากับการมี API key</span></div><div id="connection-cards" class="cards"><p class="muted">กำลังตรวจสอบการเชื่อมต่อ...</p></div><div class="actions"><button id="connect-gmail" class="secondary" type="button">เริ่มเชื่อม Gmail OAuth</button><span id="gmail-action-status" class="muted" role="status">ต้องมีสิทธิ์ API และการตั้งค่า OAuth ที่ถูกต้อง</span></div></section>
+    <section class="section"><div class="section-heading"><div><p class="eyebrow">03 / N8N</p><h2>สถานะ Workflow</h2></div><a href="/">เปิดหน้ารายการ Workflow →</a></div><div id="n8n-panel" class="panel"><p>กำลังโหลดข้อมูลจาก n8n gateway...</p></div></section>
+    <section class="section builder"><div class="section-heading"><div><p class="eyebrow">04 / WORKFLOW BUILDER</p><h2>ร่าง Workflow จากคำสั่งภาษาไทย</h2></div><span class="state info">ร่างเท่านั้น</span></div><label for="workflow-request">อธิบายงานที่ต้องการ</label><textarea id="workflow-request" rows="3" maxlength="2000" placeholder="เช่น เมื่อมีอีเมลใหม่ ให้ AI สรุปเนื้อหา แล้วส่งแจ้งเตือน Telegram"></textarea><div class="actions"><button id="draft-workflow">สร้างร่าง JSON</button><button id="download-workflow" class="secondary" disabled>ดาวน์โหลด JSON</button></div><p id="builder-status" class="muted" role="status">ร่างที่สร้างเป็นโครงเริ่มต้น ต้องตรวจสอบ credential, node และการตั้งค่าใน n8n ก่อนใช้งาน</p><pre id="workflow-json" class="json-output" aria-label="Workflow JSON">ยังไม่มีร่าง Workflow</pre></section>
+    <footer><span>CK-NEXUS · Automation Control Center</span><span>ไม่มีการแสดง secret · ไม่มีการสร้างสถานะจำลอง</span></footer>
+  </main>
+</body>
+</html>

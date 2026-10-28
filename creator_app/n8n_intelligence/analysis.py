@@ -11,6 +11,7 @@ from .models import DevelopmentSignal
 
 _MAX_MESSAGE = 1000
 _SECRET_PATTERNS = (
+    re.compile(r"(?i)authorization\s*[:=]\s*bearer\s+[^\s,;]+"),
     re.compile(r"(?i)(api[_-]?key|token|password|secret|authorization)\s*[:=]\s*[^\s,;]+"),
     re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+"),
 )

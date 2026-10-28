@@ -18,6 +18,7 @@ def test_worker_executes_verifies_and_finishes(tmp_path):
         handlers={
             "echo": lambda payload: {
                 "ok": True,
+                "security_ok": True,
                 "evidence_refs": ["evidence://job-1"],
             }
         },
@@ -98,6 +99,7 @@ def test_worker_has_no_production_authority(tmp_path):
         handlers={
             "echo": lambda payload: {
                 "ok": True,
+                "security_ok": True,
                 "evidence_refs": ["evidence://job-1"],
             }
         },
@@ -140,7 +142,7 @@ def test_worker_handler_timeout_fails(tmp_path):
 
     def slow(_payload):
         time.sleep(0.2)
-        return {"ok": True, "evidence_refs": ["evidence://job-1"]}
+        return {"ok": True, "security_ok": True, "evidence_refs": ["evidence://job-1"]}
 
     worker = RepairWorker(
         store=store,
@@ -164,6 +166,7 @@ def test_worker_cannot_finish_after_lease_expiry(tmp_path):
         handlers={
             "echo": lambda payload: {
                 "ok": True,
+                "security_ok": True,
                 "evidence_refs": ["evidence://job-1"],
             }
         },
@@ -174,3 +177,44 @@ def test_worker_cannot_finish_after_lease_expiry(tmp_path):
     result = worker.run_once()
     assert result.state == "failed"
     assert store.get("job-1")["state"] == "running"
+
+
+def test_worker_requires_explicit_security_verification(tmp_path):
+    store = TaskStore(tmp_path / "queue.sqlite3")
+    store.enqueue("job-security", {"handler": "echo"})
+    worker = RepairWorker(
+        store=store,
+        verifier=ControlPlaneVerifier(max_repairs=0),
+        handlers={"echo": lambda payload: {
+            "ok": True,
+            "evidence_refs": ["evidence://job-security"],
+        }},
+        worker_id="worker-1",
+    )
+
+    result = worker.run_once()
+
+    assert result.state == "failed"
+    assert result.release_evidence is False
+    assert store.get("job-security")["state"] == "failed"
+
+
+def test_worker_rejects_string_instead_of_evidence_ref_collection(tmp_path):
+    store = TaskStore(tmp_path / "queue.sqlite3")
+    store.enqueue("job-evidence-type", {"handler": "echo"})
+    worker = RepairWorker(
+        store=store,
+        verifier=ControlPlaneVerifier(max_repairs=0),
+        handlers={"echo": lambda payload: {
+            "ok": True,
+            "security_ok": True,
+            "evidence_refs": "evidence://job-evidence-type",
+        }},
+        worker_id="worker-1",
+    )
+
+    result = worker.run_once()
+
+    assert result.state == "failed"
+    assert result.release_evidence is False
+    assert store.get("job-evidence-type")["state"] == "failed"

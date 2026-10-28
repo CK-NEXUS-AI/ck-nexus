@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+"""Interactively validate and securely store GitHub PR credentials for CK-NEXUS."""
+
+from __future__ import annotations
+
+import contextlib
+import getpass
+import json
+import os
+import re
+import tempfile
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+CONFIG = Path("/etc/ck-nexus/github-gitops.env")
+REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+TOKEN_RE = re.compile(r"^[A-Za-z0-9_]+$")
+
+
+def api_get(url: str, token: str) -> dict[str, object]:
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "CK-NEXUS-GitOps-Setup",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            raw = response.read(256_001)
+        if len(raw) > 256_000:
+            raise RuntimeError("github_response_too_large")
+        data = json.loads(raw.decode("utf-8"))
+        if not isinstance(data, dict):
+            raise RuntimeError("github_response_invalid")
+        return data
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(f"github_api_http_{exc.code}") from None
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
+        raise RuntimeError("github_api_unavailable_or_invalid_response") from None
+
+
+def main() -> int:
+    if os.geteuid() != 0:
+        print("Run this setup tool as root; the token is stored in a root-only file.")
+        return 2
+    default_repo = "CK-NEXUS-AI/ck-nexus"
+    repo = input(f"GitHub repository [{default_repo}]: ").strip() or default_repo
+    if not REPO_RE.fullmatch(repo):
+        print("FAIL: repository must be owner/repo.")
+        return 2
+    token = getpass.getpass("GitHub token (input hidden; never sent to chat): ").strip()
+    if not TOKEN_RE.fullmatch(token):
+        print("FAIL: token format rejected; no configuration changed.")
+        return 2
+    try:
+        user = api_get("https://api.github.com/user", token)
+        repository = api_get(f"https://api.github.com/repos/{repo}", token)
+    except RuntimeError as exc:
+        print(f"FAIL: {exc}; no configuration changed.")
+        return 1
+    login = user.get("login")
+    permissions = repository.get("permissions")
+    if not isinstance(login, str) or not login:
+        print("FAIL: GitHub identity could not be verified; no configuration changed.")
+        return 1
+    if isinstance(permissions, dict) and permissions.get("push") is False:
+        print("FAIL: token does not have repository write access; no configuration changed.")
+        return 1
+
+    CONFIG.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(CONFIG.parent, 0o700)
+    contents = f"GITHUB_TOKEN={token}\nGITHUB_REPO={repo}\nGITHUB_BASE_BRANCH=main\n"
+    fd, temporary = tempfile.mkstemp(prefix=".github-gitops-", dir=CONFIG.parent)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(contents)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, CONFIG)
+        os.chmod(CONFIG, 0o600)
+    finally:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(temporary)
+    print(f"PASS: GitHub identity verified as {login}; repository access verified for {repo}.")
+    print(f"PASS: credentials stored at {CONFIG} with mode 0600; token value was not displayed.")
+    print("Next: daemon-reload, then run GitOps once and inspect sanitized PR status.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

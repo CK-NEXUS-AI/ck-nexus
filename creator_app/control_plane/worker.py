@@ -109,9 +109,19 @@ class RepairWorker:
                     raise TimeoutError(f"handler timeout after {self.execution_timeout}s") from exc
             if not isinstance(output, dict):
                 raise TypeError("task handler must return a mapping")
-            evidence_refs = tuple(output.get("evidence_refs") or ())
-            test_ok = bool(output.get("ok"))
-            security_ok = bool(output.get("security_ok", True))
+            raw_evidence_refs = output.get("evidence_refs")
+            if not isinstance(raw_evidence_refs, (list, tuple)):
+                raise TypeError("task handler evidence_refs must be a list or tuple")
+            if not raw_evidence_refs or any(
+                not isinstance(ref, str) or not ref.strip()
+                for ref in raw_evidence_refs
+            ):
+                raise ValueError("task handler must return non-empty evidence references")
+            evidence_refs = tuple(raw_evidence_refs)
+            # Verification is fail-closed: omitted or truthy non-boolean flags are
+            # not proof that tests and security checks actually passed.
+            test_ok = output.get("ok") is True
+            security_ok = output.get("security_ok") is True
             self.store.save_checkpoint(
                 job_id,
                 {

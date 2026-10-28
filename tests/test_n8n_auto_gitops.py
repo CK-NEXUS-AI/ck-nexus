@@ -33,6 +33,20 @@ def _evidence(tmp_path: Path, **updates) -> tuple[Path, Path]:
     return evidence_path, workspace
 
 
+def test_generated_base_head_and_retry_branches_are_allowlisted(tmp_path: Path):
+    for index, branch in enumerate(
+        (
+            "cknexus/auto-dev/9c71df302c5d1f68-bff3ef06b6e2",
+            "cknexus/auto-dev/9c71df302c5d1f68-bff3ef06b6e2-retry-2",
+            "cknexus/auto-dev/0123456789abcdef",
+        )
+    ):
+        root = tmp_path / str(index)
+        evidence_path, _ = _evidence(root, branch=branch)
+        data = json.loads(evidence_path.read_text(encoding="utf-8"))
+        assert AutoGitOps(root / "evidence")._validate_evidence(data) is None, branch
+
+
 def test_unverified_evidence_never_stages_or_pushes(tmp_path: Path):
     evidence_path, _ = _evidence(tmp_path, state="verification_failed")
     gitops = AutoGitOps(
@@ -80,7 +94,7 @@ def test_verified_change_is_committed_and_pushed_to_its_branch(tmp_path: Path):
     base_head = subprocess.run(
         ["git", "-C", str(repo), "rev-parse", "HEAD"], check=True, capture_output=True, text=True
     ).stdout.strip()
-    suffix = "0123456789abcdef"
+    suffix = "0123456789abcdef-bff3ef06b6e2"
     branch = f"cknexus/auto-dev/{suffix}"
     evidence_dir = tmp_path / "state" / "auto-dev"
     evidence_dir.mkdir(parents=True)

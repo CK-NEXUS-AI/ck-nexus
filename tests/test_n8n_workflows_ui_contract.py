@@ -70,3 +70,25 @@ def test_navigation_exposes_only_supported_and_explicitly_unsupported_features()
         assert f'id="page-{page}"' in source
     assert "ยังไม่รองรับ" in source
     assert "ไม่ใช้ข้อมูลจำลอง" not in source or "สถานะจริงเท่านั้น" in source
+
+
+def test_automation_control_center_is_served_by_the_existing_loopback_ui_service():
+    source = (ROOT / "ops/vps/services/cknexus_n8n_workflows_ui.py").read_text(encoding="utf-8")
+    for route in (
+        "/automation",
+        "/static/automation.css",
+        "/static/automation.js",
+        "/api/automation/status",
+    ):
+        assert route in source
+    assert "127.0.0.1:8790/health" in source
+    assert "127.0.0.1:8790/v1/status" in source
+
+
+def test_gateway_logs_safe_upstream_auth_failures_with_correlation_ids():
+    source = GATEWAY_PATH.read_text(encoding="utf-8")
+    assert "upstream_unauthorized" in source
+    assert "read_failed" in source
+    assert "correlation_id" in source
+    assert "X-N8N-API-KEY" in source
+    assert "key=" not in source

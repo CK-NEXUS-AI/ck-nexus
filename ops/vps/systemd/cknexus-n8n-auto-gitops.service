@@ -22,4 +22,5 @@ ReadWritePaths=/root/ck-nexus /var/lib/cknexus/n8n-intelligence
 Environment=CKNEXUS_REPO=/root/ck-nexus
 Environment=CKNEXUS_AUTO_DEV_EVIDENCE=/var/lib/cknexus/n8n-intelligence/auto-dev
 Environment=CKNEXUS_GITOPS_REMOTE=origin
+EnvironmentFile=-/etc/ck-nexus/github-gitops.env
 Environment=CKNEXUS_GIT_AUTHOR_EMAIL=308440449+spinlnw10-art@users.noreply.github.com

@@ -10,6 +10,7 @@ from typing import Any
 from creator_app.control_plane.task_store import TaskStore
 
 from .analysis import classify_execution, fingerprint_execution, sanitize_message
+from .client import N8NReadError
 from .models import N8NExecutionEvent
 from .store import N8NIntelligenceStore
 from .task_bridge import build_task
@@ -58,6 +59,20 @@ class N8NIntelligenceCollector:
         checkpoint = self.intelligence.checkpoint()
         try:
             rows, _ = self.client.list_executions()
+        except N8NReadError as exc:
+            # Publish only a bounded category, never the raw upstream message.
+            message = str(exc).lower()
+            if (
+                "http error 401" in message
+                or "http error 403" in message
+                or ("circuit open" in message and "authentication" in message)
+            ):
+                reason = "authentication_failure"
+            elif "circuit open" in message:
+                reason = "circuit_open"
+            else:
+                reason = "upstream_failure"
+            return CollectorReport(0, 0, 0, 0, 0, 0, error=reason)
         except Exception:
             return CollectorReport(0, 0, 0, 0, 0, 0, error="upstream_failure")
 

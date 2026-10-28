@@ -46,3 +46,37 @@ def test_client_failure_creates_no_tasks(tmp_path: Path):
     report = collector.run_once()
     assert report.tasks_created == 0
     assert report.error == "upstream_failure"
+
+
+def test_authentication_failure_is_not_misreported_as_generic_upstream_failure(tmp_path: Path):
+    from creator_app.n8n_intelligence.client import N8NReadError
+
+    class UnauthorizedClient:
+        def list_executions(self, cursor=None):
+            raise N8NReadError("n8n HTTP error 401")
+
+    tasks = TaskStore(tmp_path / "tasks.db")
+    intelligence = N8NIntelligenceStore(tmp_path / "events.db")
+    collector = N8NIntelligenceCollector(
+        UnauthorizedClient(), intelligence, tasks, CollectorConfig()
+    )
+    report = collector.run_once()
+    assert report.tasks_created == 0
+    assert report.error == "authentication_failure"
+
+
+def test_open_authentication_circuit_remains_classified_as_authentication_failure(tmp_path: Path):
+    from creator_app.n8n_intelligence.client import N8NReadError
+
+    class OpenCircuitClient:
+        def list_executions(self, cursor=None):
+            raise N8NReadError("circuit open: authentication_failure")
+
+    tasks = TaskStore(tmp_path / "tasks.db")
+    intelligence = N8NIntelligenceStore(tmp_path / "events.db")
+    collector = N8NIntelligenceCollector(
+        OpenCircuitClient(), intelligence, tasks, CollectorConfig()
+    )
+    report = collector.run_once()
+    assert report.tasks_created == 0
+    assert report.error == "authentication_failure"

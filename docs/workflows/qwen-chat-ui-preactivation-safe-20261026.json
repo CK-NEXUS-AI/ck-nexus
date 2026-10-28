@@ -1,0 +1,1045 @@
+{
+  "name": "Qwen Chat UI - Safe Pre-Activation Candidate 2026-10-26",
+  "description": "SAFE PRE-ACTIVATION CANDIDATE. Imported credentials have intentionally been removed. Create destination Qwen/Alibaba and GitHub credentials in the n8n editor, then assign them to the relevant nodes. The merge, branch-deletion, and server-command tools were removed pending separately guarded approval and restoration of the missing sub-workflow. Keep inactive until credential checks and isolated manual acceptance tests pass.",
+  "active": false,
+  "nodes": [
+    {
+      "id": "948ca4b1-0b58-4231-adc5-bd0989dc3273",
+      "name": "When chat message received",
+      "webhookId": "0e959ba2-0af2-4eda-abf1-015645fc5c2a",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        112
+      ],
+      "parameters": {
+        "options": {
+          "responseMode": "streaming"
+        }
+      }
+    },
+    {
+      "id": "f28aba63-edc0-4157-8996-15d7251fe93e",
+      "name": "Qwen Assistant",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        224,
+        112
+      ],
+      "parameters": {
+        "needsFallback": true,
+        "options": {
+          "systemMessage": "You are the Orchestrator of an AI engineering team working on GitHub. Reply in the user's language (Thai by default).\nTeam tools: planner_agent, researcher_agent, coder_agent, reviewer_agent, merge_pull_request, comment_on_issue, run_server_command, list_open_issues, list_branches, delete_ai_branch.\nPipeline for any development request: planner_agent -> researcher_agent -> coder_agent -> reviewer_agent. If CHANGES_REQUESTED, send back to coder_agent on same branch; max 2 fix rounds. If APPROVED and acceptance criteria pass, merge_pull_request. Report summary and PR link.\nDefault repository CK-NEXUS-AI/ck-nexus. Always pass owner, repo, base branch and issue number to specialists. In AUTOMATIC MODE, comment plan and result on issue.\nServer commands run as root. Ask before destructive commands. Never run destructive server commands in AUTOMATIC MODE.\nMerge only when reviewer approves and acceptance criteria pass. Scheduled mode: clean only ai/ branches whose PR is merged/closed; check dependency files; select at most one oldest human issue without an open AI PR; never run server commands in scheduled mode. Never expose secrets.",
+          "maxIterations": 40,
+          "enableStreaming": true
+        }
+      }
+    },
+    {
+      "id": "ef32b392-ae25-4233-9fb1-4ac37484fe57",
+      "name": "Qwen Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAlibabaCloud",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        336
+      ],
+      "parameters": {
+        "options": {
+          "temperature": 0.7
+        }
+      }
+    },
+    {
+      "id": "0fb1a581-59ee-458d-8597-480555675187",
+      "name": "Qwen Fallback Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAlibabaCloud",
+      "typeVersion": 1.1,
+      "position": [
+        96,
+        512
+      ],
+      "parameters": {
+        "options": {
+          "temperature": 0.7
+        }
+      }
+    },
+    {
+      "id": "0ba2a990-fee9-4e8b-8096-859e160d6a51",
+      "name": "Chat Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        368,
+        336
+      ],
+      "parameters": {
+        "contextWindowLength": 10
+      }
+    },
+    {
+      "id": "6d62bfa1-2ace-4cb9-b514-1f6c407be6d6",
+      "name": "planner_agent",
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        480,
+        512
+      ],
+      "parameters": {
+        "toolDescription": "Planner Agent",
+        "text": "={{ $fromAI(\"task\", \"Task, repository owner/repo and context\") }}",
+        "needsFallback": true,
+        "options": {
+          "systemMessage": "You are the Planner. Use list_repo_files/read_file. Return goal, ordered steps, exact files, acceptance criteria. Do not write code.",
+          "maxIterations": 8
+        }
+      }
+    },
+    {
+      "id": "7af218cf-9474-489d-a970-07860c55f1fd",
+      "name": "researcher_agent",
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        768,
+        512
+      ],
+      "parameters": {
+        "toolDescription": "Researcher Agent",
+        "text": "={{ $fromAI(\"task\", \"Task, repository owner/repo and context\") }}",
+        "needsFallback": true,
+        "options": {
+          "systemMessage": "You are the Researcher. Read relevant code. Return approach, libraries, conventions, risks. Do not write files.",
+          "maxIterations": 10
+        }
+      }
+    },
+    {
+      "id": "80509d29-4d6d-4b68-8936-06194896107a",
+      "name": "coder_agent",
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        512
+      ],
+      "parameters": {
+        "toolDescription": "Coder Agent",
+        "text": "={{ $fromAI(\"task\", \"Task, repository owner/repo and context\") }}",
+        "needsFallback": true,
+        "options": {
+          "systemMessage": "You are the Coder. Get base SHA, create ai/<short-topic> branch, read files before edits, use update_file/create_file on feature branch only, then open PR. Never commit to main.",
+          "maxIterations": 25
+        }
+      }
+    },
+    {
+      "id": "8f43e514-6a65-4d99-94c0-0f80f1a5d9d1",
+      "name": "reviewer_agent",
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        1776,
+        512
+      ],
+      "parameters": {
+        "toolDescription": "Reviewer Agent",
+        "text": "={{ $fromAI(\"task\", \"Task, repository owner/repo and context\") }}",
+        "needsFallback": true,
+        "options": {
+          "systemMessage": "You are strict Reviewer. Check PR diff, correctness, security, acceptance criteria. Post review comment. End with APPROVED or CHANGES_REQUESTED and reasons. Never merge.",
+          "maxIterations": 10
+        }
+      }
+    },
+    {
+      "id": "61834b65-d7cb-43b7-8cc7-a2259391a23c",
+      "name": "Qwen Team Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAlibabaCloud",
+      "typeVersion": 1.1,
+      "position": [
+        688,
+        720
+      ],
+      "parameters": {
+        "options": {
+          "temperature": 0.3
+        }
+      }
+    },
+    {
+      "id": "cbf24864-3f66-4555-8db0-d4af2e7c5db6",
+      "name": "Qwen Fallback Team Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAlibabaCloud",
+      "typeVersion": 1.1,
+      "position": [
+        736,
+        896
+      ],
+      "parameters": {
+        "options": {
+          "temperature": 0.3
+        }
+      }
+    },
+    {
+      "id": "65d49e0c-69d2-4f0a-be12-fa60aa567716",
+      "name": "list_repo_files",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [
+        976,
+        720
+      ],
+      "parameters": {
+        "toolDescription": "List files and folders at a path in a GitHub repository branch.",
+        "method": "GET",
+        "url": "=https://api.github.com/repos/{{ $fromAI(\"owner\", \"GitHub repository owner\") }}/{{ $fromAI(\"repo\", \"GitHub repository name\") }}/contents/{{ $fromAI(\"path\", \"Folder path, empty string for root\", \"string\", \"\") }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "options": {},
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ref",
+              "value": "={{ $fromAI(\"ref\", \"Branch name, e.g. main\") }}"
+            }
+          ]
+        },
+        "optimizeResponse": true,
+        "fieldsToInclude": "selected",
+        "fields": "name,path,type,size"
+      }
+    },
+    {
+      "id": "5245e8a4-26b5-45c5-bffa-e23f2e97e367",
+      "name": "read_file",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [
+        992,
+        720
+      ],
+      "parameters": {
+        "toolDescription": "Read raw text content of one file from a GitHub repository branch.",
+        "method": "GET",
+        "url": "={{ \"https://api.github.com/repos/\" + $fromAI(\"owner\", \"GitHub owner\") + \"/\" + $fromAI(\"repo\", \"Repository\") + \"/contents/\" + $fromAI(\"path\", \"Full file path\") }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "options": {},
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "ref",
+              "value": "={{ $fromAI(\"ref\", \"Branch name, e.g. main\") }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fbb86795-ca1d-468d-a729-bbf9ea1b1e3e",
+      "name": "get_branch_sha",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [
+        1008,
+        720
+      ],
+      "parameters": {
+        "toolDescription": "Get latest commit SHA of a branch.",
+        "method": "GET",
+        "url": "=https://api.github.com/repos/{{ $fromAI(\"owner\", \"GitHub owner\") }}/{{ $fromAI(\"repo\", \"Repository\") }}/git/ref/heads/{{ $fromAI(\"branch\", \"Branch\") }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "options": {}
+      }
+    },
+    {
+      "id": "f8f00509-c576-456e-b5a1-24c259a476f8",
+      "name": "create_branch",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [
+        1024,
+        720
+      ],
+      "parameters": {
+        "toolDescription": "Create a new branch from a commit SHA.",
+        "method": "POST",
+        "url": "=https://api.github.com/repos/{{ $fromAI(\"owner\", \"GitHub owner\") }}/{{ $fromAI(\"repo\", \"Repository\") }}/git/refs",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "options": {},
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "ref",
+              "value": "=refs/heads/{{ $fromAI(\"new_branch\", \"New branch name ai/topic\") }}"
+            },
+            {
+              "name": "sha",
+              "value": "={{ $fromAI(\"sha\", \"Base commit SHA\") }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "e78c4092-9c0f-4673-9de5-8daf02aa6642",
+      "name": "create_file",
+      "webhookId": "a710377d-dd61-426d-9461-428494430076",
+      "type": "n8n-nodes-base.githubTool",
+      "typeVersion": 1.1,
+      "position": [
+        1472,
+        720
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "file",
+        "owner": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $fromAI(\"owner\", \"GitHub repository owner\") }}"
+        },
+        "repository": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $fromAI(\"repo\", \"GitHub repository name\") }}"
+        },
+        "filePath": "={{ $fromAI(\"path\", \"Full file path\") }}",
+        "fileContent": "={{ $fromAI(\"content\", \"Complete file content\") }}",
+        "commitMessage": "={{ $fromAI(\"commit_message\", \"Commit message\") }}",
+        "additionalParameters": {
+          "branch": {
+            "branch": "={{ $fromAI(\"branch\", \"Feature branch; never main\") }}"
+          }
+        }
+      }
+    },
+    {
+      "id": "689c2d3d-5e22-4537-ab42-b1b1356380e5",
+      "name": "update_file",
+      "webhookId": "d6d8e40c-a330-41f8-a7b2-d335be553d00",
+      "type": "n8n-nodes-base.githubTool",
+      "typeVersion": 1.1,
+      "position": [
+        1600,
+        720
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "file",
+        "owner": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $fromAI(\"owner\", \"GitHub repository owner\") }}"
+        },
+        "repository": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $fromAI(\"repo\", \"GitHub repository name\") }}"
+        },
+        "filePath": "={{ $fromAI(\"path\", \"Full file path\") }}",
+        "fileContent": "={{ $fromAI(\"content\", \"Complete file content\") }}",
+        "commitMessage": "={{ $fromAI(\"commit_message\", \"Commit message\") }}",
+        "additionalParameters": {
+          "branch": {
+            "branch": "={{ $fromAI(\"branch\", \"Feature branch; never main\") }}"
+          }
+        },
+        "operation": "edit"
+      }
+    },
+    {
+      "id": "6a756779-2d3a-429d-8aa3-c08c139b08c1",
+      "name": "open_pull_request",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [
+        1072,
+        720
+      ],
+      "parameters": {
+        "toolDescription": "Open pull request from feature branch to base branch.",
+        "method": "POST",
+        "url": "=https://api.github.com/repos/{{ $fromAI(\"owner\", \"GitHub owner\") }}/{{ $fromAI(\"repo\", \"Repository\") }}/pulls",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "options": {},
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "title",
+              "value": "={{ $fromAI(\"title\", \"PR title\") }}"
+            },
+            {
+              "name": "head",
+              "value": "={{ $fromAI(\"head\", \"Feature branch\") }}"
+            },
+            {
+              "name": "base",
+              "value": "={{ $fromAI(\"base\", \"Base branch\") }}"
+            },
+            {
+              "name": "body",
+              "value": "={{ $fromAI(\"body\", \"PR description\") }}"
+            }
+          ]
+        },
+        "optimizeResponse": true,
+        "fieldsToInclude": "selected",
+        "fields": "number,html_url,state,title"
+      }
+    },
+    {
+      "id": "41331ad7-800c-4997-9f77-d262d45e9e3d",
+      "name": "get_pull_request_changes",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [
+        1088,
+        720
+      ],
+      "parameters": {
+        "toolDescription": "Get changed files and diff patches of a PR.",
+        "method": "GET",
+        "url": "=https://api.github.com/repos/{{ $fromAI(\"owner\", \"GitHub owner\") }}/{{ $fromAI(\"repo\", \"Repository\") }}/pulls/{{ $fromAI(\"pr_number\", \"PR number\", \"number\") }}/files",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "options": {},
+        "optimizeResponse": true,
+        "fieldsToInclude": "selected",
+        "fields": "filename,status,additions,deletions,patch"
+      }
+    },
+    {
+      "id": "df0acb21-7ffe-41f5-9b06-529b249c751f",
+      "name": "comment_on_issue",
+      "webhookId": "7e81b3d7-e6f5-4896-b923-e24780fde89f",
+      "type": "n8n-nodes-base.githubTool",
+      "typeVersion": 1.1,
+      "position": [
+        2032,
+        720
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "createComment",
+        "owner": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $fromAI(\"owner\", \"GitHub repository owner\") }}"
+        },
+        "repository": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ $fromAI(\"repo\", \"GitHub repository name\") }}"
+        },
+        "issueNumber": "={{ $fromAI(\"number\", \"Issue or PR number\", \"number\") }}",
+        "body": "={{ $fromAI(\"body\", \"Markdown comment\") }}"
+      }
+    },
+    {
+      "id": "9f6fc8fd-83b6-4db5-9df0-ca39b7bcfac3",
+      "name": "list_open_issues",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [
+        1152,
+        720
+      ],
+      "parameters": {
+        "toolDescription": "List open issues and PRs oldest first.",
+        "method": "GET",
+        "url": "=https://api.github.com/repos/{{ $fromAI(\"owner\", \"GitHub owner\") }}/{{ $fromAI(\"repo\", \"Repository\") }}/issues",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "options": {},
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "state",
+              "value": "open"
+            },
+            {
+              "name": "sort",
+              "value": "created"
+            },
+            {
+              "name": "direction",
+              "value": "asc"
+            },
+            {
+              "name": "per_page",
+              "value": "30"
+            }
+          ]
+        },
+        "optimizeResponse": true,
+        "fieldsToInclude": "selected",
+        "fields": "number,title,labels,pull_request,user"
+      }
+    },
+    {
+      "id": "c409fc90-10bd-474e-bc86-639f29be4b1d",
+      "name": "list_branches",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [
+        1168,
+        720
+      ],
+      "parameters": {
+        "toolDescription": "List repository branches.",
+        "method": "GET",
+        "url": "=https://api.github.com/repos/{{ $fromAI(\"owner\", \"GitHub owner\") }}/{{ $fromAI(\"repo\", \"Repository\") }}/branches",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "options": {},
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "per_page",
+              "value": "100"
+            }
+          ]
+        },
+        "optimizeResponse": true,
+        "fieldsToInclude": "selected",
+        "fields": "name"
+      }
+    },
+    {
+      "id": "244dc180-88ea-4c02-898b-116d0865c11a",
+      "name": "On New GitHub Issue",
+      "webhookId": "e3786e39-7bc1-4a5b-89ff-52c947ed21d4",
+      "type": "n8n-nodes-base.githubTrigger",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        304
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "owner": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://github.com/CK-NEXUS-AI/ck-nexus"
+        },
+        "repository": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://github.com/CK-NEXUS-AI/ck-nexus"
+        },
+        "events": [
+          "issues"
+        ],
+        "options": {}
+      }
+    },
+    {
+      "id": "cad8d805-f706-4991-93aa-c8809088801e",
+      "name": "Only New Human Issues",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        -224,
+        304
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "opened",
+              "leftValue": "={{ $json.body.action }}",
+              "rightValue": "opened",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "human",
+              "leftValue": "={{ $json.body.issue.user.type }}",
+              "rightValue": "Bot",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "92cac559-157f-419c-a87d-b57ba7278752",
+      "name": "Issue To Task",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        0,
+        304
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "chatInput",
+              "name": "chatInput",
+              "type": "string",
+              "value": "=AUTOMATIC MODE. New GitHub issue owner={{ $json.body.repository.owner.login }} repo={{ $json.body.repository.name }} base={{ $json.body.repository.default_branch }}. Issue #{{ $json.body.issue.number }}: {{ $json.body.issue.title }}\\n{{ $json.body.issue.body }}\\nRun full pipeline and comment on issue."
+            },
+            {
+              "id": "sessionId",
+              "name": "sessionId",
+              "type": "string",
+              "value": "=issue-{{ $json.body.repository.full_name }}-{{ $json.body.issue.number }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "7e3f7467-8c07-4c83-9082-c4498cc55bfd",
+      "name": "Daily Development Run",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -480,
+        496
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 2
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f89e2ec2-52e4-4985-9549-aa84c550a1ed",
+      "name": "Scheduled Task",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -256,
+        496
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "chatInput",
+              "name": "chatInput",
+              "type": "string",
+              "value": "SCHEDULED MODE. Repository CK-NEXUS-AI/ck-nexus. Cleanup safe ai branches, inspect dependency files, choose at most one oldest human issue, never run server commands."
+            },
+            {
+              "id": "sessionId",
+              "name": "sessionId",
+              "type": "string",
+              "value": "=scheduled-{{ $now.toFormat(\"yyyy-MM-dd\") }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Qwen Assistant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On New GitHub Issue": {
+      "main": [
+        [
+          {
+            "node": "Only New Human Issues",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Only New Human Issues": {
+      "main": [
+        [
+          {
+            "node": "Issue To Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Issue To Task": {
+      "main": [
+        [
+          {
+            "node": "Qwen Assistant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Development Run": {
+      "main": [
+        [
+          {
+            "node": "Scheduled Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scheduled Task": {
+      "main": [
+        [
+          {
+            "node": "Qwen Assistant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Qwen Assistant",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen Fallback Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Qwen Assistant",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Qwen Assistant",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "planner_agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Qwen Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "researcher_agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Qwen Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "coder_agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Qwen Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "reviewer_agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Qwen Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "comment_on_issue": {
+      "ai_tool": [
+        [
+          {
+            "node": "Qwen Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "list_open_issues": {
+      "ai_tool": [
+        [
+          {
+            "node": "Qwen Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "list_branches": {
+      "ai_tool": [
+        [
+          {
+            "node": "Qwen Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "list_repo_files": {
+      "ai_tool": [
+        [
+          {
+            "node": "planner_agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "researcher_agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "coder_agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "read_file": {
+      "ai_tool": [
+        [
+          {
+            "node": "planner_agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "researcher_agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "coder_agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "reviewer_agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_branch_sha": {
+      "ai_tool": [
+        [
+          {
+            "node": "coder_agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "create_branch": {
+      "ai_tool": [
+        [
+          {
+            "node": "coder_agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "create_file": {
+      "ai_tool": [
+        [
+          {
+            "node": "coder_agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update_file": {
+      "ai_tool": [
+        [
+          {
+            "node": "coder_agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "open_pull_request": {
+      "ai_tool": [
+        [
+          {
+            "node": "coder_agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_pull_request_changes": {
+      "ai_tool": [
+        [
+          {
+            "node": "reviewer_agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen Team Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "planner_agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "researcher_agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "coder_agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "reviewer_agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen Fallback Team Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "planner_agent",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "researcher_agent",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "coder_agent",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "reviewer_agent",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "nodeGroups": [],
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true
+  },
+  "staticData": null,
+  "pinData": null,
+  "meta": {},
+  "tags": []
+}

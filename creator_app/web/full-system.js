@@ -1,6 +1,6 @@
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
-const state = { status:null, agents:[], selectedAgent:null, devTeam:[], devTeamInfo:null, devChat:[], lastCouncilResult:null, pendingCouncilContext:'', lastJournalId:null, lastOutboxId:null, lastClaimedOutboxId:null };
+const state = { status:null, uabcPlatforms:[], uabcStates:{}, agents:[] , selectedAgent:null, devTeam:[], devTeamInfo:null, devChat:[], lastCouncilResult:null, pendingCouncilContext:'', lastJournalId:null, lastOutboxId:null, lastClaimedOutboxId:null };
 
 function toast(message){ const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('show'),2800); }
 function pretty(value){ return JSON.stringify(value,null,2); }
@@ -10,7 +10,7 @@ async function api(path,options={}){ const res=await fetch(path,options); const 
 function jsonPost(path,data,headers={}){ return api(path,{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify(data)}); }
 function setClass(el,status){ el.classList.remove('ok','bad','warn'); el.classList.add(status==='ok'?'ok':status==='bad'?'bad':'warn'); }
 
-function tabs(){ $$('.nav').forEach(b=>b.addEventListener('click',()=>{ $$('.nav').forEach(x=>x.classList.remove('active')); b.classList.add('active'); $$('.tab').forEach(x=>x.classList.remove('active')); $(`#tab-${b.dataset.tab}`).classList.add('active'); if(b.dataset.tab==='audit') loadHistory(); if(b.dataset.tab==='dev-team') loadDevTeam(); if(b.dataset.tab==='system'){ loadMetrics(); loadGitHubStatus(); loadIntegrationStatus(); } })); }
+function tabs(){ $$('.nav').forEach(b=>b.addEventListener('click',()=>{ $$('.nav').forEach(x=>x.classList.remove('active')); b.classList.add('active'); $$('.tab').forEach(x=>x.classList.remove('active')); $(`#tab-${b.dataset.tab}`).classList.add('active'); if(b.dataset.tab==='audit') loadHistory(); if(b.dataset.tab==='dev-team') loadDevTeam(); if(b.dataset.tab==='system'){ loadMetrics(); loadGitHubStatus(); loadIntegrationStatus(); loadUabcPlatforms(); } })); }
 
 async function loadStatus(){ try{ const s=await api('/api/status'); state.status=s; $('#kpi-app').textContent='LINKED'; $('#kpi-version').textContent=`VERSION ${s.version}`; $('#kpi-db').textContent=s.database_ready?'LINKED':'DEGRADED'; $('#kpi-ai').textContent=s.mode==='mock'?'DEMO':s.mode==='openai'?'LIVE':'BLOCKED'; $('#kpi-model').textContent=`MODEL ${s.model}`; $('#kpi-email').textContent='API READY'; $('#runtime-pill').textContent=`[ ${s.mode.toUpperCase()} / ${s.version} ]`; $('#hero-state').textContent='RUNTIME LINKED'; $('#hero-detail').textContent=`${s.name} · ${s.model}`; $('#sys-app').textContent='LINKED'; $('#sys-ai').textContent=s.mode.toUpperCase(); $('#sys-db').textContent=s.database_ready?'LINKED':'DEGRADED'; $('#sys-codex').textContent=s.codex_enabled?(s.codex_ready?'READY':'ENABLED / NOT READY'):'DISABLED'; $('#sys-dev-team').textContent=s.dev_team_enabled?(s.dev_team_ready?'READY':'ENABLED / NOT READY'):'DISABLED'; setClass($('#runtime-pill'),s.mode==='blocked'?'warn':'ok'); return s;}catch(e){ $('#runtime-pill').textContent='[ DISCONNECTED ]'; $('#hero-state').textContent='SYSTEM OFFLINE'; $('#hero-detail').textContent=e.message; setClass($('#runtime-pill'),'bad'); return null; } }
 
@@ -273,7 +273,101 @@ async function loadGitHubStatus(test=false){try{const r=await api('/api/integrat
 $('#test-github').addEventListener('click',()=>loadGitHubStatus(true));
 function integrationLabel(item){ if(!item.configured) return 'NOT CONFIGURED'; if(item.connected) return 'CONNECTED'; return 'CONFIGURED / UNVERIFIED'; }
 async function loadIntegrationStatus(test=false){try{const r=await api('/api/integrations/'+(test?'test-all':'status'),{method:test?'POST':'GET',headers:accessHeaders()});const map=Object.fromEntries((r.integrations||[]).map(x=>[x.id,x]));const ids={slack:'#sys-slack',google_drive:'#sys-drive',openai:'#sys-openai'};for(const [key,selector] of Object.entries(ids)){const item=map[key];if(item) $(selector).textContent=integrationLabel(item);}$('#github-output').textContent=pretty(r);return r;}catch(err){$('#github-output').textContent=`ERROR: ${err.message}`;return null;}}
+async function loadGmailStatus(){
+  const status=$('#gmail-connection-status');
+  const configured=$('#gmail-config-status');
+  const storage=$('#gmail-storage-status');
+  const scope=$('#gmail-scope-status');
+  const output=$('#gmail-output');
+  const connect=$('#connect-gmail');
+  try{
+    const r=await api('/api/integrations/gmail/status',{headers:accessHeaders()});
+    status.textContent=r.authorized?'VERIFYING READ-ONLY ACCESS':'NOT CONNECTED';
+    configured.textContent=r.configured?'READY':'NOT CONFIGURED';
+    storage.textContent=r.token_persistence||'UNKNOWN';
+    scope.textContent=(r.scopes||[]).map(x=>x.split('/').pop()).join(', ')||'—';
+    connect.disabled=!r.configured;
+    $('#gmail-help').textContent=r.configured
+      ?'กดปุ่มเพื่อเปิดหน้า Google OAuth และยืนยันสิทธิ์ด้วยตัวคุณเอง'
+      :'ตั้งค่า CKNEXUS_GMAIL_OAUTH_ENABLED=true, GMAIL_REDIRECT_URI และข้อมูล OAuth ใน Credential Broker/Vault ฝั่งเซิร์ฟเวอร์ก่อน';
+    if(r.authorized){
+      try{
+        const verified=await api('/api/integrations/gmail/test',{headers:accessHeaders()});
+        status.textContent=verified.read_only_verified?'CONNECTED':'AUTHORIZED / NOT VERIFIED';
+        output.textContent=pretty({id:r.id,enabled:r.enabled,configured:r.configured,authorized:true,read_only_verified:verified.read_only_verified,scopes:r.scopes,token_persistence:r.token_persistence});
+      }catch(verifyError){
+        status.textContent='AUTHORIZED / VERIFY FAILED';
+        output.textContent=pretty({id:r.id,configured:r.configured,authorized:true,read_only_verified:false,error:verifyError.message,scopes:r.scopes,token_persistence:r.token_persistence});
+      }
+    }else{
+      output.textContent=pretty({id:r.id,enabled:r.enabled,configured:r.configured,authorized:false,scopes:r.scopes,token_persistence:r.token_persistence,production_vault_required:r.production_vault_required});
+    }
+    return r;
+  }catch(err){
+    status.textContent=err.status===401?'ACCESS TOKEN REQUIRED':'STATUS ERROR';
+    configured.textContent='UNKNOWN';
+    storage.textContent='UNKNOWN';
+    scope.textContent='—';
+    connect.disabled=true;
+    output.textContent=`ERROR: ${err.message}`;
+    return null;
+  }
+}
+$('#connect-gmail').addEventListener('click',async()=>{
+  const button=$('#connect-gmail');
+  button.disabled=true;
+  try{
+    const r=await api('/api/integrations/gmail/oauth/start',{headers:accessHeaders()});
+    const target=new URL(r.authorization_url);
+    if(target.origin!=='https://accounts.google.com') throw new Error('Unexpected Google OAuth destination');
+    window.location.assign(target.href);
+  }catch(err){
+    toast(`Gmail OAuth: ${err.message}`);
+    await loadGmailStatus();
+  }finally{
+    button.disabled=false;
+  }
+});
+$('#gmail-refresh').addEventListener('click',loadGmailStatus);
 $('#test-integrations').addEventListener('click',()=>loadIntegrationStatus(true));
+
+function uabcUiState(entry){ return state.uabcStates[entry.id]||'DISCONNECTED'; }
+function renderUabcPlatforms(){
+  const query=($('#uabc-search').value||'').trim().toLowerCase();
+  const status=$('#uabc-status').value;
+  const box=$('#uabc-platform-list');
+  box.replaceChildren();
+  const items=state.uabcPlatforms.filter(item=>(!status||item.status===status)&&(!query||`${item.name} ${item.id} ${item.category} ${item.status}`.toLowerCase().includes(query)));
+  if(!items.length){ const empty=document.createElement('p'); empty.className='muted'; empty.textContent='NO MATCHING PLATFORMS'; box.append(empty); return; }
+  items.forEach(item=>{
+    const card=document.createElement('div'); card.className='history-item';
+    const title=document.createElement('strong'); title.textContent=`${item.name} · ${uabcUiState(item)}`;
+    const line=document.createElement('small'); line.textContent=`Registry: ${item.status} · Adapter: ${item.adapter_implementation||'unknown'} · Account state is not inferred`;
+    const links=document.createElement('small'); links.textContent=`Official: ${item.official_url} · Docs: ${item.docs_url||'not verified'}`;
+    const actions=document.createElement('div'); actions.className='button-row';
+    for(const [label,path] of [['DETAILS',`/api/uabc/platforms/${encodeURIComponent(item.id)}`],['CAPABILITIES',`/api/uabc/platforms/${encodeURIComponent(item.id)}/capabilities`]]){
+      const btn=document.createElement('button'); btn.type='button'; btn.className='ghost'; btn.textContent=label;
+      btn.addEventListener('click',async()=>{try{$('#uabc-output').textContent=pretty(await api(path,{headers:accessHeaders()}));}catch(e){$('#uabc-output').textContent=`ERROR: ${e.message}`;}}); actions.append(btn);
+    }
+    const check=document.createElement('button'); check.type='button'; check.className='ghost'; check.textContent='CHECK CONNECTION';
+    check.addEventListener('click',async()=>{try{const result=await jsonPost(`/api/uabc/platforms/${encodeURIComponent(item.id)}/connection-check`,{},accessHeaders()); state.uabcStates[item.id]=result.data?.ui_state||'DISCONNECTED'; title.textContent=`${item.name} · ${uabcUiState(item)}`; $('#uabc-output').textContent=pretty(result);}catch(e){$('#uabc-output').textContent=`ERROR: ${e.message}`;}});
+    actions.append(check); card.append(title,line,links,actions); box.append(card);
+  });
+}
+async function loadUabcPlatforms(){
+  try{
+    const response=await api('/api/uabc/platforms',{headers:accessHeaders()});
+    state.uabcPlatforms=response.data?.platforms||[];
+    $('#uabc-total').textContent=String(state.uabcPlatforms.length);
+    $('#uabc-supported').textContent=String(state.uabcPlatforms.filter(p=>p.status.startsWith('SUPPORTED_')).length);
+    $('#uabc-adapters').textContent=String(state.uabcPlatforms.filter(p=>p.adapter_implementation==='existing_ck_nexus_connector').length);
+    $('#uabc-research').textContent=String(state.uabcPlatforms.filter(p=>p.status==='RESEARCH_REQUIRED').length);
+    renderUabcPlatforms();
+  }catch(e){$('#uabc-platform-list').textContent=`ERROR: ${e.message}`; $('#uabc-output').textContent=`ERROR: ${e.message}`;}
+}
+$('#uabc-refresh').addEventListener('click',loadUabcPlatforms);
+$('#uabc-search').addEventListener('input',renderUabcPlatforms);
+$('#uabc-status').addEventListener('change',renderUabcPlatforms);
 
 $('#save-tokens').addEventListener('click',()=>{sessionStorage.setItem('ck_access_token',$('#access-token').value.trim());sessionStorage.setItem('ck_email_token',$('#email-token').value.trim());toast('Saved in browser session only');loadStatus();loadAgents();loadDevTeam();loadGitHubStatus();});
 
@@ -295,4 +389,11 @@ $('#run-full-cycle').addEventListener('click',runFullCycle);
 tabs();
 $('#access-token').value=sessionStorage.getItem('ck_access_token')||'';
 $('#email-token').value=sessionStorage.getItem('ck_email_token')||'';
+const gmailResult=new URLSearchParams(window.location.search).get('gmail');
+if(gmailResult){
+  const messages={connected:'Google OAuth สำเร็จ กำลังตรวจสถานะ Gmail',denied:'ยกเลิกการอนุญาต Gmail แล้ว',error:'เชื่อมต่อ Gmail ไม่สำเร็จ ตรวจการตั้งค่า OAuth บนเซิร์ฟเวอร์'};
+  toast(messages[gmailResult]||'Gmail OAuth returned');
+  history.replaceState(null,'',window.location.pathname);
+}
 loadStatus().then(()=>{loadAgents();loadDevTeam();loadGitHubStatus();});
+loadGmailStatus();

@@ -8,6 +8,17 @@ from datetime import UTC, datetime
 
 from creator_app.control_plane.task_store import TaskStore
 
+_ALLOWED_PROACTIVE_SOURCE_PATHS = (
+    "creator_app/n8n_intelligence/analysis.py",
+    "creator_app/n8n_intelligence/client.py",
+    "creator_app/n8n_intelligence/collector.py",
+    "creator_app/n8n_intelligence/models.py",
+    "creator_app/n8n_intelligence/store.py",
+    "creator_app/n8n_intelligence/task_bridge.py",
+    "creator_app/control_plane/fast_cache.py",
+    "creator_app/control_plane/fast_probe.py",
+)
+
 
 @dataclass(frozen=True, slots=True)
 class ProactiveSeedResult:
@@ -38,8 +49,9 @@ class ProactiveTaskSeeder:
             "description": (
                 "Inspect current repository code, tests, and sanitized prior outcomes. "
                 "Choose exactly one small, measurable, low-risk improvement supported by "
-                "repository evidence, within the allowlisted intelligence modules or Fast "
-                "Control cache/probe modules. Add or update a focused regression test. "
+                "repository evidence. Approved source files (exact): "
+                + ", ".join(f"`{path}`" for path in _ALLOWED_PROACTIVE_SOURCE_PATHS)
+                + ". Add or update a focused regression test. "
                 "Do not create generic TODOs, repeat a known failed approach, modify protected "
                 "Auto Developer, Auto GitOps, learning-memory, task-queue, or policy-gate files, "
                 "touch secrets, change dependencies, or run network, credential, release, or "

@@ -14,6 +14,14 @@ def test_sanitize_message_redacts_secrets_and_bounds_text():
     assert len(result) <= 1000
 
 
+def test_sanitize_message_redacts_complete_bearer_authorization_header():
+    secret = "TEST_SECRET_SENTINEL_123456789"
+    for prefix in ("Authorization: Bearer", "authorization=Bearer"):
+        result = sanitize_message(f"{prefix} {secret}")
+        assert secret not in result
+        assert "[REDACTED]" in result
+
+
 def test_fingerprint_is_stable_for_same_execution():
     execution = {"id": "e1", "workflowId": "w1", "status": "error", "stoppedAt": "t1"}
     assert fingerprint_execution(execution) == fingerprint_execution(dict(execution))

@@ -842,6 +842,8 @@ _BROWSER_ALLOWED_HOSTS = frozenset(
     {
         "github.com",
         "docs.github.com",
+        "unified.cloudways.com",
+        "platform.cloudways.com",
         "raw.githubusercontent.com",
         "progressive-clouds-sellers-cube.trycloudflare.com",
         "commodity-reveal-flexible-catalog.trycloudflare.com",

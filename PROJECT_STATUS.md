@@ -189,3 +189,57 @@ Updated: 2026-10-21
 - Added creator_app/council_authority/omni_evidence.py, a fail-closed adapter to the existing Council Authority evidence registry. It requires all refs to be verified, unrevoked, positive-quality, task-bound to workspace/correlation, and in a capability-specific allowlist; config example is contracts/omni-evidence-kinds.example.json. Evidence callback is covered by tests.
 - Final focused suite including evidence, transport, issuer, replay, runtime gate, and Council authority: 64 passed in 9.18s. Ruff, py_compile, and git diff --check pass for all touched OMNI files.
 - IMPORTANT: service code and launcher are implemented but no issuer service is configured or running. No production private key was generated or installed; no production runtime wiring, deployment, service restart, commit, or push. Trusted evidence/approval providers and production policy/key/token configuration must be supplied and end-to-end staging tests must pass before opening the production gate.
+
+
+## PHASE — Automatic tool discovery iron rules (2026-10-26)
+- Added `docs/IRON_RULES_TOOL_AUTO_DISCOVERY.md` as a new additive project-level policy covering automatic discovery and bounded installation of task-relevant tools, multi-system controllers, no-repeat-question execution, preservation of existing work, security boundaries, evidence, verification, and definition of done.
+- Verified the new document by reading it back: 57 lines, all 8 sections present. `git diff --check` exited 0.
+- Existing working-tree changes were preserved. No package/tool downloads or service changes were made in this step.
+- Install caution: current VPS root filesystem is 94% used with 2.7 GB available; RAM available is about 359 MiB. Broad or heavy installs are deferred until a specific missing tool is identified and its footprint/source are checked. This avoids destabilizing the live VPS.
+- Permanent ChatGPT Memory-summary update is not confirmed by this repository change; these rules are now present in CK-NEXUS project documentation and will be followed in this conversation.
+
+
+## TEST RUN — Multi-system readiness and focused regression (2026-10-26)
+- Desktop Commander discovery: PASS — Linux VPS `vps3680569.trouble-free.net`, Windows Server 2022 `WIN-DV9R14TH0N5`, and Android/Termux `localhost` all reported Online.
+- Linux project: PASS — `/root/ck-nexus` exists on `main`; iron-rules document read-back verified; Python 3.12.3, project `.venv` pytest 9.1.1 and git 2.43.0 available.
+- Focused regression: PASS — `.venv/bin/python -m pytest -q tests/test_control_plane_task_store.py tests/test_control_plane_worker.py tests/test_n8n_proactive.py tests/test_n8n_auto_developer.py` => 42 passed in 7.68s, exit code 0.
+- Static checks: PASS — `python -m compileall -q creator_app/control_plane creator_app/n8n_intelligence`; `git diff --check` exit 0.
+- Termux connectivity/tool check: PASS — remote agent online, git 2.56.0, Python 3.14.8, Node v26.12.1, `~/ck-nexus` exists. Load average was high (22.77/25.64/23.21), so no heavy install/test was started there.
+- Windows connectivity/tool check: PASS — remote agent online, Windows Server 2022 Standard, Node/npm present. Python and Git were not found by the current PowerShell command check; GUI action loop remains NOT VERIFIED and was not attempted during this run.
+- Tool installation: NOT DONE — Linux VPS is at 94% disk usage with 2.7 GB available; RAM availability varied around 359–520 MiB. No extra tools installed to avoid resource pressure. Initial system Python lacks pytest, but existing project `.venv` is usable; no install was necessary.
+- Existing work: preserved. Numerous pre-existing modifications/untracked files were observed; no reset, cleanup, commit, push, service restart, or production action performed.
+- Remaining: this was a focused regression and reachability check, not a full end-to-end test of all services, GitHub/n8n integration, or multi-device GUI control.
+
+
+## WINDOWS VPS CONTROL PRIORITY — 2026-10-26
+- Windows VPS `WIN-DV9R14TH0N5` (device `826b47e8-5382-4338-94ca-2e7581b7a3d8`) confirmed online via Desktop Commander.
+- Read-only PowerShell diagnostic completed: Windows Server 2022 Standard, Node.js and npm resolvable; Git, Python, Python Launcher, winget, and Chocolatey not found by current command lookup. C: 81.4 GB free / 99.9 GB total.
+- Checked common CK-NEXUS paths `C:\ck-nexus`, `C:\Users\Administrator\ck-nexus`, and `D:\ck-nexus`; none were found at those exact locations. Project location on Windows remains NOT VERIFIED.
+- No installs, service changes, GUI actions, or project mutations performed.
+- Next priority: establish actual Windows project/work directory and GUI-control reliability, then choose the least disruptive route for command execution. Prefer PowerShell CLI for routine work; use screenshot → bounded GUI action → screenshot verification for GUI-only tasks. Do not install Git/Python until the real Windows workload needs them and package/source checks are complete.
+
+
+## PHASE — Batch Authorization Permission Center (2026-10-27)
+- Added `creator_app/control_plane/batch_authorization.py`: durable SQLite grants with exact permission/target matching, bounded expiry (1 second to 30 days), finite cost ceiling, high-impact permissions separately enumerated, no wildcards, audit labels, and revocation. DB file mode is restricted to 0600.
+- Added authenticated API routes for listing/creating/revoking grants and evaluating a permission request; these endpoints fail closed with HTTP 503 when CK-NEXUS access-token authentication is not configured.
+- Added `/permissions` page with profile presets, multi-select permission/target checkboxes, duration/budget controls, separate high-impact action selection, confirmation dialog, grant list, and revocation. The UI does not store the access token in browser storage and clears it after grant creation.
+- Added `docs/BATCH_AUTHORIZATION_PERMISSION_CENTER.md` documenting endpoints, safeguards, and the current enforcement boundary.
+- TDD evidence: initial focused test run failed at collection because the new authorization module did not exist (expected RED); after implementation, focused suite `tests/test_batch_authorization.py tests/test_permission_center_api.py` passed: **8 passed in 3.14s**, exit 0.
+- Static checks: Ruff passed for changed Python files; `node --check creator_app/web/permissions.js` passed; `git diff --check` passed.
+- Important limitation: the registry/evaluation API is not yet wired into every execution controller. Creating a grant does not itself give VPS, Windows, Termux, GitHub, n8n, or OS-level access. End-to-end policy enforcement remains NOT VERIFIED; keep destructive actions, external publication, access changes, and paid service activation behind existing explicit gates.
+- Existing user changes were preserved. No commit, push, deployment, service restart, or production permission change was performed.
+- Post-hardening regression: `tests/test_batch_authorization.py tests/test_permission_center_api.py tests/test_control_plane_task_store.py tests/test_control_plane_worker.py tests/test_r7_api_contract.py` => **42 passed in 10.92s**, exit 0. Rechecked Ruff, JavaScript syntax, and `git diff --check`; all passed after the final edits.
+- High-impact authorization was tightened from a broad boolean to an explicit list of permission IDs; the UI auto-selects the matching base permission when a high-impact action is selected. High-impact approval still matches only the exact permission + target and is not wildcarded.
+
+
+## Autonomous startup audit — 2026-10-27
+
+- Live host/repository verified via Remote Desktop Commander: `vps3680569.trouble-free.net`, `/root/ck-nexus`, branch `main`, HEAD `bff3ef06b6e243226c36aafb03855125b5022311`. The primary checkout contains extensive pre-existing staged, unstaged, and untracked changes; none were reset, stashed, staged, committed, or discarded in this audit.
+- Resource baseline: root filesystem 39 GB total, 37 GB used, 2.7 GB available (94%); RAM 1.9 GiB total, 529 MiB available at snapshot. No cleanup or package installation performed.
+- Services `cknexus-api-gateway`, `cknexus-browser`, `cknexus-mcp`, `cknexus-n8n-workflows-ui`, `cknexus-scanner`, `cknexus-webdesktop`, and `n8n` were active. The Auto Developer, Intelligence, and Auto GitOps units are oneshot services and were inactive after successful exits; all three corresponding timers were active. Recent collector output: fetched 13 executions, 0 new events, 0 tasks created. Auto Developer reports `no_queued_task`; Auto GitOps reports `no_verified_work_pending`.
+- Fresh focused regression command covering batch authorization, permission API, task store/worker, n8n proactive/developer/GitOps/analysis/workflow gateway, OAuth/GitHub app, API-key setup, secret scanner, UABC, and universal builder connector: **103 passed in 14.39s**, exit 0. The relevant failed-task worktree regression `tests/test_n8n_intelligence_analysis.py`: **6 passed in 0.06s**, exit 0.
+- Static/security checks: targeted Ruff passed; `node --check` passed for `creator_app/web/permissions.js` and `creator_app/web/full-system.js`; `git diff --check` passed; `scripts/secret_scan.py` reported PASS for 847 Git-tracked files. These checks do not imply every untracked file or the entire repository is clean.
+- GitOps issue found: evidence `/var/lib/cknexus/n8n-intelligence/auto-dev/n8n-proactive-2026-10-26.json` records `state=verified`, tests passing, changed paths limited to `creator_app/n8n_intelligence/analysis.py` and its test, but `gitops_state=blocked`, `gitops_reason=branch_not_allowlisted` for branch `cknexus/auto-dev/9c71df302c5d1f68-bff3ef06b6e2`. The current local `auto_gitops.py` and its regression test have already been changed to allow this generated branch format, and the focused regression suite passes. However, Auto GitOps deliberately skips evidence already marked `blocked`; no evidence status was reset and no remote push was attempted. Reprocessing that evidence would be a remote publication action and remains gated until explicitly authorized.
+- Historical evidence still includes two Auto Developer failures with exit code 2 and no useful output, and earlier proactive attempts with a test failure. These historical records were preserved. The latest matching worktree test now passes, but this does not rewrite or erase the historical failure evidence.
+- Remaining priorities: (1) resolve the blocked GitOps candidate through an explicitly authorized, auditable recovery path; (2) inspect the two exit-code-2 task diagnostics and improve evidence if a reproducible defect remains; (3) continue Qwen Chat UI credential/sub-workflow/method blockers only after n8n editor credentials and dependencies are available; (4) continue disk ownership/retention review without deleting active data; (5) selectively address lint debt without bulk-formatting the dirty checkout.
+- No service restart, deployment, credential change, remote push, merge, deletion, or production mutation was performed during this audit.

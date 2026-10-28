@@ -63,6 +63,112 @@ def test_gmail_state_is_one_time() -> None:
         manager.state_store.consume(state)
 
 
+def test_gmail_readonly_verification_checks_google_api_without_exposing_profile(
+    monkeypatch,
+) -> None:
+    import creator_app.gmail_oauth as gmail_module
+
+    broker = CredentialBroker(
+        environment={
+            CredentialId.GMAIL_CLIENT_ID: "client-id",
+            CredentialId.GMAIL_CLIENT_SECRET: "client-secret",
+        }
+    )
+    broker.put_ephemeral(
+        CredentialId.GMAIL_ACCESS_TOKEN,
+        "gmail-access-secret",
+        source="gmail-oauth-test",
+    )
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self) -> bytes:
+            return b'{"emailAddress":"private@example.com","messagesTotal":42}'
+
+    captured = {}
+    def fake_request(request, trusted_hosts, timeout):
+        captured["url"] = request.full_url
+        captured["authorization"] = request.get_header("Authorization")
+        captured["hosts"] = trusted_hosts
+        return FakeResponse()
+
+    monkeypatch.setattr(gmail_module, "open_trusted_request", fake_request)
+    manager = GmailOAuthManager(
+        broker,
+        enabled=True,
+        redirect_uri="http://localhost:8000/callback",
+    )
+
+    result = manager.verify_readonly()
+
+    assert result == {"connected": True, "read_only_verified": True}
+    assert captured["url"] == "https://gmail.googleapis.com/gmail/v1/users/me/profile"
+    assert captured["hosts"] == {"gmail.googleapis.com"}
+    assert captured["authorization"] == "Bearer gmail-access-secret"
+    assert "private@example.com" not in repr(result)
+    assert "gmail-access-secret" not in repr(result)
+
+
+def test_gmail_readonly_verification_refreshes_expired_access_token(monkeypatch) -> None:
+    import creator_app.gmail_oauth as gmail_module
+
+    broker = CredentialBroker(
+        environment={
+            CredentialId.GMAIL_CLIENT_ID: "client-id",
+            CredentialId.GMAIL_CLIENT_SECRET: "client-secret",
+        }
+    )
+    broker.put_ephemeral(
+        CredentialId.GMAIL_REFRESH_TOKEN,
+        "gmail-refresh-secret",
+        source="gmail-oauth-test",
+    )
+
+    class FakeResponse:
+        def __init__(self, body: bytes):
+            self.body = body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self) -> bytes:
+            return self.body
+
+    calls = []
+    def fake_request(request, trusted_hosts, timeout):
+        calls.append((request.full_url, trusted_hosts))
+        if request.full_url == "https://oauth2.googleapis.com/token":
+            return FakeResponse(b'{"access_token":"new-access-secret","expires_in":3600}')
+        return FakeResponse(b'{"emailAddress":"private@example.com","messagesTotal":42}')
+
+    monkeypatch.setattr(gmail_module, "open_trusted_request", fake_request)
+    manager = GmailOAuthManager(
+        broker,
+        enabled=True,
+        redirect_uri="http://localhost:8000/callback",
+    )
+
+    result = manager.verify_readonly()
+
+    assert result == {"connected": True, "read_only_verified": True}
+    assert calls == [
+        ("https://oauth2.googleapis.com/token", {"oauth2.googleapis.com"}),
+        ("https://gmail.googleapis.com/gmail/v1/users/me/profile", {"gmail.googleapis.com"}),
+    ]
+    refreshed = broker.acquire(CredentialId.GMAIL_ACCESS_TOKEN, consumer="gmail.api")
+    assert refreshed.reveal(consumer="gmail.api") == "new-access-secret"
+    assert "gmail-refresh-secret" not in repr(result)
+    assert "new-access-secret" not in repr(result)
+
+
 def test_github_app_status_never_returns_token() -> None:
     broker = CredentialBroker(
         environment={

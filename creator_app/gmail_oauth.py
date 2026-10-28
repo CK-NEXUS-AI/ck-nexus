@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import secrets
+import urllib.error
 from dataclasses import dataclass
 from time import monotonic
 from urllib.parse import urlencode
@@ -194,3 +195,95 @@ class GmailOAuthManager:
                     source="gmail-oauth",
                 )
         return self.status()
+
+    def _refresh_access_token(self) -> str:
+        """Refresh a short-lived access token using the brokered refresh token."""
+        try:
+            client_id = self.broker.acquire(
+                CredentialId.GMAIL_CLIENT_ID, consumer="gmail.oauth"
+            ).reveal(consumer="gmail.oauth")
+            client_secret = self.broker.acquire(
+                CredentialId.GMAIL_CLIENT_SECRET, consumer="gmail.oauth"
+            ).reveal(consumer="gmail.oauth")
+            refresh_token = self.broker.acquire(
+                CredentialId.GMAIL_REFRESH_TOKEN, consumer="gmail.api"
+            ).reveal(consumer="gmail.api")
+        except CredentialUnavailable as exc:
+            raise GmailOAuthError("Gmail refresh credentials are unavailable.") from exc
+
+        request = Request(
+            GOOGLE_TOKEN_URL,
+            data=urlencode(
+                {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "refresh_token": refresh_token,
+                    "grant_type": "refresh_token",
+                }
+            ).encode("utf-8"),
+            method="POST",
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        try:
+            with open_trusted_request(
+                request,
+                trusted_hosts={"oauth2.googleapis.com"},
+                timeout=self.timeout_seconds,
+            ) as response:
+                body = json.loads(response.read().decode("utf-8"))
+        except Exception as exc:
+            raise GmailOAuthError("Gmail access-token refresh failed safely.") from exc
+
+        access_token = str(body.get("access_token") or "").strip()
+        if not access_token:
+            raise GmailOAuthError("Gmail refresh response did not contain an access token.")
+        expires_in = int(body.get("expires_in") or 3600)
+        self.broker.put_ephemeral(
+            CredentialId.GMAIL_ACCESS_TOKEN,
+            access_token,
+            source="gmail-oauth-refresh",
+            ttl_seconds=max(60, expires_in - 30),
+        )
+        return access_token
+
+    def verify_readonly(self) -> dict[str, object]:
+        """Verify the stored OAuth token with a read-only Gmail profile request."""
+        try:
+            access_token = self.broker.acquire(
+                CredentialId.GMAIL_ACCESS_TOKEN, consumer="gmail.api"
+            ).reveal(consumer="gmail.api")
+        except CredentialUnavailable:
+            access_token = self._refresh_access_token()
+
+        def fetch_profile(token: str) -> dict[str, object]:
+            request = Request(
+                "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            with open_trusted_request(
+                request,
+                trusted_hosts={"gmail.googleapis.com"},
+                timeout=self.timeout_seconds,
+            ) as response:
+                body = json.loads(response.read().decode("utf-8"))
+            if not isinstance(body, dict) or not isinstance(body.get("messagesTotal"), int):
+                raise GmailOAuthError(
+                    "Gmail read-only verification returned an unexpected response."
+                )
+            return body
+
+        try:
+            fetch_profile(access_token)
+        except urllib.error.HTTPError as exc:
+            if exc.code != 401:
+                raise GmailOAuthError("Gmail read-only verification failed safely.") from exc
+            access_token = self._refresh_access_token()
+            try:
+                fetch_profile(access_token)
+            except Exception as retry_exc:
+                raise GmailOAuthError("Gmail read-only verification failed safely.") from retry_exc
+        except GmailOAuthError:
+            raise
+        except Exception as exc:
+            raise GmailOAuthError("Gmail read-only verification failed safely.") from exc
+        return {"connected": True, "read_only_verified": True}

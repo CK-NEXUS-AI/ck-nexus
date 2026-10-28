@@ -10,6 +10,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from creator_app.n8n_intelligence.judgment_gate import JudgmentGate
+
 _ALLOWED_SOURCE_PATHS = {
     "creator_app/n8n_intelligence/analysis.py",
     "creator_app/n8n_intelligence/client.py",
@@ -98,6 +100,16 @@ class AutoGitOps:
             if reason:
                 self._mark(path, data, gitops_state="blocked", gitops_reason=reason)
                 return GitOpsRun("blocked", reason, str(data.get("job_id") or "unknown"))
+            judgment = JudgmentGate().evaluate(
+                str(data.get("state") or ""),
+                data.get("tests_ok") is True,
+                [str(item) for item in data.get("changed_paths", [])],
+                str(data.get("error_reason") or data.get("error_text") or "") or None,
+            )
+            if judgment.action != "allow":
+                reason = f"judgment_{judgment.action}:{judgment.reason}"
+                self._mark(path, data, gitops_state="blocked", gitops_reason=reason)
+                return GitOpsRun("blocked", reason, str(data.get("job_id") or "unknown"))
             workspace = Path(str(data["workspace"]))
             branch = str(data["branch"])
             paths = sorted(set(str(item) for item in data["changed_paths"]))
@@ -184,7 +196,9 @@ class AutoGitOps:
         ):
             return "verification_flags_missing"
         branch = str(data.get("branch") or "")
-        if not re.fullmatch(r"cknexus/auto-dev/[0-9a-f]{16}", branch):
+        if not re.fullmatch(
+            r"cknexus/auto-dev/[0-9a-f]{16}(?:-[0-9a-f]{12}(?:-retry-[2-5])?)?", branch
+        ):
             return "branch_not_allowlisted"
         try:
             workspace = Path(str(data["workspace"])).resolve(strict=True)
@@ -205,9 +219,9 @@ class AutoGitOps:
         workspace = Path(str(data.get("workspace") or ""))
         branch = str(data.get("branch") or "")
         expected = str(data.get("commit_sha") or "")
-        if not re.fullmatch(r"cknexus/auto-dev/[0-9a-f]{16}", branch) or not re.fullmatch(
-            r"[0-9a-f]{40,64}", expected
-        ):
+        if not re.fullmatch(
+            r"cknexus/auto-dev/[0-9a-f]{16}(?:-[0-9a-f]{12}(?:-retry-[2-5])?)?", branch
+        ) or not re.fullmatch(r"[0-9a-f]{40,64}", expected):
             self._mark(path, data, gitops_state="blocked", gitops_reason="publish_identity_invalid")
             return GitOpsRun(
                 "blocked", "publish_identity_invalid", str(data.get("job_id") or "unknown")

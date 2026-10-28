@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "project": "CK-NEXUS",
+  "component": "Universal AI Builder Connector (UABC)",
+  "generated_at_utc": "2026-10-25T13:18:11.382081+00:00",
+  "repository_path": "/root/ck-nexus",
+  "branch": "main",
+  "head_commit": "bff3ef0",
+  "changes_committed": false,
+  "platform_inventory": {
+    "total": 46,
+    "status_counts": {
+      "MANUAL_SETUP_REQUIRED": 1,
+      "RESEARCH_REQUIRED": 16,
+      "SUPPORTED_API": 24,
+      "SUPPORTED_CLI": 5
+    },
+    "documented_supported_routes": 29,
+    "implemented_uabc_adapters": 1,
+    "implemented_adapter_ids": [
+      "github"
+    ],
+    "live_connection_tests_passed": 0,
+    "live_connection_tests_blocked_by_auth_or_access": [
+      "github (missing token in test settings)",
+      "base44 (no owned app surfaced in connected Base44 account listing; external ChatGPT connector is not a CK-NEXUS adapter)"
+    ],
+    "other_live_connection_tests": "NOT_TESTED",
+    "free_tier": "Mostly VERIFY_CURRENT_PLAN / VERIFY_CURRENT_QUOTA; AppGu vendor page claims 3 initial credits without a card; FlutterFlow Project API documented as paid-plan only; n8n Cloud API not available on free trial while self-hosted editions support API."
+  },
+  "verification": {
+    "targeted_pytest": {
+      "status": "PASS",
+      "tests_passed": 36,
+      "command": "pytest -q tests/test_uabc_api.py tests/test_universal_builder_connector.py tests/test_integration_hub.py tests/test_integration_security.py tests/test_r28_connector_fabric.py tests/test_github_integration.py"
+    },
+    "ruff": {
+      "status": "PASS",
+      "scope": [
+        "creator_app/api.py",
+        "creator_app/universal_builder_connector.py",
+        "tests/test_uabc_api.py",
+        "tests/test_universal_builder_connector.py"
+      ]
+    },
+    "javascript_syntax": {
+      "status": "PASS",
+      "command": "node --check creator_app/web/full-system.js"
+    },
+    "registry_json": {
+      "status": "PASS",
+      "command": "python -m json.tool config/uabc_platform_registry.json"
+    },
+    "git_diff_check": {
+      "status": "PASS"
+    },
+    "full_pytest_suite": {
+      "status": "BLOCKED",
+      "exit_code": 143,
+      "observed_progress": "approximately 24%",
+      "note": "The test process was terminated before a final summary; this is not recorded as a pass or as a test failure."
+    },
+    "secret_scan_changed_files": {
+      "status": "PASS",
+      "patterns_checked": [
+        "openai_key",
+        "github_pat",
+        "slack_token",
+        "private_key"
+      ],
+      "findings": [],
+      "scope": "Only files changed or created for UABC; pattern scan does not prove absence of every possible secret."
+    }
+  },
+  "limitations": [
+    "Registry documentation research is initial and not exhaustive for all 46 platforms.",
+    "Only a read-only GitHub status adapter is connected to the existing CK-NEXUS integration; the remaining provider-specific adapters are not implemented.",
+    "No live API test passed in this run because no authorized live provider credentials were available.",
+    "Dashboard inventory and inspection actions are implemented; project creation, editing, export and deployment remain unsupported until provider adapters and explicit approval gates are implemented."
+  ],
+  "files_created_or_modified_by_uabc": [
+    "creator_app/api.py",
+    "creator_app/universal_builder_connector.py",
+    "creator_app/web/full-system.html",
+    "creator_app/web/full-system.js",
+    "creator_app/web/full-system.css",
+    "config/uabc_platform_registry.json",
+    "tests/test_uabc_api.py",
+    "tests/test_universal_builder_connector.py",
+    "docs/UABC.md",
+    "docs/research/2026-10-25-uabc-initial-official-docs.md"
+  ],
+  "reviewable_evidence_path": "docs/research/2026-10-25-uabc-implementation-evidence.json"
+}

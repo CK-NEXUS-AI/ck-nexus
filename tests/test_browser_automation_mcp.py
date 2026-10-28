@@ -4,13 +4,23 @@ import creator_app.agnes.mcp_server as mcp_server
 
 
 def test_browser_open_rejects_non_https_and_unapproved_hosts():
-    assert mcp_server.cknexus_browser_open("http://github.com")["error_code"] == "BROWSER_URL_DENIED"
-    assert mcp_server.cknexus_browser_open("https://example.org")["error_code"] == "BROWSER_URL_DENIED"
+    assert (
+        mcp_server.cknexus_browser_open("http://github.com")["error_code"] == "BROWSER_URL_DENIED"
+    )
+    assert (
+        mcp_server.cknexus_browser_open("https://example.org")["error_code"] == "BROWSER_URL_DENIED"
+    )
 
 
 def test_browser_open_rejects_localhost_and_url_credentials():
-    assert mcp_server.cknexus_browser_open("https://127.0.0.1:9222/json")["error_code"] == "BROWSER_URL_DENIED"
-    assert mcp_server.cknexus_browser_open("https://user:pass@github.com")["error_code"] == "BROWSER_URL_DENIED"
+    assert (
+        mcp_server.cknexus_browser_open("https://127.0.0.1:9222/json")["error_code"]
+        == "BROWSER_URL_DENIED"
+    )
+    assert (
+        mcp_server.cknexus_browser_open("https://user:pass@github.com")["error_code"]
+        == "BROWSER_URL_DENIED"
+    )
 
 
 def test_browser_tools_are_read_only_and_report_safe_metadata(monkeypatch):
@@ -20,6 +30,7 @@ def test_browser_tools_are_read_only_and_report_safe_metadata(monkeypatch):
         stderr = ""
 
     calls = []
+
     def fake_run(args, **kwargs):
         calls.append(args)
         return Result()
@@ -30,6 +41,7 @@ def test_browser_tools_are_read_only_and_report_safe_metadata(monkeypatch):
     assert calls[0][-1] == "status"
     assert not any(x in calls[0] for x in ("click", "type", "submit", "delete"))
 
+
 def test_browser_open_dispatches_only_approved_https_navigation(monkeypatch):
     class Result:
         returncode = 0
@@ -37,6 +49,7 @@ def test_browser_open_dispatches_only_approved_https_navigation(monkeypatch):
         stderr = ""
 
     calls = []
+
     def fake_run(args, **kwargs):
         calls.append(args)
         return Result()

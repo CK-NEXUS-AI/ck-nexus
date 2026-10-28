@@ -1,0 +1,654 @@
+{
+  "schema_version": 1,
+  "registry_name": "Universal AI Builder Connector",
+  "registry_version": "0.1.1",
+  "research_policy": "Official vendor documentation is the source of truth; statuses indicate documented integration routes, not connected accounts or implemented adapters.",
+  "platforms": [
+    {
+      "id": "base44",
+      "name": "Base44",
+      "category": "ai_app_builder",
+      "official_url": "https://base44.com/",
+      "docs_url": "https://docs.base44.com/",
+      "status": "RESEARCH_REQUIRED",
+      "auth_required": true,
+      "capabilities": [
+        "inspect_app",
+        "read_files",
+        "edit_files",
+        "run_sandbox_commands"
+      ],
+      "adapter_implementation": "external_chatgpt_connector_only",
+      "free_tier": "VERIFY_CURRENT_PLAN",
+      "notes": "ChatGPT Base44 connector exists in this environment, but it is not a CK-NEXUS runtime adapter. The connected account listing returned no owned apps; public platform API/MCP access for CK-NEXUS is not verified."
+    },
+    {
+      "id": "lovable",
+      "name": "Lovable",
+      "category": "ai_app_builder",
+      "official_url": "https://lovable.dev/",
+      "docs_url": "https://docs.lovable.dev/",
+      "status": "RESEARCH_REQUIRED",
+      "auth_required": true,
+      "capabilities": [],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "bolt_new",
+      "name": "Bolt.new",
+      "category": "ai_app_builder",
+      "official_url": "https://bolt.new/",
+      "docs_url": "https://support.bolt.new/",
+      "status": "RESEARCH_REQUIRED",
+      "auth_required": true,
+      "capabilities": [],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "replit",
+      "name": "Replit",
+      "category": "ai_app_builder",
+      "official_url": "https://replit.com/",
+      "docs_url": "https://docs.replit.com/",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "api_access"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "v0",
+      "name": "v0",
+      "category": "ai_app_builder",
+      "official_url": "https://v0.dev/",
+      "docs_url": "https://v0.dev/docs",
+      "status": "RESEARCH_REQUIRED",
+      "auth_required": true,
+      "capabilities": [],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "google_ai_studio",
+      "name": "Google AI Studio",
+      "category": "ai_builder",
+      "official_url": "https://aistudio.google.com/",
+      "docs_url": "https://ai.google.dev/gemini-api/docs",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "generate_content",
+        "models_list"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_QUOTA"
+    },
+    {
+      "id": "genmb",
+      "name": "GenMB",
+      "category": "ai_app_builder",
+      "official_url": "https://genmb.com/",
+      "docs_url": "https://genmb.com/",
+      "status": "RESEARCH_REQUIRED",
+      "auth_required": true,
+      "capabilities": [],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "fabricate",
+      "name": "Fabricate",
+      "category": "ai_app_builder",
+      "official_url": "https://fabricate.build/",
+      "docs_url": "https://fabricate.build/",
+      "status": "RESEARCH_REQUIRED",
+      "auth_required": true,
+      "capabilities": [],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN",
+      "notes": "Official API documentation not yet verified; domain identity should be confirmed during research."
+    },
+    {
+      "id": "emergent",
+      "name": "Emergent",
+      "category": "ai_app_builder",
+      "official_url": "https://emergent.sh/",
+      "docs_url": "https://emergent.sh/",
+      "status": "RESEARCH_REQUIRED",
+      "auth_required": true,
+      "capabilities": [],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "dyad",
+      "name": "Dyad",
+      "category": "open_source_ai_builder",
+      "official_url": "https://www.dyad.sh/",
+      "docs_url": "https://www.dyad.sh/",
+      "status": "SUPPORTED_CLI",
+      "auth_required": false,
+      "capabilities": [
+        "local_project_workflow"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "LOCAL_OPEN_SOURCE_VERIFY_COSTS"
+    },
+    {
+      "id": "bolt_diy",
+      "name": "bolt.diy",
+      "category": "open_source_ai_builder",
+      "official_url": "https://github.com/stackblitz-labs/bolt.diy",
+      "docs_url": "https://github.com/stackblitz-labs/bolt.diy",
+      "status": "SUPPORTED_CLI",
+      "auth_required": false,
+      "capabilities": [
+        "self_hosted_project_workflow"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "SELF_HOSTED_MODEL_COSTS_APPLY"
+    },
+    {
+      "id": "cloudflare_vibesdk",
+      "name": "Cloudflare VibeSDK",
+      "category": "open_source_ai_builder",
+      "official_url": "https://github.com/cloudflare/vibesdk",
+      "docs_url": "https://github.com/cloudflare/vibesdk",
+      "status": "SUPPORTED_CLI",
+      "auth_required": false,
+      "capabilities": [
+        "self_hosted_project_workflow"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "CLOUDFLARE_USAGE_LIMITS_APPLY"
+    },
+    {
+      "id": "open_lovable",
+      "name": "Open Lovable",
+      "category": "open_source_ai_builder",
+      "official_url": "https://github.com/mendableai/open-lovable",
+      "docs_url": "https://github.com/mendableai/open-lovable",
+      "status": "SUPPORTED_CLI",
+      "auth_required": false,
+      "capabilities": [
+        "self_hosted_project_workflow"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "SELF_HOSTED_MODEL_COSTS_APPLY"
+    },
+    {
+      "id": "macaly",
+      "name": "Macaly",
+      "category": "ai_app_builder",
+      "official_url": "https://macaly.com/",
+      "docs_url": "https://macaly.com/",
+      "status": "RESEARCH_REQUIRED",
+      "auth_required": true,
+      "capabilities": [],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "rocket_new",
+      "name": "Rocket.new",
+      "category": "ai_app_builder",
+      "official_url": "https://www.rocket.new/",
+      "docs_url": "https://www.rocket.new/",
+      "status": "RESEARCH_REQUIRED",
+      "auth_required": true,
+      "capabilities": [],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "figma_make",
+      "name": "Figma Make",
+      "category": "design_ai_builder",
+      "official_url": "https://www.figma.com/",
+      "docs_url": "https://www.figma.com/developers/api",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "figma_file_api"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "bubble",
+      "name": "Bubble",
+      "category": "no_code_builder",
+      "official_url": "https://bubble.io/",
+      "docs_url": "https://manual.bubble.io/",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "data_api",
+        "workflow_api_where_enabled"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "adalo",
+      "name": "Adalo",
+      "category": "no_code_builder",
+      "official_url": "https://www.adalo.com/",
+      "docs_url": "https://help.adalo.com/",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "external_collections_where_enabled"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "flutterflow",
+      "name": "FlutterFlow",
+      "category": "no_code_builder",
+      "official_url": "https://flutterflow.io/",
+      "docs_url": "https://docs.flutterflow.io/",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "api_integrations",
+        "project_export_plan_dependent"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "PROJECT_API_REQUIRES_PAID_SUBSCRIPTION",
+      "notes": "Official Project API supports project YAML read/validate/update operations, but documentation says the Project API requires a paid FlutterFlow subscription."
+    },
+    {
+      "id": "softr",
+      "name": "Softr",
+      "category": "no_code_builder",
+      "official_url": "https://www.softr.io/",
+      "docs_url": "https://docs.softr.io/",
+      "status": "RESEARCH_REQUIRED",
+      "auth_required": true,
+      "capabilities": [],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "zite",
+      "name": "Zite",
+      "category": "no_code_builder",
+      "official_url": "https://zite.com/",
+      "docs_url": "https://zite.com/",
+      "status": "RESEARCH_REQUIRED",
+      "auth_required": true,
+      "capabilities": [],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "wix",
+      "name": "Wix AI",
+      "category": "website_builder",
+      "official_url": "https://www.wix.com/",
+      "docs_url": "https://dev.wix.com/docs",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "site_api",
+        "content_api_plan_dependent"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "wordpress_com",
+      "name": "WordPress.com",
+      "category": "website_builder",
+      "official_url": "https://wordpress.com/",
+      "docs_url": "https://developer.wordpress.com/docs/api/",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "rest_api",
+        "site_content_api"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "framer",
+      "name": "Framer",
+      "category": "website_builder",
+      "official_url": "https://www.framer.com/",
+      "docs_url": "https://www.framer.com/developers/",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "documented_developer_api_scope_only"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "webflow",
+      "name": "Webflow",
+      "category": "website_builder",
+      "official_url": "https://webflow.com/",
+      "docs_url": "https://developers.webflow.com/",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "sites_api",
+        "cms_api"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN",
+      "notes": "Official docs list Data API, Designer API, Browser API, JS/Python SDKs, and CLI; actual write scope depends on the API and OAuth permissions."
+    },
+    {
+      "id": "durable",
+      "name": "Durable",
+      "category": "website_builder",
+      "official_url": "https://durable.co/",
+      "docs_url": "https://durable.co/",
+      "status": "RESEARCH_REQUIRED",
+      "auth_required": true,
+      "capabilities": [],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "10web",
+      "name": "10Web",
+      "category": "website_builder",
+      "official_url": "https://10web.io/",
+      "docs_url": "https://help.10web.io/",
+      "status": "RESEARCH_REQUIRED",
+      "auth_required": true,
+      "capabilities": [],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "hostinger_builder",
+      "name": "Hostinger Website Builder",
+      "category": "website_builder",
+      "official_url": "https://www.hostinger.com/website-builder",
+      "docs_url": "https://www.hostinger.com/",
+      "status": "MANUAL_SETUP_REQUIRED",
+      "auth_required": true,
+      "capabilities": [],
+      "adapter_implementation": "planned",
+      "free_tier": "PAID_PLAN_DEPENDENT"
+    },
+    {
+      "id": "appsmith",
+      "name": "Appsmith",
+      "category": "open_source_app_builder",
+      "official_url": "https://www.appsmith.com/",
+      "docs_url": "https://docs.appsmith.com/",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "application_api_plan_dependent"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "SELF_HOSTED_OPTION"
+    },
+    {
+      "id": "tooljet",
+      "name": "ToolJet",
+      "category": "open_source_app_builder",
+      "official_url": "https://www.tooljet.com/",
+      "docs_url": "https://docs.tooljet.com/",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "self_hosted_app_platform"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "SELF_HOSTED_OPTION"
+    },
+    {
+      "id": "reflex",
+      "name": "Reflex",
+      "category": "python_web_framework",
+      "official_url": "https://reflex.dev/",
+      "docs_url": "https://reflex.dev/docs/",
+      "status": "SUPPORTED_CLI",
+      "auth_required": false,
+      "capabilities": [
+        "local_project_build",
+        "cli_deploy_plan_dependent"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "OPEN_SOURCE_COMPUTE_COSTS_APPLY"
+    },
+    {
+      "id": "wdotech",
+      "name": "WDOTECH",
+      "category": "thailand_ai_service",
+      "official_url": "https://wdotech.com/",
+      "docs_url": "https://wdotech.com/",
+      "status": "RESEARCH_REQUIRED",
+      "auth_required": true,
+      "capabilities": [],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_WITH_PROVIDER",
+      "notes": "Official API documentation and canonical service identity require verification."
+    },
+    {
+      "id": "appgu",
+      "name": "AppGu",
+      "category": "thailand_ai_service",
+      "official_url": "https://appgu.ai/",
+      "docs_url": "https://appgu.ai/",
+      "status": "RESEARCH_REQUIRED",
+      "auth_required": true,
+      "capabilities": [],
+      "adapter_implementation": "planned",
+      "free_tier": "VENDOR_SITE_CLAIMS_3_INITIAL_CREDITS_NO_CARD_VERIFY_CURRENT_TERMS",
+      "notes": "Thai-language AI app builder; public site advertises three initial credits and no card. Official API documentation not verified."
+    },
+    {
+      "id": "suriya_ai",
+      "name": "Suriya AI",
+      "category": "thailand_ai_service",
+      "official_url": "https://suriya.ai/",
+      "docs_url": "https://suriya.ai/",
+      "status": "RESEARCH_REQUIRED",
+      "auth_required": true,
+      "capabilities": [],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_WITH_PROVIDER",
+      "notes": "Official API documentation and canonical service identity require verification."
+    },
+    {
+      "id": "github",
+      "name": "GitHub and GitHub Apps",
+      "category": "developer_service",
+      "official_url": "https://github.com/",
+      "docs_url": "https://docs.github.com/en/rest",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "repositories",
+        "contents",
+        "pull_requests",
+        "issues",
+        "workflows"
+      ],
+      "adapter_implementation": "existing_ck_nexus_connector",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "gitlab",
+      "name": "GitLab",
+      "category": "developer_service",
+      "official_url": "https://gitlab.com/",
+      "docs_url": "https://docs.gitlab.com/api/",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "projects_api",
+        "repository_api",
+        "merge_requests_api"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "cloudflare",
+      "name": "Cloudflare",
+      "category": "developer_service",
+      "official_url": "https://www.cloudflare.com/",
+      "docs_url": "https://developers.cloudflare.com/api/",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "documented_account_and_deployment_apis"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "vercel",
+      "name": "Vercel",
+      "category": "deployment_service",
+      "official_url": "https://vercel.com/",
+      "docs_url": "https://vercel.com/docs/rest-api",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "projects_api",
+        "deployments_api"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN",
+      "notes": "Official REST API supports project and deployment management; authenticated access token and rate-limit handling required."
+    },
+    {
+      "id": "netlify",
+      "name": "Netlify",
+      "category": "deployment_service",
+      "official_url": "https://www.netlify.com/",
+      "docs_url": "https://docs.netlify.com/api-and-cli-guides/api-guides/get-started-with-api/",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "sites_api",
+        "deploys_api"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "supabase",
+      "name": "Supabase",
+      "category": "backend_service",
+      "official_url": "https://supabase.com/",
+      "docs_url": "https://supabase.com/docs/reference",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "management_api",
+        "database_api_plan_dependent"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "firebase",
+      "name": "Firebase",
+      "category": "backend_service",
+      "official_url": "https://firebase.google.com/",
+      "docs_url": "https://firebase.google.com/docs/reference",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "management_api",
+        "project_api"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "neon",
+      "name": "Neon",
+      "category": "backend_service",
+      "official_url": "https://neon.tech/",
+      "docs_url": "https://neon.tech/docs/reference/api-reference",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "project_api",
+        "branch_api"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_PLAN"
+    },
+    {
+      "id": "n8n",
+      "name": "n8n",
+      "category": "automation",
+      "official_url": "https://n8n.io/",
+      "docs_url": "https://docs.n8n.io/api/",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "workflow_api_plan_and_instance_dependent"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "SELF_HOSTED_OPTION_CLOUD_API_NOT_ON_FREE_TRIAL",
+      "notes": "Official API docs state API access is available on self-hosted editions and paid n8n Cloud plans; unavailable on the Cloud free trial."
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama",
+      "category": "local_model_runtime",
+      "official_url": "https://ollama.com/",
+      "docs_url": "https://github.com/ollama/ollama/blob/main/docs/api.md",
+      "status": "SUPPORTED_API",
+      "auth_required": false,
+      "capabilities": [
+        "local_generate",
+        "chat",
+        "list_models"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "LOCAL_INFERENCE_COMPUTE_COSTS_APPLY"
+    },
+    {
+      "id": "openai_compatible",
+      "name": "OpenAI-compatible APIs",
+      "category": "model_api",
+      "official_url": "https://platform.openai.com/docs/api-reference",
+      "docs_url": "https://platform.openai.com/docs/api-reference",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "chat_completions_where_compatible",
+        "models_where_compatible"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "PROVIDER_SPECIFIC"
+    },
+    {
+      "id": "gemini_api",
+      "name": "Google Gemini API",
+      "category": "model_api",
+      "official_url": "https://ai.google.dev/",
+      "docs_url": "https://ai.google.dev/gemini-api/docs",
+      "status": "SUPPORTED_API",
+      "auth_required": true,
+      "capabilities": [
+        "generate_content",
+        "models_list"
+      ],
+      "adapter_implementation": "planned",
+      "free_tier": "VERIFY_CURRENT_QUOTA"
+    }
+  ]
+}

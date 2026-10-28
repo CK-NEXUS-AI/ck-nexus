@@ -77,3 +77,18 @@ def test_proactive_seeder_retries_a_failed_daily_task_within_budget(tmp_path):
     assert result.state == "seeded"
     assert result.reason == "retrying_failed_task"
     assert store.peek_next()["job_id"] == "n8n-proactive-2026-10-24"
+
+
+def test_proactive_task_lists_exact_allowed_source_paths(tmp_path):
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    seeder = ProactiveTaskSeeder(store, clock=lambda: datetime(2026, 10, 26, tzinfo=UTC))
+
+    result = seeder.run_once()
+
+    assert result.state == "seeded"
+    payload = __import__("json").loads(store.peek_next()["payload_json"])
+    description = payload["description"]
+    assert "Approved source files (exact):" in description
+    assert "creator_app/n8n_intelligence/analysis.py" in description
+    assert "creator_app/control_plane/fast_probe.py" in description
+    assert "creator_app/ai_team/intelligence/smart_cache.py" not in description
