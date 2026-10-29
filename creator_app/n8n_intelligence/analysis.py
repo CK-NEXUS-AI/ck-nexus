@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .models import DevelopmentSignal
 
@@ -91,6 +91,10 @@ def _duration_seconds(execution: dict[str, object]) -> float | None:
     started = _parse_time(execution.get("startedAt"))
     stopped = _parse_time(execution.get("stoppedAt"))
     if started is not None and stopped is not None:
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
+        if stopped.tzinfo is None:
+            stopped = stopped.replace(tzinfo=timezone.utc)
         return max(0.0, (stopped - started).total_seconds())
     return None
 
