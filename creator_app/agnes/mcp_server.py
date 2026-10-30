@@ -966,8 +966,8 @@ def cknexus_browser_read_page() -> dict[str, Any]:
 
 @mcp.tool()
 def cknexus_browser_screenshot() -> dict[str, Any]:
-    """Capture the current browser page to a fixed temporary path; read-only."""
-    return _run_browser_tool("screenshot", "/tmp/cknexus-browser-mcp.png")
+    """Capture the current browser page to a privileged wrapper-managed temp path."""
+    return _run_browser_tool("screenshot")
 
 
 def run_server() -> None:

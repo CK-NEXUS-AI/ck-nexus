@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import ssl
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -237,6 +239,20 @@ def context_from_wire(data: dict[str, Any]) -> OMNIExecutionContext:
     )
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _open_request(request: urllib.request.Request, timeout: float):
+    opener = urllib.request.build_opener(
+        urllib.request.HTTPHandler(),
+        urllib.request.HTTPSHandler(context=ssl.create_default_context()),
+        _NoRedirectHandler(),
+    )
+    return opener.open(request, timeout=timeout)
+
+
 class OmniIssuerHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
@@ -348,12 +364,26 @@ class HttpIndependentOmniAuthority(IndependentOmniAuthority):
         issuer_id: str,
         timeout_seconds: float = 2.0,
     ):
+        try:
+            parsed_url = urllib.parse.urlsplit(base_url)
+            hostname = (parsed_url.hostname or "").lower().rstrip(".")
+            _ = parsed_url.port  # Validate the port syntax even when the port is omitted.
+        except ValueError as exc:
+            raise ValueError("issuer URL is malformed") from exc
+        loopback_http = parsed_url.scheme == "http" and hostname in {
+            "127.0.0.1",
+            "localhost",
+            "::1",
+        }
+        valid_https = parsed_url.scheme == "https" and bool(hostname)
         if (
-            not base_url.startswith("http://127.0.0.1:")
-            and not base_url.startswith("http://localhost:")
-            and not base_url.startswith("https://")
+            not (loopback_http or valid_https)
+            or parsed_url.username is not None
+            or parsed_url.password is not None
+            or parsed_url.query
+            or parsed_url.fragment
         ):
-            raise ValueError("issuer URL must use loopback HTTP or HTTPS")
+            raise ValueError("issuer URL must use loopback HTTP or credential-free HTTPS")
         if not service_token or not 0 < timeout_seconds <= 5:
             raise ValueError("service token and timeout (0–5s] are required")
         self.base_url = base_url.rstrip("/")
@@ -374,7 +404,7 @@ class HttpIndependentOmniAuthority(IndependentOmniAuthority):
             },
         )
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as response:
+            with _open_request(req, timeout=self.timeout_seconds) as response:
                 if response.status != 200:
                     raise RuntimeError("OMNI authority rejected request")
                 data = json.loads(response.read(1024 * 1024))
