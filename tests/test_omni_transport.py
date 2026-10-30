@@ -121,3 +121,37 @@ def test_http_boundary_rejects_agent_identity_mismatch(tmp_path):
             bad_client.issue_context(request("bad-agent-exec"))
     finally:
         close_server(server, thread)
+
+
+def test_http_authority_rejects_credentialed_or_remote_http_urls(tmp_path):
+    issuer = make_issuer(tmp_path)
+    cases = (
+        "https://user:password@example.test",
+        "http://example.test",
+        "https://example.test/path?token=unexpected",
+        "https://example.test/path#fragment",
+        "https://example.test:invalid",
+    )
+    for base_url in cases:
+        with pytest.raises(ValueError):
+            HttpIndependentOmniAuthority(
+                base_url,
+                service_token="test-token",
+                public_key=issuer.public_key,
+                issuer_id=issuer.issuer_id,
+            )
+
+
+def test_http_authority_transport_does_not_follow_redirects():
+    from urllib.request import Request
+
+    from creator_app.council_authority.omni_transport import _NoRedirectHandler
+
+    handler = _NoRedirectHandler()
+    request = Request("https://issuer.example.test/context")
+    assert (
+        handler.redirect_request(
+            request, None, 302, "Found", {}, "https://attacker.example.test/collect"
+        )
+        is None
+    )
