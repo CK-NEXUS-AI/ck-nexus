@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Allowlist-only exporter for CK-NEXUS n8n health evidence."""
+
 from __future__ import annotations
 
 import argparse
@@ -13,9 +14,7 @@ SECTIONS = {
     "n8n": {"service", "version", "healthz_http_status"},
     "database": {"present", "integrity_check", "table_counts"},
     "backup_timer": {"active", "enabled"},
-    "cloud_inventory_snapshot": {
-        "age_seconds", "sha256_match", "workflow_count", "note"
-    },
+    "cloud_inventory_snapshot": {"age_seconds", "sha256_match", "workflow_count", "note"},
     "filesystem_root": {"used_percent", "total_bytes", "free_bytes"},
 }
 TOP = {"schema", "generated_at_utc", "scope"}
@@ -27,9 +26,7 @@ def sanitize(raw):
     out = {k: raw[k] for k in TOP if k in raw}
     for section, allow in SECTIONS.items():
         obj = raw.get(section, {})
-        out[section] = {
-            k: obj[k] for k in sorted(allow) if isinstance(obj, dict) and k in obj
-        }
+        out[section] = {k: obj[k] for k in sorted(allow) if isinstance(obj, dict) and k in obj}
     out["exported_at_utc"] = datetime.now(UTC).isoformat()
     return out
 
@@ -43,9 +40,7 @@ def main():
     args.output_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     target = args.output_dir / f"n8n-health-{stamp}.json"
-    target.write_text(
-        json.dumps(safe, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    target.write_text(json.dumps(safe, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     os.chmod(target, 0o600)
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
     manifest = target.with_suffix(".sha256")
