@@ -3,10 +3,25 @@
 from __future__ import annotations
 
 import json
+import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _open_request(request: urllib.request.Request, timeout: float):
+    opener = urllib.request.build_opener(
+        urllib.request.HTTPHandler(),
+        urllib.request.HTTPSHandler(context=ssl.create_default_context()),
+        _NoRedirectHandler(),
+    )
+    return opener.open(request, timeout=timeout)
 
 
 class N8NReadError(RuntimeError):
@@ -26,8 +41,7 @@ class N8NReadClient:
             or parsed.query
             or parsed.fragment
             or (
-                parsed.scheme == "http"
-                and parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+                parsed.scheme == "http" and parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
             )
         ):
             raise ValueError(
@@ -65,8 +79,7 @@ class N8NReadClient:
             method="GET",
         )
         try:
-            # base_url is validated to use only HTTP or HTTPS in __init__.
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # nosec B310
+            with _open_request(request, timeout=self.timeout) as response:
                 raw = response.read(2_000_001)
             if len(raw) > 2_000_000:
                 raise N8NReadError("n8n response exceeds safe size")
