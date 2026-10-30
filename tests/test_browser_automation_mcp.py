@@ -4,13 +4,25 @@ import creator_app.agnes.mcp_server as mcp_server
 
 
 def test_browser_open_rejects_non_https_and_unapproved_hosts():
-    assert mcp_server.cknexus_browser_open("http://github.com")["error_code"] == "BROWSER_URL_DENIED"
-    assert mcp_server.cknexus_browser_open("https://example.org")["error_code"] == "BROWSER_URL_DENIED"
+    assert (
+        mcp_server.cknexus_browser_open("http://github.com")["error_code"]
+        == "BROWSER_URL_DENIED"
+    )
+    assert (
+        mcp_server.cknexus_browser_open("https://example.org")["error_code"]
+        == "BROWSER_URL_DENIED"
+    )
 
 
 def test_browser_open_rejects_localhost_and_url_credentials():
-    assert mcp_server.cknexus_browser_open("https://127.0.0.1:9222/json")["error_code"] == "BROWSER_URL_DENIED"
-    assert mcp_server.cknexus_browser_open("https://user:pass@github.com")["error_code"] == "BROWSER_URL_DENIED"
+    assert (
+        mcp_server.cknexus_browser_open("https://127.0.0.1:9222/json")["error_code"]
+        == "BROWSER_URL_DENIED"
+    )
+    assert (
+        mcp_server.cknexus_browser_open("https://user:pass@github.com")["error_code"]
+        == "BROWSER_URL_DENIED"
+    )
 
 
 def test_browser_tools_are_read_only_and_report_safe_metadata(monkeypatch):

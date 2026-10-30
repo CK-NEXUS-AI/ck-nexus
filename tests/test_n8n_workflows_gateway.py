@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import http.client
 import importlib.util
 import json
-import http.client
 import threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -105,7 +105,11 @@ def test_malformed_json_is_mapped_to_safe_gateway_error(monkeypatch):
     class InvalidJSONResponse(FakeResponse):
         def read(self):
             return b'{not-json'
-    monkeypatch.setattr(gateway.urllib.request, 'urlopen', lambda request, timeout=None: InvalidJSONResponse({}))
+    monkeypatch.setattr(
+        gateway.urllib.request,
+        'urlopen',
+        lambda request, timeout=None: InvalidJSONResponse({}),
+    )
     monkeypatch.setattr(gateway, 'KEY_FILE', Path('/tmp/cknexus-test-api-key'))
     monkeypatch.setattr(Path, 'read_text', lambda self, *a, **kw: 'test-secret-sentinel')
     with pytest.raises(gateway.N8NAPIError) as err:
@@ -129,7 +133,9 @@ def test_unverified_write_endpoint_is_rejected_without_network(monkeypatch):
 )
 def test_upstream_statuses_map_to_safe_errors(monkeypatch, upstream_status, expected_status):
     def fail(request, timeout=None):
-        raise gateway.urllib.error.HTTPError(request.full_url, upstream_status, 'test-secret-sentinel', {}, None)
+        raise gateway.urllib.error.HTTPError(
+            request.full_url, upstream_status, 'test-secret-sentinel', {}, None
+        )
     monkeypatch.setattr(gateway.urllib.request, 'urlopen', fail)
     monkeypatch.setattr(gateway, 'KEY_FILE', Path('/tmp/cknexus-test-api-key'))
     monkeypatch.setattr(Path, 'read_text', lambda self, *a, **kw: 'test-secret-sentinel')
