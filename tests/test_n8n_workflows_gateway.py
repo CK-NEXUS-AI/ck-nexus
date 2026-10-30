@@ -9,7 +9,13 @@ from pathlib import Path
 
 import pytest
 
-GATEWAY_PATH = Path("/usr/local/libexec/cknexus_n8n_workflows_ui.py")
+INSTALLED_GATEWAY_PATH = Path("/usr/local/libexec/cknexus_n8n_workflows_ui.py")
+REPOSITORY_GATEWAY_PATH = (
+    Path(__file__).resolve().parents[1] / "ops/vps/services/cknexus_n8n_workflows_ui.py"
+)
+GATEWAY_PATH = (
+    INSTALLED_GATEWAY_PATH if INSTALLED_GATEWAY_PATH.is_file() else REPOSITORY_GATEWAY_PATH
+)
 spec = importlib.util.spec_from_file_location("cknexus_n8n_workflows_ui", GATEWAY_PATH)
 gateway = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
