@@ -37,6 +37,7 @@ jobs:
         run: |
           set -euo pipefail
           .venv/bin/pytest --collect-only -q \
+            -k 'not EnhancedUniversalSystemCachePolicy' \
             creator_app/ai_team/tests/test_team.py \
             creator_app/ai_team/tests/test_universal.py \
             | tee /tmp/universal-baseline-collect.txt
@@ -46,6 +47,7 @@ jobs:
       - name: Run original 48-test baseline
         run: >-
           .venv/bin/pytest -q
+          -k "not EnhancedUniversalSystemCachePolicy"
           creator_app/ai_team/tests/test_team.py
           creator_app/ai_team/tests/test_universal.py
       - name: Run full AI Team and Universal System suite
