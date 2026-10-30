@@ -6,6 +6,26 @@ Status: proposed implementation. Activation depends on merging the pull request 
 
 Provide reusable specialist roles and skills for GitHub Copilot-compatible agent environments. These profiles do not create new runtime processes, grant external permissions, provide API credits, or independently authorize production actions. They define role-specific instructions and tool scopes for supported agent harnesses.
 
+## Integration with the existing CK-NEXUS runtime
+
+The repository already contains a separate in-process team in creator_app/ai_team/
+(Director, Engineer, Guardian, Analyst, Researcher, Designer, and Connector), plus a
+control-plane graph with research, implementation, verification, and security roles.
+Its MCP inventory surfaces include cknexus_autonomy_status, cknexus_dev_assistants,
+cknexus_dev_execution_plan, and cknexus_auto_dispatch.
+
+These are distinct layers:
+
+- The existing CK-NEXUS runtime roles are internal application behavior.
+- The .github/agents/*.agent.md files are GitHub Copilot custom-agent profiles.
+- The .github/skills/*/SKILL.md files are reusable task procedures.
+- A profile file does not itself start a worker, authenticate a provider, or grant tools.
+- Use cknexus_autonomy_status for inventory first; it is read-only and must not be
+  interpreted as proof that an inference provider is authenticated or healthy.
+- cknexus_dev_execution_plan is plan-only. Do not treat a planned task as executed.
+- cknexus_auto_dispatch may invoke the in-process team; use it only for bounded
+  development planning/work and retain the existing approval and evidence gates.
+
 ## Specialist roles
 
 | Role profile | Default tool scope | Responsibility |
