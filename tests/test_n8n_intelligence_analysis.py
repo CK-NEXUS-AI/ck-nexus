@@ -49,6 +49,21 @@ def test_failure_and_slow_execution_are_actionable():
     assert slow is not None and slow.category == "performance"
 
 
+def test_slow_execution_handles_mixed_timezone_timestamps():
+    signal = classify_execution(
+        {
+            "id": "e3",
+            "status": "success",
+            "workflowId": "w1",
+            "startedAt": "2026-10-24T00:00:00",
+            "stoppedAt": "2026-10-24T00:00:45Z",
+        },
+        30,
+    )
+
+    assert signal is not None and signal.category == "performance"
+
+
 def test_repeat_failure_escalates_but_stays_bounded():
     assert priority_for("bug", 1) == 2
     assert priority_for("bug", 3) == 3
