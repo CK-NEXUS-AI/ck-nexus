@@ -6,9 +6,11 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path as FilePath
 from typing import Annotated
+from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 from fastapi import (
+    Cookie,
     Depends,
     FastAPI,
     File,
@@ -20,7 +22,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from creator_app.agnes_runtime import AgnesNervousSystem, AgnesPolicy
@@ -45,6 +47,7 @@ from creator_app.credential_broker import CredentialBroker, CredentialId
 from creator_app.credential_vault import build_credential_vault
 from creator_app.dev_team import DevTeamRuntime
 from creator_app.github_app import GitHubAppAuth, GitHubAppAuthError
+from creator_app.github_identity import GitHubIdentityError, GitHubIdentityManager
 from creator_app.github_integration import GitHubIntegration
 from creator_app.gmail_oauth import GmailOAuthError, GmailOAuthManager
 from creator_app.health import DependencyState, DependencyStatus, evaluate_health
@@ -192,6 +195,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         repository=resolved_settings.github_repo,
         api_base=resolved_settings.github_api_base,
     )
+    github_identity = GitHubIdentityManager(
+        client_id=os.getenv("CKNEXUS_GITHUB_OAUTH_CLIENT_ID", ""),
+        client_secret=os.getenv("CKNEXUS_GITHUB_OAUTH_CLIENT_SECRET", ""),
+        redirect_uri=os.getenv("CKNEXUS_GITHUB_OAUTH_REDIRECT_URI", ""),
+        enabled=os.getenv("CKNEXUS_GITHUB_OAUTH_ENABLED", "false").strip().lower()
+        in {"1", "true", "yes", "on"},
+    )
     slack_integration = SlackIntegration(
         resolved_settings.slack_bot_token,
         api_base=resolved_settings.slack_api_base,
@@ -245,6 +255,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.gmail_oauth = gmail_oauth
     app.state.github_app_auth = github_app_auth
     app.state.github_integration = github_integration
+    app.state.github_identity = github_identity
     app.state.slack_integration = slack_integration
     app.state.drive_integration = drive_integration
     app.state.codex_bridge = codex_bridge
@@ -1383,6 +1394,82 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             # Creator history deletion must still succeed; production images install the SDK.
             pass
         return {"status": "deleted", "records": deleted}
+
+    @app.get("/identity", include_in_schema=False)
+    async def identity_portal() -> FileResponse:
+        return FileResponse(WEB_DIR / "identity.html")
+
+    @app.get("/api/identity/github/status")
+    async def github_identity_status(
+        cknexus_github_identity: str | None = Cookie(default=None),
+    ) -> dict[str, object]:
+        return github_identity.status(cknexus_github_identity)
+
+    @app.get("/api/identity/github/start")
+    async def github_identity_start() -> RedirectResponse:
+        try:
+            authorization_url = github_identity.authorization_url()
+        except GitHubIdentityError:
+            return RedirectResponse(url="/identity?result=not-configured", status_code=303)
+        state_values = parse_qs(urlparse(authorization_url).query).get("state", [])
+        if not state_values:
+            return RedirectResponse(url="/identity?result=failed", status_code=303)
+        response = RedirectResponse(url=authorization_url, status_code=302)
+        response.set_cookie(
+            "cknexus_github_oauth_state",
+            state_values[0],
+            max_age=600,
+            httponly=True,
+            secure=os.getenv("CKNEXUS_GITHUB_OAUTH_REDIRECT_URI", "").startswith("https://"),
+            samesite="lax",
+            path="/",
+        )
+        return response
+
+    @app.get("/api/identity/github/callback")
+    async def github_identity_callback(
+        request: Request,
+        code: str = Query(default=""),
+        state: str = Query(default=""),
+        error: str | None = Query(default=None),
+        state_cookie: str | None = Cookie(default=None, alias="cknexus_github_oauth_state"),
+    ) -> RedirectResponse:
+        failure_url = "/identity?result=failed"
+        if error:
+            response = RedirectResponse(url="/identity?result=cancelled", status_code=303)
+            response.delete_cookie("cknexus_github_oauth_state", path="/")
+            return response
+        if not state or not state_cookie or not hmac.compare_digest(state, state_cookie):
+            response = RedirectResponse(url=failure_url, status_code=303)
+            response.delete_cookie("cknexus_github_oauth_state", path="/")
+            return response
+        try:
+            session_id, _identity = github_identity.exchange_and_verify(code=code, state=state)
+        except GitHubIdentityError:
+            response = RedirectResponse(url=failure_url, status_code=303)
+            response.delete_cookie("cknexus_github_oauth_state", path="/")
+            return response
+        response = RedirectResponse(url="/identity?result=verified", status_code=303)
+        response.set_cookie(
+            "cknexus_github_identity",
+            session_id,
+            max_age=1800,
+            httponly=True,
+            secure=github_identity.redirect_uri.startswith("https://"),
+            samesite="lax",
+            path="/",
+        )
+        response.delete_cookie("cknexus_github_oauth_state", path="/")
+        return response
+
+    @app.post("/api/identity/github/revoke")
+    async def github_identity_revoke(
+        cknexus_github_identity: str | None = Cookie(default=None),
+    ) -> JSONResponse:
+        github_identity.revoke_session(cknexus_github_identity)
+        response = JSONResponse({"status": "revoked", "verified": False})
+        response.delete_cookie("cknexus_github_identity", path="/")
+        return response
 
     @app.get("/development", include_in_schema=False)
     async def development_dashboard() -> FileResponse:

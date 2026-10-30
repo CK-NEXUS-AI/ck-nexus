@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="th" data-theme="midnight">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="ยืนยันตัวตน GitHub ผ่าน OAuth อย่างปลอดภัยสำหรับ CK-NEXUS">
+  <title>CK-NEXUS — Identity Verification</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/identity.css">
+  <script src="/static/identity.js" defer></script>
+</head>
+<body>
+  <main class="identity-shell">
+    <header class="identity-brand">
+      <span class="identity-mark">CK/NX</span>
+      <div><strong>CK-NEXUS</strong><small>IDENTITY VERIFICATION PORTAL</small></div>
+    </header>
+    <section class="identity-card" aria-labelledby="identity-title">
+      <p class="eyebrow">AUTHENTICATION / OAUTH 2.0</p>
+      <h1 id="identity-title">ยืนยันตัวตนของคุณ</h1>
+      <p class="identity-copy">เชื่อมต่อ GitHub เพื่อยืนยันบัญชีที่คุณควบคุม ระบบจะตรวจสอบโปรไฟล์จาก GitHub โดยตรงและไม่ส่ง Access Token ให้เบราว์เซอร์</p>
+      <div id="identity-status" class="identity-status" role="status" aria-live="polite">
+        <span class="status-dot"></span><span>กำลังตรวจสอบสถานะ…</span>
+      </div>
+      <div id="identity-profile" class="identity-profile" hidden>
+        <img id="identity-avatar" alt="" width="64" height="64">
+        <div><strong id="identity-login"></strong><small id="identity-user-id"></small></div>
+      </div>
+      <a class="identity-primary" id="github-connect" href="/api/identity/github/start">ยืนยันตัวตนด้วย GitHub</a>
+      <button class="identity-secondary" id="github-revoke" type="button" hidden>ยกเลิกเซสชันยืนยันตัวตน</button>
+      <p class="identity-note" id="identity-note">สิทธิ์ที่ขอ: อ่านข้อมูลโปรไฟล์พื้นฐานเท่านั้น ไม่ขอสิทธิ์เขียน Repository</p>
+      <p class="identity-result" id="identity-result"></p>
+    </section>
+    <footer class="identity-footer">การยืนยันตัวตนไม่ใช่การอนุญาตให้เข้าถึง VPS, Termux, Gmail หรือ Repository โดยอัตโนมัติ</footer>
+  </main>
+</body>
+</html>
