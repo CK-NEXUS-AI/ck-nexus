@@ -5,7 +5,7 @@ Wants=network.target
 
 [Service]
 Type=simple
-User=cknexus-creator
+User=root
 Group=cknexus-creator
 WorkingDirectory=/opt/ck-nexus-src
 Environment=PYTHONUNBUFFERED=1
