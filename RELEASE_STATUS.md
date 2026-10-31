@@ -35,7 +35,7 @@ Unified Control and production hardening are converged on the closure branch but
 | Q08 PostgreSQL/Redis live idempotency | PASS | rotated-subject live evidence on closure line |
 | Q09 governance binding | PASS_CANDIDATE | governance binding on rotated subject |
 | Q10 dependency component | **PASS** | run `31950497105`; artifact `9264500568`; `pip-audit` 0 vulnerabilities |
-| Q10 whole security gate | **NOT_VERIFIED / BLOCKER** | open-source layered security scan and independent evidence review still required |
+| Q10 whole security gate | **NOT_VERIFIED / BLOCKER** | open-source layered scan PASS on `ad2fac7a` (gate run `41225106597`, report sha256 `f62d3623bc6f3f7d3095c35196d303f635293f309d651511ae37a75854055629`); independent evidence review still required |
 | Q11 live provider P0-AI-001 | **BLOCKED** | run `31950795711`; artifact `9264576887`; `OPENAI_API_KEY` not configured; no credential exposed |
 | Q12 delegated cgroup v2 | **BLOCKED** | run `31950904091`; artifact `9264605328`; required self-hosted non-root delegated cgroup v2 enforcement has not executed |
 | Q13 PostgreSQL DR | **PASS_CANDIDATE** | run `31950497105`; artifact `9264501762`; backup/restore + sentinel round-trip PASS |
