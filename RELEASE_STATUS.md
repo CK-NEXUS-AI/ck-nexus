@@ -5,9 +5,9 @@ Decision: **NO-GO FOR PRODUCTION CLAIMS**
 Canonical main: `45fde79c717b09f8675645aa541a5834ebd4f433` (Q09 baseline)
 Closure branch: `release/q10-q16-closure`
 Current closure head: `a55a8d36b0a1b61b426c5d59ab44ebd841eb8d53`
-Frozen runtime/security source SHA: `39f5c1adb9d761ab418cf088ff1f051b1ca731d1`
-Frozen source tree: `0525195934f703a8becf8a39f6397b2411e0bb2e`
-Frozen runtime/deployment subject: `89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52`
+Frozen runtime/security source SHA: `ad2fac7aa0752117dde065c7ad9b0b8d41136aa2`
+Frozen source tree: `eb2074176319072ca3f31d5c8c990752ba849b0a`
+Frozen runtime/deployment subject: `772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200`
 Unified application subject: `dff89dc7fa9cd6e40480c3344f688a75383ec798929efe23f3a29c79d1186cec`
 Closure contract: `docs/Q10_Q16_CLOSURE_CONTRACT.md`
 
@@ -35,7 +35,7 @@ Unified Control and production hardening are converged on the closure branch but
 | Q08 PostgreSQL/Redis live idempotency | PASS | rotated-subject live evidence on closure line |
 | Q09 governance binding | PASS_CANDIDATE | governance binding on rotated subject |
 | Q10 dependency component | **PASS** | run `31950497105`; artifact `9264500568`; `pip-audit` 0 vulnerabilities |
-| Q10 whole security gate | **NOT_VERIFIED / BLOCKER** | open-source layered security scan and independent evidence review still required |
+| Q10 whole security gate | **NOT_VERIFIED / BLOCKER** | open-source layered scan PASS on `ad2fac7a` (gate run `41225106597`, report sha256 `f62d3623bc6f3f7d3095c35196d303f635293f309d651511ae37a75854055629`); independent evidence review still required |
 | Q11 live provider P0-AI-001 | **BLOCKED** | run `31950795711`; artifact `9264576887`; `OPENAI_API_KEY` not configured; no credential exposed |
 | Q12 delegated cgroup v2 | **BLOCKED** | run `31950904091`; artifact `9264605328`; required self-hosted non-root delegated cgroup v2 enforcement has not executed |
 | Q13 PostgreSQL DR | **PASS_CANDIDATE** | run `31950497105`; artifact `9264501762`; backup/restore + sentinel round-trip PASS |
@@ -51,9 +51,9 @@ Canonical request: `evidence/q10/Q10_SCAN_REQUEST_FINAL_SUBJECT.json`
 
 Required scan identity:
 
-- target SHA: `39f5c1adb9d761ab418cf088ff1f051b1ca731d1`
-- target tree: `0525195934f703a8becf8a39f6397b2411e0bb2e`
-- release subject: `89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52`
+- target SHA: `ad2fac7aa0752117dde065c7ad9b0b8d41136aa2`
+- target tree: `eb2074176319072ca3f31d5c8c990752ba849b0a`
+- release subject: `772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200`
 - scope: `.`
 - mode: `layered`
 - executor: **CK-NEXUS Open-Source Layered Security Gate**

@@ -26,9 +26,9 @@ jobs:
           p=json.loads(Path('evidence/q10/Q10_SCAN_REQUEST_FINAL_SUBJECT.json').read_text())
           assert p['status']=='PREPARED_NOT_EXECUTED'
           assert p['required_executor']=='CK-NEXUS Open-Source Layered Security Gate'
-          assert p['target_sha']=='39f5c1adb9d761ab418cf088ff1f051b1ca731d1'
-          assert p['target_tree_sha']=='0525195934f703a8becf8a39f6397b2411e0bb2e'
-          assert p['release_subject_manifest_sha256']=='89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52'
+          assert p['target_sha']=='ad2fac7aa0752117dde065c7ad9b0b8d41136aa2'
+          assert p['target_tree_sha']=='eb2074176319072ca3f31d5c8c990752ba849b0a'
+          assert p['release_subject_manifest_sha256']=='772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200'
           assert p['target_scope']=='.'
           assert p['scan_mode']=='layered'
           assert p['acceptance']['must_use_open_source_layered_scan'] is True
