@@ -40,18 +40,34 @@ def test_development_dashboard_page_and_assets_are_served(tmp_path: Path) -> Non
     assert css.status_code == 200
     assert js.status_code == 200
     assert "const streams" in js.text
-    assert "const percent" in js.text
+    assert "Merged · PR #332" in js.text
+    assert "Merged · Issue closed" in js.text
+    assert "1355e5250d08d2041bc80cd0e5867b4b8848b9e4" in js.text
+    assert "PR #332" in js.text
+    assert "PR #331" in js.text
+    assert "PR #334" in js.text
+    assert "927 passed, 2 skipped" in js.text
+    assert "NOT VERIFIED · NO-GO" in js.text
 
 
-def test_dashboard_score_is_explicitly_weighted_and_production_is_no_go() -> None:
+def test_dashboard_does_not_guess_completion_percentage_and_production_is_no_go() -> None:
     html = Path("creator_app/web/development.html").read_text(encoding="utf-8")
     javascript = Path("creator_app/web/development.js").read_text(encoding="utf-8")
 
-    assert "Production release gate: NO-GO" in html
-    assert "const total = streams.reduce" in javascript
-    assert "const earned = streams.reduce" in javascript
-    assert "Math.round(earned / total * 100)" in javascript
-    assert "full repository test suite" in html
+    assert "production_status = NO-GO" in html
+    assert "ยังไม่แสดงเปอร์เซ็นต์รวม" in html
+    assert "ยังไม่มีสูตรที่ผูก GitHub Issues/Milestones" in html
+    assert "43cb6f09b213b00700b165562da51c3ee508641a" in html
+    assert "1355e5250d08d2041bc80cd0e5867b4b8848b9e4" in html
+    assert "Issue #317 is closed" in html
+    assert "2026-11-01T01:39:11+07:00" in html
+    assert "PR #334" in html
+    assert "927 passed, 2 skipped" in html
+    assert "Live: ตรวจไม่พบ service/listener" in html
+    assert "AGNES Phase 2/3" in html
+    assert "127.0.0.1:8765" in html
+    assert "const percent" not in javascript
+    assert "Math.round(earned / total * 100)" not in javascript
 
 
 def test_human_approval_fails_closed_when_access_token_is_not_configured(tmp_path: Path) -> None:
