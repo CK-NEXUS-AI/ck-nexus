@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -10,12 +11,9 @@ from creator_app.config import Settings
 
 def test_development_dashboard_page_and_assets_are_served(tmp_path: Path) -> None:
     settings = Settings(
-        database_path=tmp_path / "development-dashboard.db",
-        mock_ai=True,
-        access_token="",
-        rate_limit_per_minute=50,
-        dev_team_enabled=True,
-        dev_team_web_search_enabled=False,
+        database_path=tmp_path / "development-dashboard.db", mock_ai=True,
+        access_token="status-token", rate_limit_per_minute=50,
+        dev_team_enabled=True, dev_team_web_search_enabled=False,
     )
     with TestClient(create_app(settings)) as client:
         page = client.get("/development")
@@ -25,7 +23,6 @@ def test_development_dashboard_page_and_assets_are_served(tmp_path: Path) -> Non
         approval_asset = client.get("/static/approval.html")
         approval_css = client.get("/static/approval.css")
         approval_js = client.get("/static/approval.js")
-
     assert approval_page.status_code == 200
     assert approval_asset.status_code == 200
     assert "HUMAN APPROVAL" in approval_page.text
@@ -35,39 +32,18 @@ def test_development_dashboard_page_and_assets_are_served(tmp_path: Path) -> Non
     assert "/api/agnes/approvals" in approval_js.text
     assert "localStorage" not in approval_js.text
     assert page.status_code == 200
-    assert "CK-NEXUS" in page.text
-    assert "PRE-PRODUCTION" in page.text
+    assert "LIVE SNAPSHOT" in page.text
     assert css.status_code == 200
     assert js.status_code == 200
-    assert "const streams" in js.text
-    assert "Merged · PR #332" in js.text
-    assert "Merged · Issue closed" in js.text
-    assert "1355e5250d08d2041bc80cd0e5867b4b8848b9e4" in js.text
-    assert "PR #332" in js.text
-    assert "PR #331" in js.text
-    assert "PR #334" in js.text
-    assert "927 passed, 2 skipped" in js.text
-    assert "NOT VERIFIED · NO-GO" in js.text
+    assert 'fetch("/api/dev-status"' in js.text
 
 
-def test_dashboard_does_not_guess_completion_percentage_and_production_is_no_go() -> None:
+def test_dashboard_does_not_embed_operational_claims() -> None:
     html = Path("creator_app/web/development.html").read_text(encoding="utf-8")
     javascript = Path("creator_app/web/development.js").read_text(encoding="utf-8")
-
-    assert "production_status = NO-GO" in html
-    assert "ยังไม่แสดงเปอร์เซ็นต์รวม" in html
-    assert "ยังไม่มีสูตรที่ผูก GitHub Issues/Milestones" in html
-    assert "43cb6f09b213b00700b165562da51c3ee508641a" in html
-    assert "1355e5250d08d2041bc80cd0e5867b4b8848b9e4" in html
-    assert "Issue #317 is closed" in html
-    assert "2026-11-01T01:39:11+07:00" in html
-    assert "PR #334" in html
-    assert "927 passed, 2 skipped" in html
-    assert "Live: ตรวจไม่พบ service/listener" in html
-    assert "AGNES Phase 2/3" in html
-    assert "127.0.0.1:8765" in html
-    assert "const percent" not in javascript
-    assert "Math.round(earned / total * 100)" not in javascript
+    for content in (html, javascript):
+        for forbidden in ("PR #", "Issue #", "927", "81%", "NO-GO", "const streams"):
+            assert forbidden not in content
 
 
 def test_human_approval_fails_closed_when_access_token_is_not_configured(tmp_path: Path) -> None:
@@ -119,3 +95,42 @@ def test_human_approval_requires_and_accepts_configured_bearer_token(tmp_path: P
     assert approved.status_code == 200
     assert approved.json()["approval_id"] == "approval-test-authorized"
     assert approved.json()["fingerprint"] == "b" * 64
+
+
+def test_dev_status_api_reads_fresh_stale_and_missing_snapshot(tmp_path: Path, monkeypatch) -> None:
+    import json
+    from datetime import datetime, timedelta
+
+    status_file = tmp_path / "dev_status.json"
+    monkeypatch.setenv("CKNEXUS_DEV_STATUS_FILE", str(status_file))
+    settings = Settings(
+        database_path=tmp_path / "dev-status-api.db", mock_ai=True,
+        access_token="status-token", rate_limit_per_minute=50,
+        dev_team_enabled=True, dev_team_web_search_enabled=False,
+    )
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/api/dev-status").status_code == 401
+        headers = {"Authorization": "Bearer status-token"}
+        missing = client.get("/api/dev-status", headers=headers)
+        assert missing.status_code == 200 and missing.json()["stale"] is True
+        fresh = {"collected_at": datetime.now(UTC).isoformat(),
+                 "items": {"git": {"value": {"head": "abc123"}, "source": "git",
+                 "collected_at": datetime.now(UTC).isoformat(), "status": "ok"}}}
+        status_file.write_text(json.dumps(fresh), encoding="utf-8")
+        response = client.get("/api/dev-status", headers=headers)
+        assert response.status_code == 200 and response.json()["stale"] is False
+        fresh["collected_at"] = (datetime.now(UTC) - timedelta(seconds=601)).isoformat()
+        status_file.write_text(json.dumps(fresh), encoding="utf-8")
+        stale = client.get("/api/dev-status", headers=headers)
+        assert stale.status_code == 200 and stale.json()["stale"] is True
+
+
+def test_dashboard_has_no_embedded_status_claims() -> None:
+    html = Path("creator_app/web/development.html").read_text(encoding="utf-8")
+    javascript = Path("creator_app/web/development.js").read_text(encoding="utf-8")
+    for content in (html, javascript):
+        for forbidden in ("PR #", "Issue #", "927", "81%", "NO-GO", "const streams"):
+            assert forbidden not in content
+    assert 'fetch("/api/dev-status"' in javascript
+    assert "setInterval(refresh, 30000)" in javascript
+    assert "ข้อมูลเก่า/ตรวจไม่ได้" in javascript

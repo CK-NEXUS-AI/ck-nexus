@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import hmac
+import json
 import os
 import time
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path as FilePath
 from typing import Annotated
 from uuid import uuid4
@@ -1319,6 +1321,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             # Creator history deletion must still succeed; production images install the SDK.
             pass
         return {"status": "deleted", "records": deleted}
+
+    @app.get("/api/dev-status", dependencies=[Depends(require_access_token)])
+    async def development_status_snapshot() -> JSONResponse:
+        """Serve the collector snapshot only; never execute host commands in a request."""
+        status_path = FilePath(os.getenv(
+            "CKNEXUS_DEV_STATUS_FILE",
+            str(FilePath.cwd() / "data" / "dev_status.json"),
+        ))
+        try:
+            payload = json.loads(status_path.read_text(encoding="utf-8"))
+            collected = datetime.fromisoformat(
+                str(payload.get("collected_at", "")).replace("Z", "+00:00")
+            )
+            age_seconds = max(0, int((datetime.now(UTC) - collected).total_seconds()))
+            return JSONResponse(
+                {"available": True, "stale": age_seconds > 600, "age_seconds": age_seconds,
+                 "collected_at": payload.get("collected_at"), "items": payload.get("items", {})},
+                headers={"Cache-Control": "no-store"},
+            )
+        except FileNotFoundError:
+            return JSONResponse(
+                {"available": False, "stale": True, "age_seconds": None, "items": {}},
+                headers={"Cache-Control": "no-store"},
+            )
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            return JSONResponse(
+                {"available": False, "stale": True, "age_seconds": None, "items": {},
+                 "error": "STATUS_SNAPSHOT_UNAVAILABLE"},
+                headers={"Cache-Control": "no-store"},
+            )
 
     @app.get("/development", include_in_schema=False)
     async def development_dashboard() -> FileResponse:

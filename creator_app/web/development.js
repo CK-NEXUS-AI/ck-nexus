@@ -1,13 +1,71 @@
-const streams = [
- {name:'Creator Edition · UI / API',status:'Implemented; Live Mode unverified',evidence:'Responsive Thai UI, 4 Creator Agents, Demo Mode, provider routing, SQLite history and status APIs exist. No authenticated live inference evidence yet.'},
- {name:'Control Plane / autonomous execution',status:'Implemented in bounded development scope',evidence:'Task Store, Worker, verification and safe-canary path exist. General autonomous execution and production authority remain fail-closed.'},
- {name:'MCP Service / deployment',status:'Active · loopback-only',evidence:'Read-only VPS check confirms cknexus-mcp.service active and listener 127.0.0.1:8765. Repository/deployed-source parity has not been certified.'},
- {name:'SQLite replay protection',status:'Merged · PR #332',evidence:'Squash merge commit 43cb6f09b213b00700b165562da51c3ee508641a; required CI, preflight, attack regression, CodeQL and reviewer checks passed.'},
- {name:'Dependency audit · PR #331 / Issue #317',status:'Merged · Issue closed',evidence:'Squash merge commit 1355e5250d08d2041bc80cd0e5867b4b8848b9e4; test and verify-image passed after rebase. VPS pip-audit found no known vulnerabilities; local package ck-nexus-creator is not on PyPI and was not audited.'},
- {name:'AGNES Phase 2 / Phase 3',status:'Merged · PR #334',evidence:'Squash merge commit 0fb3a14b052c903d75e971d0fa463b6e83834e44. Clean main after merge: full suite 927 passed, 2 skipped, 25 warnings; targeted Phase 2/3 21 passed. No tests were skipped to hide the original failures.'},
- {name:'Runtime operations / disk',status:'Services active; disk watch required',evidence:'Gateway, scanner, MCP and watchdog timer active on VPS. Root filesystem 81% used, 7.6 GB free after apt/uv/pycache cleanup; recovery drill is not verified.'},
- {name:'Model Studio / Qwen inference',status:'Authenticated inference PASS',evidence:'VPS request using DASHSCOPE_API_KEY from the service environment returned HTTP 200, a non-empty model response and usage metadata in 4.38 seconds. Secret value was not printed. This proves inference only, not production readiness.'},
- {name:'Security / Q10–Q16 / Production',status:'NOT VERIFIED · NO-GO',evidence:'Requires gate-specific evidence, independent human review, deployment/end-to-end and rollback verification, plus Owner sign-off.'}
-];
-const container = document.getElementById('workstreams');
-container.innerHTML = streams.map(s=>`<article class="stream"><div class="stream-head"><strong>${s.name}</strong><span class="tool-status pending">${s.status}</span></div><p>${s.evidence}</p></article>`).join('');
+(() => {
+  "use strict";
+  const root = document.getElementById("live-status");
+  const banner = document.getElementById("freshness-banner");
+  const refreshed = document.getElementById("refreshed-at");
+  if (!root || !banner) return;
+  const labels = {
+    git: "Git repository", open_prs: "Open pull requests", open_issues: "Open issues",
+    main_ci: "Latest main CI", services: "System services", mcp: "MCP listener",
+    disk: "Disk usage", production_status: "Production status (RELEASE_STATUS.md only)",
+    qwen_probe: "Model Studio / Qwen daily probe"
+  };
+  function safe(value) {
+    if (value === null || value === undefined) return "ตรวจไม่ได้";
+    if (typeof value === "string") return value;
+    return JSON.stringify(value, null, 2);
+  }
+  function render(payload) {
+    if (!payload || payload.stale || !payload.available) {
+      banner.hidden = false;
+      banner.textContent = "ข้อมูลเก่า/ตรวจไม่ได้ — ซ่อนค่าก่อนหน้าเพื่อป้องกันการแสดงสถานะค้าง";
+      root.replaceChildren();
+      refreshed.textContent = "ไม่มีข้อมูลสด";
+      return;
+    }
+    banner.hidden = true;
+    const minutes = Math.floor((payload.age_seconds || 0) / 60);
+    const sha = payload.items?.git?.status === "ok" ? payload.items.git.value.head : "ตรวจไม่ได้";
+    refreshed.textContent = "อัปเดตเมื่อ " + minutes + " นาทีที่แล้ว · commit " + sha;
+    root.replaceChildren();
+    for (const [key, label] of Object.entries(labels)) {
+      const entry = payload.items?.[key];
+      const card = document.createElement("article");
+      card.className = "stream";
+      const title = document.createElement("strong");
+      title.textContent = label;
+      const status = document.createElement("span");
+      status.className = entry?.status === "ok" ? "tool-status good" : "tool-status pending";
+      status.textContent = entry?.status === "ok" ? "OK" : "ตรวจไม่ได้";
+      const value = document.createElement("pre");
+      value.textContent = entry?.status === "ok" ? safe(entry.value) : "ตรวจไม่ได้";
+      const details = document.createElement("details");
+      const summary = document.createElement("summary");
+      summary.textContent = "แหล่งข้อมูลและเวลาเก็บ";
+      const metadata = document.createElement("pre");
+      metadata.textContent = "source: " + (entry?.source || "unknown") +
+        "\ncollected_at: " + (entry?.collected_at || "unknown") +
+        "\nstatus: " + (entry?.status || "error");
+      details.append(summary, metadata);
+      card.append(title, status, value, details);
+      root.append(card);
+    }
+  }
+  async function refresh() {
+    try {
+      const response = await fetch("/api/dev-status", {cache: "no-store",
+        headers: {"Accept": "application/json"}});
+      if (response.status === 401) {
+        render({available: false, stale: true});
+        banner.textContent = "ต้องยืนยันตัวตนเพื่อดูข้อมูลสด";
+        return;
+      }
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      render(await response.json());
+    } catch (_) {
+      render({available: false, stale: true});
+    }
+  }
+  refresh();
+  window.setInterval(refresh, 30000);
+})();
