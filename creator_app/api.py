@@ -1197,7 +1197,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail={
                     "error": "APPROVAL_AUTH_NOT_CONFIGURED",
-                    "message": "Human approval is disabled until CK-NEXUS access-token authentication is configured.",
+                    "message": (
+                        "Human approval is disabled until CK-NEXUS access-token authentication "
+                        "is configured."
+                    ),
                 },
             )
         grant = agnes.approvals.grant(

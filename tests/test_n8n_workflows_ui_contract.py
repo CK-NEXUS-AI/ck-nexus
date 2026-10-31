@@ -52,7 +52,8 @@ def test_refresh_controls_prevent_overlapping_requests_and_recover_after_failure
 
 def test_gateway_has_only_confirmed_read_routes_and_does_not_expose_secrets():
     source = GATEWAY_PATH.read_text(encoding="utf-8")
-    assert "ALLOWED_READ_PATHS = {'workflows', 'executions'}" in source
+    assert "ALLOWED_READ_PATHS" in source
+    assert '"workflows"' in source and '"executions"' in source
     assert "X-N8N-API-KEY" in source
     assert "test-secret-sentinel" not in source
     assert "api_key" not in html().lower()

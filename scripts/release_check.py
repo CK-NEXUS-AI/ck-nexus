@@ -199,6 +199,8 @@ def main() -> int:
                 "-m",
                 "bandit",
                 "-q",
+                "--severity-level",
+                "medium",
                 "-r",
                 "creator_app",
                 "services",

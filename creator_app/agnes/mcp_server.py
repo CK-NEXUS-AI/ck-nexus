@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -966,8 +967,12 @@ def cknexus_browser_read_page() -> dict[str, Any]:
 
 @mcp.tool()
 def cknexus_browser_screenshot() -> dict[str, Any]:
-    """Capture the current browser page to a fixed temporary path; read-only."""
-    return _run_browser_tool("screenshot", "/tmp/cknexus-browser-mcp.png")
+    """Capture the current browser page to a process-scoped temporary path; read-only."""
+    path = os.getenv(
+        "CKNEXUS_BROWSER_SCREENSHOT_PATH",
+        str(Path(tempfile.gettempdir()) / f"cknexus-browser-mcp-{os.getpid()}.png"),
+    )
+    return _run_browser_tool("screenshot", path)
 
 
 def run_server() -> None:

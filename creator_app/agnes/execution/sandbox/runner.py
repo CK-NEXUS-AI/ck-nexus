@@ -27,8 +27,10 @@ _SETUP_SCRIPT = r"""
 set -euo pipefail
 ROOT="$1"
 WORK="$2"
-LAUNCHER="$3"
-shift 3
+NPROC="$3"
+LAUNCHER="$4"
+shift 4
+ulimit -u "$NPROC"
 mount --make-rprivate /
 for d in usr bin lib lib64 opt; do
   if [ -e "/$d" ]; then
@@ -146,9 +148,6 @@ class LinuxNamespaceRunner:
         )
         resource.setrlimit(resource.RLIMIT_AS, (self.policy.memory_bytes, self.policy.memory_bytes))
         resource.setrlimit(
-            resource.RLIMIT_NPROC, (self.policy.max_processes, self.policy.max_processes)
-        )
-        resource.setrlimit(
             resource.RLIMIT_FSIZE, (self.policy.max_file_bytes, self.policy.max_file_bytes)
         )
         resource.setrlimit(
@@ -181,6 +180,7 @@ class LinuxNamespaceRunner:
             "_",
             str(rootfs),
             str(workspace.resolve()),
+            str(self.policy.max_processes),
             self._launcher_path(),
             *resolved,
         ]
