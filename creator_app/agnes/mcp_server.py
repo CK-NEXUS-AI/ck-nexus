@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -966,8 +967,27 @@ def cknexus_browser_read_page() -> dict[str, Any]:
 
 @mcp.tool()
 def cknexus_browser_screenshot() -> dict[str, Any]:
-    """Capture the current browser page to a fixed temporary path; read-only."""
-    return _run_browser_tool("screenshot", "/tmp/cknexus-browser-mcp.png")
+    """Capture the current browser page using an exclusively created temp file."""
+    screenshot_path = Path(tempfile.gettempdir()) / "cknexus-browser-mcp.png"
+    try:
+        descriptor = os.open(
+            screenshot_path,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+    except OSError:
+        return {
+            "ok": False,
+            "error_code": "SCREENSHOT_PATH_UNAVAILABLE",
+            "message": "A secure temporary screenshot path could not be reserved.",
+            "execution_state": "NOT_EXECUTED",
+            "secret_values_exposed": False,
+        }
+    os.close(descriptor)
+    try:
+        return _run_browser_tool("screenshot", str(screenshot_path))
+    finally:
+        screenshot_path.unlink(missing_ok=True)
 
 
 def run_server() -> None:

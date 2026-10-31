@@ -12,8 +12,8 @@ FastAPI (`creator_app/api.py`)
   │     ├── Creator Agent Catalog
   │     ├── Demo Runtime, or
   │     └── OpenAI Agents SDK → OpenAI API
-  ├── Optional Codex Bridge
-  │     └── Codex CLI → fixed trusted workspace
+  ├── Development Council (advisory only)
+  └── OpenCode Auto Developer → isolated Git worktree + verification
   └── SQLite
         ├── creator_runs (product history)
         └── agent_sessions / agent_messages (SDK memory)
@@ -26,8 +26,7 @@ FastAPI (`creator_app/api.py`)
 - **One database file:** product history and Agents SDK sessions use separate tables in the same file.
 - **Provider isolation:** the web UI never receives `OPENAI_API_KEY`; only the server-side runtime reads it from environment configuration.
 - **Safe display:** model output is rendered as text, not injected as HTML.
-- **Explicit engineering boundary:** Codex is disabled by default, requires the server bearer token,
-  and uses `read-only` unless the operator deliberately enables `workspace-write`.
+- **Explicit engineering boundary:** OpenCode runs in an isolated Git worktree; normal permission checks remain enabled, and deterministic verification is required before changes can be proposed.
 - **No automatic publication:** v0.2.0 has no tool that publishes content to an external service.
 
 ## Deployment boundary

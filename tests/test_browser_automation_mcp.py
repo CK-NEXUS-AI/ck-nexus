@@ -1,16 +1,28 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import creator_app.agnes.mcp_server as mcp_server
 
 
 def test_browser_open_rejects_non_https_and_unapproved_hosts():
-    assert mcp_server.cknexus_browser_open("http://github.com")["error_code"] == "BROWSER_URL_DENIED"
-    assert mcp_server.cknexus_browser_open("https://example.org")["error_code"] == "BROWSER_URL_DENIED"
+    assert (
+        mcp_server.cknexus_browser_open("http://github.com")["error_code"] == "BROWSER_URL_DENIED"
+    )
+    assert (
+        mcp_server.cknexus_browser_open("https://example.org")["error_code"] == "BROWSER_URL_DENIED"
+    )
 
 
 def test_browser_open_rejects_localhost_and_url_credentials():
-    assert mcp_server.cknexus_browser_open("https://127.0.0.1:9222/json")["error_code"] == "BROWSER_URL_DENIED"
-    assert mcp_server.cknexus_browser_open("https://user:pass@github.com")["error_code"] == "BROWSER_URL_DENIED"
+    assert (
+        mcp_server.cknexus_browser_open("https://127.0.0.1:9222/json")["error_code"]
+        == "BROWSER_URL_DENIED"
+    )
+    assert (
+        mcp_server.cknexus_browser_open("https://user:pass@github.com")["error_code"]
+        == "BROWSER_URL_DENIED"
+    )
 
 
 def test_browser_tools_are_read_only_and_report_safe_metadata(monkeypatch):
@@ -20,6 +32,7 @@ def test_browser_tools_are_read_only_and_report_safe_metadata(monkeypatch):
         stderr = ""
 
     calls = []
+
     def fake_run(args, **kwargs):
         calls.append(args)
         return Result()
@@ -30,6 +43,7 @@ def test_browser_tools_are_read_only_and_report_safe_metadata(monkeypatch):
     assert calls[0][-1] == "status"
     assert not any(x in calls[0] for x in ("click", "type", "submit", "delete"))
 
+
 def test_browser_open_dispatches_only_approved_https_navigation(monkeypatch):
     class Result:
         returncode = 0
@@ -37,6 +51,7 @@ def test_browser_open_dispatches_only_approved_https_navigation(monkeypatch):
         stderr = ""
 
     calls = []
+
     def fake_run(args, **kwargs):
         calls.append(args)
         return Result()
@@ -47,3 +62,39 @@ def test_browser_open_dispatches_only_approved_https_navigation(monkeypatch):
     assert result["external_mutation_authorized"] is False
     assert calls[0][0:3] == ["sudo", "-n", "/usr/local/sbin/cknexus-browser-mcp"]
     assert calls[0][-2:] == ["open", "https://github.com/CK-NEXUS-AI/ck-nexus"]
+
+
+def test_screenshot_reserves_and_removes_private_temp_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(mcp_server.tempfile, "gettempdir", lambda: str(tmp_path))
+    observed = {}
+
+    def screenshot(action, argument=None):
+        observed["action"] = action
+        observed["path"] = argument
+        assert Path(argument).is_file()
+        assert Path(argument).stat().st_mode & 0o777 == 0o600
+        return {"ok": True, "result": "captured"}
+
+    monkeypatch.setattr(mcp_server, "_run_browser_tool", screenshot)
+    result = mcp_server.cknexus_browser_screenshot()
+
+    assert result["ok"] is True
+    assert observed["action"] == "screenshot"
+    assert not Path(observed["path"]).exists()
+
+
+def test_screenshot_fails_closed_if_temp_path_already_exists(tmp_path, monkeypatch):
+    monkeypatch.setattr(mcp_server.tempfile, "gettempdir", lambda: str(tmp_path))
+    existing = tmp_path / "cknexus-browser-mcp.png"
+    existing.write_text("do not overwrite", encoding="utf-8")
+    monkeypatch.setattr(
+        mcp_server,
+        "_run_browser_tool",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not execute")),
+    )
+
+    result = mcp_server.cknexus_browser_screenshot()
+
+    assert result["ok"] is False
+    assert result["error_code"] == "SCREENSHOT_PATH_UNAVAILABLE"
+    assert existing.read_text(encoding="utf-8") == "do not overwrite"

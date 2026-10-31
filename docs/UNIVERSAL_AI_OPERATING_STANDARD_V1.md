@@ -8,7 +8,7 @@ Canonical law: NO EVIDENCE → NO DONE
 > Mainline integration baseline: post-security-remediation.
 
 ## 1. Purpose
-One operating standard for GPT, Codex, Claude, OpenClaw, n8n, agents, runtimes, tools, and future systems. The required outcome and evidence quality stay fixed while multiple valid execution paths are allowed.
+One operating standard for GPT, OpenCode, Claude, OpenClaw, n8n, agents, runtimes, tools, and future systems. The required outcome and evidence quality stay fixed while multiple valid execution paths are allowed.
 
 ## 2. Core invariants
 - DESIGNED ≠ IMPLEMENTED ≠ EXECUTED ≠ VERIFIED ≠ PRODUCTION.

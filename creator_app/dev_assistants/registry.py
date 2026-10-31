@@ -61,25 +61,6 @@ ASSISTANTS: tuple[AssistantSpec, ...] = (
         notes="Use OAuth/login flow; never copy account tokens into CK-NEXUS source.",
     ),
     AssistantSpec(
-        assistant_id="codex",
-        name="OpenAI Codex CLI",
-        upstream="https://github.com/openai/codex",
-        license="Apache-2.0",
-        status=AssistantStatus.ACTIVE,
-        commands=("codex",),
-        capabilities=frozenset(
-            {"code_edit", "repo_analysis", "shell", "git", "test_fix", "mcp", "subagents"}
-        ),
-        free_entry_path=(
-            "Open-source CLI; model/provider access may require an eligible account or API billing."
-        ),
-        inference_may_cost=True,
-        notes=(
-            "Use as a scoped coding worker through CK-NEXUS policy; "
-            "never grant production authority directly."
-        ),
-    ),
-    AssistantSpec(
         assistant_id="claude_code",
         name="Claude Code",
         upstream="https://code.claude.com/docs/en/overview",

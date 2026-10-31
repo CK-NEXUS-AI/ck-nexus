@@ -71,7 +71,7 @@
 ---
 
 
-> สถานะรุ่นนี้: **Creator Edition v0.2.0 candidate** — ใช้งานและทดสอบได้ครบใน Demo Mode, รองรับ Codex Bridge แบบ local และยังต้องมี `OPENAI_API_KEY` ที่ใช้งานได้ก่อนจึงจะยืนยัน Creator Live Mode ได้
+> สถานะรุ่นนี้: **Creator Edition v0.2.0 candidate** — ใช้งานและทดสอบได้ครบใน Demo Mode, รองรับ Demo Mode และ provider routing; Live Mode ต้องผ่านการทดสอบ API จริงก่อนยืนยัน
 
 ## สิ่งที่มีในรุ่น MVP
 
@@ -93,7 +93,7 @@
 - Request-size limit, rate limit, validation และ security headers
 - Health/status endpoints, Dockerfile, automated tests และ release check
 - Commercial license template และ seller checklist
-- Optional Codex Bridge สำหรับงานวิศวกรรมซอฟต์แวร์ใน trusted local workspace
+- OpenCode-based Auto Developer พร้อม isolated Git worktree และการตรวจสอบผลหลังทำงาน
 - โมดูล Billing เดิมถูกเก็บไว้เป็น optional extra และไม่อยู่ใน critical path ของรุ่นขายซอร์ส
 
 ## เริ่มใช้งานเร็วที่สุด
@@ -167,8 +167,6 @@ python scripts/package_release.py
 - `GET /api/runs/{run_id}` — ผลงานรายรายการ
 - `DELETE /api/sessions/{session_id}` — ลบประวัติและ memory ของ session
 - `GET /docs` — OpenAPI UI
-- `GET /api/codex/status` — สถานะ Codex Bridge แบบไม่เปิดเผย credential
-- `POST /api/codex/tasks` — ส่งงานวิศวกรรมซอฟต์แวร์ให้ Codex (ปิดเป็นค่าเริ่มต้นและบังคับ bearer token)
 - `GET /api/integrations/status` — สรุป GitHub / Slack / Google Drive / OpenAI / Database โดยไม่เปิดเผย secret
 - `POST /api/integrations/test-all` — ทดสอบ integration ที่ตั้งค่าไว้จากฝั่ง server
 
@@ -200,10 +198,6 @@ services/billing/   โมดูล SaaS เดิม (optional, ไม่เป
 รายละเอียด Integration Hub อยู่ใน [Integration Hub](docs/INTEGRATION_HUB.md), ทีมผู้ช่วยพัฒนาอยู่ใน [Development Council](docs/DEVELOPMENT_COUNCIL.md) และสถานะปัจจุบันอยู่ใน [Release Status](RELEASE_STATUS.md)
 
 รายละเอียด UI อยู่ใน [UX Design System](docs/UX_DESIGN_SYSTEM.md), ผลตรวจอยู่ใน [Security Audit](docs/SECURITY_AUDIT.md) และ [Test Report](docs/TEST_REPORT.md)
-
-อ่านวิธีติดตั้งและขอบเขตความปลอดภัยของ Codex ที่ [Codex Integration](docs/CODEX_INTEGRATION.md)
-
-ติดตั้ง Codex CLI แบบ project-local ได้ด้วย `python scripts/install_codex.py`
 
 ## เอกสารอ้างอิงทางเทคนิค
 

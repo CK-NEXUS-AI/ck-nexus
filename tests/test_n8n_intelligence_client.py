@@ -10,6 +10,17 @@ def test_client_rejects_non_http_base_url(tmp_path: Path):
         N8NReadClient("file:///tmp", tmp_path / "key")
 
 
+def test_client_rejects_untrusted_http_and_embedded_credentials(tmp_path: Path):
+    for url in (
+        "http://example.com",
+        "http://user:secret@127.0.0.1:5678",
+        "https://example.com?token=secret",
+        "https://example.com#fragment",
+    ):
+        with pytest.raises(ValueError):
+            N8NReadClient(url, tmp_path / "key")
+
+
 def test_client_requires_key_file(tmp_path: Path):
     client = N8NReadClient("http://127.0.0.1:5678", tmp_path / "missing")
     with pytest.raises(N8NReadError):

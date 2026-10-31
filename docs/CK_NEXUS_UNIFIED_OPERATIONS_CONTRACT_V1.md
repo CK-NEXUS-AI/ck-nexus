@@ -18,7 +18,7 @@ The existing Unified Control Surface defines eight top-level units:
 
 1. `core` — AI & Creator Core
 2. `skills` — AGNES Skills & Automation
-3. `development` — Development Council & Codex
+3. `development` — Development Council & OpenCode
 4. `integrations` — Integration & Connector Network
 5. `communication` — Email & Communication
 6. `data` — Data, Memory & Knowledge

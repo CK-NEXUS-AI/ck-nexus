@@ -81,5 +81,5 @@ jobs:
         if: always()
         run: |
           echo 'Development security regression only.'
-          echo 'This workflow is not Native Codex Security Q10 evidence.'
+          echo 'This workflow is one component of the Q10 open-source layered security gate.'
           echo 'It cannot promote Q10/Q11/Q12 or authorize PR #14 merge.'
