@@ -37,7 +37,30 @@ _ALLOWED_DOCUMENT_SUFFIXES = frozenset(
 )
 
 
-def evaluate_attachment(filename: str, *, size_bytes: int) -> AttachmentDecision:
+_ZIP_MAGIC = (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")
+_OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+_EXEC_MAGIC = (b"MZ", b"\x7fELF", b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe",
+               b"\xca\xfe\xba\xbe", b"#!")
+_TEXT_SUFFIXES = frozenset({".csv", ".json", ".md", ".txt"})
+
+
+def _content_matches_suffix(suffix: str, head: bytes) -> bool:
+    if head.startswith(_EXEC_MAGIC):
+        return False
+    if suffix == ".pdf":
+        return head.lstrip(b"\xef\xbb\xbf\r\n\t ")[:5] == b"%PDF-"
+    if suffix in {".docx", ".pptx", ".xlsx"}:
+        return head.startswith(_ZIP_MAGIC)
+    if suffix in _TEXT_SUFFIXES:
+        return not (
+            head.startswith(_ZIP_MAGIC) or head.startswith(_OLE_MAGIC) or b"\x00" in head
+        )
+    return False
+
+
+def evaluate_attachment(
+    filename: str, *, size_bytes: int, head: bytes | None = None
+) -> AttachmentDecision:
     if not filename or "\x00" in filename or "/" in filename or "\\" in filename:
         return AttachmentDecision(filename, False, "unsafe_filename")
     name = PurePosixPath(filename).name
@@ -50,4 +73,6 @@ def evaluate_attachment(filename: str, *, size_bytes: int) -> AttachmentDecision
         return AttachmentDecision(filename, False, "executable_or_script_blocked")
     if suffix not in _ALLOWED_DOCUMENT_SUFFIXES:
         return AttachmentDecision(filename, False, "unsupported_type")
+    if head is not None and not _content_matches_suffix(suffix, bytes(head[:16])):
+        return AttachmentDecision(filename, False, "content_signature_mismatch")
     return AttachmentDecision(filename, True, "quarantine_then_parser_sandbox")
