@@ -41,6 +41,10 @@ jobs:
           ok={
             ('B608','services/email_gateway/repository.py',221,'a248369faca360edbca232b1700ef67d87d9eeae8401bb1b379122f3274a4a6a'),
             ('B608','services/email_gateway/repository.py',230,'2948e929a8c5a30e600e2d06c3cea59da396aa196adfd234183556d877df3de0'),
+            # Reviewed: OMNI endpoint is restricted to HTTPS or loopback HTTP.
+            ('B310','creator_app/council_authority/omni_transport.py',377,'2bd4df0f975155f5425af07c6139110ee382f27a4f8a72be946cca816995b555'),
+            # Reviewed operator-configured n8n endpoint; URL validation must remain restrictive.
+            ('B310','creator_app/n8n_intelligence/client.py',68,'bc8b94ce2bff1d52403fad4b4a2f9b5eb4ad7ae359d157850576b8ea36ba67ff'),
           }
           bad=[]
           for x in r.get('results',[]):

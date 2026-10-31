@@ -57,6 +57,6 @@ This is a routing policy, not permission to invoke every available tool indiscri
 - Desktop Commander devices localhost (Termux) and vps3680569.trouble-free.net were both listed online during discovery; mobile connectivity may fluctuate.
 - CK-NEXUS MCP, API Gateway, Scanner, and Watchdog timer were active on the VPS; MCP remained bound to 127.0.0.1:8765.
 - Root filesystem was 91% used (about 3.9 GiB free). Avoid installing large frameworks until disk cleanup is reviewed safely.
-- Codex CLI, OpenCode, Gemini CLI, and Claude CLI were present on the VPS. Their presence does not prove credentials, provider access, or successful execution.
+- OpenCode, Gemini CLI, and Claude CLI were present on the VPS. Their presence does not prove provider access or successful execution.
 - No online CodeAgent sessions were found. Managed agents are available but use the CodeAgent wallet; do not launch them automatically.
 - OpenClaw CLI exists on Termux and returned a version, but a bounded gateway-status probe remained running and native MCP tool-list invocation returned HTTP 400 in the first probe. OpenClaw is not yet verified as a functioning autonomous gateway; inspect session/protocol handling and startup logs before retrying.

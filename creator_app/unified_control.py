@@ -55,15 +55,14 @@ CONTROL_GROUPS: tuple[dict[str, Any], ...] = (
     },
     {
         "id": "development",
-        "title": "Development Council & Codex",
+        "title": "Development Council & OpenCode",
         "summary": (
             "Multi-role development council, advisory orchestration and gated "
-            "Codex execution."
+            "OpenCode execution."
         ),
-        "prefixes": ("/api/dev-team", "/api/codex"),
+        "prefixes": ("/api/dev-team",),
         "modules": (
             "creator_app/dev_team.py",
-            "creator_app/codex_bridge.py",
             "orchestration/",
         ),
         "deep_link": "/demo",
@@ -540,8 +539,6 @@ def install_unified_control(app: FastAPI) -> FastAPI:
             "development": {
                 "council_enabled": bool(settings.dev_team_enabled),
                 "council_ready": bool(app.state.dev_team.ready),
-                "codex_enabled": bool(settings.codex_enabled),
-                "codex_ready": bool(app.state.codex_bridge.ready),
             },
             "integrations": {
                 "github": github,

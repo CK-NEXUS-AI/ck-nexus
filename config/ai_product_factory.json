@@ -61,12 +61,6 @@
       "model_agnostic": true,
       "requires_external_secret": false
     },
-    "codex": {
-      "enabled": false,
-      "command": "codex",
-      "model_agnostic": true,
-      "requires_external_secret": true
-    },
     "claude": {
       "enabled": false,
       "command": "claude",

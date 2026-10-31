@@ -43,7 +43,6 @@
   ],
   "providers": [
     {"id": "github-agentic", "kind": "agentic-workflow", "enabled": false},
-    {"id": "codex", "kind": "coding-agent", "enabled": false},
     {"id": "claude", "kind": "coding-agent", "enabled": false},
     {"id": "gemini", "kind": "coding-agent", "enabled": false},
     {"id": "goose", "kind": "open-source-router", "enabled": false},

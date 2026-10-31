@@ -25,11 +25,6 @@ from fastapi.staticfiles import StaticFiles
 
 from creator_app.agnes_runtime import AgnesNervousSystem, AgnesPolicy
 from creator_app.catalog import get_agent_spec, list_agent_cards
-from creator_app.codex_bridge import (
-    CodexBridge,
-    CodexBridgeRuntimeError,
-    CodexBridgeUnavailableError,
-)
 from creator_app.config import Settings
 from creator_app.connector_fabric import (
     ConnectorConfig,
@@ -66,8 +61,6 @@ from creator_app.schemas import (
     AgnesExecuteRequest,
     AgnesPipelineDiscardRequest,
     AgnesPipelineStartRequest,
-    CodexTaskRequest,
-    CodexTaskResult,
     ConnectorActivateRequest,
     ConnectorRegisterRequest,
     DevTeamRequest,
@@ -152,7 +145,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         provider_router=provider_router,
         credential_broker=credential_broker,
     )
-    codex_bridge = CodexBridge(resolved_settings)
     service = CreatorService(resolved_settings, runtime, store)
     dev_team = DevTeamRuntime(
         resolved_settings,
@@ -247,7 +239,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.github_integration = github_integration
     app.state.slack_integration = slack_integration
     app.state.drive_integration = drive_integration
-    app.state.codex_bridge = codex_bridge
     app.state.email_repository = email_repository
     app.state.metrics_registry = metrics_registry
     app.state.runtime_binding_required = runtime_binding_required
@@ -281,24 +272,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 },
             )
         return connector_fabric
-
-    async def require_codex_access_token(
-        authorization: str | None = Header(default=None),
-    ) -> None:
-        if not resolved_settings.codex_enabled:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail={"error": "CODEX_DISABLED", "message": "Codex Bridge is disabled."},
-            )
-        if not resolved_settings.access_token:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail={
-                    "error": "CODEX_ACCESS_TOKEN_REQUIRED",
-                    "message": "Set CKNEXUS_ACCESS_TOKEN before enabling Codex Bridge.",
-                },
-            )
-        await require_access_token(authorization)
 
     @app.middleware("http")
     async def request_observability(request: Request, call_next):
@@ -389,20 +362,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={"error": "GITHUB_APP_AUTH_ERROR", "message": str(exc)},
-        )
-
-    @app.exception_handler(CodexBridgeUnavailableError)
-    async def codex_unavailable_handler(_: Request, exc: CodexBridgeUnavailableError):
-        return JSONResponse(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            content={"error": "CODEX_UNAVAILABLE", "message": str(exc)},
-        )
-
-    @app.exception_handler(CodexBridgeRuntimeError)
-    async def codex_runtime_handler(_: Request, exc: CodexBridgeRuntimeError):
-        return JSONResponse(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            content={"error": "CODEX_RUNTIME_ERROR", "message": str(exc)},
         )
 
     async def require_email_webhook_token(
@@ -752,9 +711,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             key_configured=openai_key_configured,
             database_ready=store.ping(),
             access_required=bool(resolved_settings.access_token),
-            codex_enabled=resolved_settings.codex_enabled,
-            codex_ready=codex_bridge.ready,
-            codex_sandbox=resolved_settings.codex_sandbox,
             dev_team_enabled=resolved_settings.dev_team_enabled,
             dev_team_ready=dev_team.ready,
         )
@@ -1027,29 +983,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def github_app_token(_: None = Depends(require_access_token)) -> dict[str, object]:
         return github_app_auth.ensure_installation_token()
 
-    @app.get("/api/codex/status")
-    async def codex_status(_: None = Depends(require_access_token)) -> dict[str, bool | str]:
-        return {
-            "enabled": resolved_settings.codex_enabled,
-            "ready": codex_bridge.ready,
-            "binary_available": codex_bridge.binary_available,
-            "workspace_ready": codex_bridge.workspace_ready,
-            "sandbox": resolved_settings.codex_sandbox,
-        }
-
-    @app.post("/api/codex/tasks", response_model=CodexTaskResult)
-    async def create_codex_task(
-        payload: CodexTaskRequest,
-        _: None = Depends(require_codex_access_token),
-        __: None = Depends(enforce_run_rate_limit),
-    ) -> CodexTaskResult:
-        result = await codex_bridge.run(payload.prompt)
-        return CodexTaskResult(
-            output=result.output,
-            sandbox=resolved_settings.codex_sandbox,
-            duration_ms=result.duration_ms,
-        )
-
     @app.get("/api/agnes/status")
     async def agnes_status(_: None = Depends(require_access_token)) -> dict[str, object]:
         if not resolved_settings.agnes_enabled:
@@ -1198,8 +1131,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail={
                     "error": "APPROVAL_AUTH_NOT_CONFIGURED",
                     "message": (
-                        "Human approval is disabled until CK-NEXUS access-token authentication "
-                        "is configured."
+                        "Human approval is disabled until CK-NEXUS access-token "
+                        "authentication is configured."
                     ),
                 },
             )

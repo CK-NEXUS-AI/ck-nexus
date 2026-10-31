@@ -35,7 +35,7 @@ Unified Control and production hardening are converged on the closure branch but
 | Q08 PostgreSQL/Redis live idempotency | PASS | rotated-subject live evidence on closure line |
 | Q09 governance binding | PASS_CANDIDATE | governance binding on rotated subject |
 | Q10 dependency component | **PASS** | run `31950497105`; artifact `9264500568`; `pip-audit` 0 vulnerabilities |
-| Q10 whole security gate | **NOT_VERIFIED / BLOCKER** | native repository-wide Codex Security Deep Security Scan still required |
+| Q10 whole security gate | **NOT_VERIFIED / BLOCKER** | open-source layered security scan and independent evidence review still required |
 | Q11 live provider P0-AI-001 | **BLOCKED** | run `31950795711`; artifact `9264576887`; `OPENAI_API_KEY` not configured; no credential exposed |
 | Q12 delegated cgroup v2 | **BLOCKED** | run `31950904091`; artifact `9264605328`; required self-hosted non-root delegated cgroup v2 enforcement has not executed |
 | Q13 PostgreSQL DR | **PASS_CANDIDATE** | run `31950497105`; artifact `9264501762`; backup/restore + sentinel round-trip PASS |
@@ -55,16 +55,16 @@ Required scan identity:
 - target tree: `0525195934f703a8becf8a39f6397b2411e0bb2e`
 - release subject: `89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52`
 - scope: `.`
-- mode: `deep`
-- executor: **Codex Security Deep Security Scan**
+- mode: `layered`
+- executor: **CK-NEXUS Open-Source Layered Security Gate**
 - request state: **PREPARED_NOT_EXECUTED**
 - production status: **NO-GO**
 
-Q10 must not be promoted from dependency audit, Bandit, secret scan, manual review, ordinary CI, or historical scans. PASS requires native Codex Security provenance including scan ID, report SHA-256, completion timestamp, required validation/attack-path phases, and release-policy disposition of reportable findings.
+Q10 must not be promoted from any single scanner or ordinary CI alone. The replacement gate combines frozen dependency audit, Bandit, secret scanning, and black-box security regression. PASS requires a successful run ID, aggregate report SHA-256, completion timestamp, review/disposition of recorded findings, and exact release-subject provenance.
 
 ## External blockers required before Production Ready
 
-1. Run the native repository-wide **Codex Security Deep Security Scan** against exact SHA `39f5c1adb9d761ab418cf088ff1f051b1ca731d1` / tree `0525195934f703a8becf8a39f6397b2411e0bb2e`, preserve scope `.`, collect canonical evidence, and resolve/disposition all reportable findings. If remediation changes the frozen runtime subject, rebaseline and rescan rather than reuse stale evidence.
+1. Run the **open-source layered Q10 security gate** against the exact candidate commit; preserve full reports, review all medium/high findings, bind the aggregate report digest to the release subject, and regenerate all subject-bound evidence after any remediation.
 2. Securely configure a seller/owner-authorized staging `OPENAI_API_KEY` through GitHub Actions secret or an equivalent secure runner secret and rerun the exact-subject Q11 verifier. Never place the raw credential in source, issue text, logs, or chat evidence.
 3. Run `scripts/agnes_cgroup_v2_staging_gate.py` through the required self-hosted Linux runner labeled `cknexus-q12` with a writable non-root delegated cgroup v2 boundary for `cpu`, `memory`, and `pids`.
 

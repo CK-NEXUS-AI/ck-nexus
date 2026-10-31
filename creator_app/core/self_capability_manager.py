@@ -63,7 +63,7 @@ CORE_CAPABILITIES: dict[str, dict[str, Any]] = {
     },
     "security_system": {
         "description": "ตรวจสอบและปกป้องระบบ",
-        "tools": ["Codex Security", "Best Practices Scanner"],
+        "tools": ["Bandit", "pip-audit", "Secret Scanner", "CodeQL"],
         "level": "Full",
     },
     "mobile_integration": {

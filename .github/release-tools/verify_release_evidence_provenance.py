@@ -136,19 +136,20 @@ def verify(
             checks["successful_run_for_pass_evidence"] = True
 
         if gate == "Q10" and evidence.get("gate_result") == "PASS":
-            deep_scan_fields = (
-                "codex_security_scan_id",
-                "codex_security_report_sha256",
-                "codex_security_completed_at",
+            scan_fields = (
+                "security_scan_run_id",
+                "security_report_sha256",
+                "security_scan_completed_at",
             )
-            missing = [field for field in deep_scan_fields if not evidence.get(field)]
-            if evidence.get("codex_security_deep_scan") != "PASS" or missing:
+            missing = [field for field in scan_fields if not evidence.get(field)]
+            if evidence.get("open_source_security_scan") != "PASS" or missing:
                 failures.append(
-                    "Q10_DEPENDENCY_AUDIT.json: Q10 PASS lacks complete Codex deep-scan provenance"
+                    "Q10_DEPENDENCY_AUDIT.json: Q10 PASS lacks complete "
+                    "open-source security-scan provenance"
                 )
-                checks["q10_deep_scan_provenance"] = False
+                checks["q10_open_source_scan_provenance"] = False
             else:
-                checks["q10_deep_scan_provenance"] = True
+                checks["q10_open_source_scan_provenance"] = True
 
         row.update(
             {

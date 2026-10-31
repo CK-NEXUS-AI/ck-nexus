@@ -60,9 +60,6 @@ class StatusResponse(BaseModel):
     key_configured: bool
     database_ready: bool
     access_required: bool
-    codex_enabled: bool
-    codex_ready: bool
-    codex_sandbox: Literal["read-only", "workspace-write"]
     dev_team_enabled: bool
     dev_team_ready: bool
 
@@ -118,19 +115,6 @@ class DevTeamResult(BaseModel):
     evidence_ref_count: int | None = None
     duration_ms: int
     advisors_available: int
-
-
-class CodexTaskRequest(BaseModel):
-    model_config = ConfigDict(str_strip_whitespace=True)
-
-    prompt: str = Field(min_length=3, max_length=8_000)
-
-
-class CodexTaskResult(BaseModel):
-    output: str
-    mode: Literal["codex"] = "codex"
-    sandbox: Literal["read-only", "workspace-write"]
-    duration_ms: int
 
 
 class ErrorResponse(BaseModel):

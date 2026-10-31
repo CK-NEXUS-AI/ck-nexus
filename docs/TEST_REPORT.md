@@ -26,12 +26,12 @@ Execution date: 2026-08-05
 - Session-ID validation and session deletion
 - Configuration validation and storage behavior
 - Existing optional billing-module tests
-- Codex Bridge disabled/default behavior, argument-safe execution, and API access-token gates
+- OpenCode Auto Developer worktree isolation, normal permission checks, and deterministic post-run verification
 
 ## Manual/blocked validation
 
 - Live OpenAI request: **BLOCKED — no usable API key available in this build session**
-- Live Codex response: **BLOCKED — authenticated Codex state directory is read-only in this build container**
+- Live OpenCode model response: **NOT VERIFIED — CLI availability does not prove provider entitlement or successful inference**
 - Clean network install on buyer target OS: **PENDING**
 - Cross-browser visual regression: **PENDING**
 - Docker image build/run: **BLOCKED — Docker CLI unavailable in this environment**

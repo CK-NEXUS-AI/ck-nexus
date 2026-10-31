@@ -15,4 +15,4 @@ Trust properties:
 - PR builds do not publish packages;
 - a merge to `main` publishes an exact-commit image to GHCR and uploads a provenance JSON artifact containing the exact published digest.
 
-The published image digest is development evidence only. It does not satisfy Q10/Q11/Q12, does not become Native Codex Security evidence and does not authorize production release or merge of PR #14.
+The published image digest is development evidence only. It does not satisfy Q10/Q11/Q12, does not become Q10 open-source layered security evidence and does not authorize production release or merge of PR #14.
