@@ -3,6 +3,10 @@ from __future__ import annotations
 import json
 import os
 import urllib.request
+try:
+    from scripts._safe_http import safe_urlopen
+except ImportError:
+    from _safe_http import safe_urlopen
 
 
 def post(url, data):
@@ -15,7 +19,7 @@ def post(url, data):
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=10) as r:
+    with safe_urlopen(req, timeout=10) as r:
         return json.load(r)
 
 

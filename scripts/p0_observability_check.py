@@ -3,13 +3,17 @@ from __future__ import annotations
 import argparse
 import os
 import urllib.request
+try:
+    from scripts._safe_http import safe_urlopen
+except ImportError:
+    from _safe_http import safe_urlopen
 
 
 def fetch(url: str, *, token: str = "") -> str:
     request = urllib.request.Request(url)
     if token:
         request.add_header("Authorization", f"Bearer {token}")
-    with urllib.request.urlopen(request, timeout=5) as response:
+    with safe_urlopen(request, timeout=5) as response:
         return response.read().decode("utf-8")
 
 

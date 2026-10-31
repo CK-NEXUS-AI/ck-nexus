@@ -328,7 +328,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--state-file",
-        default="/tmp/cknexus-research-stack-e2e.json",
+        default="/tmp/cknexus-research-stack-e2e.json",  # nosec B108 - CLI default, overridable via --state-file
     )
     args = parser.parse_args()
     if not args.database_url:

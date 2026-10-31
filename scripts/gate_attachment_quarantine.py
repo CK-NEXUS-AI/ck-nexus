@@ -4,6 +4,10 @@ import json
 import os
 import tempfile
 import urllib.request
+try:
+    from scripts._safe_http import safe_urlopen
+except ImportError:
+    from _safe_http import safe_urlopen
 import uuid
 import zipfile
 
@@ -30,7 +34,7 @@ def upload(url, path, token):
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=20) as r:
+    with safe_urlopen(req, timeout=20) as r:
         return json.load(r)
 
 
