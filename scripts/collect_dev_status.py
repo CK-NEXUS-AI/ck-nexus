@@ -156,8 +156,17 @@ def collect() -> dict[str, Any]:
     except Exception as exc:
         data["production_status"] = failed("RELEASE_STATUS.md", exc)
 
-    data["qwen_probe"] = probe_qwen_daily()
+    data["qwen_probe"] = load_qwen_probe_state()
     return {"schema_version": 1, "collected_at": now(), "items": data}
+
+
+def load_qwen_probe_state() -> dict[str, Any]:
+    state_file = OUTPUT.with_name("qwen_probe_state.json")
+    try:
+        previous = json.loads(state_file.read_text(encoding="utf-8"))
+        return item(previous.get("result"), "daily Qwen probe state file")
+    except Exception as exc:
+        return failed("daily Qwen probe state file", exc)
 
 
 def probe_qwen_daily() -> dict[str, Any]:
