@@ -5,11 +5,11 @@ This runbook closes the three remaining P0 production gates without weakening th
 ## Frozen authorities
 
 - Repository: `spinlnw10-art/ck-nexus`
-- Production-closure head to security-scan: `39f5c1adb9d761ab418cf088ff1f051b1ca731d1`
-- Production-closure tree: `0525195934f703a8becf8a39f6397b2411e0bb2e`
-- Frozen runtime source used by Q11/Q12 exact verifiers: `39f5c1adb9d761ab418cf088ff1f051b1ca731d1`
-- Frozen runtime source tree: `0525195934f703a8becf8a39f6397b2411e0bb2e`
-- Frozen runtime/deployment subject: `89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52`
+- Production-closure head to security-scan: `ad2fac7aa0752117dde065c7ad9b0b8d41136aa2`
+- Production-closure tree: `eb2074176319072ca3f31d5c8c990752ba849b0a`
+- Frozen runtime source used by Q11/Q12 exact verifiers: `ad2fac7aa0752117dde065c7ad9b0b8d41136aa2`
+- Frozen runtime source tree: `eb2074176319072ca3f31d5c8c990752ba849b0a`
+- Frozen runtime/deployment subject: `772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200`
 
 Do not replace any value above with `main`, a moving branch name, or a newer commit unless the entire subject-bound production evidence set is deliberately re-baselined.
 
@@ -20,17 +20,17 @@ From a clone with all objects fetched:
 ```bash
 git fetch --all --tags --prune
 
-test "$(git show -s --format=%T 39f5c1adb9d761ab418cf088ff1f051b1ca731d1)" = \
-  "0525195934f703a8becf8a39f6397b2411e0bb2e"
+test "$(git show -s --format=%T ad2fac7aa0752117dde065c7ad9b0b8d41136aa2)" = \
+  "eb2074176319072ca3f31d5c8c990752ba849b0a"
 
-test "$(git show -s --format=%T 39f5c1adb9d761ab418cf088ff1f051b1ca731d1)" = \
-  "0525195934f703a8becf8a39f6397b2411e0bb2e"
+test "$(git show -s --format=%T ad2fac7aa0752117dde065c7ad9b0b8d41136aa2)" = \
+  "eb2074176319072ca3f31d5c8c990752ba849b0a"
 
-subject=$(git ls-tree -r 39f5c1adb9d761ab418cf088ff1f051b1ca731d1 -- \
+subject=$(git ls-tree -r ad2fac7aa0752117dde065c7ad9b0b8d41136aa2 -- \
   app creator_app services gateway orchestration idea_engine migrations deploy observability \
   Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
 
-test "$subject" = "89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52"
+test "$subject" = "772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200"
 echo "FROZEN SUBJECT PASS: $subject"
 ```
 
@@ -59,7 +59,7 @@ Q10 remains `NOT_VERIFIED` until all checks pass against the exact closure targe
 
 ## Q11 — Live OpenAI provider smoke
 
-The exact verifier already exists on branch `verify/q11-final-subject` and checks out frozen source `39f5c1adb9d761ab418cf088ff1f051b1ca731d1`. The test script is `scripts/test_openai_live.py` and requires the sentinel `CK-NEXUS-P0-SMOKE-PASS`.
+The exact verifier already exists on branch `verify/q11-final-subject` and checks out frozen source `ad2fac7aa0752117dde065c7ad9b0b8d41136aa2`. The test script is `scripts/test_openai_live.py` and requires the sentinel `CK-NEXUS-P0-SMOKE-PASS`.
 
 ### Secure secret setup
 
@@ -163,7 +163,7 @@ That preflight proves host capability only; it is not canonical Q12 evidence.
 Checkout the frozen runtime source and run the exact gate:
 
 ```bash
-git checkout --detach 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
+git checkout --detach ad2fac7aa0752117dde065c7ad9b0b8d41136aa2
 CKNEXUS_ENVIRONMENT=staging \
 CKNEXUS_AGNES_CGROUP_ROOT="$CKNEXUS_AGNES_CGROUP_ROOT" \
 python3 scripts/agnes_cgroup_v2_staging_gate.py | tee Q12_CGROUP_RAW.json
@@ -191,7 +191,7 @@ On the production-closure branch, require all three evidence files to claim PASS
 GITHUB_REPOSITORY=spinlnw10-art/ck-nexus \
 GITHUB_TOKEN="$GITHUB_TOKEN" \
 python .github/release-tools/verify_release_evidence_provenance.py \
-  --expected-subject 89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52 \
+  --expected-subject 772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200 \
   --output release-evidence-provenance.json
 ```
 

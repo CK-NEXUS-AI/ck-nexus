@@ -19,9 +19,9 @@ const DEFAULT_SESSION_ID = process.env.OPENCODE_SESSION_ID ?? '';
 const AUTOSTART = (process.env.CKNEXUS_AUTOSTART ?? 'false').toLowerCase() === 'true';
 const STATE_FILE = process.env.CKNEXUS_BRIDGE_STATE_FILE ?? '.opencode-bridge-state.json';
 
-const EXPECTED_SOURCE_SHA = '39f5c1adb9d761ab418cf088ff1f051b1ca731d1';
-const EXPECTED_TREE = '0525195934f703a8becf8a39f6397b2411e0bb2e';
-const EXPECTED_RUNTIME_SUBJECT = '89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52';
+const EXPECTED_SOURCE_SHA = 'ad2fac7aa0752117dde065c7ad9b0b8d41136aa2';
+const EXPECTED_TREE = 'eb2074176319072ca3f31d5c8c990752ba849b0a';
+const EXPECTED_RUNTIME_SUBJECT = '772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200';
 
 const CONTINUE_PROMPT = `Continue the pending CK-NEXUS work automatically from the latest exact repository evidence.
 
