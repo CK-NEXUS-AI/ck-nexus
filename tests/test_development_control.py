@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,7 @@ from creator_app.development_control import (
     CompetencyLevel,
     DevelopmentState,
     DevelopmentStatusStore,
+    default_development_status_db_path,
     evaluate_competency,
 )
 
@@ -267,3 +269,35 @@ def test_write_authority_requires_human_confirmed_pro(tmp_path: Path) -> None:
     granted = store.require_write_authority("candidate-ai")
     assert granted["level"] == "PRO_LEVEL"
     assert granted["write_allowed"] is True
+
+
+
+def test_default_state_path_uses_home_state_when_writable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+
+    assert default_development_status_db_path() == (
+        tmp_path / ".local" / "state" / "ck-nexus" / "development-status.sqlite3"
+    )
+
+
+def test_default_state_path_falls_back_for_nonexistent_container_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "nonexistent-home"))
+    monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+    monkeypatch.setattr(
+        "creator_app.development_control.tempfile.gettempdir", lambda: str(tmp_path)
+    )
+
+    expected = (
+        tmp_path
+        / f"ck-nexus-state-{os.getuid()}"
+        / "development-status.sqlite3"
+    )
+    assert default_development_status_db_path() == expected
+    store = DevelopmentStatusStore(expected)
+    assert store.path == expected
+    assert expected.is_file()

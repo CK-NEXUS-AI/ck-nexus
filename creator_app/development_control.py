@@ -7,7 +7,9 @@ It does not own Q10/Q11/Q12/Production authority.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
+import tempfile
 import threading
 import uuid
 from dataclasses import asdict, dataclass
@@ -15,6 +17,27 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
+
+
+def default_development_status_db_path() -> Path:
+    """Choose a writable per-user state path, including minimal non-root containers."""
+    xdg_state_home = os.environ.get("XDG_STATE_HOME")
+    if xdg_state_home:
+        xdg_path = Path(xdg_state_home).expanduser()
+        if xdg_path.is_dir() and os.access(xdg_path, os.W_OK):
+            return xdg_path / "ck-nexus" / "development-status.sqlite3"
+
+    home = Path.home()
+    if home.is_dir() and os.access(home, os.W_OK):
+        return home / ".local" / "state" / "ck-nexus" / "development-status.sqlite3"
+
+    # Some non-root images deliberately use HOME=/nonexistent. /tmp is the
+    # writable runtime mount; include the UID to avoid cross-user collisions.
+    return (
+        Path(tempfile.gettempdir())
+        / f"ck-nexus-state-{os.getuid()}"
+        / "development-status.sqlite3"
+    )
 
 
 class DevelopmentState(StrEnum):
