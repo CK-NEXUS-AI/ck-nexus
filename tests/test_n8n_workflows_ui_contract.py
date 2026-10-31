@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 HTML_PATH = ROOT / "creator_app/web/n8n-workflows.html"
-GATEWAY_PATH = Path("/usr/local/libexec/cknexus_n8n_workflows_ui.py")
+GATEWAY_PATH = Path(
+    os.getenv(
+        "CKNEXUS_N8N_GATEWAY_PATH",
+        str(ROOT / "ops/vps/services/cknexus_n8n_workflows_ui.py"),
+    )
+)
 
 
 def html() -> str:
