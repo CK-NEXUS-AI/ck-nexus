@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import codecs
 import hashlib
-import mimetypes
+import unicodedata
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,6 +22,100 @@ BLOCKED_EXTENSIONS = {
     ".apk",
 }
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".csv", ".txt", ".png", ".jpg", ".jpeg", ".zip"}
+
+
+_HEAD_BYTES = 512
+_ZIP_MAGIC = (b"PK\x03\x04", b"PK\x05\x06")
+_OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+_JPEG_MAGIC = b"\xff\xd8\xff"
+_EXEC_MAGIC = (
+    b"MZ",
+    b"\x7fELF",
+    b"\xcf\xfa\xed\xfe",
+    b"\xce\xfa\xed\xfe",
+    b"\xfe\xed\xfa\xce",
+    b"\xfe\xed\xfa\xcf",
+    b"\xca\xfe\xba\xbe",
+    b"#!",
+)
+_TEXT_CONTROLS = frozenset({9, 10, 12, 13})
+_ZIP_BASED = {".docx", ".xlsx", ".zip"}
+_TEXT_EXTENSIONS = {".csv", ".txt"}
+
+
+def _read_head(path: Path) -> bytes:
+    with path.open("rb") as handle:
+        return handle.read(_HEAD_BYTES)
+
+
+def _looks_like_text(head: bytes) -> bool:
+    if head.startswith(codecs.BOM_UTF8):
+        head = head[len(codecs.BOM_UTF8) :]
+    try:
+        text = codecs.getincrementaldecoder("utf-8")().decode(head, final=False)
+    except UnicodeDecodeError:
+        return False
+    return all(ord(ch) in _TEXT_CONTROLS or unicodedata.category(ch) != "Cc" for ch in text)
+
+
+def _sniff_mime(head: bytes) -> str:
+    """MIME type from content signature only; never from the filename."""
+    if head.startswith(_EXEC_MAGIC):
+        return "application/x-executable"
+    if head.lstrip(b"\xef\xbb\xbf\r\n\t ").startswith(b"%PDF-"):
+        return "application/pdf"
+    if head.startswith(_ZIP_MAGIC):
+        return "application/zip"
+    if head.startswith(_OLE_MAGIC):
+        return "application/x-ole-storage"
+    if head.startswith(_PNG_MAGIC):
+        return "image/png"
+    if head.startswith(_JPEG_MAGIC):
+        return "image/jpeg"
+    if _looks_like_text(head):
+        return "text/plain"
+    return "application/octet-stream"
+
+
+def _file_is_utf8_text(path: Path) -> bool:
+    """Stream the whole file: valid UTF-8 (finalized at EOF), no control chars."""
+    decoder = codecs.getincrementaldecoder("utf-8")()
+    first = True
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            if first and chunk.startswith(codecs.BOM_UTF8):
+                chunk = chunk[len(codecs.BOM_UTF8) :]
+            first = False
+            try:
+                text = decoder.decode(chunk, final=False)
+            except UnicodeDecodeError:
+                return False
+            if any(
+                ord(ch) not in _TEXT_CONTROLS and unicodedata.category(ch) == "Cc"
+                for ch in text
+            ):
+                return False
+    try:
+        decoder.decode(b"", final=True)
+    except UnicodeDecodeError:
+        return False
+    return True
+
+
+def _content_matches_extension(extension: str, head: bytes) -> bool:
+    sniffed = _sniff_mime(head)
+    if extension == ".pdf":
+        return sniffed == "application/pdf"
+    if extension in _ZIP_BASED:
+        return sniffed == "application/zip"
+    if extension == ".png":
+        return sniffed == "image/png"
+    if extension in {".jpg", ".jpeg"}:
+        return sniffed == "image/jpeg"
+    if extension in _TEXT_EXTENSIONS:
+        return sniffed == "text/plain"
+    return False
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,8 +174,8 @@ def scan_attachment(
     size = path.stat().st_size
     extension = path.suffix.casefold()
     digest = _sha256(path)
-    mime, _ = mimetypes.guess_type(path.name)
-    detected = mime or "application/octet-stream"
+    head = _read_head(path)
+    detected = _sniff_mime(head)
 
     if extension in BLOCKED_EXTENSIONS:
         return AttachmentScanResult(
@@ -93,6 +188,18 @@ def scan_attachment(
     if size > max_size_bytes:
         return AttachmentScanResult(
             False, "QUARANTINE", "file_too_large", digest, size, extension, detected
+        )
+    if head.startswith(_EXEC_MAGIC):
+        return AttachmentScanResult(
+            False, "QUARANTINE", "executable_signature", digest, size, extension, detected
+        )
+    if extension in _TEXT_EXTENSIONS and not _file_is_utf8_text(path):
+        return AttachmentScanResult(
+            False, "QUARANTINE", "content_signature_mismatch", digest, size, extension, detected
+        )
+    if not _content_matches_extension(extension, head):
+        return AttachmentScanResult(
+            False, "QUARANTINE", "content_signature_mismatch", digest, size, extension, detected
         )
     if extension == ".zip":
         safe, reason = _zip_policy(
