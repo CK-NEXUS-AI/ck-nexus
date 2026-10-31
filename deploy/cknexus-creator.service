@@ -14,7 +14,7 @@ Environment=HOME=/var/lib/cknexus-creator
 Environment=CKNEXUS_ENVIRONMENT=development
 Environment=CKNEXUS_DEV_STATUS_FILE=/opt/ck-nexus-src/data/dev_status.json
 EnvironmentFile=/etc/cknexus/creator.env
-ExecStartPre=/bin/sh -c 'test -n "$CKNEXUS_ACCESS_TOKEN"'
+ExecStartPre=/usr/bin/python3 /opt/ck-nexus-src/scripts/check_creator_token.py
 ExecStart=/opt/cknexus-creator-venv/bin/uvicorn creator_app.api:create_app --factory --host 127.0.0.1 --port 8000
 Restart=on-failure
 RestartSec=5

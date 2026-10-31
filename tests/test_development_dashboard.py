@@ -144,3 +144,18 @@ def test_dashboard_has_no_embedded_status_claims() -> None:
     assert 'fetch("/api/dev-status"' in javascript
     assert "setInterval(refresh, 30000)" in javascript
     assert "ข้อมูลเก่า/ตรวจไม่ได้" in javascript
+
+
+def test_creator_token_guard_fails_closed(monkeypatch) -> None:
+    import os
+    import subprocess
+    import sys
+
+    guard = Path("scripts/check_creator_token.py")
+    env = os.environ.copy()
+    env.pop("CKNEXUS_ACCESS_TOKEN", None)
+    missing = subprocess.run([sys.executable, str(guard)], env=env, check=False)
+    assert missing.returncode == 1
+    env["CKNEXUS_ACCESS_TOKEN"] = "non-empty-test-only"
+    present = subprocess.run([sys.executable, str(guard)], env=env, check=False)
+    assert present.returncode == 0
