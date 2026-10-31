@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import urllib.request
+
 try:
     from scripts._safe_http import safe_urlopen
 except ImportError:
