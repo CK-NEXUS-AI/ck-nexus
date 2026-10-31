@@ -5,9 +5,9 @@ Decision: **NO-GO FOR PRODUCTION CLAIMS**
 Canonical main: `45fde79c717b09f8675645aa541a5834ebd4f433` (Q09 baseline)
 Closure branch: `release/q10-q16-closure`
 Current closure head: `a55a8d36b0a1b61b426c5d59ab44ebd841eb8d53`
-Frozen runtime/security source SHA: `39f5c1adb9d761ab418cf088ff1f051b1ca731d1`
+Frozen runtime/security source SHA: `fe81c22da08913fd9fd9b37d4c80e459668e1362`
 Frozen source tree: `0525195934f703a8becf8a39f6397b2411e0bb2e`
-Frozen runtime/deployment subject: `89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52`
+Frozen runtime/deployment subject: `211a12d7b5759de7babdd882d2e527d5b6d1c1fe5ccec19084784232a44435f1`
 Unified application subject: `dff89dc7fa9cd6e40480c3344f688a75383ec798929efe23f3a29c79d1186cec`
 Closure contract: `docs/Q10_Q16_CLOSURE_CONTRACT.md`
 
@@ -51,9 +51,9 @@ Canonical request: `evidence/q10/Q10_SCAN_REQUEST_FINAL_SUBJECT.json`
 
 Required scan identity:
 
-- target SHA: `39f5c1adb9d761ab418cf088ff1f051b1ca731d1`
+- target SHA: `fe81c22da08913fd9fd9b37d4c80e459668e1362`
 - target tree: `0525195934f703a8becf8a39f6397b2411e0bb2e`
-- release subject: `89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52`
+- release subject: `211a12d7b5759de7babdd882d2e527d5b6d1c1fe5ccec19084784232a44435f1`
 - scope: `.`
 - mode: `layered`
 - executor: **CK-NEXUS Open-Source Layered Security Gate**
