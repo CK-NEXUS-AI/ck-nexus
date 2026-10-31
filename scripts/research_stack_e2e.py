@@ -328,9 +328,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--state-file",
-        default="/tmp/cknexus-research-stack-e2e.json",
+        default=os.path.join(
+            os.path.expanduser("~"), ".cache", "cknexus", "research-stack-e2e.json"
+        ),
     )
     args = parser.parse_args()
+    os.makedirs(os.path.dirname(os.path.abspath(args.state_file)), mode=0o700, exist_ok=True)
     if not args.database_url:
         parser.error("--database-url or CK_KNOWLEDGE_PG_TEST_URL is required")
     return args
