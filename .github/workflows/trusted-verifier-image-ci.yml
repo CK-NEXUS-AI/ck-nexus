@@ -30,7 +30,7 @@ concurrency:
 
 env:
   BASE_TAG: python:3.12-slim-bookworm
-  IMAGE_REPO: ghcr.io/spinlnw10-art/ck-nexus-verifier-python
+  IMAGE_REPO: ghcr.io/ck-nexus-ai/ck-nexus-verifier-python
 
 jobs:
   verify-image:
