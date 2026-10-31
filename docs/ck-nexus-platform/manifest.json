@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0",
+  "repository": "CK-NEXUS-AI/ck-nexus",
+  "knowledge_base": "docs/ck-nexus-platform",
+  "created_at": "2026-10-31",
+  "source_images": [
+    "https://pin.it/5BQY6BpGe",
+    "https://pin.it/6z22gu1K3",
+    "https://i.pinimg.com/736x/c0/45/5e/c0455e3127b66084eaad286ac9fb14b8.jpg"
+  ],
+  "documents": [
+    "README.md",
+    "CURRENT_STATE.md",
+    "ARCHITECTURE.md",
+    "CONNECTORS.md",
+    "AGNES.md",
+    "AUTOMATIONS.md",
+    "SKILLS_AND_TOOLS.md",
+    "IMAGE_RESEARCH.md",
+    "NEXT_AI_HANDOFF.md"
+  ],
+  "implementation_order": [
+    "P0_read_only_foundation",
+    "P1_controlled_github_pr",
+    "P2_staging_promotion",
+    "P3_event_schedule_automation"
+  ],
+  "safety": {
+    "production_status": "NO_GO_UNTIL_STAGING_EVIDENCE",
+    "agent_is_executor": false,
+    "auto_merge": false,
+    "auto_production_deploy": false,
+    "secrets_in_repository": false
+  }
+}
