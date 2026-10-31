@@ -36,6 +36,8 @@ def test_development_dashboard_page_and_assets_are_served(tmp_path: Path) -> Non
     assert css.status_code == 200
     assert js.status_code == 200
     assert 'fetch("/api/dev-status"' in js.text
+    assert '"Bearer " + accessToken' in js.text
+    assert 'id="auth-form"' in page.text
 
 
 def test_dashboard_does_not_embed_operational_claims() -> None:

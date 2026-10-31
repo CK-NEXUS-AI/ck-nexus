@@ -3,7 +3,10 @@
   const root = document.getElementById("live-status");
   const banner = document.getElementById("freshness-banner");
   const refreshed = document.getElementById("refreshed-at");
-  if (!root || !banner) return;
+  const authForm = document.getElementById("auth-form");
+  const tokenInput = document.getElementById("access-token");
+  let accessToken = "";
+  if (!root || !banner || !authForm || !tokenInput) return;
   const labels = {
     git: "Git repository", open_prs: "Open pull requests", open_issues: "Open issues",
     main_ci: "Latest main CI", services: "System services", mcp: "MCP listener",
@@ -54,10 +57,14 @@
   async function refresh() {
     try {
       const response = await fetch("/api/dev-status", {cache: "no-store",
-        headers: {"Accept": "application/json"}});
+        headers: {
+          "Accept": "application/json",
+          ...(accessToken ? {"Authorization": "Bearer " + accessToken} : {})
+        }});
       if (response.status === 401) {
+        accessToken = "";
         render({available: false, stale: true});
-        banner.textContent = "ต้องยืนยันตัวตนเพื่อดูข้อมูลสด";
+        banner.textContent = "ต้องกรอก Access Token เพื่อดูข้อมูลสด";
         return;
       }
       if (!response.ok) throw new Error("HTTP " + response.status);
@@ -66,6 +73,13 @@
       render({available: false, stale: true});
     }
   }
-  refresh();
+  authForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    accessToken = tokenInput.value.trim();
+    tokenInput.value = "";
+    refresh();
+  });
+  render({available: false, stale: true});
+  banner.textContent = "กรอก Access Token เพื่อโหลดข้อมูลสด";
   window.setInterval(refresh, 30000);
 })();
