@@ -63,3 +63,33 @@ def test_renamed_or_polyglot_is_quarantined(tmp_path, name, data, reason):
 def test_detected_mime_comes_from_content_not_name(tmp_path):
     r = _scan(tmp_path, "a.txt", b"%PDF-1.7\n")
     assert r.detected_mime == "application/pdf"
+
+
+@pytest.mark.parametrize("name", ["a.txt", "a.csv"])
+def test_invalid_bytes_after_head_window_are_quarantined(tmp_path, name):
+    data = b"a" * 4096 + b"\x00" + b"b" * 10
+    r = _scan(tmp_path, name, data)
+    assert not r.safe and r.reason == "content_signature_mismatch"
+    data = b"a" * 4096 + b"\xff\xfe"
+    r = _scan(tmp_path, name, data)
+    assert not r.safe and r.reason == "content_signature_mismatch"
+
+
+def test_truncated_utf8_at_eof_is_quarantined(tmp_path):
+    r = _scan(tmp_path, "a.txt", b"hello " + "ก".encode()[:2])
+    assert not r.safe and r.reason == "content_signature_mismatch"
+
+
+def test_large_valid_utf8_text_is_clean(tmp_path):
+    r = _scan(tmp_path, "a.csv", ("สวัสดี,1\n" * 20000).encode())
+    assert r.safe
+
+
+def test_cp874_text_is_quarantined(tmp_path):
+    r = _scan(tmp_path, "a.csv", "สวัสดี,1\n".encode("cp874"))
+    assert not r.safe and r.reason == "content_signature_mismatch"
+
+
+def test_utf16_text_is_quarantined(tmp_path):
+    r = _scan(tmp_path, "a.txt", "hello\n".encode("utf-16"))
+    assert not r.safe and r.reason == "content_signature_mismatch"

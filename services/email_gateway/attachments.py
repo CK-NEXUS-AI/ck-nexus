@@ -78,6 +78,31 @@ def _sniff_mime(head: bytes) -> str:
     return "application/octet-stream"
 
 
+def _file_is_utf8_text(path: Path) -> bool:
+    """Stream the whole file: valid UTF-8 (finalized at EOF), no control chars."""
+    decoder = codecs.getincrementaldecoder("utf-8")()
+    first = True
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            if first and chunk.startswith(codecs.BOM_UTF8):
+                chunk = chunk[len(codecs.BOM_UTF8) :]
+            first = False
+            try:
+                text = decoder.decode(chunk, final=False)
+            except UnicodeDecodeError:
+                return False
+            if any(
+                ord(ch) not in _TEXT_CONTROLS and unicodedata.category(ch) == "Cc"
+                for ch in text
+            ):
+                return False
+    try:
+        decoder.decode(b"", final=True)
+    except UnicodeDecodeError:
+        return False
+    return True
+
+
 def _content_matches_extension(extension: str, head: bytes) -> bool:
     sniffed = _sniff_mime(head)
     if extension == ".pdf":
@@ -167,6 +192,10 @@ def scan_attachment(
     if head.startswith(_EXEC_MAGIC):
         return AttachmentScanResult(
             False, "QUARANTINE", "executable_signature", digest, size, extension, detected
+        )
+    if extension in _TEXT_EXTENSIONS and not _file_is_utf8_text(path):
+        return AttachmentScanResult(
+            False, "QUARANTINE", "content_signature_mismatch", digest, size, extension, detected
         )
     if not _content_matches_extension(extension, head):
         return AttachmentScanResult(
