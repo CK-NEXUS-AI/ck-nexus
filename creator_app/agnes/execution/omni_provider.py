@@ -32,7 +32,8 @@ class DurableExecutionReplayStore:
         if self.database_path == ":memory:":
             raise ValueError("replay store must be persistent")
         Path(self.database_path).parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        with sqlite3.connect(self.database_path, timeout=2) as db:
+        with sqlite3.connect(self.database_path, timeout=10) as db:
+            db.execute("PRAGMA busy_timeout=10000")
             db.execute("PRAGMA journal_mode=WAL")
             db.execute("PRAGMA synchronous=FULL")
             db.execute("""CREATE TABLE IF NOT EXISTS consumed_executions (
