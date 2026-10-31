@@ -46,3 +46,29 @@ def test_collector_redacts_secrets() -> None:
                               "api_key": "token=secretvalue"})
     assert "abc.def" not in str(value)
     assert "secretvalue" not in str(value)
+
+
+def test_collect_marks_failed_git_source_as_error(monkeypatch) -> None:
+    def fake_command(args, **kwargs):
+        if args[:2] == ["git", "rev-parse"]:
+            raise subprocess.TimeoutExpired(args, 20)
+        if args[:2] == ["gh", "pr"]:
+            raise RuntimeError("gh unavailable")
+        if args[:2] == ["gh", "issue"] or args[:2] == ["gh", "run"]:
+            return []
+        if args[0] == "systemctl":
+            return ""
+        if args[0] == "ss":
+            return ""
+        if args[0] == "df":
+            return "Filesystem Size Used Avail Use% Mounted on"
+        return ""
+
+    monkeypatch.setattr(collector, "command", fake_command)
+    monkeypatch.setattr(collector, "load_qwen_probe_state", lambda: {
+        "value": None, "source": "test", "collected_at": collector.now(), "status": "error"
+    })
+    payload = collector.collect()
+    assert payload["items"]["git"]["status"] == "error"
+    assert payload["items"]["git"]["value"] is None
+    assert payload["items"]["open_prs"]["status"] == "error"
