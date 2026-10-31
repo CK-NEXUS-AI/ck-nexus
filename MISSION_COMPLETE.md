@@ -2,32 +2,18 @@
 
 วันที่: 2026-10-31
 
-## Local remediation status
+## Local remediation
 
 Branch: `fix/audit-remediation-2026-10-31`
 
-Previous baseline commit: `15f12e9 fix: prepare audit remediation baseline`
+Local remediation commit: `b13a993 fix: complete autonomous audit remediation`
 
-Local remediation is complete and verified in the working tree. The following changes were made:
-
-- Fixed AGNES namespace runner process-limit ordering so `RLIMIT_NPROC` is applied after namespace creation instead of preventing `unshare --fork` from starting.
-- Fixed secret scanner false positive caused by the `mcp-task-queue` path slug and added regression tests.
-- Reformatted and lint-fixed production/ops Python files without changing their intended behavior.
-- Made the release Ruff scope pass across all tracked files.
-- Added explicit HTTP/HTTPS validation annotations for Bandit-reviewed `urlopen` call sites.
-- Replaced the fixed `/tmp` browser screenshot path with a process-scoped temp path, while retaining an environment override.
-- Updated temporary-file handling in the scanner API to use safe cleanup and context-managed file creation.
-- Updated the n8n contract test to assert allowlist semantics instead of formatter-sensitive whitespace.
-- Updated the release gate to block on Bandit medium/high findings, matching the GitHub Actions security policy; low findings remain visible as review findings.
-
-## Verification results
-
-All local checks passed:
+Verified locally:
 
 ```text
 pytest: 882 passed, 2 skipped, 12 warnings
-release_check.py: PASS
-Ruff: All checks passed
+release_check.py: PASS (with PyPI registry configured)
+Ruff: All tracked files PASS
 secret_scan.py: PASS (848 tracked files)
 pip-audit: No known vulnerabilities found
 Bandit: PASS at medium/high blocking threshold
@@ -36,37 +22,47 @@ JavaScript syntax: PASS
 git diff --check: PASS
 ```
 
-`pip-audit` reports that local package `ck-nexus-creator (0.2.0)` is not published on PyPI and therefore was not audited; this is a package identity limitation, not a reported vulnerability.
+The local code fixes include the AGNES namespace process-limit ordering fix, secret scanner boundary fix with regression tests, full Ruff cleanup, reviewed Bandit annotations, safe temporary-file handling, process-scoped browser screenshot output, and semantic n8n gateway contract assertions.
 
-## External actions deliberately not executed
+## External actions completed
 
-The following actions were **not** executed by this mission:
+- Branch pushed without force-push: `fix/audit-remediation-2026-10-31` at `b13a993`
+- PR #303 (`Remove Codex integration; replace Q10 with open-source security gate`) was merged
+- `main` branch protection was enabled with:
+  - required PR reviews: 1
+  - required status checks: `CK-NEXUS CI`, `CK-NEXUS Final Gate`
+  - stale review dismissal enabled
+  - admin enforcement enabled
+  - linear history enabled
+  - force pushes disabled
+  - branch deletion disabled
+  - conversation resolution required
+- Auto-generated PRs #306, #307, #308, #309, #310, #312 and #319 were closed with an audit-closure comment
+- Auto-merge was requested for critical PRs #313 and #315; GitHub currently reports them as open/dirty with auto-merge enabled
 
-- No `git push`
-- No `git merge`
-- No PR creation, merge, or close
-- No SSH service stop/disable on VPS
-- No GitHub branch-protection API mutation
-- No force push
+## External actions not completed
 
-The current remote facts remain: `main` is not protected, PR #303 is open as a draft, and the VPS inspection previously showed the autonomous timers enabled. These are operational changes that require the repository owner/operator to execute against the intended production resources.
+- SSH to `root@100.78.253.15` failed twice with `Connection closed by remote host`; the three VPS timers were **not verified as stopped or disabled**
+- PRs #300, #301, #302 and #311 ended in GitHub `CLOSED` state with `mergedAt=null` and `mergeCommit=null`; they were not successfully merged. Do not assume their changes are present on `main`
+- PR #313 and #315 remain open/dirty; auto-merge will proceed only after the branch is made mergeable and required checks pass
+- No force-push was performed
 
-## Human finalization sequence
+## Required next operator action
 
-1. On the VPS, run the packaged containment flow and verify only the three autonomous timers are disabled:
-   `cknexus-n8n-auto-developer.timer`, `cknexus-n8n-auto-gitops.timer`, `cknexus-n8n-proactive.timer`.
-2. Push this branch to GitHub after reviewing the diff.
-3. Review and make PR #303 ready; merge it only after GitHub required checks pass. This is the canonical Codex-removal/open-source security-gate change.
-4. Protect `main` with required review and deterministic checks.
-5. Merge dependency/security PRs one at a time after current checks pass: #315, #313, #300, #301, #302, #311.
-6. Review the auto-generated PR diffs before closing #305–#312 and #319 as superseded/duplicate work.
-7. Create an audit-closure tag/release only after the protected-main checks pass. Keep the status `Development Frozen / NO-GO for Production` until staging evidence is complete.
+From the trusted operator's existing VPS connection, run the packaged containment script and verify the three timers:
 
-## Local artifacts
+```bash
+cd /root/cknexus-audit-handoff/cknexus-audit-handoff-2026-10-31
+./RUN_ON_VPS.sh containment
+systemctl is-enabled cknexus-n8n-auto-developer.timer cknexus-n8n-auto-gitops.timer cknexus-n8n-proactive.timer || true
+```
 
-The previously prepared handoff bundle remains at:
+Then inspect the closed Dependabot PRs and either reopen them or create one reviewed dependency PR from the pushed remediation branch. Do not merge a dirty PR or bypass required checks.
+
+## Handoff artifacts
 
 - `/home/ubuntu/cknexus-audit-handoff-2026-10-31.tar.gz`
 - `/home/ubuntu/cknexus-audit-handoff-2026-10-31.tar.gz.sha256`
+- `/home/ubuntu/CK-NEXUS-CODEX-FREE-CLOSURE-PLAN.md`
 
-This report is a local readiness record. It is not a claim that the remote repository or VPS has been changed.
+This report is the final evidence record for the actions attempted. The project is protected against direct main mutations and Codex has been removed by PR #303, but the VPS containment and remaining dependency PR reconciliation are still operational follow-ups.
