@@ -60,9 +60,10 @@ def test_dashboard_does_not_guess_completion_percentage_and_production_is_no_go(
     assert "43cb6f09b213b00700b165562da51c3ee508641a" in html
     assert "1355e5250d08d2041bc80cd0e5867b4b8848b9e4" in html
     assert "Issue #317 is closed" in html
-    assert "2026-11-01T01:34:49+07:00" in html
+    assert "2026-11-01T01:39:11+07:00" in html
     assert "PR #334" in html
     assert "927 passed, 2 skipped" in html
+    assert "Live: ตรวจไม่พบ service/listener" in html
     assert "AGNES Phase 2/3" in html
     assert "127.0.0.1:8765" in html
     assert "const percent" not in javascript
