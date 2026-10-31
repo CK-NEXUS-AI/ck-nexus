@@ -144,7 +144,8 @@ def verify(
             missing = [field for field in scan_fields if not evidence.get(field)]
             if evidence.get("open_source_security_scan") != "PASS" or missing:
                 failures.append(
-                    "Q10_DEPENDENCY_AUDIT.json: Q10 PASS lacks complete open-source security-scan provenance"
+                    "Q10_DEPENDENCY_AUDIT.json: Q10 PASS lacks complete "
+                    "open-source security-scan provenance"
                 )
                 checks["q10_open_source_scan_provenance"] = False
             else:

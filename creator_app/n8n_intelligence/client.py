@@ -65,7 +65,8 @@ class N8NReadClient:
             method="GET",
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            # base_url is validated to use only HTTP or HTTPS in __init__.
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # nosec B310
                 raw = response.read(2_000_001)
             if len(raw) > 2_000_000:
                 raise N8NReadError("n8n response exceeds safe size")

@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.1",
+  "repository": "CK-NEXUS-AI/ck-nexus",
+  "knowledge_base": "docs/ck-nexus-platform",
+  "updated_at": "2026-10-31",
+  "source_images": [
+    "https://pin.it/5BQY6BpGe",
+    "https://pin.it/6z22gu1K3",
+    "https://i.pinimg.com/736x/c0/45/5e/c0455e3127b66084eaad286ac9fb14b8.jpg",
+    "image_search_landscape_scan_2026-10-31"
+  ],
+  "image_scan": {
+    "asset_count": 104,
+    "themes": [
+      "platform engineering / internal developer platform",
+      "AI coding agents / multi-agent delivery",
+      "GitOps / CI-CD / release automation",
+      "DevSecOps / software supply-chain security",
+      "sandbox / policy / human approval",
+      "observability / SRE / incident automation",
+      "RAG / knowledge graph / agent memory",
+      "event-driven architecture / workflow orchestration",
+      "progressive delivery / canary / rollback",
+      "AI governance / cost / tenancy / developer experience"
+    ],
+    "catalog": "IMAGE_SCAN_100_CATALOG.md",
+    "machine_manifest": "image_scan_manifest.json",
+    "synthesis": "IMAGE_DESIGN_SYNTHESIS.md"
+  },
+  "documents": [
+    "README.md",
+    "CURRENT_STATE.md",
+    "ARCHITECTURE.md",
+    "CONNECTORS.md",
+    "AGNES.md",
+    "AUTOMATIONS.md",
+    "SKILLS_AND_TOOLS.md",
+    "IMAGE_RESEARCH.md",
+    "IMAGE_SCAN_100_CATALOG.md",
+    "IMAGE_DESIGN_SYNTHESIS.md",
+    "IMPLEMENTATION_BACKLOG.md",
+    "NEXT_AI_HANDOFF.md",
+    "manifest.json",
+    "image_scan_manifest.json"
+  ],
+  "implementation_order": [
+    "P0_workflow_envelope_policy_capabilities_sandbox",
+    "P1_idempotency_golden_paths_gitops_immutable_promotion",
+    "P2_progressive_delivery_incident_budget_memory",
+    "P3_dynamic_multi_agent_and_advisory_optimization"
+  ],
+  "safety": {
+    "production_status": "NO_GO_UNTIL_STAGING_EVIDENCE",
+    "agent_is_executor": false,
+    "auto_merge": false,
+    "auto_production_deploy": false,
+    "secrets_in_repository": false,
+    "image_copyright_policy": "derived_metadata_only_no_source_images_committed"
+  }
+}

@@ -967,8 +967,13 @@ def cknexus_browser_read_page() -> dict[str, Any]:
 
 @mcp.tool()
 def cknexus_browser_screenshot() -> dict[str, Any]:
-    """Capture the current browser page using an exclusively created temp file."""
-    screenshot_path = Path(tempfile.gettempdir()) / "cknexus-browser-mcp.png"
+    """Capture the current browser page using a secure process-scoped temp file."""
+    screenshot_path = Path(
+        os.getenv(
+            "CKNEXUS_BROWSER_SCREENSHOT_PATH",
+            str(Path(tempfile.gettempdir()) / f"cknexus-browser-mcp-{os.getpid()}.png"),
+        )
+    )
     try:
         descriptor = os.open(
             screenshot_path,
