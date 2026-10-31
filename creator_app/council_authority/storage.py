@@ -7,6 +7,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
 
@@ -20,12 +21,17 @@ class AuthorityStore:
         with contextlib.suppress(OSError):
             Path(self.path).chmod(0o600)
 
+    @contextmanager
     def _db(self):
         db = sqlite3.connect(self.path, timeout=30, isolation_level=None)
         db.execute("PRAGMA busy_timeout=30000")
         db.execute("PRAGMA synchronous=FULL")
         db.row_factory = sqlite3.Row
-        return db
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
 
     def _init(self):
         with self._db() as db:

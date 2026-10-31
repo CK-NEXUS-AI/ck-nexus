@@ -1,0 +1,55 @@
+name: Windows Portability CI
+
+on:
+  pull_request:
+    paths:
+      - 'creator_app/agnes/execution/**'
+      - 'creator_app/agnes/runtime/**'
+      - 'creator_app/api/**'
+      - 'creator_app/council_authority/**'
+      - 'creator_app/device_bridge/**'
+      - 'tests/test_council_capability_authority.py'
+      - 'tests/test_credential_vault.py'
+      - 'tests/test_device_bridge_attestation.py'
+      - 'tests/test_device_bridge_mcp_v2.py'
+      - 'tests/test_device_bridge_safe_solver.py'
+      - 'tests/test_windows_sandbox_platform_gate.py'
+      - '.github/workflows/windows-portability-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-portability:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install uv
+        run: python -m pip install --upgrade pip uv
+      - name: Frozen dependency sync
+        shell: pwsh
+        run: |
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+      - name: Import portability smoke
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\python.exe -c "import creator_app.agnes.execution.sandbox.runner; print('sandbox import PASS')"
+          .\.venv\Scripts\python.exe -c "import creator_app.api; print('creator_app.api import PASS')"
+      - name: Windows portability regression
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\python.exe -m pytest -q `
+            tests/test_windows_sandbox_platform_gate.py `
+            tests/test_council_capability_authority.py `
+            tests/test_credential_vault.py `
+            tests/test_device_bridge_safe_solver.py `
+            tests/test_device_bridge_attestation.py `
+            tests/test_device_bridge_mcp_v2.py
