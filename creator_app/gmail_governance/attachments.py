@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import codecs
+import unicodedata
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 
@@ -44,6 +46,25 @@ _EXEC_MAGIC = (b"MZ", b"\x7fELF", b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe",
 _TEXT_SUFFIXES = frozenset({".csv", ".json", ".md", ".txt"})
 
 
+_TEXT_CONTROLS = frozenset({9, 10, 12, 13})  # tab, LF, FF, CR
+
+
+def _looks_like_text(head: bytes) -> bool:
+    """Header must decode as UTF-8 and contain no control characters."""
+    if head.startswith(codecs.BOM_UTF8):
+        n = len(codecs.BOM_UTF8)
+        head = head[n:]
+    decoder = codecs.getincrementaldecoder("utf-8")()
+    try:
+        text = decoder.decode(head, final=False)
+    except UnicodeDecodeError:
+        return False
+    return all(
+        ord(ch) in _TEXT_CONTROLS or unicodedata.category(ch) != "Cc"
+        for ch in text
+    )
+
+
 def _content_matches_suffix(suffix: str, head: bytes) -> bool:
     if head.startswith(_EXEC_MAGIC):
         return False
@@ -52,9 +73,7 @@ def _content_matches_suffix(suffix: str, head: bytes) -> bool:
     if suffix in {".docx", ".pptx", ".xlsx"}:
         return head.startswith(_ZIP_MAGIC)
     if suffix in _TEXT_SUFFIXES:
-        return not (
-            head.startswith(_ZIP_MAGIC) or head.startswith(_OLE_MAGIC) or b"\x00" in head
-        )
+        return _looks_like_text(head)
     return False
 
 
