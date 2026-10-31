@@ -125,6 +125,14 @@ def test_dev_status_api_reads_fresh_stale_and_missing_snapshot(tmp_path: Path, m
         status_file.write_text(json.dumps(fresh), encoding="utf-8")
         stale = client.get("/api/dev-status", headers=headers)
         assert stale.status_code == 200 and stale.json()["stale"] is True
+        fresh["collected_at"] = (datetime.now(UTC) + timedelta(seconds=60)).isoformat()
+        status_file.write_text(json.dumps(fresh), encoding="utf-8")
+        future = client.get("/api/dev-status", headers=headers)
+        assert future.status_code == 200 and future.json()["stale"] is True
+        status_file.write_text(json.dumps({"collected_at": datetime.now(UTC).isoformat()}),
+                               encoding="utf-8")
+        invalid_shape = client.get("/api/dev-status", headers=headers)
+        assert invalid_shape.status_code == 200 and invalid_shape.json()["stale"] is True
 
 
 def test_dashboard_has_no_embedded_status_claims() -> None:

@@ -1331,13 +1331,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ))
         try:
             payload = json.loads(status_path.read_text(encoding="utf-8"))
+            if (
+                not isinstance(payload, dict)
+                or not isinstance(payload.get("items"), dict)
+                or not payload["items"]
+            ):
+                raise ValueError("invalid development status snapshot shape")
             collected = datetime.fromisoformat(
                 str(payload.get("collected_at", "")).replace("Z", "+00:00")
             )
-            age_seconds = max(0, int((datetime.now(UTC) - collected).total_seconds()))
+            age_seconds = int((datetime.now(UTC) - collected).total_seconds())
             return JSONResponse(
-                {"available": True, "stale": age_seconds > 600, "age_seconds": age_seconds,
-                 "collected_at": payload.get("collected_at"), "items": payload.get("items", {})},
+                {
+                    "available": True,
+                    "stale": age_seconds > 600 or age_seconds < 0,
+                    "age_seconds": age_seconds,
+                    "collected_at": payload.get("collected_at"),
+                    "items": payload["items"],
+                },
                 headers={"Cache-Control": "no-store"},
             )
         except FileNotFoundError:

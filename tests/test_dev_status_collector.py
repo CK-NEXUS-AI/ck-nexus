@@ -72,6 +72,7 @@ def test_collect_marks_failed_git_source_as_error(monkeypatch) -> None:
     assert payload["items"]["git"]["status"] == "error"
     assert payload["items"]["git"]["value"] is None
     assert payload["items"]["open_prs"]["status"] == "error"
+    assert payload["items"]["mcp"]["status"] == "error"
 
 
 def test_service_state_preserves_non_active_systemd_states(monkeypatch) -> None:
@@ -80,3 +81,35 @@ def test_service_state_preserves_non_active_systemd_states(monkeypatch) -> None:
     )
     monkeypatch.setattr(collector.subprocess, "run", Mock(return_value=completed))
     assert collector.service_state("demo.service") == "activating"
+
+
+def test_qwen_probe_does_not_cache_missing_credentials(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(collector, "OUTPUT", tmp_path / "dev_status.json")
+    monkeypatch.delenv("DASHSCOPE_API_KEY", raising=False)
+    monkeypatch.setenv("QWEN_MODEL", "qwen-test")
+    result = collector.probe_qwen_daily()
+    assert result["status"] == "error"
+    assert not (tmp_path / "qwen_probe_state.json").exists()
+
+
+def test_qwen_probe_rejects_unapproved_base_url_without_sending_key(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(collector, "OUTPUT", tmp_path / "dev_status.json")
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "test-secret-never-used")
+    monkeypatch.setenv("QWEN_MODEL", "qwen-test")
+    monkeypatch.setenv("DASHSCOPE_BASE_URL", "http://attacker.invalid/compatible-mode/v1")
+    result = collector.probe_qwen_daily()
+    assert result["status"] == "error"
+    assert "test-secret-never-used" not in str(result)
+    assert not (tmp_path / "qwen_probe_state.json").exists()
+
+
+def test_cached_qwen_failure_is_not_reported_as_ok(tmp_path, monkeypatch) -> None:
+    import json
+    from datetime import UTC, datetime
+
+    monkeypatch.setattr(collector, "OUTPUT", tmp_path / "dev_status.json")
+    state = {"date": datetime.now(UTC).date().isoformat(),
+             "collected_at": collector.now(),
+             "result": {"last_success": None, "last_failure": collector.now()}}
+    (tmp_path / "qwen_probe_state.json").write_text(json.dumps(state), encoding="utf-8")
+    assert collector.load_qwen_probe_state()["status"] == "error"

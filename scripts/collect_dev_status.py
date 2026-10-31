@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,8 +51,11 @@ def redact(value: Any) -> Any:
 
 
 def command(args: list[str], *, cwd: Path = ROOT) -> Any:
+    safe_args = args
+    if args and args[0] == "git":
+        safe_args = ["git", "-c", f"safe.directory={ROOT}", *args[1:]]
     completed = subprocess.run(
-        args, cwd=cwd, text=True, capture_output=True, timeout=TIMEOUT, check=False
+        safe_args, cwd=cwd, text=True, capture_output=True, timeout=TIMEOUT, check=False
     )
     if completed.returncode != 0:
         raise RuntimeError(f"{args[0]} exited {completed.returncode}: {completed.stderr[-500:]}")
@@ -89,8 +93,13 @@ def collect() -> dict[str, Any]:
         head = command(["git", "rev-parse", "HEAD"])
         branch = command(["git", "branch", "--show-current"])
         dirty = bool(command(["git", "status", "--porcelain"]))
-        upstream = subprocess.run(["git", "rev-parse", "--abbrev-ref", "@{upstream}"],
-                                  cwd=ROOT, text=True, capture_output=True, timeout=TIMEOUT)
+        upstream = subprocess.run(
+            ["git", "-c", f"safe.directory={ROOT}", "rev-parse", "--abbrev-ref", "@{upstream}"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            timeout=TIMEOUT,
+        )
         ahead_behind = {"ahead": None, "behind": None}
         if upstream.returncode == 0:
             counts = command(["git", "rev-list", "--left-right", "--count", "HEAD...@{upstream}"])
@@ -102,9 +111,9 @@ def collect() -> dict[str, Any]:
         data["git"] = failed("git", exc)
 
     calls = {
-        "open_prs": ["gh", "pr", "list", "--state", "open", "--limit", "100",
+        "open_prs": ["gh", "pr", "list", "--state", "open", "--limit", "500",
                      "--json", "number,title,isDraft,mergeStateStatus,statusCheckRollup,url"],
-        "open_issues": ["gh", "issue", "list", "--state", "open", "--limit", "100",
+        "open_issues": ["gh", "issue", "list", "--state", "open", "--limit", "500",
                         "--json", "number,title,url"],
         "main_ci": ["gh", "run", "list", "--branch", "main", "--limit", "20",
                     "--json", "databaseId,name,status,conclusion,createdAt,headSha,url"],
@@ -149,7 +158,11 @@ def collect() -> dict[str, Any]:
         listeners = command(["ss", "-ltnH"])
         mcp = [line for line in listeners.splitlines() if re.search(r":8765\b", line)]
         valid = bool(mcp) and all(re.search(r"127\.0\.0\.1:8765\b", line) for line in mcp)
-        data["mcp"] = item({"listener_lines": mcp, "loopback_only": valid}, "ss -ltnH")
+        data["mcp"] = item(
+            {"listener_lines": mcp, "loopback_only": valid},
+            "ss -ltnH",
+            status="ok" if valid else "error",
+        )
     except Exception as exc:
         data["mcp"] = failed("ss -ltnH", exc)
 
@@ -177,7 +190,17 @@ def load_qwen_probe_state() -> dict[str, Any]:
     state_file = OUTPUT.with_name("qwen_probe_state.json")
     try:
         previous = json.loads(state_file.read_text(encoding="utf-8"))
-        return item(previous.get("result"), "daily Qwen probe state file")
+        result = previous.get("result")
+        if not isinstance(result, dict):
+            raise ValueError("invalid Qwen probe state")
+        if result.get("last_success"):
+            return item(result, "daily Qwen probe state file")
+        return {
+            "value": result,
+            "source": "daily Qwen probe state file",
+            "collected_at": previous.get("collected_at", now()),
+            "status": "error",
+        }
     except Exception as exc:
         return failed("daily Qwen probe state file", exc)
 
@@ -188,45 +211,82 @@ def probe_qwen_daily() -> dict[str, Any]:
     try:
         previous = json.loads(state_file.read_text()) if state_file.exists() else {}
         if previous.get("date") == today:
-            return item(previous.get("result"), "daily authenticated Qwen probe cache")
+            cached = previous.get("result")
+            if isinstance(cached, dict) and cached.get("last_success"):
+                return item(cached, "daily authenticated Qwen probe cache")
+            return {
+                "value": cached,
+                "source": "daily authenticated Qwen probe cache",
+                "collected_at": previous.get("collected_at", now()),
+                "status": "error",
+            }
         key = os.getenv("DASHSCOPE_API_KEY", "").strip()
-        base = os.getenv("DASHSCOPE_BASE_URL", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1").rstrip("/")
+        base = os.getenv(
+            "DASHSCOPE_BASE_URL",
+            "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        ).rstrip("/")
         model = os.getenv("QWEN_MODEL", "").strip()
         if not key or not model:
-            result = {
-                "last_success": None,
-                "last_failure": now(),
-                "detail": "credentials/model not configured",
+            return failed(
+                "authenticated Qwen daily probe",
+                RuntimeError("credentials or model not configured; no result cached"),
+            )
+        parsed = urlparse(base)
+        allowed_host = (
+            parsed.hostname in {"dashscope-intl.aliyuncs.com", "dashscope.aliyuncs.com"}
+            or bool(parsed.hostname and parsed.hostname.endswith(".maas.aliyuncs.com"))
+        )
+        if (
+            parsed.scheme != "https"
+            or not allowed_host
+            or parsed.port not in (None, 443)
+            or parsed.username
+            or parsed.password
+            or parsed.path != "/compatible-mode/v1"
+            or parsed.query
+            or parsed.fragment
+        ):
+            return failed(
+                "authenticated Qwen daily probe",
+                RuntimeError("DASHSCOPE_BASE_URL is not an approved HTTPS DashScope endpoint"),
+            )
+        body = json.dumps(
+            {
+                "model": model,
+                "messages": [{"role": "user", "content": "Reply OK"}],
+                "max_tokens": 8,
             }
-        else:
-            body = json.dumps(
-                {
-                    "model": model,
-                    "messages": [{"role": "user", "content": "Reply OK"}],
-                    "max_tokens": 8,
-                }
-            ).encode()
-            req = Request(base + "/chat/completions", data=body, headers={
-                "Authorization": "Bearer " + key, "Content-Type": "application/json"})
-            started = time.monotonic()
-            try:
-                with urlopen(req, timeout=15) as response:
-                    payload = json.loads(response.read(65536))
-                    success = response.status == 200 and bool(payload.get("choices"))
-                    result = {"last_success": now() if success else None,
-                              "last_failure": None if success else now(),
-                              "http_status": response.status,
-                              "latency_seconds": round(time.monotonic() - started, 2),
-                              "model": model}
-            except (HTTPError, URLError, TimeoutError, OSError) as exc:
-                result = {"last_success": None, "last_failure": now(),
-                          "detail": type(exc).__name__}
+        ).encode()
+        req = Request(base + "/chat/completions", data=body, headers={
+            "Authorization": "Bearer " + key, "Content-Type": "application/json"})
+        started = time.monotonic()
+        try:
+            with urlopen(req, timeout=15) as response:
+                payload = json.loads(response.read(65536))
+                success = response.status == 200 and bool(payload.get("choices"))
+                result = {"last_success": now() if success else None,
+                          "last_failure": None if success else now(),
+                          "http_status": response.status,
+                          "latency_seconds": round(time.monotonic() - started, 2),
+                          "model": model}
+        except (HTTPError, URLError, TimeoutError, OSError) as exc:
+            result = {"last_success": None, "last_failure": now(),
+                      "detail": type(exc).__name__}
         state_file.parent.mkdir(parents=True, exist_ok=True)
         tmp = state_file.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"date": today, "result": result}, ensure_ascii=False))
+        tmp.write_text(
+            json.dumps({"date": today, "result": result, "collected_at": now()}, ensure_ascii=False)
+        )
         os.chmod(tmp, 0o640)
         os.replace(tmp, state_file)
-        return item(result, "authenticated DashScope chat completion (max_tokens=8)")
+        if result.get("last_success"):
+            return item(result, "authenticated DashScope chat completion (max_tokens=8)")
+        return {
+            "value": result,
+            "source": "authenticated DashScope chat completion (max_tokens=8)",
+            "collected_at": now(),
+            "status": "error",
+        }
     except Exception as exc:
         return failed("authenticated Qwen daily probe", exc)
 
