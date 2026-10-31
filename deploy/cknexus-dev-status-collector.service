@@ -8,11 +8,9 @@ Type=oneshot
 User=cknexus-creator
 Group=cknexus-creator
 WorkingDirectory=/opt/ck-nexus-src
-Environment=HOME=/var/lib/cknexus-creator
-Environment=GH_CONFIG_DIR=/var/lib/cknexus-creator/gh
 Environment=GIT_CONFIG_NOSYSTEM=1
 Environment=CKNEXUS_DEV_STATUS_FILE=/opt/ck-nexus-src/data/dev_status.json
-EnvironmentFile=/etc/cknexus/collector.env
+EnvironmentFile=-/etc/cknexus/collector-readonly.env
 ExecStart=/usr/bin/python3 /opt/ck-nexus-src/scripts/collect_dev_status.py
 NoNewPrivileges=true
 PrivateTmp=true
@@ -21,6 +19,6 @@ ProtectHome=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
-ReadWritePaths=/opt/ck-nexus-src/data /var/lib/cknexus-creator
+ReadWritePaths=/opt/ck-nexus-src/data
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 UMask=0027
