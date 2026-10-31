@@ -1,0 +1,25 @@
+[Unit]
+Description=CK-NEXUS read-only development status collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=cknexus-creator
+Group=cknexus-creator
+WorkingDirectory=/opt/ck-nexus-src
+Environment=HOME=/var/lib/cknexus-creator
+Environment=GH_CONFIG_DIR=/var/lib/cknexus-creator/gh
+Environment=CKNEXUS_DEV_STATUS_FILE=/opt/ck-nexus-src/data/dev_status.json
+EnvironmentFile=/etc/cknexus/collector.env
+ExecStart=/usr/bin/python3 /opt/ck-nexus-src/scripts/collect_dev_status.py
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/opt/ck-nexus-src/data /var/lib/cknexus-creator
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0027

@@ -27,3 +27,6 @@ backups/
 evidence/
 *.bak*
 .full-test-fastpath.*
+
+data/dev_status.json
+data/qwen_probe_state.json

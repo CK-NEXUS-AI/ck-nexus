@@ -1,0 +1,11 @@
+[Unit]
+Description=Run CK-NEXUS authenticated Qwen probe once per day
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=24h
+AccuracySec=5min
+Unit=cknexus-qwen-probe.service
+
+[Install]
+WantedBy=timers.target
