@@ -3,13 +3,20 @@ from __future__ import annotations
 import http.client
 import importlib.util
 import json
+import os
 import threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
 
-GATEWAY_PATH = Path(__file__).resolve().parents[1] / "ops/vps/services/cknexus_n8n_workflows_ui.py"
+ROOT = Path(__file__).resolve().parents[1]
+GATEWAY_PATH = Path(
+    os.getenv(
+        "CKNEXUS_N8N_GATEWAY_PATH",
+        str(ROOT / "ops/vps/services/cknexus_n8n_workflows_ui.py"),
+    )
+)
 spec = importlib.util.spec_from_file_location("cknexus_n8n_workflows_ui", GATEWAY_PATH)
 gateway = importlib.util.module_from_spec(spec)
 assert spec.loader is not None

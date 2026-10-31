@@ -374,7 +374,10 @@ class HttpIndependentOmniAuthority(IndependentOmniAuthority):
             },
         )
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout_seconds) as response:
+            # base_url is restricted to loopback HTTP or HTTPS in __init__.
+            with urllib.request.urlopen(  # nosec B310
+                req, timeout=self.timeout_seconds
+            ) as response:
                 if response.status != 200:
                     raise RuntimeError("OMNI authority rejected request")
                 data = json.loads(response.read(1024 * 1024))

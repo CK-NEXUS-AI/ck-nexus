@@ -87,6 +87,7 @@ def test_screenshot_fails_closed_if_temp_path_already_exists(tmp_path, monkeypat
     monkeypatch.setattr(mcp_server.tempfile, "gettempdir", lambda: str(tmp_path))
     existing = tmp_path / "cknexus-browser-mcp.png"
     existing.write_text("do not overwrite", encoding="utf-8")
+    monkeypatch.setenv("CKNEXUS_BROWSER_SCREENSHOT_PATH", str(existing))
     monkeypatch.setattr(
         mcp_server,
         "_run_browser_tool",
