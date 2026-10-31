@@ -113,3 +113,52 @@ def test_cached_qwen_failure_is_not_reported_as_ok(tmp_path, monkeypatch) -> Non
              "result": {"last_success": None, "last_failure": collector.now()}}
     (tmp_path / "qwen_probe_state.json").write_text(json.dumps(state), encoding="utf-8")
     assert collector.load_qwen_probe_state()["status"] == "error"
+
+
+def test_qwen_probe_uses_validated_httpsconnection_with_low_token_budget(
+    tmp_path, monkeypatch
+) -> None:
+    import json
+
+    monkeypatch.setattr(collector, "OUTPUT", tmp_path / "dev_status.json")
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "unit-test-secret")
+    monkeypatch.setenv("QWEN_MODEL", "qwen-test")
+    monkeypatch.setenv(
+        "DASHSCOPE_BASE_URL",
+        "https://region-test.maas.aliyuncs.com/compatible-mode/v1",
+    )
+    captured = {}
+
+    class FakeResponse:
+        status = 200
+
+        @staticmethod
+        def read(_limit):
+            return json.dumps({"choices": [{"message": {"content": "OK"}}]}).encode()
+
+    class FakeConnection:
+        def __init__(self, host, port, timeout, context):
+            captured.update({"host": host, "port": port, "timeout": timeout,
+                             "context": context})
+
+        def request(self, method, path, body, headers):
+            captured.update({"method": method, "path": path,
+                             "body": json.loads(body), "headers": headers})
+
+        @staticmethod
+        def getresponse():
+            return FakeResponse()
+
+        @staticmethod
+        def close():
+            pass
+
+    monkeypatch.setattr(collector.http.client, "HTTPSConnection", FakeConnection)
+    result = collector.probe_qwen_daily()
+    assert result["status"] == "ok"
+    assert captured["host"] == "region-test.maas.aliyuncs.com"
+    assert captured["port"] == 443 and captured["timeout"] == 15
+    assert captured["path"] == "/compatible-mode/v1/chat/completions"
+    assert captured["body"]["max_tokens"] == 8
+    assert captured["headers"]["Authorization"] == "Bearer unit-test-secret"
+    assert "unit-test-secret" not in str(result)
