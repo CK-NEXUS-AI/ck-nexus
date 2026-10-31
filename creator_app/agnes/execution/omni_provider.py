@@ -32,13 +32,23 @@ class DurableExecutionReplayStore:
         if self.database_path == ":memory:":
             raise ValueError("replay store must be persistent")
         Path(self.database_path).parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        with sqlite3.connect(self.database_path, timeout=10) as db:
-            db.execute("PRAGMA busy_timeout=10000")
-            db.execute("PRAGMA journal_mode=WAL")
-            db.execute("PRAGMA synchronous=FULL")
-            db.execute("""CREATE TABLE IF NOT EXISTS consumed_executions (
-                execution_id TEXT PRIMARY KEY, consumed_at REAL NOT NULL
-            )""")
+        # Concurrent first-use constructors can race while switching to WAL.
+        # SQLite may return SQLITE_BUSY for journal_mode even with busy_timeout.
+        # Retry only lock contention; never treat a failed initialization as success.
+        for attempt in range(8):
+            try:
+                with sqlite3.connect(self.database_path, timeout=10) as db:
+                    db.execute("PRAGMA busy_timeout=10000")
+                    db.execute("PRAGMA journal_mode=WAL")
+                    db.execute("PRAGMA synchronous=FULL")
+                    db.execute("""CREATE TABLE IF NOT EXISTS consumed_executions (
+                        execution_id TEXT PRIMARY KEY, consumed_at REAL NOT NULL
+                    )""")
+                break
+            except sqlite3.OperationalError as exc:
+                if "locked" not in str(exc).lower() or attempt == 7:
+                    raise
+                time.sleep(min(0.025 * (2**attempt), 0.5))
         with contextlib.suppress(OSError):
             Path(self.database_path).chmod(0o600)
 
