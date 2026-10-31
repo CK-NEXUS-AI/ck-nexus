@@ -60,6 +60,20 @@ def command(args: list[str], *, cwd: Path = ROOT) -> Any:
     return completed.stdout.strip()
 
 
+def service_state(name: str) -> str:
+    completed = subprocess.run(
+        ["systemctl", "is-active", name],
+        text=True,
+        capture_output=True,
+        timeout=TIMEOUT,
+        check=False,
+    )
+    state = completed.stdout.strip()
+    if not state:
+        raise RuntimeError(f"systemctl is-active returned no state for {name}")
+    return state
+
+
 def item(value: Any, source: str, status: str = "ok") -> dict[str, Any]:
     return {"value": redact(value), "source": source, "collected_at": now(), "status": status}
 
@@ -124,10 +138,9 @@ def collect() -> dict[str, Any]:
         states = {}
         for name in names:
             try:
-                result = command(["systemctl", "is-active", name])
-                states[name] = result
-            except Exception:
-                states[name] = "inactive-or-failed"
+                states[name] = service_state(name)
+            except Exception as exc:
+                states[name] = {"status": "error", "detail": redact(str(exc))}
         data["services"] = item(states, "systemctl list-units + is-active")
     except Exception as exc:
         data["services"] = failed("systemctl", exc)

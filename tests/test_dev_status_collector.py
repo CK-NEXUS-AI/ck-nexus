@@ -72,3 +72,11 @@ def test_collect_marks_failed_git_source_as_error(monkeypatch) -> None:
     assert payload["items"]["git"]["status"] == "error"
     assert payload["items"]["git"]["value"] is None
     assert payload["items"]["open_prs"]["status"] == "error"
+
+
+def test_service_state_preserves_non_active_systemd_states(monkeypatch) -> None:
+    completed = subprocess.CompletedProcess(
+        ["systemctl", "is-active", "demo.service"], 3, "activating" + chr(10), ""
+    )
+    monkeypatch.setattr(collector.subprocess, "run", Mock(return_value=completed))
+    assert collector.service_state("demo.service") == "activating"
