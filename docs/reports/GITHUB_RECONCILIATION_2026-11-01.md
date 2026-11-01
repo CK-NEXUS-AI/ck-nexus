@@ -1,48 +1,62 @@
 # CK-NEXUS GitHub Reconciliation and Verified Work Audit
 
 Date: 2026-11-01 (UTC)
-Working branch: `feature/autonomous-brain-foundation`
-Remote branch baseline: `f63929315c0dbaf2dad53b1d2d7f0ea0ca01fd4b`
-Base before reconciliation: `bff3ef06b6e243226c36aafb03855125b5022311`
+Publication branch: `feat/brain-fabric-20261101`
+Publication base: `main` at `580555332d4c43829cc7e198425787b31a36f012`
+Brain/capability commit: `a0df02999e4564bf58b40016ac8d7192cd787ea6`
 
-## Verified publication
+## Verified GitHub publication
 
 ### PR #340 — merged
 
 - Pull request: https://github.com/CK-NEXUS-AI/ck-nexus/pull/340
-- Scope: enforce a dedicated read-only GitHub token for the development-status collector; remove broad GitHub CLI credential dependency; reduce systemd write paths to the data directory.
+- Scope: require a dedicated read-only GitHub token for the development-status collector; remove dependency on broad GitHub CLI credentials; restrict systemd write paths to the data directory.
 - GitHub checks: 5/5 SUCCESS (Preflight, CI test, CodeQL JavaScript/TypeScript, attack regression, CodeQL Python).
 - Independent local verification on PR head `09fc987f272737329a2be343a28a8847d962a6d9`: 10 focused tests passed; Ruff passed; `systemd-analyze verify` passed for all three modified service units.
 - Merge result: squash merge `580555332d4c43829cc7e198425787b31a36f012`, merged 2026-11-01T05:22:31Z.
-- No service deployment or credential rotation was performed as part of the merge.
+- No production service restart or credential rotation was performed as part of the merge.
 
-## Current brain/capability implementation under test
+## Brain and capability fabric implementation
 
 - `creator_app/brain/`: one bounded cognitive facade over the existing control-plane planner, knowledge retrieval, capability catalogue and evidence-derived learning.
 - `creator_app/capability_fabric/` and `config/capability_catalog.json`: typed capability inventory; discovery status is not execution permission.
 - `creator_app/global_knowledge/ebook_*.py`: rights-gated EPUB/text-PDF ingestion and SQLite lexical retrieval.
-- MCP adds six brain tools: status, plan, learning context, observation record, improvement proposal and journal summary.
+- MCP exposes six brain tools: status, plan, learning context, observation record, improvement proposal and journal summary.
 - Self-reported outcomes remain explicitly unverified; improvement proposals remain candidates; external tool authority remains NONE; no auto-install, auto-merge, production deployment or Q10 promotion is enabled.
-- No third-party e-book corpus is imported by this change; existing synthetic canary was revoked.
+- No third-party e-book corpus was imported by this change; the synthetic canary remains revoked.
 - Brain planning is plan-only. It does not execute tasks or invoke a model.
 
-## Test and quality results
+### Live VPS MCP verification
 
-- Full repository test run observed: 978 passed, 2 skipped, 12 warnings, 70.52 seconds.
-- Focused Ruff lint for changed/new Python modules: passed.
-- Ruff format check for new brain, capability-fabric, ebook-ingestion and tests modules: passed (12 files).
+- Development MCP service restarted and remained active on loopback port 8765.
+- MCP protocol `tools/list`: 28 tools returned; all six brain tools present.
+- `cknexus_brain_status`: `ready_for_planning`; 21 capability catalogue records.
+- Task queue reports 2 open tasks; this is an observed count, not a claim that they were executed.
+- Knowledge store: 1 source record, 0 active sources, 1 revoked synthetic canary; retrieval mode is lexical.
+- `cknexus_brain_plan`: 4 nodes, `PLANNED_NOT_EXECUTED`, external mutation authorization false.
+- Q10 remains `NOT_VERIFIED`; production remains `NO-GO`.
+
+## Test and quality results on current main base
+
+- Full repository test suite: 961 passed, 2 skipped, 12 warnings, 55.20 seconds.
+- The sandbox interpreter-alias regression test was made environment-independent: it now creates a temporary symlink to an executable outside trusted roots rather than assuming the host virtualenv resolves to a different Python binary. Focused test: 1 passed.
+- Scoped Ruff lint for changed/new Python modules and tests: passed.
+- Ruff format check for new brain, capability-fabric, ebook-ingestion and tests modules: passed.
+- Full-repository Ruff lint: 0 findings.
+- Full-repository Ruff format check: 83 files would be reformatted; 559 already formatted. No broad auto-format was applied.
 - `git diff --check`: passed.
-- Full-repository Ruff baseline is not clean: 76 existing lint findings and 84 existing files requiring formatting. These are pre-existing files outside the scoped change; no broad auto-format was applied.
-- Full-history Gitleaks scan reports 13 historical matches across test fixtures and example/config files. One match was a synthetic test sentinel introduced in the existing feature branch; the current working-tree test now constructs that sentinel dynamically. A scoped scan of all 17 changed/new files reported zero findings before that small correction; re-scan is required before publication.
-- Q10 frozen subject commit and tree were not modified. Q10 remains NOT_VERIFIED; production remains NO-GO.
+- Gitleaks commit-range scan (`origin/main..HEAD`): 0 findings.
+- Full-history scan across repository refs: 13 historical matches in older test fixtures and example/config files. These are inherited historical matches; no finding exists in the new commit range.
+- Q10 frozen subject commit and tree were not modified.
 
 ## GitHub backlog audit
 
-At the audit timestamp, `gh pr list --state open` returned 188 open pull requests:
+At the pre-merge audit timestamp, `gh pr list --state open` returned 188 open pull requests:
 - 166 draft; 22 non-draft.
 - Merge-state distribution: 67 CLEAN, 74 BEHIND, 31 DIRTY, 15 UNSTABLE, 1 BLOCKED.
-- 107 target `main`; the rest form dependent PR chains targeting other development branches.
+- 107 targeted `main`; the rest formed dependent PR chains targeting other development branches.
 - Only one non-draft PR targeting `main` had CLEAN merge state and all checks successful: PR #340, now merged.
+- After merging #340, the observed open PR count was 187.
 
 ### High-value prior work requiring separate reconciliation
 
@@ -61,7 +75,11 @@ At the audit timestamp, `gh pr list --state open` returned 188 open pull request
 | #316 | `feature/cknexus-agent-operating-model-20261031` | Non-draft, UNSTABLE; 7 success, 1 failure; base is `fix/p0-ruff-lint` | Resolve base dependency and failed check |
 | #321 | `docs/autonomous-platform-knowledge-base-2026-10-31` | Draft, DIRTY; 8 success, 1 failure | Resolve conflicts and failed check |
 
-The branch `feature/autonomous-brain-foundation` exists on origin at the recorded baseline but had no pull request at audit time. Its local changes must pass the final scoped security scan, test suite and current-main reconciliation before being pushed and opened as a PR.
+### Publication state of the brain branch
+
+- The old `feature/autonomous-brain-foundation` branch was 16 commits behind main and had merge conflicts across existing n8n/web/ops files when reconciled. That merge was aborted without altering the branch.
+- A clean publication branch `feat/brain-fabric-20261101` was created from the updated main commit after PR #340 merged. Only the bounded brain/capability/knowledge commit was cherry-picked; no force-push or history rewrite was used.
+- The full suite on this current-main branch passed. A follow-up test-only compatibility correction is being committed before push and PR creation.
 
 ## Explicit exclusions
 
