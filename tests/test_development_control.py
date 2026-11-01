@@ -1,4 +1,5 @@
 import os
+import stat
 from pathlib import Path
 
 import pytest
@@ -298,6 +299,20 @@ def test_default_state_path_falls_back_for_nonexistent_container_home(
         / "development-status.sqlite3"
     )
     assert default_development_status_db_path() == expected
+    assert stat.S_IMODE(expected.parent.stat().st_mode) == 0o700
     store = DevelopmentStatusStore(expected)
     assert store.path == expected
     assert expected.is_file()
+    assert stat.S_IMODE(expected.stat().st_mode) == 0o600
+
+
+def test_development_status_store_rejects_database_symlink(tmp_path: Path) -> None:
+    target = tmp_path / "target.sqlite3"
+    target.write_bytes(b"not-a-database")
+    link = tmp_path / "state.sqlite3"
+    link.symlink_to(target)
+
+    with pytest.raises(PermissionError, match="must not be a symlink"):
+        DevelopmentStatusStore(link)
+
+    assert target.read_bytes() == b"not-a-database"
