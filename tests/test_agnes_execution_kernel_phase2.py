@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import sys
 from pathlib import Path
 
 import pytest
@@ -48,15 +47,21 @@ def test_python_alias_rejects_virtualenv_symlink_outside_trusted_roots(monkeypat
     runner = LinuxNamespaceRunner(
         SandboxPolicy(base_dir=tmp_path / "runtime", repository_root=REPO)
     )
-    venv_python = sys.executable
+    untrusted_python = tmp_path / "outside-trusted-roots" / "python"
+    untrusted_python.parent.mkdir()
+    untrusted_python.write_text("#!/bin/sh" + chr(10) + "exit 0" + chr(10), encoding="utf-8")
+    untrusted_python.chmod(0o755)
+    venv_python = tmp_path / "venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.symlink_to(untrusted_python)
     monkeypatch.setattr(
         "creator_app.agnes.execution.sandbox.runner.shutil.which",
-        lambda _: venv_python,
+        lambda _: str(venv_python),
     )
     resolved = runner._resolve_executable(("python", "-c", "print(1)"))
     real = Path(resolved[0]).resolve(strict=True)
     assert str(real).startswith(("/usr/", "/bin/", "/opt/", "/usr/local/"))
-    assert str(real) != str(Path(venv_python).resolve())
+    assert real != untrusted_python.resolve()
     assert real.is_file() and os.access(real, os.X_OK)
 
 
