@@ -14,6 +14,7 @@ from creator_app.development_control import (
     COMPETENCY_CRITERIA,
     DevelopmentState,
     DevelopmentStatusStore,
+    default_development_status_db_path,
     evaluate_competency,
 )
 
@@ -194,7 +195,7 @@ def install_unified_control(app: FastAPI) -> FastAPI:
     development_store = DevelopmentStatusStore(
         os.environ.get(
             "CKNEXUS_DEVELOPMENT_STATUS_DB",
-            "~/.local/state/ck-nexus/development-status.sqlite3",
+            str(default_development_status_db_path()),
         )
     )
     human_approval_token = os.environ.get("CKNEXUS_HUMAN_APPROVAL_TOKEN", "").strip()

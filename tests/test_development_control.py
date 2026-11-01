@@ -1,3 +1,5 @@
+import os
+import stat
 from pathlib import Path
 
 import pytest
@@ -7,6 +9,7 @@ from creator_app.development_control import (
     CompetencyLevel,
     DevelopmentState,
     DevelopmentStatusStore,
+    default_development_status_db_path,
     evaluate_competency,
 )
 
@@ -267,3 +270,49 @@ def test_write_authority_requires_human_confirmed_pro(tmp_path: Path) -> None:
     granted = store.require_write_authority("candidate-ai")
     assert granted["level"] == "PRO_LEVEL"
     assert granted["write_allowed"] is True
+
+
+
+def test_default_state_path_uses_home_state_when_writable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+
+    assert default_development_status_db_path() == (
+        tmp_path / ".local" / "state" / "ck-nexus" / "development-status.sqlite3"
+    )
+
+
+def test_default_state_path_falls_back_for_nonexistent_container_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "nonexistent-home"))
+    monkeypatch.delenv("XDG_STATE_HOME", raising=False)
+    monkeypatch.setattr(
+        "creator_app.development_control.tempfile.gettempdir", lambda: str(tmp_path)
+    )
+
+    expected = (
+        tmp_path
+        / f"ck-nexus-state-{os.getuid()}"
+        / "development-status.sqlite3"
+    )
+    assert default_development_status_db_path() == expected
+    assert stat.S_IMODE(expected.parent.stat().st_mode) == 0o700
+    store = DevelopmentStatusStore(expected)
+    assert store.path == expected
+    assert expected.is_file()
+    assert stat.S_IMODE(expected.stat().st_mode) == 0o600
+
+
+def test_development_status_store_rejects_database_symlink(tmp_path: Path) -> None:
+    target = tmp_path / "target.sqlite3"
+    target.write_bytes(b"not-a-database")
+    link = tmp_path / "state.sqlite3"
+    link.symlink_to(target)
+
+    with pytest.raises(PermissionError, match="must not be a symlink"):
+        DevelopmentStatusStore(link)
+
+    assert target.read_bytes() == b"not-a-database"

@@ -7,7 +7,10 @@ It does not own Q10/Q11/Q12/Production authority.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
+import stat
+import tempfile
 import threading
 import uuid
 from dataclasses import asdict, dataclass
@@ -15,6 +18,29 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
+
+
+def default_development_status_db_path() -> Path:
+    """Choose a writable per-user state path, including minimal non-root containers."""
+    xdg_state_home = os.environ.get("XDG_STATE_HOME")
+    if xdg_state_home:
+        xdg_path = Path(xdg_state_home).expanduser()
+        if xdg_path.is_dir() and os.access(xdg_path, os.W_OK):
+            return xdg_path / "ck-nexus" / "development-status.sqlite3"
+
+    home = Path.home()
+    if home.is_dir() and os.access(home, os.W_OK):
+        return home / ".local" / "state" / "ck-nexus" / "development-status.sqlite3"
+
+    # Some non-root images deliberately use HOME=/nonexistent. /tmp is the
+    # writable runtime mount; include the UID to avoid cross-user collisions.
+    fallback_dir = Path(tempfile.gettempdir()) / f"ck-nexus-state-{os.getuid()}"
+    fallback_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    fallback_stat = fallback_dir.lstat()
+    if not stat.S_ISDIR(fallback_stat.st_mode) or fallback_stat.st_uid != os.getuid():
+        raise PermissionError("UID-isolated development state directory is not privately owned")
+    fallback_dir.chmod(0o700)
+    return fallback_dir / "development-status.sqlite3"
 
 
 class DevelopmentState(StrEnum):
@@ -215,6 +241,8 @@ class DevelopmentStatusStore:
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path).expanduser()
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        if self.path.is_symlink():
+            raise PermissionError("development status database must not be a symlink")
         self._lock = threading.RLock()
         self._initialize()
 
@@ -263,6 +291,7 @@ class DevelopmentStatusStore:
                 )
                 """
             )
+        self.path.chmod(0o600)
 
     def _record_event(
         self,
