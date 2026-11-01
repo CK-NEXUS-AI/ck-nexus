@@ -20,6 +20,17 @@ from creator_app.global_knowledge.ebook_ingest import (
     EbookRightsBasis,
 )
 
+_SEARCH_SQL = """SELECT c.chunk_id, c.source_sha256, d.title, d.filename,
+    c.chapter_id, c.chapter_order, c.chunk_order, c.text, c.rights_basis
+    FROM ebook_chunks c
+    JOIN ebook_documents d ON d.source_sha256 = c.source_sha256
+    WHERE d.revoked = 0 AND NOT EXISTS (
+        SELECT 1 FROM json_each(?) AS query_term
+        WHERE instr(lower(c.text), lower(CAST(query_term.value AS TEXT))) = 0
+    )
+    ORDER BY d.title COLLATE NOCASE, c.chapter_order, c.chunk_order
+    LIMIT ?"""
+
 
 @dataclass(frozen=True, slots=True)
 class EbookSearchHit:
@@ -147,21 +158,10 @@ class EbookKnowledgeStore:
         terms = re.findall(r"[^\W_]+", normalized, flags=re.UNICODE)
         if not terms:
             raise ValueError("query contains no searchable terms")
-        clauses = " AND ".join("c.text LIKE ? COLLATE NOCASE" for _ in terms)
-        params = [f"%{term}%" for term in terms]
-        params.append(limit)
+        params = [json.dumps(terms, ensure_ascii=False), limit]
         self.initialize()
         with self._connect() as conn:
-            rows = conn.execute(
-                f"""SELECT c.chunk_id, c.source_sha256, d.title, d.filename,
-                           c.chapter_id, c.chapter_order, c.chunk_order, c.text, c.rights_basis
-                    FROM ebook_chunks c
-                    JOIN ebook_documents d ON d.source_sha256 = c.source_sha256
-                    WHERE d.revoked = 0 AND {clauses}
-                    ORDER BY d.title COLLATE NOCASE, c.chapter_order, c.chunk_order
-                    LIMIT ?""",
-                params,
-            ).fetchall()
+            rows = conn.execute(_SEARCH_SQL, params).fetchall()
         return tuple(EbookSearchHit(*row) for row in rows)
 
     def list_documents(self) -> tuple[dict[str, object], ...]:
@@ -200,22 +200,11 @@ class EbookKnowledgeStore:
             raise ValueError("query contains no searchable terms")
         if not self.path.is_file():
             return ()
-        clauses = " AND ".join("c.text LIKE ? COLLATE NOCASE" for _ in terms)
-        params = [f"%{term}%" for term in terms]
-        params.append(limit)
+        params = [json.dumps(terms, ensure_ascii=False), limit]
         uri = self.path.resolve().as_uri() + "?mode=ro"
         try:
             with sqlite3.connect(uri, uri=True, timeout=3.0) as conn:
-                rows = conn.execute(
-                    f"""SELECT c.chunk_id, c.source_sha256, d.title, d.filename,
-                               c.chapter_id, c.chapter_order, c.chunk_order, c.text, c.rights_basis
-                        FROM ebook_chunks c
-                        JOIN ebook_documents d ON d.source_sha256 = c.source_sha256
-                        WHERE d.revoked = 0 AND {clauses}
-                        ORDER BY d.title COLLATE NOCASE, c.chapter_order, c.chunk_order
-                        LIMIT ?""",
-                    params,
-                ).fetchall()
+                rows = conn.execute(_SEARCH_SQL, params).fetchall()
         except sqlite3.OperationalError as exc:
             raise RuntimeError(
                 "knowledge index is unavailable or has an incompatible schema"

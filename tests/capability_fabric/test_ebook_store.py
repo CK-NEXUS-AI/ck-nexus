@@ -74,6 +74,17 @@ def test_store_rejects_foreign_chunks_and_invalid_search(tmp_path) -> None:
         store.search("attention", limit=0)
 
 
+def test_search_treats_sql_injection_text_as_bound_search_terms(tmp_path) -> None:
+    document = _document()
+    chunks = chunk_epub(document, rights_basis=EbookRightsBasis.OPEN_LICENSE)
+    store = EbookKnowledgeStore(tmp_path / "knowledge.sqlite3")
+    store.ingest(document, chunks)
+
+    assert len(store.search("attention")) == 1
+    assert store.search("attention' OR 1=1 --") == ()
+    assert store.search_readonly("attention' OR 1=1 --") == ()
+
+
 def test_readonly_search_does_not_create_or_mutate_index(tmp_path) -> None:
     path = tmp_path / "not-created.sqlite3"
     store = EbookKnowledgeStore(path)

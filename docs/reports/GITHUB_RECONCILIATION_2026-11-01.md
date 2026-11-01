@@ -38,14 +38,18 @@ Brain/capability commit: `a0df02999e4564bf58b40016ac8d7192cd787ea6`
 
 ## Test and quality results on current main base
 
-- Full repository test suite: 961 passed, 2 skipped, 12 warnings, 55.20 seconds.
+- Full repository test suite after security remediation: 963 passed, 2 skipped, 12 warnings, 54.76 seconds.
 - The sandbox interpreter-alias regression test was made environment-independent: it now creates a temporary symlink to an executable outside trusted roots rather than assuming the host virtualenv resolves to a different Python binary. Focused test: 1 passed.
+- Added EPUB parser regression coverage for DTD/external-entity rejection and SQL search regression coverage for injection-shaped input.
+- EPUB XML parsing now uses `defusedxml`; it is declared as a direct project dependency and the lockfile passes `uv lock --check`.
+- Search SQL is now static; all query terms are passed as JSON-bound parameters through SQLite `json_each`, removing dynamic SQL construction.
+- Bandit exact reviewed gate: 0 unreviewed MEDIUM/HIGH findings after remediation of the four new B314/B608 findings.
 - Scoped Ruff lint for changed/new Python modules and tests: passed.
 - Ruff format check for new brain, capability-fabric, ebook-ingestion and tests modules: passed.
 - Full-repository Ruff lint: 0 findings.
 - Full-repository Ruff format check: 83 files would be reformatted; 559 already formatted. No broad auto-format was applied.
 - `git diff --check`: passed.
-- Gitleaks commit-range scan (`origin/main..HEAD`): 0 findings.
+- Gitleaks commit-range scan (`origin/main..HEAD`): 0 findings; scoped changed-file scan: 0 findings.
 - Full-history scan across repository refs: 13 historical matches in older test fixtures and example/config files. These are inherited historical matches; no finding exists in the new commit range.
 - Q10 frozen subject commit and tree were not modified.
 
@@ -56,7 +60,7 @@ At the pre-merge audit timestamp, `gh pr list --state open` returned 188 open pu
 - Merge-state distribution: 67 CLEAN, 74 BEHIND, 31 DIRTY, 15 UNSTABLE, 1 BLOCKED.
 - 107 targeted `main`; the rest formed dependent PR chains targeting other development branches.
 - Only one non-draft PR targeting `main` had CLEAN merge state and all checks successful: PR #340, now merged.
-- After merging #340, the observed open PR count was 187.
+- After merging #340, the observed open PR count was 187; after opening brain-fabric PR #343, the observed count returned to 188.
 
 ### High-value prior work requiring separate reconciliation
 
@@ -79,7 +83,8 @@ At the pre-merge audit timestamp, `gh pr list --state open` returned 188 open pu
 
 - The old `feature/autonomous-brain-foundation` branch was 16 commits behind main and had merge conflicts across existing n8n/web/ops files when reconciled. That merge was aborted without altering the branch.
 - A clean publication branch `feat/brain-fabric-20261101` was created from the updated main commit after PR #340 merged. Only the bounded brain/capability/knowledge commit was cherry-picked; no force-push or history rewrite was used.
-- The full suite on this current-main branch passed. A follow-up test-only compatibility correction is being committed before push and PR creation.
+- Branch was pushed as `feat/brain-fabric-20261101` and PR #343 was opened against `main`: https://github.com/CK-NEXUS-AI/ck-nexus/pull/343.
+- The first GitHub CI run caught four new Bandit B314/B608 findings in EPUB XML parsing and dynamic search SQL. Those root causes have now been corrected, with DTD/entity and SQL-injection regression tests added. The PR is not merged; the remediation commit and fresh CI run are pending.
 
 ## Explicit exclusions
 

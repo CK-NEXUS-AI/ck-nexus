@@ -67,6 +67,22 @@ def test_parse_epub_preserves_metadata_order_text_and_hash(tmp_path) -> None:
     assert result.sha256 == hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def test_parse_epub_rejects_doctype_and_external_entities(tmp_path) -> None:
+    path = tmp_path / "hostile.epub"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr(
+            "META-INF/container.xml",
+            """<!DOCTYPE container [
+              <!ENTITY xxe SYSTEM "file:///etc/passwd">
+            ]>
+            <container xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+              <rootfiles><rootfile full-path="OEBPS/content.opf"/></rootfiles>
+            </container>""",
+        )
+    with pytest.raises(EbookIngestError, match="malformed or unreadable"):
+        parse_epub(path)
+
+
 def test_rejects_non_epub_and_path_traversal(tmp_path) -> None:
     bad = tmp_path / "bad.epub"
     bad.write_text("not a zip", encoding="utf-8")

@@ -17,7 +17,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from html.parser import HTMLParser
 from pathlib import Path
-from xml.etree import ElementTree as ET
+
+from defusedxml import ElementTree as ET
+from defusedxml.common import DefusedXmlException
 
 _MAX_ARCHIVE_BYTES = 100 * 1024 * 1024
 _MAX_UNCOMPRESSED_BYTES = 300 * 1024 * 1024
@@ -237,7 +239,14 @@ def parse_epub(path: str | Path) -> EbookDocument:
             )
     except EbookIngestError:
         raise
-    except (OSError, zipfile.BadZipFile, ET.ParseError, KeyError, RuntimeError) as exc:
+    except (
+        OSError,
+        zipfile.BadZipFile,
+        ET.ParseError,
+        DefusedXmlException,
+        KeyError,
+        RuntimeError,
+    ) as exc:
         raise EbookIngestError("EPUB archive is malformed or unreadable") from exc
 
 
