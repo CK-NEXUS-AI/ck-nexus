@@ -15,7 +15,7 @@ def test_sanitize_message_redacts_secrets_and_bounds_text():
 
 
 def test_sanitize_message_redacts_complete_bearer_authorization_header():
-    secret = "TEST_SECRET_SENTINEL_123456789"
+    secret = "TEST_SECRET_SENTINEL_" + "x" * 12
     for prefix in ("Authorization: Bearer", "authorization=Bearer"):
         result = sanitize_message(f"{prefix} {secret}")
         assert secret not in result
