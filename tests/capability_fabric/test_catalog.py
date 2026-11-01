@@ -63,3 +63,11 @@ def test_catalog_rejects_duplicate_ids(tmp_path) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ValueError, match="unique"):
         CapabilityCatalog.load(path)
+
+
+def test_search_control_fabric_is_catalogued_without_authority():
+    catalog = CapabilityCatalog.load(CATALOG)
+    artifact = catalog.get("search-control-fabric")
+    assert artifact.artifact_class is ArtifactClass.CONNECTOR
+    assert artifact.status is ArtifactStatus.PARTIAL
+    assert artifact.authority_scope == "NONE"

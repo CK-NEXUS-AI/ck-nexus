@@ -374,6 +374,26 @@
         "stable-chunk-citations"
       ],
       "notes": "Separate from personal memory and policy. The production index is initialized but currently empty; imported documents require an explicit rights basis."
+    },
+    {
+      "id": "search-control-fabric",
+      "name": "CK-NEXUS Search & Control Fabric",
+      "class": "connector",
+      "status": "partial",
+      "integration_point": "creator_app/search_control_fabric + creator_app/connector_fabric + creator_app/channel_fabric",
+      "authority_scope": "NONE",
+      "license": "internal",
+      "capabilities": [
+        "discovery-source-provenance",
+        "source-freshness",
+        "rights-basis-gating",
+        "control-action-contracts",
+        "risk-tiering",
+        "idempotency-requirements",
+        "owner-approval-contract",
+        "fail-closed-grant-verification"
+      ],
+      "notes": "Contracts and unit tests exist. No live search provider, durable source registry, or new execution adapter is enabled."
     }
   ]
 }
