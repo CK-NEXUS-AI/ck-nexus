@@ -85,7 +85,7 @@
         "provider-status",
         "browser-tools"
       ],
-      "notes": "22 tools listed after adding read-only capability catalog and knowledge search/source listing. Tool availability does not imply execution permission."
+      "notes": "38 MCP tools are registered in the current branch, including bounded brain, GitHub-hosted cloud-worker and Pinterest read-only reference tools. Tool availability does not imply execution permission."
     },
     {
       "id": "agnes-skills",
@@ -374,6 +374,145 @@
         "stable-chunk-citations"
       ],
       "notes": "Separate from personal memory and policy. The production index is initialized but currently empty; imported documents require an explicit rights basis."
+    },
+    {
+      "id": "github-actions-cloud-worker",
+      "name": "GitHub Actions Cloud Worker",
+      "class": "workflow_engine",
+      "status": "partial",
+      "integration_point": "creator_app/cloud_workers/github_actions.py + .github/workflows/cknexus-cloud-worker.yml",
+      "authority_scope": "NONE",
+      "license": "GitHub Actions hosted service; runner and usage governed by GitHub plan/terms",
+      "source_url": "https://docs.github.com/en/actions",
+      "capabilities": [
+        "remote-test-execution",
+        "remote-security-validation",
+        "immutable-subject-checkout",
+        "artifact-evidence"
+      ],
+      "notes": "Fixed task profiles only; default disabled; GitHub App token via CredentialBroker; contents:read runner permissions; no arbitrary shell, repository write, merge or production deployment."
+    },
+    {
+      "id": "pinterest-api-v5",
+      "name": "Pinterest API v5 Read-only Connector",
+      "class": "connector",
+      "status": "partial",
+      "integration_point": "creator_app/pinterest_api.py + CredentialBroker + PinterestReferenceStore",
+      "authority_scope": "NONE",
+      "license": "Pinterest API platform terms; user content rights remain with respective rights holders",
+      "source_url": "https://developers.pinterest.com/docs/",
+      "capabilities": [
+        "public-board-pin-metadata",
+        "image-url-catalogue",
+        "cursor-pagination-up-to-250-per-page",
+        "read-only-oauth-scopes"
+      ],
+      "notes": "Requires a Pinterest developer app and a token scoped only to boards:read and pins:read. Collects metadata and image URLs, not image binaries. No permission to reuse content is implied."
+    },
+    {
+      "id": "pinterest-mcp-server",
+      "name": "Official Pinterest MCP Server",
+      "class": "connector",
+      "status": "discovery_only",
+      "integration_point": "future remote MCP adapter behind Connector Fabric",
+      "authority_scope": "NONE",
+      "license": "Pinterest developer platform terms",
+      "source_url": "https://developers.pinterest.com/about-pinterest-mcp/",
+      "capabilities": [
+        "pin-search",
+        "board-discovery",
+        "trend-insights",
+        "oauth-scoped-tool-access"
+      ],
+      "notes": "Pinterest announcement page currently asks developers to sign up for launch updates; not treated as generally available. Use API v5 read-only connector until availability is verified."
+    },
+    {
+      "id": "digitalocean-action-gateway",
+      "name": "DigitalOcean Action Gateway",
+      "class": "connector",
+      "status": "discovery_only",
+      "integration_point": "remote MCP meta-tool adapter via Connector Fabric",
+      "authority_scope": "NONE",
+      "license": "DigitalOcean managed service terms",
+      "source_url": "https://docs.digitalocean.com/products/managed-agents/action-gateway/concepts/overview/",
+      "capabilities": [
+        "managed-remote-mcp",
+        "dynamic-tool-search",
+        "permissioned-invoke",
+        "actor-connections",
+        "credential-isolation"
+      ],
+      "notes": "Uses action_search/action_invoke/action_code to load only task-relevant tools and keep provider credentials outside model context. Candidate only; account, cost and permission scope not verified."
+    },
+    {
+      "id": "aws-agent-toolkit",
+      "name": "AWS Agent Toolkit for AWS",
+      "class": "plugin",
+      "status": "discovery_only",
+      "integration_point": "AWS MCP Server + on-demand skills behind isolated cloud-worker adapter",
+      "authority_scope": "NONE",
+      "license": "Apache-2.0",
+      "source_url": "https://github.com/aws/agent-toolkit-for-aws",
+      "capabilities": [
+        "aws-mcp-server",
+        "curated-agent-skills",
+        "cloud-documentation-search",
+        "devsecops-review",
+        "sandboxed-cloud-scripts"
+      ],
+      "notes": "Official AWS-supported toolkit. Use only selected skills/toolsets with scoped IAM; do not grant CK-NEXUS root authority. No AWS account or deployment tested."
+    },
+    {
+      "id": "huggingface-inference-endpoints",
+      "name": "Hugging Face Inference Endpoints",
+      "class": "ai_provider",
+      "status": "discovery_only",
+      "integration_point": "Provider Router remote inference adapter",
+      "authority_scope": "NONE",
+      "license": "Managed service; model-specific licenses apply",
+      "source_url": "https://huggingface.co/docs/inference-endpoints/guides/autoscaling",
+      "capabilities": [
+        "managed-model-inference",
+        "gpu-autoscaling",
+        "scale-to-zero",
+        "private-endpoints"
+      ],
+      "notes": "Scale-to-zero reduces idle compute but introduces cold starts and temporary 503 responses. Candidate for burst inference, subject to cost and latency tests."
+    },
+    {
+      "id": "cloudflare-workers-ai",
+      "name": "Cloudflare Workers AI",
+      "class": "ai_provider",
+      "status": "discovery_only",
+      "integration_point": "Provider Router remote inference adapter",
+      "authority_scope": "NONE",
+      "license": "Cloudflare service terms; model-specific licenses apply",
+      "source_url": "https://developers.cloudflare.com/workers-ai/",
+      "capabilities": [
+        "remote-text-generation",
+        "embeddings",
+        "image-to-text",
+        "classification",
+        "edge-inference"
+      ],
+      "notes": "Cloud-hosted inference may reduce VPS memory load. Check per-model limits, paid tiers and data handling before activation; no credentials or live inference tested."
+    },
+    {
+      "id": "airllm",
+      "name": "AirLLM Layer-wise Inference",
+      "class": "ai_provider",
+      "status": "discovery_only",
+      "integration_point": "isolated research worker only; not installed on CK-NEXUS VPS",
+      "authority_scope": "NONE",
+      "license": "Apache-2.0",
+      "source_url": "https://github.com/lyogavin/airllm",
+      "capabilities": [
+        "layer-wise-weight-streaming",
+        "low-vram-inference",
+        "disk-backed-model-shards",
+        "optional-block-compression"
+      ],
+      "notes": "Maintainer reports very low VRAM use for large models, but per-token weight streaming can make disk I/O the bottleneck. Not suitable for interactive inference on the constrained CK-NEXUS VPS without benchmark proof."
     }
   ]
 }

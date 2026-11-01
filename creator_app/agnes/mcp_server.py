@@ -35,6 +35,7 @@ from creator_app.capability_fabric.catalog import (
     ArtifactStatus,
     CapabilityCatalog,
 )
+from creator_app.cloud_workers import GitHubActionsCloudWorker
 from creator_app.control_plane import ControlPlaneOrchestrator
 from creator_app.control_plane.task_store import TaskStore
 from creator_app.control_plane.verification import ControlPlaneVerifier
@@ -44,13 +45,17 @@ from creator_app.core.self_capability_manager import (
     LEARNING_SOURCES,
     SelfCapabilityManager,
 )
+from creator_app.credential_broker import CredentialBroker
 from creator_app.dev_assistants import (
     DevAssistantFabric,
     DevExecutionContract,
     ExecutionPolicy,
     ExecutionRequest,
 )
+from creator_app.github_app import GitHubAppAuth
 from creator_app.global_knowledge.ebook_store import EbookKnowledgeStore
+from creator_app.global_knowledge.pinterest_store import PinterestReferenceStore
+from creator_app.pinterest_api import PinterestAPIClient, PinterestAPIError
 
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 _DEFAULT_PORT = 8765
@@ -172,6 +177,9 @@ _CAPABILITY_MANAGER: SelfCapabilityManager | None = None
 _DEV_ASSISTANT_FABRIC: DevAssistantFabric | None = None
 _DEV_EXECUTION_CONTRACT: DevExecutionContract | None = None
 _BRAIN_RUNTIME: BrainRuntime | None = None
+_CLOUD_WORKER: GitHubActionsCloudWorker | None = None
+_PINTEREST_CLIENT: PinterestAPIClient | None = None
+_PINTEREST_STORE: PinterestReferenceStore | None = None
 
 
 def get_system() -> UniversalSystem:
@@ -182,12 +190,59 @@ def get_system() -> UniversalSystem:
     return _SYSTEM
 
 
+def get_cloud_worker() -> GitHubActionsCloudWorker:
+    """Return the fixed-task GitHub cloud worker; disabled unless explicitly enabled."""
+    global _CLOUD_WORKER
+    if _CLOUD_WORKER is None:
+        broker = CredentialBroker.from_environment()
+        app_enabled = os.getenv("CKNEXUS_GITHUB_APP_ENABLED", "false").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        auth = GitHubAppAuth(broker, enabled=app_enabled)
+        worker_enabled = os.getenv("CKNEXUS_CLOUD_WORKER_ENABLED", "false").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        _CLOUD_WORKER = GitHubActionsCloudWorker(
+            broker=broker,
+            github_app_auth=auth,
+            enabled=worker_enabled,
+            repository=os.getenv("CKNEXUS_CLOUD_WORKER_REPOSITORY", "CK-NEXUS-AI/ck-nexus").strip(),
+        )
+    return _CLOUD_WORKER
+
+
+def get_pinterest_client() -> PinterestAPIClient:
+    """Return a read-only Pinterest API v5 client using the credential broker."""
+    global _PINTEREST_CLIENT
+    if _PINTEREST_CLIENT is None:
+        _PINTEREST_CLIENT = PinterestAPIClient(CredentialBroker.from_environment())
+    return _PINTEREST_CLIENT
+
+
+def get_pinterest_store() -> PinterestReferenceStore:
+    """Return the local reference-only Pinterest metadata catalogue."""
+    global _PINTEREST_STORE
+    if _PINTEREST_STORE is None:
+        path = os.getenv(
+            "CKNEXUS_PINTEREST_DB",
+            "/opt/cknexus-mcp/.state/pinterest-references.sqlite3",
+        )
+        _PINTEREST_STORE = PinterestReferenceStore(path)
+    return _PINTEREST_STORE
+
+
 def get_brain_runtime() -> BrainRuntime:
     """Return the unified, bounded CK-NEXUS cognitive runtime."""
     global _BRAIN_RUNTIME
     if _BRAIN_RUNTIME is None:
         root = Path(__file__).resolve().parents[2]
-        _BRAIN_RUNTIME = BrainRuntime(root=root)
+        _BRAIN_RUNTIME = BrainRuntime(root=root, cloud_worker=get_cloud_worker())
     return _BRAIN_RUNTIME
 
 
@@ -223,7 +278,10 @@ mcp = FastMCP(
         "It selects a concise AI answer or a development plan; plan output is not "
         "execution evidence. Use cknexus_ai_provider_status for redacted readiness. "
         "Results do not promote Q10/Q11/Q12, do not constitute release evidence, "
-        "and do not authorize production mutation or merging PR #14."
+        "and do not authorize production mutation or merging any PR. "
+        "Use cknexus_cloud_worker_status before fixed remote validation; arbitrary shell "
+        "and production deployment are not available. Pinterest collection is read-only, "
+        "requires boards:read and pins:read, and stores metadata/image URLs only."
     ),
     host=_configured_host(),
     port=_configured_port(),
@@ -1178,6 +1236,121 @@ def cknexus_brain_propose_improvement(
 def cknexus_brain_journal_summary() -> dict[str, Any]:
     """Summarize persisted learning observations and pending improvement candidates."""
     return get_brain_runtime().journal_summary()
+
+
+@mcp.tool()
+def cknexus_cloud_worker_status() -> dict[str, Any]:
+    """Show GitHub-hosted worker readiness; this call never dispatches a job."""
+    return get_brain_runtime().cloud_worker_status()
+
+
+@mcp.tool()
+def cknexus_cloud_worker_dispatch(task_kind: str, subject_sha: str) -> dict[str, Any]:
+    """Dispatch one fixed validation profile to a GitHub-hosted runner.
+
+    Only tests, security or full_validation are accepted. Arbitrary shell commands,
+    repository writes, merges and production deployment are not exposed.
+    """
+    try:
+        return get_brain_runtime().dispatch_cloud_worker(
+            task_kind=task_kind, subject_sha=subject_sha
+        )
+    except ValueError as exc:
+        return _task_result_error("INVALID_CLOUD_WORKER_REQUEST", str(exc))
+    except RuntimeError as exc:
+        return _task_result_error("CLOUD_WORKER_UNAVAILABLE", str(exc))
+
+
+@mcp.tool()
+def cknexus_cloud_worker_result(request_id: str) -> dict[str, Any]:
+    """Read the state of a previously submitted cloud validation request."""
+    try:
+        return get_brain_runtime().cloud_worker_result(request_id=request_id)
+    except ValueError as exc:
+        return _task_result_error("INVALID_CLOUD_WORKER_REQUEST", str(exc))
+    except RuntimeError as exc:
+        return _task_result_error("CLOUD_WORKER_UNAVAILABLE", str(exc))
+
+
+@mcp.tool()
+def cknexus_pinterest_status() -> dict[str, Any]:
+    """Show Pinterest read-only API readiness and collected reference counts."""
+    return {
+        **get_pinterest_client().status(),
+        **get_pinterest_store().summary(),
+        "authority": "NONE",
+        "image_bytes_downloaded": 0,
+    }
+
+
+@mcp.tool()
+def cknexus_pinterest_collect(board_ids: list[str], limit: int = 500) -> dict[str, Any]:
+    """Collect up to 500 public Pin metadata records from up to 25 public boards.
+
+    Requires a Pinterest API token with boards:read and pins:read. Stores source
+    metadata and image URLs only; it does not download, rehost, or train on images.
+    """
+    if not isinstance(board_ids, list) or not 1 <= len(board_ids) <= 25:
+        return _task_result_error(
+            "INVALID_PINTEREST_BOARDS", "board_ids must contain 1-25 board IDs"
+        )
+    if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 500:
+        return _task_result_error("INVALID_PINTEREST_LIMIT", "limit must be between 1 and 500")
+    try:
+        client = get_pinterest_client()
+        if not client.status()["configured"]:
+            raise PinterestAPIError(
+                "Pinterest access token is not configured; connect a read-only API token "
+                "with boards:read and pins:read."
+            )
+        records_by_pin = {}
+        pages = 0
+        more_available = False
+        used_boards = []
+        for board_id in dict.fromkeys(board_ids):
+            remaining = limit - len(records_by_pin)
+            if remaining <= 0:
+                break
+            result = client.list_board_pins(board_id=board_id, limit=remaining)
+            for record in result["items"]:
+                records_by_pin[str(record["pin_id"])] = record
+            pages += int(result["page_count"])
+            used_boards.append(board_id)
+            more_available = more_available or bool(result["more_available"])
+        records = list(records_by_pin.values())
+        stored = get_pinterest_store().upsert(records)
+        return {
+            "ok": True,
+            "requested_limit": limit,
+            "collected_count": len(records),
+            "stored_count": stored,
+            "board_ids": used_boards,
+            "page_count": pages,
+            "more_available": more_available,
+            "image_url_count": sum(bool(x.get("image_url")) for x in records),
+            "image_bytes_downloaded": 0,
+            "rights_status": "unknown; do not reuse without rights review",
+            "reusable": False,
+            "authority": "NONE",
+            "external_mutation_authorized": False,
+        }
+    except (PinterestAPIError, ValueError) as exc:
+        return _task_result_error("PINTEREST_COLLECTION_FAILED", str(exc))
+
+
+@mcp.tool()
+def cknexus_pinterest_references(limit: int = 50, offset: int = 0) -> dict[str, Any]:
+    """List collected Pinterest Pin references with source attribution and image URLs."""
+    try:
+        store = get_pinterest_store()
+        return {
+            "items": store.list(limit=limit, offset=offset),
+            **store.summary(),
+            "image_bytes_downloaded": 0,
+            "authority": "NONE",
+        }
+    except ValueError as exc:
+        return _task_result_error("INVALID_PINTEREST_QUERY", str(exc))
 
 
 def run_server() -> None:
