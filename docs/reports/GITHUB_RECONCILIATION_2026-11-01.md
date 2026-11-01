@@ -60,7 +60,7 @@ At the pre-merge audit timestamp, `gh pr list --state open` returned 188 open pu
 - Merge-state distribution: 67 CLEAN, 74 BEHIND, 31 DIRTY, 15 UNSTABLE, 1 BLOCKED.
 - 107 targeted `main`; the rest formed dependent PR chains targeting other development branches.
 - Only one non-draft PR targeting `main` had CLEAN merge state and all checks successful: PR #340, now merged.
-- After merging #340, the observed open PR count was 187; after opening brain-fabric PR #343, the observed count returned to 188.
+- After merging #340, the observed open PR count was 187; after opening brain-fabric PR #343, the observed count returned to 188; after merging #343, the observed count returned to 187 (166 draft, 21 non-draft).
 
 ### High-value prior work requiring separate reconciliation
 
@@ -84,7 +84,16 @@ At the pre-merge audit timestamp, `gh pr list --state open` returned 188 open pu
 - The old `feature/autonomous-brain-foundation` branch was 16 commits behind main and had merge conflicts across existing n8n/web/ops files when reconciled. That merge was aborted without altering the branch.
 - A clean publication branch `feat/brain-fabric-20261101` was created from the updated main commit after PR #340 merged. Only the bounded brain/capability/knowledge commit was cherry-picked; no force-push or history rewrite was used.
 - Branch was pushed as `feat/brain-fabric-20261101` and PR #343 was opened against `main`: https://github.com/CK-NEXUS-AI/ck-nexus/pull/343.
-- The first GitHub CI run caught four new Bandit B314/B608 findings in EPUB XML parsing and dynamic search SQL. Those root causes have now been corrected, with DTD/entity and SQL-injection regression tests added. The PR is not merged; the remediation commit and fresh CI run are pending.
+- The first GitHub CI run caught four new Bandit B314/B608 findings in EPUB XML parsing and dynamic search SQL. Those root causes have now been corrected, with DTD/entity and SQL-injection regression tests added. The remediation commit `c985a6b96f2542251e80ea654b967a011f78a8da` was pushed. The follow-up CI run passed 10/10 checks, including both CodeQL analyses, and PR #343 was squash-merged as `fa4c029576184d781b53f134cb03698bac3a0952` at 2026-11-01T05:40:18Z. The merged main tree is verified at that commit.
+
+## Post-merge deployment verification
+
+- Main now points to merge commit `fa4c029576184d781b53f134cb03698bac3a0952`; its tree matches the tested publication branch.
+- The hardened `ebook_ingest.py` and `ebook_store.py` were copied to the development MCP and staging CLI source paths with backups at `/var/backups/cknexus-ebook-hardening-20261101`.
+- `defusedxml==0.7.1` was installed into the MCP virtualenv using the SHA-256 pinned wheel from `uv.lock`; Creator venv already had the same version.
+- MCP service restarted and remained active. Live MCP protocol verification returned 28 tools, including all six brain tools; status and plan calls succeeded.
+- SQL-injection-shaped knowledge query returned zero hits and performed no memory write. A hostile EPUB containing an external entity was rejected by `defusedxml` with `EntitiesForbidden`; the persistent knowledge store remained at 1 revoked canary, 0 active sources.
+- All five core services checked at the time remained active. No production source checkout was modified and no production deployment was performed.
 
 ## Explicit exclusions
 
