@@ -8,7 +8,6 @@ Type=oneshot
 User=cknexus-creator
 Group=cknexus-creator
 WorkingDirectory=/opt/ck-nexus-src
-Environment=HOME=/var/lib/cknexus-creator
 Environment=CKNEXUS_DEV_STATUS_FILE=/opt/ck-nexus-src/data/dev_status.json
 EnvironmentFile=-/etc/cknexus/qwen.env
 ExecStart=/usr/bin/python3 /opt/ck-nexus-src/scripts/probe_qwen_daily.py
@@ -19,6 +18,6 @@ ProtectHome=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
-ReadWritePaths=/opt/ck-nexus-src/data /var/lib/cknexus-creator
+ReadWritePaths=/opt/ck-nexus-src/data
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 UMask=0027

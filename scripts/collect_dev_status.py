@@ -119,6 +119,16 @@ def collect() -> dict[str, Any]:
                     "--json", "databaseId,name,status,conclusion,createdAt,headSha,url"],
     }
     for key, args in calls.items():
+        if key in {"open_prs", "open_issues", "main_ci"} and not (
+            os.getenv("GH_TOKEN", "").strip() or os.getenv("GITHUB_TOKEN", "").strip()
+        ):
+            data[key] = failed(
+                "GitHub API (read-only token)",
+                RuntimeError(
+                    "no read-only GitHub token configured; broader credentials are not used"
+                ),
+            )
+            continue
         try:
             value = command(args)
             if key == "main_ci":

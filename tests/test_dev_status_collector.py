@@ -113,3 +113,37 @@ def test_cached_qwen_failure_is_not_reported_as_ok(tmp_path, monkeypatch) -> Non
              "result": {"last_success": None, "last_failure": collector.now()}}
     (tmp_path / "qwen_probe_state.json").write_text(json.dumps(state), encoding="utf-8")
     assert collector.load_qwen_probe_state()["status"] == "error"
+
+
+def test_collect_does_not_use_non_readonly_github_credentials(monkeypatch) -> None:
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    calls = []
+
+    def fake_command(args, **kwargs):
+        calls.append(args)
+        if args[:2] == ["git", "rev-parse"]:
+            return "abc123"
+        if args[:2] == ["git", "branch"]:
+            return "main"
+        if args[:2] == ["git", "status"]:
+            return ""
+        if args[0] == "systemctl":
+            return ""
+        if args[0] == "ss":
+            return "LISTEN 127.0.0.1:8765"
+        if args[0] == "df":
+            return "Filesystem Size Used Avail Use% Mounted on"
+        raise AssertionError(f"unexpected command: {args}")
+
+    monkeypatch.setattr(collector, "command", fake_command)
+    monkeypatch.setattr(collector, "load_qwen_probe_state", lambda: {
+        "value": None, "source": "test", "collected_at": collector.now(), "status": "error"
+    })
+    payload = collector.collect()
+    for key in ("open_prs", "open_issues", "main_ci"):
+        assert payload["items"][key]["status"] == "error"
+        assert "no read-only GitHub token configured" in payload["items"][key]["error"]
+    assert not any(args[:2] == ["gh", "pr"] for args in calls)
+    assert not any(args[:2] == ["gh", "issue"] for args in calls)
+    assert not any(args[:2] == ["gh", "run"] for args in calls)
