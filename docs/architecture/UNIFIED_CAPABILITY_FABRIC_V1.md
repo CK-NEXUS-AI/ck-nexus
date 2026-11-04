@@ -72,3 +72,36 @@ No source above is marked ingested in the catalog. A future ingestion report mus
 The local document path now supports EPUB parsing and text-based PDF extraction through the installed Poppler `pdftotext` utility. PDF extraction is bounded by file/output size and a 30-second process timeout. It does not perform OCR; scanned PDFs require a separate, resource-budgeted OCR worker. Extracted chapters/pages are chunked and stored in a local SQLite index only after the operator supplies a permitted rights basis. Search is lexical (not vector/semantic) in this first slice; no embedding model is silently selected.
 
 The first knowledge-search bridge is now available through MCP as `cknexus_knowledge_search` and `cknexus_knowledge_sources`. Both are read-only; results carry source SHA-256 and stable chunk IDs. The MCP service account receives ACL-based read-only traversal to the dedicated knowledge DB file only. These tools do not write personal memory, alter policy, or grant execution authority.
+
+## 8. GitHub-hosted cloud worker bridge
+
+CK-NEXUS can offload bounded validation to a GitHub-hosted Ubuntu 24.04 runner through one fixed workflow. The adapter uses the existing GitHub App identity and Credential Broker; installation tokens never enter model context, task payloads or logs.
+
+- The only accepted task profiles are tests, security, and full_validation.
+- Dispatch requires a full immutable 40-character subject commit SHA. The workflow checks out that exact SHA and verifies the resulting commit identity before running.
+- The workflow uses read-only contents permission, checkout with persist-credentials=false, fixed commands, a 35-minute ceiling, and a 14-day evidence artifact.
+- It accepts no arbitrary repository, workflow name, branch, shell command, environment variable map, or external URL from the task caller.
+- Results include a request correlation ID, workflow run ID/URL, subject SHA, and status. Validation output is candidate evidence only; it does not become Q10 proof or release evidence.
+- The adapter is disabled by default (CKNEXUS_CLOUD_WORKER_ENABLED=false). Enable only after the GitHub App installation has the narrow Actions permission needed to dispatch the fixed workflow.
+- GitHub-hosted runner capacity is used for compute; the VPS remains the authority, credential broker and evidence consumer. No model weights, repository secrets or production data are sent to the worker.
+
+This bridge is intentionally a remote validation worker, not a production deployer or a self-modifying agent.
+
+## 9. Remote AI and tool-plane research (2026-11-01)
+
+- DigitalOcean Action Gateway demonstrates a useful tool-routing pattern: expose a small set of meta-tools (action_search, action_invoke, action_code) rather than loading thousands of tool schemas into every model context. Its session policy and actor-scoped connections keep credentials outside the model. Treat it as a managed-service candidate, not an assumed free tier.
+- AWS Agent Toolkit combines an AWS-managed MCP server with on-demand skills and scoped IAM. Reuse the pattern of small, task-specific skill packages and selected toolsets; do not give a remote worker broad cloud account authority.
+- Hugging Face Inference Endpoints support autoscaling and scale-to-zero. The tradeoff is cold start: a scaled-down model may return 503 while starting and can take minutes to become ready. Use a queue and retry budget rather than treating it as a low-latency always-on model.
+- Cloudflare Workers AI offers remote inference and embedding/image tasks with per-task and per-model rate limits. Evaluate it as a burst inference provider behind Provider Router; no provider credential or inference is claimed as configured.
+- AirLLM streams model layers/experts from disk and can reduce VRAM requirements substantially according to its maintainer. It shifts the bottleneck to storage bandwidth and per-token weight movement; do not install on the small CK-NEXUS VPS or treat low VRAM as evidence of usable throughput.
+- Pinterest: the supplied pin resolves to one public AirLLM reference on the SPAUL Hub board. The board reports 6 Pins, with 5 thumbnail URLs in the page metadata. Unauthenticated Pinterest search pages returned a login shell. Pinterest API v5 supports board/pin reads with boards:read and pins:read, and paginates up to 250 Pins per request. CK-NEXUS now has a read-only API adapter and reference catalogue; collection remains disabled until a developer token with those exact read scopes is connected. The official Pinterest MCP announcement is not yet treated as generally available.
+
+Remote AI providers are workers, not memory authorities. They receive only task-scoped inputs; CK-NEXUS Core retains policy, canonical memory, permissions, evidence and release decisions.
+
+## 10. Pinterest visual-reference ingestion
+
+The Pinterest adapter is deliberately read-only. It requires an access token scoped to boards:read and pins:read, validates board IDs, paginates with the API bookmark (up to 250 items per page), caps a collection request at 500 Pins across no more than 25 boards, and stores normalized Pin metadata and image URLs in a separate SQLite reference catalogue.
+
+It does not download or rehost image bytes, save private Pins, enable write scopes, train models on Pinterest images, or infer a reuse license. Each record has rights_status=unknown and reusable=false until a separate rights review is completed. The local Pin catalogue is a source index, not canonical user memory.
+
+The public Pin supplied on 2026-11-01 resolves to a board with 6 declared Pins; only 1 detailed Pin record and 5 thumbnail URLs were available from the unauthenticated page; one is the same image at a different resolution, so there are 5 unique image assets. The target of 500 is therefore not yet met. Pinterest API collection remains inactive until the Owner connects an approved developer token through the Credential Broker.

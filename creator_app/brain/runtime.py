@@ -26,6 +26,7 @@ class BrainRuntime:
         knowledge_db_path=None,
         evidence_dir=None,
         orchestrator=None,
+        cloud_worker=None,
     ):
         self.root = Path(root)
         self.catalog_path = self.root / "config" / "capability_catalog.json"
@@ -42,6 +43,7 @@ class BrainRuntime:
         )
         self.evidence_dir = Path(evidence_dir or self.root / "evidence" / "auto_dev")
         self.orchestrator = orchestrator or ControlPlaneOrchestrator()
+        self.cloud_worker = cloud_worker
 
     def _catalog(self):
         return CapabilityCatalog.load(self.catalog_path)
@@ -120,6 +122,11 @@ class BrainRuntime:
             "task_queue": tasks,
             "knowledge": {**knowledge, "retrieval_mode": "lexical", "rights_gated_ingestion": True},
             "learning_journal": journal,
+            "cloud_worker": (
+                self.cloud_worker.status()
+                if self.cloud_worker is not None
+                else {"provider": "github_actions", "enabled": False, "configured": False}
+            ),
             "learning": {
                 "status": "evidence_derived",
                 "raw_prompts_stored": False,
@@ -167,6 +174,21 @@ class BrainRuntime:
                 "raw_prompts_or_outputs_stored": False,
             }
         return BrainJournal(self.journal_path).summary()
+
+    def cloud_worker_status(self):
+        if self.cloud_worker is None:
+            return {"provider": "github_actions", "enabled": False, "configured": False}
+        return self.cloud_worker.status()
+
+    def dispatch_cloud_worker(self, *, task_kind, subject_sha):
+        if self.cloud_worker is None:
+            raise RuntimeError("cloud worker adapter is not configured")
+        return self.cloud_worker.dispatch(task_kind=task_kind, subject_sha=subject_sha)
+
+    def cloud_worker_result(self, *, request_id):
+        if self.cloud_worker is None:
+            raise RuntimeError("cloud worker adapter is not configured")
+        return self.cloud_worker.get_result(request_id=request_id)
 
     def knowledge_search(self, query, *, limit=8):
         if not isinstance(query, str) or not query.strip():

@@ -113,3 +113,28 @@ def test_journal_rejects_untrusted_outcomes_and_secret_shaped_refs(tmp_path):
         journal.record_observation(
             task="task", outcome="reported_success", evidence_refs=["ghp_" + "a" * 30]
         )
+
+
+def test_brain_status_reports_optional_cloud_worker_without_granting_authority(tmp_path):
+    class Worker:
+        def status(self):
+            return {
+                "provider": "github_actions",
+                "enabled": False,
+                "configured": False,
+                "external_mutation_authorized": False,
+            }
+
+    brain = BrainRuntime(
+        root=_root(tmp_path),
+        journal_path=tmp_path / "brain.sqlite3",
+        task_db_path=tmp_path / "tasks.sqlite3",
+        knowledge_db_path=tmp_path / "missing.sqlite3",
+        evidence_dir=tmp_path / "missing",
+        cloud_worker=Worker(),
+    )
+    status = brain.status()
+    assert status["cloud_worker"]["provider"] == "github_actions"
+    assert status["cloud_worker"]["enabled"] is False
+    assert status["authority"]["external_mutation_authorized"] is False
+    assert status["production_status"] == "NO-GO"

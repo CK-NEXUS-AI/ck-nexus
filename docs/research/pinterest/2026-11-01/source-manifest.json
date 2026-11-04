@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "collected_at": "2026-11-01",
+  "input_url": "https://pin.it/11tFY012q",
+  "resolved_pin_url": "https://www.pinterest.com/pin/1085578685222677540/",
+  "resolved_pin_id": "1085578685222677540",
+  "board": {
+    "name": "SPAUL Hub",
+    "id": "1085578753870547641",
+    "url": "https://www.pinterest.com/shubhampaulgeek/spaul-hub/",
+    "public": true,
+    "declared_pin_count": 6,
+    "thumbnail_urls": [
+      "https://i.pinimg.com/150x150/90/d6/01/90d601402aac45a5943380bdc6bb6929.jpg",
+      "https://i.pinimg.com/150x150/80/31/10/803110bfe5ad2f97b7a644c69903a2e3.jpg",
+      "https://i.pinimg.com/150x150/ed/09/ae/ed09ae2a509a3a7a8427fb866face8af.jpg",
+      "https://i.pinimg.com/150x150/02/40/81/024081a44b7382a46abb3d2c004e07dc.jpg",
+      "https://i.pinimg.com/150x150/a2/c5/d5/a2c5d5b49caac54468cbe3186369708e.jpg"
+    ],
+    "thumbnail_count": 5
+  },
+  "pins": [
+    {
+      "pin_id": "1085578685222677540",
+      "title": "What Is AirLLM? Run 70B AI Models on 4GB GPUs",
+      "description": "Discover how AirLLM uses layer-wise streaming to run massive 70B parameter AI models on GPUs with as little as 4GB of VRAM. Learn how SSD speed, storage requirements, inference performance, and optional 4-bit compression affect local LLM execution.",
+      "creator": "SPaul Hub",
+      "creator_handle": "shubhampaulgeek",
+      "created_at": "2026-10-10T14:14:42Z",
+      "image_url": "https://i.pinimg.com/originals/a2/c5/d5/a2c5d5b49caac54468cbe3186369708e.jpg",
+      "destination_url": "https://spaulhub.com/blogs/airllm-70b-on-4gb-gpu-layer-wise-inference/",
+      "rights_status": "unknown",
+      "reusable": false
+    }
+  ],
+  "board_thumbnail_references": [
+    {
+      "image_url": "https://i.pinimg.com/150x150/90/d6/01/90d601402aac45a5943380bdc6bb6929.jpg",
+      "pin_id": null,
+      "rights_status": "unknown",
+      "reusable": false
+    },
+    {
+      "image_url": "https://i.pinimg.com/150x150/80/31/10/803110bfe5ad2f97b7a644c69903a2e3.jpg",
+      "pin_id": null,
+      "rights_status": "unknown",
+      "reusable": false
+    },
+    {
+      "image_url": "https://i.pinimg.com/150x150/ed/09/ae/ed09ae2a509a3a7a8427fb866face8af.jpg",
+      "pin_id": null,
+      "rights_status": "unknown",
+      "reusable": false
+    },
+    {
+      "image_url": "https://i.pinimg.com/150x150/02/40/81/024081a44b7382a46abb3d2c004e07dc.jpg",
+      "pin_id": null,
+      "rights_status": "unknown",
+      "reusable": false
+    },
+    {
+      "image_url": "https://i.pinimg.com/150x150/a2/c5/d5/a2c5d5b49caac54468cbe3186369708e.jpg",
+      "pin_id": null,
+      "rights_status": "unknown",
+      "reusable": false
+    }
+  ],
+  "collection_result": {
+    "detailed_pin_records": 1,
+    "thumbnail_references": 5,
+    "declared_board_pin_count": 6,
+    "total_reference_images": 5,
+    "target_reference_images": 500,
+    "remaining_to_target": 495,
+    "complete": false,
+    "unique_image_assets": 5
+  },
+  "limitations": [
+    "The supplied short link resolves to one public Pin on a public board with 6 declared Pins.",
+    "The public Pin page exposes 5 board thumbnail URLs in its embedded metadata; the linked Pin provides one detailed image record.",
+    "Pinterest search pages returned a login shell to unauthenticated requests in this environment.",
+    "No image binaries were downloaded or rehosted. Only public metadata and source image URLs are retained.",
+    "No image reuse or model-training rights are inferred from public visibility."
+  ]
+}

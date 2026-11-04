@@ -18,6 +18,7 @@ class CredentialId(StrEnum):
     GITHUB_APP_PRIVATE_KEY = "github.app_private_key"
     GITHUB_APP_INSTALLATION_ID = "github.app_installation_id"
     GITHUB_INSTALLATION_TOKEN = "github.installation_token"
+    PINTEREST_ACCESS_TOKEN = "pinterest.access_token"
 
 
 ENV_BINDINGS: Mapping[CredentialId, str] = {
@@ -30,6 +31,7 @@ ENV_BINDINGS: Mapping[CredentialId, str] = {
     CredentialId.GITHUB_APP_PRIVATE_KEY: "GITHUB_APP_PRIVATE_KEY",
     CredentialId.GITHUB_APP_INSTALLATION_ID: "GITHUB_APP_INSTALLATION_ID",
     CredentialId.GITHUB_INSTALLATION_TOKEN: "GITHUB_APP_INSTALLATION_TOKEN",
+    CredentialId.PINTEREST_ACCESS_TOKEN: "PINTEREST_ACCESS_TOKEN",
 }
 
 
@@ -50,6 +52,7 @@ DEFAULT_CONSUMER_POLICY: Mapping[str, frozenset[CredentialId]] = {
             CredentialId.GMAIL_REFRESH_TOKEN,
         }
     ),
+    "pinterest.api": frozenset({CredentialId.PINTEREST_ACCESS_TOKEN}),
     "github.app": frozenset(
         {
             CredentialId.GITHUB_APP_ID,
