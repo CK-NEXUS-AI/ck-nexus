@@ -5,7 +5,7 @@
 
 Decision: **NO-GO FOR PRODUCTION CLAIMS**
 
-Canonical main: 22edd1f07147f7223cf02abba056c6ce4a3beee0 (verified current main; tree 3a742e8b91001efb3558fc2cdb9a617fbc4e6c9a)
+Canonical main: 6c093d88b3a448251b587cc83374524576398bd0 (verified current main for run 41235720155; tree a8b6fe876314478653c197cb688f6bb97bcc5792)
 Closure branch: release/q10-q16-closure (historical evidence line; not rebased to current main)
 Previous closure head: a55a8d36b0a1b61b426c5d59ab44ebd841eb8d53 (historical)
 Previous frozen runtime/security source SHA: ad2fac7aa0752117dde065c7ad9b0b8d41136aa2 (superseded for current main)
@@ -22,7 +22,7 @@ Live repository verification found current canonical main 22edd1f07147f7223cf02a
 - Q10 whole gate: NOT_VERIFIED until an independent human reviews the exact report/findings and attests.
 - Q11 current-subject: NOT_VERIFIED / BLOCKED. Existing workflow remains pinned to the previous subject; secret-name presence does not prove a successful exact-subject provider run.
 - Q12 current-subject: NOT_VERIFIED / BLOCKED. Registered cknexus-q12 GitHub runner is offline; no current-subject delegated cgroup evidence exists.
-- Q13, Q14, Q15 and Q16 evidence currently recorded below is bound to the previous subject and is STALE FOR CURRENT MAIN until each gate is rerun against the new exact subject.
+- Q13 and Q15 have current-subject PASS_CANDIDATE evidence on main 6c093d88b3a448251b587cc83374524576398bd0 (run 41235720155; source tree a8b6fe876314478653c197cb688f6bb97bcc5792). Q14 and Q16 evidence remains stale/historical pending exact-subject reruns.
 - Production remains NO-GO. No Q10–Q16 promotion or owner approval is implied by the Q10 scanner PASS.
 
 Issue #329 was updated with this exact mismatch and the evidence blockers. Workflow constants and previous subject-bound evidence were deliberately not rewritten because Q11–Q16 evidence has not yet been regenerated.
@@ -54,9 +54,9 @@ Unified Control and production hardening are converged on the closure branch but
 | Q10 whole security gate | **NOT_VERIFIED / BLOCKER** | Current main scanner PASS on 22edd1f (run 41231931695, report sha256 db33d3e7...); independent human review/disposition still required |
 | Q11 live provider P0-AI-001 | **NOT_VERIFIED / BLOCKED** | Existing evidence is previous-subject only; workflow remains pinned to ad2fac7a; no current-subject run |
 | Q12 delegated cgroup v2 | **NOT_VERIFIED / BLOCKED** | Current cknexus-q12 runner is registered but OFFLINE; no current-subject delegated cgroup v2 evidence |
-| Q13 PostgreSQL DR | **NOT_VERIFIED / STALE SUBJECT** | Previous run 31950497105 is historical; rerun required on current subject |
+| Q13 PostgreSQL DR | **PASS_CANDIDATE** | Run 41235720155; source SHA 6c093d88b3a448251b587cc83374524576398bd0; tree a8b6fe876314478653c197cb688f6bb97bcc5792; artifact SHA-256 d562424a985c7a6477237bc4a211d3b375b002a59fe4db76608de2a1b6dd474a |
 | Q14 observability/operator delivery | **NOT_VERIFIED / STALE SUBJECT** | Previous run 31950773095 is historical; rerun required on current subject |
-| Q15 clean-machine deployment | **NOT_VERIFIED / STALE SUBJECT** | Previous run 31950497105 is historical; rerun required on current subject |
+| Q15 clean-machine deployment | **PASS_CANDIDATE** | Run 41235720155; source SHA 6c093d88b3a448251b587cc83374524576398bd0; tree a8b6fe876314478653c197cb688f6bb97bcc5792; primary artifact SHA-256 77cd6280459ed33f3cebb6c62a1748cbbf7ce0310574910011e9c6b8370609aa |
 | Q16 production image | **NOT_VERIFIED / STALE SUBJECT** | Previous run 31950497111 is historical; rerun required on current subject |
 | Q16 runtime license inventory | **NOT_VERIFIED / STALE SUBJECT** | Previous run 31950497135 is historical; rerun required on current subject |
 | Q16 final merge/tag/package | **NOT ELIGIBLE** | blocked by Q10 whole gate + Q11 + Q12 |
@@ -95,3 +95,14 @@ Q10 must not be promoted from any single scanner or ordinary CI alone. The repla
 ## Commercial status
 
 The repository remains sellable as a **source-code / Release Candidate package without Production Ready or Certified claims**. Do not mark the artifact Production Ready, create a production tag, or merge PR #14 to `main` until Q10, Q11, and Q12 are closed and the final production package workflow succeeds.
+
+
+## Current-subject Q13/Q15 evidence update — 2026-11-01
+
+Both artifacts are from completed workflow run 41235720155 (https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/41235720155), whose head SHA is 6c093d88b3a448251b587cc83374524576398bd0 and source tree is a8b6fe876314478653c197cb688f6bb97bcc5792.
+
+- Q13 PostgreSQL DR: PASS_CANDIDATE; artifact Q13_POSTGRES_DR.json; artifact SHA-256 d562424a985c7a6477237bc4a211d3b375b002a59fe4db76608de2a1b6dd474a. The artifact records backup and restore completed, sentinel round-trip PASS, and production_data_used=false.
+- Q15 clean-machine deployment: PASS_CANDIDATE; artifact Q15_CLEAN_MACHINE.json; artifact SHA-256 77cd6280459ed33f3cebb6c62a1748cbbf7ce0310574910011e9c6b8370609aa. The artifact records fresh GitHub-hosted Ubuntu 24.04 VM, install completed, portable regression PASS, and unified control/health smoke PASS.
+- These are candidate results only. They do not change Q10, Q11, Q12, Q14, Q16, production eligibility, or any independent-review requirement.
+
+Operator: Saenyakon Nongsok [signer: operator]
