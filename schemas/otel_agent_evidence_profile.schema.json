@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ck-nexus:schema:otel-agent-evidence-profile:v1",
+  "title": "CK-NEXUS OpenTelemetry Agent Evidence Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["trace_id", "execution_id", "agent_id", "convention_version", "redaction_profile", "telemetry_integrity"],
+  "properties": {
+    "trace_id": {"type": "string", "minLength": 1},
+    "span_id": {"type": ["string", "null"]},
+    "execution_id": {"type": "string", "minLength": 1},
+    "agent_id": {"type": "string", "minLength": 1},
+    "lease_id": {"type": ["string", "null"]},
+    "policy_decision_id": {"type": ["string", "null"]},
+    "tool_call_id": {"type": ["string", "null"]},
+    "verifier_id": {"type": ["string", "null"]},
+    "evidence_id": {"type": ["string", "null"]},
+    "convention_version": {"type": "string", "minLength": 1},
+    "redaction_profile": {"enum": ["STRICT", "STANDARD", "NONE"]},
+    "telemetry_integrity": {"enum": ["VERIFIED", "UNVERIFIED", "FAILED"]},
+    "source_hash": {"type": ["string", "null"]}
+  }
+}

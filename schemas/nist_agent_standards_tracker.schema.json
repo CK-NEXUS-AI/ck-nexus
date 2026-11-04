@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ck-nexus:schema:nist-agent-standards-tracker:v1",
+  "title": "CK-NEXUS NIST Agent Standards Tracker Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_id", "source_url", "requirement_id", "source_status", "ck_control_status"],
+  "properties": {
+    "record_id": {"type": "string", "minLength": 1},
+    "source_url": {"type": "string", "format": "uri"},
+    "requirement_id": {"type": "string", "minLength": 1},
+    "source_version": {"type": ["string", "null"]},
+    "publication_date": {"type": ["string", "null"], "format": "date"},
+    "source_status": {"enum": ["DRAFT", "PUBLISHED", "WITHDRAWN", "SUPERSEDED"]},
+    "ck_control_status": {"enum": ["OBSERVED", "MAPPED", "IMPLEMENTED", "VERIFIED", "NOT_APPLICABLE"]},
+    "ck_control_refs": {"type": "array", "items": {"type": "string"}},
+    "evidence_ref": {"type": ["string", "null"]},
+    "last_reviewed": {"type": ["string", "null"], "format": "date"}
+  }
+}
