@@ -1,0 +1,32 @@
+{
+  "claim_id": "CLAIM-MOBILE-001",
+  "claim_text_th": "AGNES รันได้บน Android/Termux ที่มี RAM 4GB",
+  "category": "mobile-first",
+  "state": "TARGET",
+  "created_by": "ck-nexus-development",
+  "subject": {
+    "commit": "cceb7833991eb3e73b20261dcc5984a8e714de7e",
+    "component": "AGNES mobile runtime candidate",
+    "environment": "Termux/Android RAM 4GB"
+  },
+  "benchmark": {
+    "protocol_ref": "PR #151 mobile benchmark protocol",
+    "harness_commit": "cceb7833991eb3e73b20261dcc5984a8e714de7e",
+    "layers_completed": [],
+    "runs": 0,
+    "aggregation": null,
+    "measurement_method": null,
+    "measurement_limitations": null
+  },
+  "evidence": null,
+  "verifier": null,
+  "state_history": [
+    {
+      "from_state": null,
+      "to_state": "TARGET",
+      "at": "2026-08-23T04:09:00Z",
+      "reason": "Benchmark protocol and harness exist, but no physical Android evidence has been verified."
+    }
+  ],
+  "created_at": "2026-08-23T04:09:00Z"
+}

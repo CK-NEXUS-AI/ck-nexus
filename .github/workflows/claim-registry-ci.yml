@@ -1,0 +1,41 @@
+name: Claim Registry CI
+
+on:
+  pull_request:
+    paths:
+      - 'claims/**'
+      - 'scripts/validate_claim_registry.py'
+      - 'scripts/render_claim_status.py'
+      - 'scripts/propose_claim_transition.py'
+      - 'tests/test_claim_registry.py'
+      - 'tests/test_claim_transition_proposal.py'
+      - '.github/workflows/claim-registry-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install test dependency
+        run: python -m pip install pytest
+      - name: Validate claim registry
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python scripts/validate_claim_registry.py --base-ref "$BASE_SHA" claims/registry/*.json
+      - name: Test claim invariants
+        run: |
+          python -m pytest -q \
+            tests/test_claim_registry.py \
+            tests/test_claim_transition_proposal.py
+      - name: Render current claim state
+        run: python scripts/render_claim_status.py claims/registry/CLAIM-MOBILE-001.json
