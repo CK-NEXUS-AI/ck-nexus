@@ -41,6 +41,14 @@ from creator_app.connector_fabric.security import EndpointSecurityError
 from creator_app.credential_broker import CredentialBroker, CredentialId
 from creator_app.credential_vault import build_credential_vault
 from creator_app.dev_team import DevTeamRuntime
+from creator_app.didit_kyb import (
+    DiditClient,
+    DiditConfig,
+    DiditConfigurationError,
+    DiditUpstreamError,
+    verify_webhook_signature,
+)
+from creator_app.didit_store import create_didit_verification_store
 from creator_app.github_app import GitHubAppAuth, GitHubAppAuthError
 from creator_app.github_integration import GitHubIntegration
 from creator_app.gmail_oauth import GmailOAuthError, GmailOAuthManager
@@ -73,6 +81,7 @@ from creator_app.schemas import (
 )
 from creator_app.service import CreatorService
 from creator_app.storage import RunStore
+from gateway.service_auth import GatewayServiceAuth, GatewayServiceAuthError
 from services.email_gateway.attachments import scan_attachment
 from services.email_gateway.factory import create_email_repository
 from services.email_gateway.loop_prevention import evaluate_loop_headers
@@ -201,6 +210,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         database_url=resolved_settings.email_database_url,
         database_path=email_database_path,
     )
+    didit_config = DiditConfig.from_env()
+    didit_client = DiditClient(didit_config)
+    didit_store = create_didit_verification_store(
+        database_path=resolved_settings.database_path,
+        database_url=resolved_settings.database_url,
+        environment=resolved_settings.environment,
+    )
+    gateway_service_secret = os.getenv("CKNEXUS_GATEWAY_SERVICE_AUTH_SECRET", "").strip()
+    try:
+        gateway_service_auth = (
+            GatewayServiceAuth(gateway_service_secret) if gateway_service_secret else None
+        )
+    except ValueError:
+        gateway_service_auth = None
     limiter = SlidingWindowRateLimiter(resolved_settings.rate_limit_per_minute)
     metrics_registry = MetricsRegistry()
     structured_logger = StructuredLogger()
@@ -212,6 +235,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         store.initialize()
+        didit_store.initialize()
         if resolved_settings.email_gateway_enabled:
             email_repository.initialize()
         if runtime_binding_required:
@@ -242,6 +266,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.slack_integration = slack_integration
     app.state.drive_integration = drive_integration
     app.state.email_repository = email_repository
+    app.state.didit_config = didit_config
+    app.state.didit_client = didit_client
+    app.state.didit_store = didit_store
+    app.state.gateway_service_auth = gateway_service_auth
     app.state.metrics_registry = metrics_registry
     app.state.runtime_binding_required = runtime_binding_required
     app.state.connector_fabric = connector_fabric
@@ -604,6 +632,90 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         _: None = Depends(require_email_webhook_token),
     ) -> dict[str, object]:
         return {"journal_id": journal_id, "events": email_repository.trace_audit(journal_id)}
+
+    @app.post("/api/v1/verification/didit/kyb/session")
+    async def didit_create_kyb_session(
+        x_ck_gateway_service_token: Annotated[
+            str | None, Header(alias="X-CK-Gateway-Service-Token")
+        ] = None,
+        x_ck_tenant_id: Annotated[str | None, Header(alias="X-CK-Tenant-ID")] = None,
+        x_ck_actor_id: Annotated[str | None, Header(alias="X-CK-Actor-ID")] = None,
+    ) -> dict[str, str]:
+        verifier = app.state.gateway_service_auth
+        if verifier is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "GATEWAY_SERVICE_AUTH_NOT_CONFIGURED"},
+            )
+        if not x_ck_gateway_service_token or not x_ck_actor_id or not x_ck_tenant_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"error": "TRUSTED_GATEWAY_IDENTITY_REQUIRED"},
+            )
+        try:
+            verifier.verify(
+                x_ck_gateway_service_token,
+                tenant_id=x_ck_tenant_id,
+                actor_id=x_ck_actor_id,
+                method="POST",
+                path="/api/v1/verification/didit/kyb/session",
+            )
+        except GatewayServiceAuthError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"error": "INVALID_GATEWAY_SERVICE_AUTH"},
+            ) from exc
+        vendor_data = f"{x_ck_tenant_id}:{x_ck_actor_id}"
+        try:
+            return await app.state.didit_client.create_kyb_session(vendor_data=vendor_data)
+        except DiditConfigurationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "DIDIT_NOT_CONFIGURED"},
+            ) from exc
+        except DiditUpstreamError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail={"error": "DIDIT_SESSION_CREATE_FAILED"},
+            ) from exc
+
+    @app.post("/api/webhooks/didit", include_in_schema=True)
+    async def didit_webhook(request: Request) -> PlainTextResponse:
+        config = app.state.didit_config
+        if not config.webhook_ready:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={"error": "DIDIT_WEBHOOK_NOT_CONFIGURED"},
+            )
+
+        timestamp_raw = request.headers.get("x-timestamp", "")
+        signature = request.headers.get("x-signature-v2", "")
+        try:
+            timestamp = int(timestamp_raw)
+        except ValueError:
+            return PlainTextResponse("stale", status_code=401)
+        if abs(time.time() - timestamp) > 300:
+            return PlainTextResponse("stale", status_code=401)
+
+        try:
+            payload = json.loads((await request.body()).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return PlainTextResponse("invalid json", status_code=400)
+        if not isinstance(payload, dict):
+            return PlainTextResponse("invalid json", status_code=400)
+
+        if not verify_webhook_signature(
+            payload=payload,
+            signature=signature,
+            secret=config.webhook_secret,
+        ):
+            return PlainTextResponse("bad sig", status_code=401)
+
+        try:
+            app.state.didit_store.apply_event(payload, received_at=timestamp)
+        except ValueError:
+            return PlainTextResponse("invalid event", status_code=400)
+        return PlainTextResponse("ok", status_code=200)
 
     @app.get("/health")
     async def health():
