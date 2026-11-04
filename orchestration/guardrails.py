@@ -37,6 +37,18 @@ class GuardrailEvaluator:
             )
         if request.tool not in pattern.allowed_tools:
             return GuardrailDecision(False, "TOOL_NOT_ALLOWED", "Tool is not allowed by pattern.")
+        untrusted_input = context.input_trust != "trusted" or any(
+            taint.startswith("untrusted:") for taint in context.input_taints
+        )
+        sensitive_agent_action = (
+            request.side_effecting or request.memory_write or request.cross_agent_handoff
+        )
+        if untrusted_input and sensitive_agent_action and not context.trusted_confirmation:
+            return GuardrailDecision(
+                False,
+                "UNTRUSTED_INPUT_CONTROL",
+                "Untrusted input cannot trigger side effects, memory writes, or agent handoffs without trusted confirmation.",
+            )
         if request.required_permission and request.required_permission not in context.permissions:
             return GuardrailDecision(False, "PERMISSION", "Actor lacks required permission.")
         if self._circuit_open(request.tool):
