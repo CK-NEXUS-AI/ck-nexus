@@ -1,0 +1,361 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.internal/schemas/production_evidence_manifest.schema.v2.1.json",
+  "title": "CK-NEXUS Production Evidence Manifest",
+  "version": "2.1",
+  "type": "object",
+  "required": [
+    "manifest_schema_version",
+    "purpose",
+    "supersession",
+    "digest_policy",
+    "evidence_bundle_contract",
+    "frozen_production_subject",
+    "gates",
+    "non_authoritative_parallel_work",
+    "evidence_chain",
+    "reconciliation_gate",
+    "independent_verification",
+    "manifest_integrity"
+  ],
+  "properties": {
+    "manifest_schema_version": { "const": "2.1" },
+    "purpose": { "type": "string" },
+    "supersession": {
+      "type": "object",
+      "required": ["supersedes_manifest", "superseded_by_manifest", "reason"],
+      "properties": {
+        "supersedes_manifest": { "type": ["string", "null"] },
+        "superseded_by_manifest": { "type": ["string", "null"] },
+        "reason": { "type": ["string", "null"] }
+      }
+    },
+    "digest_policy": {
+      "type": "object",
+      "required": ["algorithm", "encoding", "canonical_json"],
+      "properties": {
+        "algorithm": { "const": "SHA-256" },
+        "encoding": { "const": "lowercase_hex" },
+        "canonical_json": { "const": "RFC8785_JCS" }
+      }
+    },
+    "evidence_bundle_contract": {
+      "type": "object",
+      "required": ["format", "required_members", "member_order", "digest_algorithm"],
+      "properties": {
+        "format": { "const": "CKNEXUS_EVIDENCE_BUNDLE_V1" },
+        "required_members": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "member_order": { "const": "lexicographic" },
+        "digest_algorithm": { "const": "SHA-256" }
+      }
+    },
+    "frozen_production_subject": {
+      "type": "object",
+      "required": ["source_authority_pr", "branch", "tested_commit", "tested_tree", "frozen_at", "note"],
+      "properties": {
+        "source_authority_pr": { "type": "integer" },
+        "branch": { "type": "string" },
+        "tested_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "tested_tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "frozen_at": { "type": ["string", "null"], "format": "date-time" },
+        "note": { "type": "string" }
+      }
+    },
+    "gates": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": { "$ref": "#/$defs/gate" }
+    },
+    "non_authoritative_parallel_work": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["label", "status", "note"],
+        "properties": {
+          "label": { "type": "string" },
+          "status": { "const": "informational_only" },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "evidence_chain": {
+      "type": "object",
+      "required": ["order", "rule", "chain_verified"],
+      "properties": {
+        "order": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "Q10" },
+            { "const": "Q11" },
+            { "const": "Q12" }
+          ],
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "rule": { "type": "string" },
+        "chain_verified": { "type": ["boolean", "null"] }
+      }
+    },
+    "reconciliation_gate": {
+      "type": "object",
+      "required": [
+        "required_gate_order",
+        "all_gates_pass",
+        "all_gates_share_tested_commit",
+        "all_gates_share_tested_tree",
+        "no_subject_mutation_across_gates",
+        "tooling_commits_are_pinned",
+        "workflow_definitions_pinned",
+        "artifact_digests_verified",
+        "evidence_chain_verified",
+        "independent_verifier_complete",
+        "ready_for_q16_final_package",
+        "ready_for_q16_final_package_rule"
+      ],
+      "properties": {
+        "required_gate_order": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "Q10" },
+            { "const": "Q11" },
+            { "const": "Q12" }
+          ],
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "all_gates_pass": { "type": ["boolean", "null"] },
+        "all_gates_share_tested_commit": { "type": ["boolean", "null"] },
+        "all_gates_share_tested_tree": { "type": ["boolean", "null"] },
+        "no_subject_mutation_across_gates": { "type": ["boolean", "null"] },
+        "tooling_commits_are_pinned": { "type": ["boolean", "null"] },
+        "workflow_definitions_pinned": { "type": ["boolean", "null"] },
+        "artifact_digests_verified": { "type": ["boolean", "null"] },
+        "evidence_chain_verified": { "type": ["boolean", "null"] },
+        "independent_verifier_complete": { "type": ["boolean", "null"] },
+        "ready_for_q16_final_package": {
+          "type": ["boolean", "null"],
+          "description": "Derived only by the validator from the deterministic reconciliation rule."
+        },
+        "ready_for_q16_final_package_rule": { "type": "string" }
+      }
+    },
+    "independent_verification": {
+      "type": "object",
+      "required": ["verifier_id", "verified_at", "result", "report_sha256", "verified_manifest_payload_sha256"],
+      "properties": {
+        "verifier_id": { "type": ["string", "null"] },
+        "verified_at": { "type": ["string", "null"], "format": "date-time" },
+        "result": { "enum": ["PASS", "FAIL", null] },
+        "report_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "verified_manifest_payload_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" }
+      },
+      "description": "Independent confirmation of eligibility only; not Q16 PASS or Production Ready."
+    },
+    "manifest_integrity": {
+      "type": "object",
+      "required": [
+        "canonicalization",
+        "hash_scope",
+        "hash_algorithm",
+        "payload_sha256",
+        "signature_input",
+        "signature_scheme",
+        "signature_encoding",
+        "signature",
+        "signed_by",
+        "signed_at"
+      ],
+      "properties": {
+        "canonicalization": { "const": "JCS_RFC8785" },
+        "hash_scope": { "const": "entire_manifest_excluding_manifest_integrity" },
+        "hash_algorithm": { "const": "SHA-256" },
+        "payload_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "signature_input": { "const": "payload_sha256_raw_bytes" },
+        "signature_scheme": { "const": "ed25519" },
+        "signature_encoding": { "const": "base64" },
+        "signature": { "type": ["string", "null"] },
+        "signed_by": { "type": ["string", "null"], "description": "Key ID, not a name." },
+        "signed_at": { "type": ["string", "null"], "format": "date-time" }
+      }
+    }
+  },
+  "$defs": {
+    "mutation_check": {
+      "type": "object",
+      "required": [
+        "expected_commit",
+        "observed_commit_before",
+        "observed_commit_after",
+        "expected_tree",
+        "observed_tree_before",
+        "observed_tree_after",
+        "mutation_detected",
+        "check_result"
+      ],
+      "properties": {
+        "expected_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "observed_commit_before": { "type": ["string", "null"], "pattern": "^[0-9a-f]{40}$" },
+        "observed_commit_after": { "type": ["string", "null"], "pattern": "^[0-9a-f]{40}$" },
+        "expected_tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "observed_tree_before": { "type": ["string", "null"], "pattern": "^[0-9a-f]{40}$" },
+        "observed_tree_after": { "type": ["string", "null"], "pattern": "^[0-9a-f]{40}$" },
+        "mutation_detected": { "type": ["boolean", "null"] },
+        "check_result": { "enum": ["PASS", "FAIL", null] }
+      }
+    },
+    "git_clean_check": {
+      "type": "object",
+      "required": ["before", "after"],
+      "properties": {
+        "before": { "type": ["boolean", "null"] },
+        "after": { "type": ["boolean", "null"] }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "required": [
+        "gate",
+        "description",
+        "evidence_id",
+        "tested_commit",
+        "tested_tree",
+        "started_at",
+        "completed_at",
+        "runner_environment",
+        "runner_identity",
+        "tooling_repository",
+        "artifact_sha256",
+        "evidence_bundle_sha256",
+        "previous_gate_evidence_sha256",
+        "verifier",
+        "result",
+        "subject_mutation_check",
+        "git_clean_check",
+        "authoritative"
+      ],
+      "properties": {
+        "gate": { "enum": ["Q10", "Q11", "Q12"] },
+        "description": { "type": "string" },
+        "evidence_id": { "type": ["string", "null"] },
+        "tested_commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "tested_tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "started_at": { "type": ["string", "null"], "format": "date-time" },
+        "completed_at": { "type": ["string", "null"], "format": "date-time" },
+        "runner_environment": { "type": ["string", "null"] },
+        "runner_identity": { "type": ["string", "null"] },
+        "tooling_repository": { "type": "string" },
+        "artifact_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "evidence_bundle_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "previous_gate_evidence_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "verifier": { "type": ["string", "null"] },
+        "result": { "enum": ["PASS", "FAIL", "BLOCKED", null] },
+        "subject_mutation_check": { "$ref": "#/$defs/mutation_check" },
+        "git_clean_check": { "$ref": "#/$defs/git_clean_check" },
+        "authoritative": { "const": true },
+        "note": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "gate": { "const": "Q10" } } },
+          "then": {
+            "required": ["executor"],
+            "properties": {
+              "executor": {
+                "type": "object",
+                "required": ["name", "executor_id", "version", "scan_id", "attestation_sha256"],
+                "properties": {
+                  "name": { "const": "Codex Security Deep Security Scan" },
+                  "executor_id": { "type": ["string", "null"] },
+                  "version": { "type": ["string", "null"] },
+                  "scan_id": { "type": ["string", "null"] },
+                  "attestation_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "gate": { "enum": ["Q11", "Q12"] } } },
+          "then": {
+            "required": [
+              "tooling_source_pr",
+              "tooling_commit",
+              "workflow_path",
+              "workflow_definition_sha256",
+              "workflow_run_id",
+              "tooling_entrypoint",
+              "tooling_entrypoint_sha256"
+            ],
+            "properties": {
+              "tooling_source_pr": { "type": "integer" },
+              "tooling_commit": { "type": ["string", "null"], "pattern": "^[0-9a-f]{40}$" },
+              "workflow_path": { "type": ["string", "null"] },
+              "workflow_definition_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+              "workflow_run_id": { "type": ["string", "null"] },
+              "tooling_entrypoint": { "type": ["string", "null"] },
+              "tooling_entrypoint_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "gate": { "const": "Q11" } } },
+          "then": {
+            "required": ["provider_execution"],
+            "properties": {
+              "provider_execution": {
+                "type": "object",
+                "required": ["provider", "model", "credential_source", "credential_value_recorded", "live_network_call", "expected_sentinel"],
+                "properties": {
+                  "provider": { "type": ["string", "null"] },
+                  "model": { "type": ["string", "null"] },
+                  "credential_source": { "type": ["string", "null"] },
+                  "credential_value_recorded": { "const": false },
+                  "live_network_call": { "type": ["boolean", "null"] },
+                  "expected_sentinel": { "type": ["string", "null"] }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "gate": { "const": "Q12" } } },
+          "then": {
+            "required": ["q12_enforcement"],
+            "properties": {
+              "q12_enforcement": {
+                "type": "object",
+                "required": [
+                  "non_root",
+                  "cgroup_v2",
+                  "delegated_boundary_writable",
+                  "cpu_limit_enforced",
+                  "memory_limit_enforced",
+                  "pids_limit_enforced",
+                  "child_pid_attached",
+                  "escape_test_pass",
+                  "fail_closed_test_pass"
+                ],
+                "properties": {
+                  "non_root": { "type": ["boolean", "null"] },
+                  "cgroup_v2": { "type": ["boolean", "null"] },
+                  "delegated_boundary_writable": { "type": ["boolean", "null"] },
+                  "cpu_limit_enforced": { "type": ["boolean", "null"] },
+                  "memory_limit_enforced": { "type": ["boolean", "null"] },
+                  "pids_limit_enforced": { "type": ["boolean", "null"] },
+                  "child_pid_attached": { "type": ["boolean", "null"] },
+                  "escape_test_pass": { "type": ["boolean", "null"] },
+                  "fail_closed_test_pass": { "type": ["boolean", "null"] }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
