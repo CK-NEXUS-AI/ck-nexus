@@ -1,0 +1,157 @@
+{
+  "schema": "ck-nexus-standards-upgrade-plan-v2026",
+  "status": "DEVELOPMENT_PLAN_ONLY",
+  "authority": {
+    "frozen_q10_mutation": false,
+    "production_mutation": false,
+    "auto_merge": false,
+    "auto_deploy": false,
+    "self_approval": false,
+    "required_pipeline": [
+      "SEARCH_FIRST",
+      "DEDUP",
+      "BASELINE_MEASURE",
+      "DELTA_IMPLEMENT",
+      "BENCHMARK",
+      "SECURITY_REVIEW",
+      "INDEPENDENT_VERIFY",
+      "CANONICAL_ADOPT"
+    ]
+  },
+  "cross_cutting_baselines": [
+    "OWASP GenAI LLM Top 10 2026",
+    "OWASP Top 10 for Agentic Applications 2026",
+    "OWASP Agent Control Standard 2026",
+    "MCP 2026-07-28",
+    "A2A 1.0",
+    "OpenTelemetry GenAI Semantic Conventions",
+    "NIST AI RMF 1.0 + NIST AI 600-1",
+    "NIST SP 800-218A GenAI SSDF Community Profile",
+    "ISO/IEC 42001:2023",
+    "ISO/IEC 27001:2022",
+    "ISO/IEC 23894:2023",
+    "ISO/IEC 42005:2025"
+  ],
+  "upgrades": [
+    {
+      "order": 1,
+      "priority": "P0",
+      "id": "agent_security_governance_2026",
+      "decision": "EXTEND",
+      "existing": ["PR-201", "PR-149", "PR-118", "PR-192"],
+      "delta": "Add agentic threat controls and runtime control-point mapping for prompt/tool injection, excessive agency, delegated identity, cross-agent trust, memory poisoning, approval and fail-closed enforcement.",
+      "baseline": ["OWASP LLM Top 10 2026", "OWASP Agentic Top 10 2026", "OWASP ACS 2026", "NIST SP 800-218A"],
+      "benchmark": ["control_coverage", "negative_policy_tests", "authority_bypass_rate", "evidence_completeness"]
+    },
+    {
+      "order": 2,
+      "priority": "P0",
+      "id": "mcp_2026_07_28",
+      "decision": "EXTEND",
+      "existing": ["PR-155", "PR-150"],
+      "delta": "Upgrade protocol contracts to stateless requests, Mcp-Method/Mcp-Name routing, MRTR, cache metadata, extensions and authorization hardening without transport-session authority.",
+      "baseline": ["MCP 2026-07-28"],
+      "benchmark": ["protocol_conformance_cases", "deprecated_session_rejection", "auth_negative_tests", "routing_determinism"]
+    },
+    {
+      "order": 3,
+      "priority": "P0",
+      "id": "a2a_agent_interoperability",
+      "decision": "RECONCILE_THEN_EXTEND",
+      "existing": ["branch:post-p0/a2a-agent-admission-v1", "PR-150", "PR-182"],
+      "delta": "Inspect historical candidate before reuse; implement only missing A2A 1.0 Agent Card, Task/Message/Artifact, versioning, auth and provenance boundaries.",
+      "baseline": ["A2A 1.0"],
+      "benchmark": ["schema_interop", "task_lifecycle_cases", "agent_card_validation", "cross_vendor_fixture_compatibility"]
+    },
+    {
+      "order": 4,
+      "priority": "P1",
+      "id": "genai_observability",
+      "decision": "EXTEND",
+      "existing": ["PR-155", "canonical observability module"],
+      "delta": "Extend exporter-neutral telemetry for model/agent/tool/retrieval/memory operations, retry lineage, usage and privacy-aware content policy.",
+      "baseline": ["OpenTelemetry GenAI Semantic Conventions"],
+      "benchmark": ["span_coverage", "correlation_completeness", "telemetry_overhead", "sensitive_content_leakage"]
+    },
+    {
+      "order": 5,
+      "priority": "P1",
+      "id": "ai_risk_evidence_mapping",
+      "decision": "EXTEND",
+      "existing": ["PR-201", "PR-189", "PR-153"],
+      "delta": "Bind technical evidence to risk/control/impact/auditor evidence with exact subject and freshness semantics.",
+      "baseline": ["NIST AI RMF", "NIST AI 600-1", "NIST SP 800-218A", "ISO/IEC 42001", "ISO/IEC 27001", "ISO/IEC 23894", "ISO/IEC 42005"],
+      "benchmark": ["mapped_control_coverage", "orphan_evidence_rate", "stale_subject_detection", "auditor_traceability"]
+    },
+    {
+      "order": 6,
+      "priority": "P1",
+      "id": "tool_connector_trust_fabric",
+      "decision": "EXTEND",
+      "existing": ["PR-155", "PR-149", "PR-113", "PR-118", "PR-192"],
+      "delta": "Unify connector admission with schema/provenance/dedup/scopes/sandbox/security benchmark/egress/rate-limit/timeout/credential-broker and lifecycle evidence.",
+      "baseline": ["MCP 2026-07-28", "OAuth Security BCP", "OWASP ACS"],
+      "benchmark": ["unsafe_connector_block_rate", "scope_minimization", "sandbox_escape_negative_tests", "provenance_completeness"]
+    },
+    {
+      "order": 7,
+      "priority": "P1",
+      "id": "multi_model_routing_v2",
+      "decision": "EXTEND",
+      "existing": ["PR-106", "PR-154", "PR-143", "PR-112"],
+      "delta": "Add task, quality, latency, context, tool ability, privacy, cost, health and benchmark-history scoring while preserving fail-closed thresholds.",
+      "baseline": ["current capability-aware model fabric"],
+      "benchmark": ["task_success", "quality", "latency", "fallback_rate", "privacy_policy_violations", "cost_constraint_violations"]
+    },
+    {
+      "order": 8,
+      "priority": "P2",
+      "id": "memory_v3_continual_learning",
+      "decision": "RECONCILE_THEN_EXTEND",
+      "existing": ["PR-97", "PR-169", "PR-162", "PR-177"],
+      "delta": "Reconcile episodic/semantic/task/failure/causal memory into one governed contract with TTL, confidence, conflicts, consent and retrieval-quality measurement; learning remains proposal-only.",
+      "baseline": ["existing memory-learning and Triad memory lineages"],
+      "benchmark": ["retrieval_precision", "retrieval_recall", "stale_memory_rate", "conflict_detection", "tenant_isolation", "poisoning_rejection"]
+    },
+    {
+      "order": 9,
+      "priority": "P2",
+      "id": "long_context_document_intelligence",
+      "decision": "EXTEND",
+      "existing": ["PR-99", "PR-102", "PR-150", "PR-154"],
+      "delta": "Add hierarchical retrieval, semantic chunking, context budgeting, reranking, citation provenance and conflict-aware synthesis rather than treating long context as a model flag only.",
+      "baseline": ["existing research/citation and multimodal contracts"],
+      "benchmark": ["answer_groundedness", "citation_precision", "retrieval_quality", "context_efficiency", "conflict_resolution_accuracy"]
+    },
+    {
+      "order": 10,
+      "priority": "P2",
+      "id": "evaluation_regression_fabric",
+      "decision": "EXTEND",
+      "existing": ["PR-103", "PR-111", "PR-153", "PR-189"],
+      "delta": "Standardize before/after benchmark receipts across accuracy, tool success, latency, retry, security, hallucination, cost and reproducibility; no-win/no-new-capability candidates are rejected.",
+      "baseline": ["existing Test Standards and experiment harness"],
+      "benchmark": ["reproducibility", "metric_completeness", "regression_detection", "false_promotion_negative_tests"]
+    },
+    {
+      "order": 11,
+      "priority": "P2",
+      "id": "resilient_agent_execution",
+      "decision": "RECONCILE_THEN_EXTEND",
+      "existing": ["PR-183", "PR-179", "PR-104"],
+      "delta": "Reconcile durable checkpoints, idempotency, replay/fork, compensation, circuit breakers and bounded retries on latest exact evidence before adding missing live executor semantics.",
+      "baseline": ["existing durable execution and resilience lineages"],
+      "benchmark": ["resume_success", "duplicate_side_effect_rate", "replay_determinism", "recovery_latency", "bounded_retry_compliance"]
+    },
+    {
+      "order": 12,
+      "priority": "P3",
+      "id": "multimodal_runtime",
+      "decision": "EXTEND",
+      "existing": ["PR-102", "PR-154"],
+      "delta": "Extend typed modality contracts into a permission-aware runtime matrix for text/image/audio/video/documents/structured data/computer-use with quarantine and provenance.",
+      "baseline": ["existing Gen 6.5 multimodal and frontier capability contracts"],
+      "benchmark": ["modality_validation", "permission_isolation", "provenance_coverage", "unsafe_attachment_rejection"]
+    }
+  ]
+}
