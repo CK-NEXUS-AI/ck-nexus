@@ -11,10 +11,12 @@ WorkingDirectory=/opt/ck-nexus-src
 Environment=PYTHONUNBUFFERED=1
 Environment=CKNEXUS_HOME=/opt/ck-nexus-src
 Environment=CKNEXUS_ENVIRONMENT=development
+Environment=CKNEXUS_HOST=127.0.0.1
+Environment=PORT=8000
 Environment=CKNEXUS_DEV_STATUS_FILE=/opt/ck-nexus-src/data/dev_status.json
 EnvironmentFile=/etc/cknexus/creator.env
 ExecStartPre=/usr/bin/python3 /opt/ck-nexus-src/scripts/check_creator_token.py
-ExecStart=/opt/cknexus-creator-venv/bin/uvicorn creator_app.api:create_app --factory --host 127.0.0.1 --port 8000
+ExecStart=/opt/cknexus-creator-venv/bin/python -m creator_app.unified
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true

@@ -6,6 +6,8 @@
 
 ## ภาพรวมใน 1 นาที
 
+**Canonical runtime:** ทุกช่องทางเริ่มระบบต้องเรียก `creator_app.unified` ตัวเดียวกัน ดู [Canonical Runtime Contract](docs/CANONICAL_RUNTIME.md) และ [Installation Guide](INSTALL_GUIDE.md) สำหรับ local, CLI, Docker, systemd และ production deployment
+
 | หมวด | สถานะจริงล่าสุด | หลักฐาน / ข้อจำกัด |
 |---|---|---|
 | Control Plane | ✅ ทดสอบชุดเป้าหมายผ่าน | 84 passed หลังแก้ MCP SDK compatibility |
