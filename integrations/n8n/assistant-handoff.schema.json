@@ -1,0 +1,22 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "title":"CK-NEXUS Development Assistant Handoff",
+  "type":"object",
+  "required":["mission_id","status","branch","authority","truth","work","verification","blockers","next_action"],
+  "properties":{
+    "mission_id":{"type":"string","minLength":1},
+    "status":{"enum":["PROPOSAL","EXECUTED_UNVERIFIED","VERIFIED_DEVELOPMENT_CANDIDATE","BLOCKED_POLICY","BLOCKED_EVIDENCE","FAILED"]},
+    "branch":{"type":"string","pattern":"^(post-p0|feat|fix|dev)/"},
+    "exact_sha":{"type":["string","null"],"pattern":"^[0-9a-f]{40}$"},
+    "authority":{"const":"ck_nexus_governor"},
+    "truth":{"type":"object","required":["observed","inferred","simulated"],"properties":{"observed":{"type":"array","items":{"type":"string"}},"inferred":{"type":"array","items":{"type":"string"}},"simulated":{"type":"array","items":{"type":"string"}}}},
+    "work":{"type":"object","required":["changed_files","artifacts","summary"],"properties":{"changed_files":{"type":"array","items":{"type":"string"}},"artifacts":{"type":"array","items":{"type":"string"}},"summary":{"type":"string"}}},
+    "verification":{"type":"object","required":["tests","security","evidence_state"],"properties":{"tests":{"type":"array","items":{"type":"string"}},"security":{"type":"array","items":{"type":"string"}},"evidence_state":{"enum":["NONE","DRAFT","UNVERIFIED","DEVELOPMENT_VERIFIED"]}}},
+    "blockers":{"type":"array","items":{"type":"string"}},
+    "risks":{"type":"array","items":{"type":"string"}},
+    "next_action":{"type":"string"},
+    "production_mutation":{"const":false},
+    "production_ready":{"const":false},
+    "q10_q11_q12_evidence":{"const":false}
+  }
+}

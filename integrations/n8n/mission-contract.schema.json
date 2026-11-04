@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CK-NEXUS Development Mission Contract",
+  "type": "object",
+  "required": ["mission_id","request","branch","mode","authority","constraints"],
+  "properties": {
+    "mission_id": {"type":"string","minLength":1},
+    "request": {"type":"string","minLength":1},
+    "branch": {"type":"string","pattern":"^(post-p0|feat|fix|dev)/"},
+    "pull_request": {"type":["integer","null"]},
+    "mode": {"const":"development_only"},
+    "authority": {"const":"ck_nexus_governor"},
+    "priority": {"enum":["low","normal","high","critical-development"]},
+    "truth_mode": {"enum":["OBSERVED_ONLY","OBSERVED_AND_INFERRED","SIMULATION_ALLOWED"]},
+    "constraints": {
+      "type":"object",
+      "required":["allow_production_mutation","allow_secret_export","allow_merge","allow_deploy"],
+      "properties": {
+        "allow_production_mutation":{"const":false},
+        "allow_secret_export":{"const":false},
+        "allow_merge":{"const":false},
+        "allow_deploy":{"const":false}
+      }
+    },
+    "acceptance_criteria":{"type":"array","items":{"type":"string"}},
+    "expected_artifacts":{"type":"array","items":{"type":"string"}},
+    "budget":{"type":"object","properties":{"max_iterations":{"type":"integer","minimum":1,"maximum":12},"max_parallel_roles":{"type":"integer","minimum":1,"maximum":12}}}
+  },
+  "allOf":[
+    {"not":{"properties":{"branch":{"enum":["main","release/q10-q16-closure"]}}}},
+    {"not":{"properties":{"pull_request":{"const":14}}}}
+  ]
+}

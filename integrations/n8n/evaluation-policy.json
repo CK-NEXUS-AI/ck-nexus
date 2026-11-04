@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "name": "CK-NEXUS Development Evaluation Policy",
+  "mode": "development_only",
+  "required_checks": [
+    "policy_compliance",
+    "subject_scope_check",
+    "tests_or_test_plan_present",
+    "security_review_present",
+    "evidence_state_explicit",
+    "unverified_claims_marked",
+    "no_secret_material",
+    "no_production_mutation"
+  ],
+  "scoring": {
+    "correctness": 0.25,
+    "verification": 0.20,
+    "security": 0.20,
+    "evidence_quality": 0.15,
+    "maintainability": 0.10,
+    "cost_latency_efficiency": 0.10
+  },
+  "minimum_score_for_development_candidate": 0.80,
+  "hard_fail_conditions": [
+    "protected_ref_targeted",
+    "pr14_targeted",
+    "raw_secret_present",
+    "production_mutation_requested",
+    "q10_pass_claim_without_native_evidence",
+    "verifier_missing",
+    "security_reviewer_missing"
+  ],
+  "result_states": [
+    "PROPOSAL",
+    "EXECUTED_UNVERIFIED",
+    "VERIFIED_DEVELOPMENT_CANDIDATE",
+    "BLOCKED_POLICY",
+    "BLOCKED_EVIDENCE",
+    "FAILED"
+  ]
+}
