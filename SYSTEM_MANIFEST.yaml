@@ -1,0 +1,225 @@
+manifest:
+  schema_version: "2026.09"
+  generated_from:
+    repository: spinlnw10-art/ck-nexus
+    commit: b4146db8e23dff49520cbbc9d0194a15bcc5872d
+    tree: 25d9c74db2b553667ad085172f8ac7beff4146aa
+    validation_run_id: 33792990023
+    portable_regression: "496/496 PASS"
+  role: declarative_boot_and_capability_contract
+  warning: "Configuration is not runtime or verification authority."
+
+system:
+  name: CK-NEXUS
+  environment_status: DEVELOPMENT
+  q10: NOT_VERIFIED
+  q11: BLOCKED
+  q12: BLOCKED
+  production: NO_GO
+
+truth_authority:
+  configuration: SYSTEM_MANIFEST.yaml
+  runtime_state: authoritative_backend
+  verification: evidence_registry_and_designated_human_authority
+  ui: projection_only
+  latest_exact_evidence_wins: true
+
+capabilities:
+  fastapi_runtime:
+    status: PROVEN
+    proof_scope: portable_regression
+    evidence:
+      - tests/test_creator_api.py
+      - tests/test_r7_api_contract.py
+
+  health_and_observability:
+    status: PROVEN
+    proof_scope: portable_regression
+    evidence:
+      - tests/test_health_model.py
+      - tests/test_r20_observability.py
+
+  provider_router:
+    status: PROVEN
+    proof_scope: unit_contract
+    evidence:
+      - creator_app/provider_router.py
+      - creator_app/credentials/capability_router.py
+      - tests/test_provider_router.py
+
+  provider_mock:
+    status: PROVEN
+    proof_scope: docker_and_runtime_smoke
+    evidence:
+      - creator_app/providers.py
+
+  provider_openai:
+    status: PROVEN
+    proof_scope: adapter_contract_with_mock_client
+    live_external_execution: NOT_PROVEN
+    evidence:
+      - creator_app/providers.py
+      - tests/test_provider_adapters.py
+
+  provider_ollama:
+    status: IMPLEMENTED_NOT_VERIFIED
+    proof_scope: configuration_and_loopback_guard_only
+    live_external_execution: NOT_PROVEN
+    evidence:
+      - creator_app/providers.py
+      - tests/test_provider_adapters.py
+
+  credential_broker:
+    status: PROVEN
+    proof_scope: portable_regression
+    evidence:
+      - creator_app/credential_broker.py
+      - creator_app/credential_vault.py
+      - tests/test_credential_broker.py
+      - tests/test_credential_vault.py
+
+  capability_registry:
+    status: IMPLEMENTED_NOT_VERIFIED
+    proof_scope: code_present_compile_pass
+    evidence:
+      - creator_app/credentials/capability_registry.py
+
+  connector_fabric:
+    status: PROVEN
+    proof_scope: portable_regression
+    evidence:
+      - creator_app/connector_fabric/
+      - tests/test_r28_connector_fabric.py
+      - tests/test_r28_connector_api.py
+
+  github_integration:
+    status: PROVEN
+    proof_scope: contract_and_regression
+    live_external_execution: NOT_PROVEN_ON_THIS_EXACT_VALIDATION_RUN
+    evidence:
+      - tests/test_github_integration.py
+      - tests/test_oauth_and_github_app.py
+
+  gmail_oauth:
+    status: IMPLEMENTED_NOT_VERIFIED
+    proof_scope: code_and_contract_tests_without_live_oauth
+    evidence:
+      - creator_app/credentials/gmail_oauth_connector.py
+      - tests/test_oauth_and_github_app.py
+
+  email_gateway:
+    status: PROVEN
+    proof_scope: portable_regression_and_prior_docker_runtime
+    evidence:
+      - services/email_gateway/
+      - tests/test_email_gateway.py
+
+  billing:
+    status: PROVEN
+    proof_scope: portable_regression
+    evidence:
+      - services/billing/
+      - tests/test_billing.py
+
+  postgres_runtime_binding:
+    status: PROVEN
+    proof_scope: prior_docker_runtime_probe_on_canonical_source
+    evidence:
+      - tests/test_r26_runtime_binding.py
+
+  redis_runtime_binding:
+    status: PROVEN
+    proof_scope: prior_docker_runtime_probe_on_canonical_source
+    evidence:
+      - tests/test_r26_runtime_binding.py
+
+  agnes_execution_phase1:
+    status: PROVEN
+    proof_scope: portable_regression
+    evidence:
+      - creator_app/agnes/execution/
+      - tests/test_agnes_execution_kernel_phase1.py
+
+  agnes_execution_phase2:
+    status: IMPLEMENTED_NOT_VERIFIED
+    proof_scope: excluded_from_portable_regression
+    evidence:
+      - tests/test_agnes_execution_kernel_phase2.py
+
+  agnes_execution_phase3:
+    status: IMPLEMENTED_NOT_VERIFIED
+    proof_scope: excluded_from_portable_regression
+    evidence:
+      - creator_app/agnes/execution/phase3/
+      - tests/test_agnes_execution_kernel_phase3.py
+
+  browser_unified_control:
+    status: IMPLEMENTED_NOT_VERIFIED
+    proof_scope: route_and_ui_code_present
+    evidence:
+      - creator_app/unified_control.py
+      - creator_app/web/control.html
+      - creator_app/web/control.js
+      - creator_app/web/control.css
+
+  qdrant_vector_database:
+    status: NOT_PROVEN
+
+  neo4j_graph_database:
+    status: NOT_PROVEN
+
+  kafka_event_bus:
+    status: NOT_PROVEN
+
+  nextjs_frontend:
+    status: NOT_PROVEN
+
+configuration_service:
+  status: NOT_PROVEN
+  hot_reload: false
+  security_rule: "No hot reload may change verification, approval, credential, release, or production authority."
+
+resources:
+  resource_manager:
+    status: NOT_PROVEN
+    policy_target: admission_before_execution
+    measured_profiles_required: true
+
+health_policy:
+  self_healing:
+    status: IMPLEMENTED_NOT_VERIFIED
+    safe_scope: reversible_components_only
+    auto_restart_max_attempts: 3
+    quarantine_required: true
+    restore_verified_checkpoint_only: true
+    may_bypass_security_gates: false
+
+learning_policy:
+  collect_logs: true
+  collect_metrics: true
+  reflection: true
+  generate_proposals: true
+  auto_modify_source: false
+  auto_merge: false
+  auto_deploy_production: false
+  auto_change_policy: false
+  require_review: true
+  independent_verification_where_required: true
+
+recovery_import:
+  branch: feature/merge-history-package
+  state: QUARANTINED
+  compared_files: 216
+  recovery_only: 185
+  mapped_conflicts: 26
+  identical_duplicates_skipped: 5
+  runtime_activation: false
+
+governance:
+  fail_closed: true
+  separation_of_duties: true
+  no_self_approval: true
+  no_fabricated_evidence: true
+  q10_subject:
+    commit: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
+    tree: 0525195934f703a8becf8a39f6397b2411e0bb2e
