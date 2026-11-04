@@ -59,7 +59,7 @@ github-app = [
 py-modules = ["main"]
 
 [tool.setuptools.packages.find]
-include = ["app*", "creator_app*", "services*", "gateway*", "orchestration*", "idea_engine*"]
+include = ["app*", "creator_app*", "services*", "gateway*", "orchestration*", "idea_engine*", "contracts*"]
 
 [tool.setuptools.package-data]
 creator_app = ["web/*", "skills/agnes/*"]
