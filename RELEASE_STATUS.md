@@ -1,3 +1,6 @@
+> **Evidence subject:** Q10 scanner PASS เฉพาะ commit `22edd1f` (run 41231931695).
+> Q11–Q16 ยัง NOT_VERIFIED บน main ปัจจุบัน `f4c4447` และต้องรันใหม่.
+
 # Release Status — CK-NEXUS Q10-Q16 Closure
 
 Decision: **NO-GO FOR PRODUCTION CLAIMS**
