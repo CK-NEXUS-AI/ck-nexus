@@ -11,21 +11,47 @@ from typing import Any
 REPOSITORY = "CK-NEXUS-AI/ck-nexus"
 BRANCH = "release/q10-q16-closure-20261105"
 GATES = {
-    "Q10": ("q10-open-source-security-", "Q10_DEPENDENCY_AUDIT.json", ".github/workflows/q10-evidence-gate.yml"),
+    "Q10": (
+        "q10-open-source-security-",
+        "Q10_DEPENDENCY_AUDIT.json",
+        ".github/workflows/q10-evidence-gate.yml",
+    ),
     "Q11": ("q11-final-", "Q11_OPENAI_LIVE.json", ".github/workflows/verify-q11-final-subject.yml"),
     "Q12": ("q12-final-", "Q12_CGROUP_V2.json", ".github/workflows/verify-q12-final-subject.yml"),
-    "Q13": ("q13-postgres-dr-", "Q13_POSTGRES_DR.json", ".github/workflows/candidate-automated-gates.yml"),
-    "Q14": ("q14-final-", "Q14_OBSERVABILITY_ALERT.json", ".github/workflows/verify-q14-final-subject.yml"),
-    "Q15": ("q15-clean-machine-", "Q15_CLEAN_MACHINE.json", ".github/workflows/candidate-automated-gates.yml"),
-    "Q16_PRODUCTION_IMAGE": ("q16-production-image-", "Q16_PRODUCTION_IMAGE.json", ".github/workflows/candidate-production-image.yml"),
-    "Q16_RUNTIME_LICENSES": ("q16-runtime-licenses-", "Q16_RUNTIME_LICENSE_SUMMARY.json", ".github/workflows/candidate-runtime-licenses.yml"),
+    "Q13": (
+        "q13-postgres-dr-",
+        "Q13_POSTGRES_DR.json",
+        ".github/workflows/candidate-automated-gates.yml",
+    ),
+    "Q14": (
+        "q14-final-",
+        "Q14_OBSERVABILITY_ALERT.json",
+        ".github/workflows/verify-q14-final-subject.yml",
+    ),
+    "Q15": (
+        "q15-clean-machine-",
+        "Q15_CLEAN_MACHINE.json",
+        ".github/workflows/candidate-automated-gates.yml",
+    ),
+    "Q16_PRODUCTION_IMAGE": (
+        "q16-production-image-",
+        "Q16_PRODUCTION_IMAGE.json",
+        ".github/workflows/candidate-production-image.yml",
+    ),
+    "Q16_RUNTIME_LICENSES": (
+        "q16-runtime-licenses-",
+        "Q16_RUNTIME_LICENSE_SUMMARY.json",
+        ".github/workflows/candidate-runtime-licenses.yml",
+    ),
 }
 
 
 def run_json(command: list[str]) -> dict[str, Any]:
     result = subprocess.run(command, text=True, capture_output=True, check=False)
     if result.returncode:
-        raise RuntimeError(f"command failed ({result.returncode}): {' '.join(command)}: {result.stderr[-500:]}")
+        raise RuntimeError(
+            f"command failed ({result.returncode}): {' '.join(command)}: {result.stderr[-500:]}"
+        )
     data = json.loads(result.stdout)
     if not isinstance(data, dict):
         raise TypeError("expected JSON object from GitHub CLI")
@@ -33,7 +59,9 @@ def run_json(command: list[str]) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Collect exact-subject CK-NEXUS Q10-Q16 workflow evidence.")
+    parser = argparse.ArgumentParser(
+        description="Collect exact-subject CK-NEXUS Q10-Q16 workflow evidence."
+    )
     parser.add_argument("--q10", type=int, required=True)
     parser.add_argument("--q11", type=int, required=True)
     parser.add_argument("--q12", type=int, required=True)
@@ -75,8 +103,12 @@ def main() -> int:
                 or run.get("event") != "workflow_dispatch"
                 or run.get("path") != workflow_path
             ):
-                raise SystemExit(f"{gate}: workflow run path/event/status/branch/conclusion mismatch")
-            artifacts_response = run_json(["gh", "api", f"repos/{args.repo}/actions/runs/{run_id}/artifacts?per_page=100"])
+                raise SystemExit(
+                    f"{gate}: workflow run path/event/status/branch/conclusion mismatch"
+                )
+            artifacts_response = run_json(
+                ["gh", "api", f"repos/{args.repo}/actions/runs/{run_id}/artifacts?per_page=100"]
+            )
             artifacts = artifacts_response.get("artifacts", [])
             artifact_name = f"{prefix}{run.get('head_sha')}"
             matches = [item for item in artifacts if item.get("name") == artifact_name]
@@ -98,7 +130,18 @@ def main() -> int:
             download_dir = temp_root / gate.lower()
             download_dir.mkdir(parents=True)
             subprocess.run(
-                ["gh", "run", "download", str(run_id), "--repo", args.repo, "--name", artifact_name, "--dir", str(download_dir)],
+                [
+                    "gh",
+                    "run",
+                    "download",
+                    str(run_id),
+                    "--repo",
+                    args.repo,
+                    "--name",
+                    artifact_name,
+                    "--dir",
+                    str(download_dir),
+                ],
                 check=True,
                 text=True,
                 capture_output=True,
@@ -108,28 +151,34 @@ def main() -> int:
                 raise SystemExit(f"{gate}: artifact missing {evidence_name}")
             evidence = json.loads(downloaded.read_text(encoding="utf-8"))
             if evidence.get("source_sha") != run.get("head_sha"):
-                raise SystemExit(f"{gate}: evidence source SHA does not match workflow run head SHA")
+                raise SystemExit(
+                    f"{gate}: evidence source SHA does not match workflow run head SHA"
+                )
             if evidence.get("release_subject_manifest_sha256") != expected_subject:
                 raise SystemExit(f"{gate}: evidence runtime subject mismatch")
             if evidence.get("github_run_id") != run_id:
                 raise SystemExit(f"{gate}: evidence run ID mismatch")
-            evidence.update({
-                "artifact_id": int(artifact["id"]),
-                "artifact_digest": digest,
-                "artifact_name": artifact_name,
-                "artifact_created_at": artifact.get("created_at"),
-                "artifact_expires_at": artifact.get("expires_at"),
-                "github_run_head_sha": run.get("head_sha"),
-                "github_run_head_branch": run.get("head_branch"),
-                "github_run_conclusion": run.get("conclusion"),
-                "github_run_event": run.get("event"),
-                "workflow_path": run.get("path"),
-                "workflow_name": run.get("name"),
-                "workflow_url": run.get("html_url"),
-            })
+            evidence.update(
+                {
+                    "artifact_id": int(artifact["id"]),
+                    "artifact_digest": digest,
+                    "artifact_name": artifact_name,
+                    "artifact_created_at": artifact.get("created_at"),
+                    "artifact_expires_at": artifact.get("expires_at"),
+                    "github_run_head_sha": run.get("head_sha"),
+                    "github_run_head_branch": run.get("head_branch"),
+                    "github_run_conclusion": run.get("conclusion"),
+                    "github_run_event": run.get("event"),
+                    "workflow_path": run.get("path"),
+                    "workflow_name": run.get("name"),
+                    "workflow_url": run.get("html_url"),
+                }
+            )
             target = evidence_dir / evidence_name
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            target.write_text(
+                json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
             collected[gate] = {
                 "run_id": run_id,
                 "head_sha": run.get("head_sha"),
@@ -147,7 +196,10 @@ def main() -> int:
         raise SystemExit("Q10 evidence does not provide candidate source SHA/tree")
     for gate, item in collected.items():
         evidence = json.loads((evidence_dir / item["evidence_file"]).read_text(encoding="utf-8"))
-        if evidence.get("source_sha") != candidate_sha or evidence.get("source_tree") != candidate_tree:
+        if (
+            evidence.get("source_sha") != candidate_sha
+            or evidence.get("source_tree") != candidate_tree
+        ):
             raise SystemExit(f"{gate}: source SHA/tree differs from Q10 candidate")
 
     manifest = {
