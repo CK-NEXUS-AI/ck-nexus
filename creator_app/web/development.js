@@ -43,7 +43,7 @@
     runtime.textContent = "Canonical runtime: python -m creator_app.unified. Runtime health: NOT_VERIFIED (no live health request is performed by this dashboard).";
     const prod = document.createElement("p");
     prod.className = "no-go-status";
-    prod.textContent = "Production eligibility: NO-GO. Q10–Q16 are not promoted by dashboard or ordinary CI evidence.";
+    prod.textContent = "Production eligibility: NOT_VERIFIED. Q10–Q16 are not promoted by dashboard or ordinary CI evidence.";
     const evidence = document.createElement("p");
     evidence.textContent = "CI evidence source: GitHub Actions run 41781983676 (CK-NEXUS CI, main, 2026-11-04); 41781983784 (Trusted Verifier Image CI, main, 2026-11-04); 41781983695 (Code Quality, main, 2026-11-04). These runs do not establish production health or Q10–Q16 completion.";
     panel.append(title, runtime, prod, evidence);
@@ -57,7 +57,7 @@
     ensureEvidencePanel();
     if (!payload || payload.stale || !payload.available) {
       banner.hidden = false;
-      banner.textContent = "Status snapshot is unavailable or stale. Previous snapshot values are suppressed; no live status is asserted.";
+      banner.textContent = "ข้อมูลเก่า/ตรวจไม่ได้ — Status snapshot is unavailable or stale. Previous snapshot values are suppressed; no live status is asserted.";
       root.replaceChildren();
       setText(refreshed, "No current snapshot");
       return;

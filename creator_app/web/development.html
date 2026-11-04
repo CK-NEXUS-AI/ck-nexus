@@ -30,7 +30,7 @@
           <p class="subhead">The dashboard reports collector snapshots with their source and collection time. It does not infer production health from CI or missing data.</p>
         </div>
         <div class="release-state" aria-live="polite">
-          <strong>Production eligibility: NO-GO</strong>
+          <strong>Production eligibility: NOT_VERIFIED</strong>
           <small>Q10–Q16 remain NOT_VERIFIED / BLOCKED in the release evidence.</small>
         </div>
       </section>
@@ -39,7 +39,7 @@
         <h2 id="status-boundary-title">Evidence boundaries</h2>
         <p><strong>Canonical application runtime:</strong> <code>python -m creator_app.unified</code></p>
         <p><strong>Runtime health:</strong> NOT_VERIFIED here. The dashboard does not probe or claim production health.</p>
-        <p><strong>Release status source:</strong> <a href="https://github.com/CK-NEXUS-AI/ck-nexus/blob/main/RELEASE_STATUS.md">RELEASE_STATUS.md</a>. It records NO-GO; historical evidence is not current-subject evidence unless explicitly bound to the current release subject.</p>
+        <p><strong>Release status source:</strong> <a href="https://github.com/CK-NEXUS-AI/ck-nexus/blob/main/RELEASE_STATUS.md">RELEASE_STATUS.md</a>. It records the current release decision; historical evidence is not current-subject evidence unless explicitly bound to the current release subject.</p>
         <p><strong>Ordinary CI:</strong> CI may establish that configured checks passed for their recorded commit; it is not proof of Q10–Q16 completion or production health.</p>
       </section>
 
@@ -53,7 +53,7 @@
       <section class="section" aria-labelledby="snapshot-title">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">READ-ONLY COLLECTOR DATA</p>
+            <p class="eyebrow">LIVE SNAPSHOT · READ-ONLY COLLECTOR DATA</p>
             <h2 id="snapshot-title">Observed snapshot</h2>
           </div>
           <span class="muted" id="refreshed-at" aria-live="polite">NOT_VERIFIED</span>
@@ -63,7 +63,7 @@
 
       <section class="section panel" aria-labelledby="gate-title">
         <h2 id="gate-title">Q10–Q16 release gates</h2>
-        <p>Current release decision: <strong class="no-go-status">NO-GO</strong>. Do not promote any gate based on this dashboard or ordinary CI.</p>
+        <p>Current release decision: <strong class="no-go-status">NOT_VERIFIED</strong> (see RELEASE_STATUS.md). Do not promote any gate based on this dashboard or ordinary CI.</p>
         <ul class="gate-list">
           <li>Q10: NOT_VERIFIED / BLOCKED — layered scan and independent review evidence required.</li>
           <li>Q11: NOT_VERIFIED / BLOCKED — exact-subject authorized live-provider verification required.</li>
