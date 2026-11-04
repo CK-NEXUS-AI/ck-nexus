@@ -1,0 +1,69 @@
+name: Commercial Readiness Evidence CI
+
+on:
+  push:
+    branches:
+      - post-p0/commercial-readiness-evidence-v1
+  pull_request:
+    paths:
+      - '.github/release-tools/commercial_readiness_evidence.py'
+      - '.github/workflows/commercial-readiness-evidence-ci.yml'
+      - 'docs/commercial-readiness/**'
+
+permissions:
+  contents: read
+
+jobs:
+  evidence:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Generate readiness evidence
+        run: python .github/release-tools/commercial_readiness_evidence.py
+
+      - name: Verify manifest hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum --check commercial-readiness-evidence/manifest.sha256
+
+      - name: Verify fail-closed production boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          p = json.loads(Path('commercial-readiness-evidence/readiness.json').read_text())
+          authority = p['production_authority']
+          assert authority['q10'] == 'NOT_VERIFIED'
+          assert authority['q11'] == 'BLOCKED'
+          assert authority['q12'] == 'BLOCKED'
+          assert authority['production_ready'] is False
+          assert authority['commercial_ready'] is False
+          assert authority['pr14_merge_authorized'] is False
+          assert p['classification'] == 'POST_P0_DEVELOPMENT_EVIDENCE_ONLY'
+          PY
+
+      - name: Upload persisted development evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: commercial-readiness-evidence-${{ github.sha }}
+          path: commercial-readiness-evidence/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Evidence boundary
+        run: |
+          echo 'Development evidence only.'
+          echo 'Does not satisfy Native Q10, live-provider Q11, delegated-cgroup Q12, or authorize PR #14 merge/deploy.'
