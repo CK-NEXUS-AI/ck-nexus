@@ -26,7 +26,14 @@ REPORT_FILES = {
 EXPECTED_SEMGREP_RULES_REPO = "https://github.com/semgrep/semgrep-rules"
 EXPECTED_SEMGREP_RULES_COMMIT = "16b9e6d45f10649f6a531ec4838ed9924372c3bc"
 EXPECTED_SEMGREP_RULE_DIRECTORIES = [
-    "python", "javascript", "typescript", "generic", "dockerfile", "yaml", "bash", "json"
+    "python",
+    "javascript",
+    "typescript",
+    "generic",
+    "dockerfile",
+    "yaml",
+    "bash",
+    "json",
 ]
 EXPECTED_TOOL_VERSIONS = {
     "semgrep": "1.183.0",
@@ -78,7 +85,17 @@ def main() -> int:
     missing = [name for name in REPORT_FILES.values() if not (out / name).is_file()]
     raw: dict[str, Any] = {}
     parse_errors: list[str] = []
-    for name in ("pip_audit", "bandit", "semgrep", "gitleaks", "trivy", "attack_regression", "tool_versions", "semgrep_ruleset", "issue_state"):
+    for name in (
+        "pip_audit",
+        "bandit",
+        "semgrep",
+        "gitleaks",
+        "trivy",
+        "attack_regression",
+        "tool_versions",
+        "semgrep_ruleset",
+        "issue_state",
+    ):
         path = out / REPORT_FILES[name]
         if path.is_file():
             try:
@@ -86,13 +103,21 @@ def main() -> int:
             except (OSError, json.JSONDecodeError):
                 parse_errors.append(name)
 
-    pip_rows = raw.get("pip_audit", {}).get("dependencies", []) if isinstance(raw.get("pip_audit"), dict) else []
+    pip_rows = (
+        raw.get("pip_audit", {}).get("dependencies", [])
+        if isinstance(raw.get("pip_audit"), dict)
+        else []
+    )
     pip_vulnerabilities = sum(
         len(row.get("vulns", [])) for row in pip_rows if isinstance(row, dict)
     )
-    bandit_rows = raw.get("bandit", {}).get("results", []) if isinstance(raw.get("bandit"), dict) else []
+    bandit_rows = (
+        raw.get("bandit", {}).get("results", []) if isinstance(raw.get("bandit"), dict) else []
+    )
     bandit_counts = severity_counts(bandit_rows, "issue_severity")
-    semgrep_rows = raw.get("semgrep", {}).get("results", []) if isinstance(raw.get("semgrep"), dict) else []
+    semgrep_rows = (
+        raw.get("semgrep", {}).get("results", []) if isinstance(raw.get("semgrep"), dict) else []
+    )
     semgrep_counts = severity_counts(
         [{"severity": row.get("extra", {}).get("severity", "UNKNOWN")} for row in semgrep_rows],
         "severity",
@@ -104,7 +129,9 @@ def main() -> int:
         gitleaks_rows = gitleaks_raw
     else:
         gitleaks_rows = []
-    trivy_results = raw.get("trivy", {}).get("Results", []) if isinstance(raw.get("trivy"), dict) else []
+    trivy_results = (
+        raw.get("trivy", {}).get("Results", []) if isinstance(raw.get("trivy"), dict) else []
+    )
     trivy_counts: Counter[str] = Counter()
     for result in trivy_results or []:
         for row in result.get("Vulnerabilities", []) or []:
@@ -115,24 +142,59 @@ def main() -> int:
     attack_failed = int(attack.get("tests_failed", 1)) if isinstance(attack, dict) else 1
     attack_passed = int(attack.get("tests_passed", 0)) if isinstance(attack, dict) else 0
     attack_total = int(attack.get("tests_total", 0)) if isinstance(attack, dict) else 0
+    attack_counts_complete = attack_total > 0 and attack_passed + attack_failed == attack_total
     issue_state = raw.get("issue_state", {})
     issue_items = issue_state.get("issues", []) if isinstance(issue_state, dict) else []
-    attack_issue_refs = {int(item.get("issue")): item.get("title") for item in attack.get("issue_references", []) if isinstance(item, dict) and str(item.get("issue", "")).isdigit()} if isinstance(attack, dict) else {}
-    issue_state_by_number = {int(item.get("issue")): item for item in issue_items if isinstance(item, dict) and str(item.get("issue", "")).isdigit()}
+    attack_issue_refs = (
+        {
+            int(item.get("issue")): item.get("title")
+            for item in attack.get("issue_references", [])
+            if isinstance(item, dict) and str(item.get("issue", "")).isdigit()
+        }
+        if isinstance(attack, dict)
+        else {}
+    )
+    issue_state_by_number = {
+        int(item.get("issue")): item
+        for item in issue_items
+        if isinstance(item, dict) and str(item.get("issue", "")).isdigit()
+    }
     issue_state_complete = (
         set(issue_state_by_number) == set(attack_issue_refs) == {65, 66}
-        and all(issue_state_by_number[number].get("title") == title for number, title in attack_issue_refs.items())
-        and all(item.get("state") in {"open", "closed"} for item in issue_items if isinstance(item, dict))
+        and all(
+            issue_state_by_number[number].get("title") == title
+            for number, title in attack_issue_refs.items()
+        )
+        and all(
+            item.get("state") in {"open", "closed"}
+            for item in issue_items
+            if isinstance(item, dict)
+        )
     )
-    known_open_findings = [item for item in issue_items if isinstance(item, dict) and item.get("state") != "closed"]
-    resolved_findings = [item for item in issue_items if isinstance(item, dict) and item.get("state") == "closed"]
-    secret_output = (out / REPORT_FILES["secret_scan"]).read_text(encoding="utf-8", errors="replace") if (out / REPORT_FILES["secret_scan"]).is_file() else ""
+    known_open_findings = [
+        item for item in issue_items if isinstance(item, dict) and item.get("state") != "closed"
+    ]
+    resolved_findings = [
+        item for item in issue_items if isinstance(item, dict) and item.get("state") == "closed"
+    ]
+    secret_output = (
+        (out / REPORT_FILES["secret_scan"]).read_text(encoding="utf-8", errors="replace")
+        if (out / REPORT_FILES["secret_scan"]).is_file()
+        else ""
+    )
     tracked_files = len(subprocess.check_output(["git", "ls-files"], text=True).splitlines())
-    semgrep_paths = raw.get("semgrep", {}).get("paths", {}).get("scanned", []) if isinstance(raw.get("semgrep"), dict) else []
+    semgrep_paths = (
+        raw.get("semgrep", {}).get("paths", {}).get("scanned", [])
+        if isinstance(raw.get("semgrep"), dict)
+        else []
+    )
     versions = raw.get("tool_versions", {}) if isinstance(raw.get("tool_versions"), dict) else {}
     ruleset = raw.get("semgrep_ruleset", {}) if isinstance(raw.get("semgrep_ruleset"), dict) else {}
     scanner_toolchain_verified = (
-        all(EXPECTED_TOOL_VERSIONS[name] in str(versions.get(name, "")) for name in EXPECTED_TOOL_VERSIONS)
+        all(
+            EXPECTED_TOOL_VERSIONS[name] in str(versions.get(name, ""))
+            for name in EXPECTED_TOOL_VERSIONS
+        )
         and versions.get("semgrep_rules_repo") == EXPECTED_SEMGREP_RULES_REPO
         and versions.get("semgrep_rules_commit") == EXPECTED_SEMGREP_RULES_COMMIT
         and versions.get("semgrep_rules_directories") == EXPECTED_SEMGREP_RULE_DIRECTORIES
@@ -141,22 +203,44 @@ def main() -> int:
         and ruleset.get("directories") == EXPECTED_SEMGREP_RULE_DIRECTORIES
         and all(
             len(str(versions.get(name + "_binary_sha256", ""))) == 64
-            and all(char in "0123456789abcdef" for char in str(versions.get(name + "_binary_sha256", "")))
+            and all(
+                char in "0123456789abcdef"
+                for char in str(versions.get(name + "_binary_sha256", ""))
+            )
             for name in ("gitleaks", "trivy")
         )
-        and all(versions.get(name) and not str(versions.get(name)).startswith("UNAVAILABLE:") for name in ("bandit", "pip_audit", "python3"))
+        and all(
+            versions.get(name) and not str(versions.get(name)).startswith("UNAVAILABLE:")
+            for name in ("bandit", "pip_audit", "python3")
+        )
     )
 
     codes = {name: exit_code(name) for name in EXIT_ENV}
     report_paths = {
-        name: {"file": filename, "sha256": sha256(out / filename), "bytes": (out / filename).stat().st_size}
+        name: {
+            "file": filename,
+            "sha256": sha256(out / filename),
+            "bytes": (out / filename).stat().st_size,
+        }
         for name, filename in REPORT_FILES.items()
         if (out / filename).is_file()
     }
-    execution_complete = not missing and not parse_errors and tracked_files > 0 and bool(semgrep_paths)
-    execution_complete = execution_complete and all(
-        codes[name] in {0, 1} for name in ("pip_audit", "bandit", "gitleaks", "attack_regression", "secret_scan")
-    ) and codes["semgrep"] == 0 and codes["trivy"] == 0
+    execution_complete = (
+        not missing
+        and not parse_errors
+        and tracked_files > 0
+        and bool(semgrep_paths)
+        and attack_counts_complete
+    )
+    execution_complete = (
+        execution_complete
+        and all(
+            codes[name] in {0, 1}
+            for name in ("pip_audit", "bandit", "gitleaks", "attack_regression", "secret_scan")
+        )
+        and codes["semgrep"] == 0
+        and codes["trivy"] == 0
+    )
 
     blockers: list[str] = []
     if pip_vulnerabilities:
@@ -171,6 +255,8 @@ def main() -> int:
         blockers.append("trivy_high_or_critical_findings")
     if attack_failed:
         blockers.append("security_attack_regression_failed")
+    if not attack_counts_complete:
+        blockers.append("security_attack_regression_counts_incomplete")
     if not issue_state_complete:
         blockers.append("security_issue_state_incomplete")
     if not scanner_toolchain_verified:
@@ -194,7 +280,11 @@ def main() -> int:
         "semgrep_scanned_paths": len(semgrep_paths),
     }
     completed_at = datetime.now(UTC).isoformat()
-    scan_status = "BLOCKED" if not execution_complete else ("REJECTED" if blockers else "READY_FOR_HUMAN_REVIEW")
+    scan_status = (
+        "BLOCKED"
+        if not execution_complete
+        else ("REJECTED" if blockers else "READY_FOR_HUMAN_REVIEW")
+    )
     scanner_pass = execution_complete and not blockers
     report = {
         "schema_version": 2,
@@ -221,6 +311,7 @@ def main() -> int:
             "semgrep_by_severity": semgrep_counts,
             "gitleaks_findings": len(gitleaks_rows),
             "trivy_by_severity": dict(trivy_counts),
+            "attack_regression_total": attack_total,
             "attack_regression_passed": attack_passed,
             "attack_regression_failed": attack_failed,
             "review_required": review_items,
@@ -233,7 +324,9 @@ def main() -> int:
         "scanner_toolchain_verified": scanner_toolchain_verified,
         "scanner_execution_status": "PASS" if execution_complete else "BLOCKED",
         "security_assessment_status": scan_status,
-        "open_source_security_scan": "PASS" if scanner_pass else ("FAIL" if execution_complete else "BLOCKED"),
+        "open_source_security_scan": "PASS"
+        if scanner_pass
+        else ("FAIL" if execution_complete else "BLOCKED"),
         "security_review_status": "REQUIRED",
         "independent_review_status": "PENDING",
         "owner_approval_status": "PENDING",
@@ -253,18 +346,29 @@ def main() -> int:
         "auditor": "CK-NEXUS Open-Source Layered Security Gate",
         "dependency_install": "uv sync --all-extras --dev --frozen",
         "vulnerabilities_found": pip_vulnerabilities,
-        "component_result": "PASS" if codes["pip_audit"] == 0 and pip_vulnerabilities == 0 else "FAIL",
+        "component_result": "PASS"
+        if codes["pip_audit"] == 0 and pip_vulnerabilities == 0
+        else "FAIL",
         "open_source_security_scan": report["open_source_security_scan"],
         "security_scan_run_id": args.run_id,
         "security_report_sha256": report_digest,
         "security_scan_completed_at": completed_at,
-        "security_scan_tools": ["Semgrep", "Bandit", "Gitleaks", "pip-audit", "Trivy", "CK-NEXUS security regression", "coverage/completeness"],
+        "security_scan_tools": [
+            "Semgrep",
+            "Bandit",
+            "Gitleaks",
+            "pip-audit",
+            "Trivy",
+            "CK-NEXUS security regression",
+            "coverage/completeness",
+        ],
         "security_scan_tool_versions": versions,
         "security_scan_exit_codes": codes,
         "bandit_findings_by_severity": bandit_counts,
         "semgrep_findings_by_severity": semgrep_counts,
         "gitleaks_findings": len(gitleaks_rows),
         "trivy_findings_by_severity": dict(trivy_counts),
+        "security_attack_regression_total": attack_total,
         "security_attack_regression_passed": attack_passed,
         "security_attack_regression_failed": attack_failed,
         "known_open_findings": report["known_open_findings"],
@@ -280,7 +384,9 @@ def main() -> int:
         "production_promotion_allowed": False,
     }
     evidence_path = out / "Q10_DEPENDENCY_AUDIT.json"
-    evidence_path.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    evidence_path.write_text(
+        json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     summary = {
         "scan_status": scan_status,
         "scanner_toolchain_verified": scanner_toolchain_verified,
