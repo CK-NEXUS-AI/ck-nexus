@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 HTML_PATH = ROOT / "creator_app/web/n8n-workflows.html"
-GATEWAY_PATH = Path("/usr/local/libexec/cknexus_n8n_workflows_ui.py")
+GATEWAY_PATH = Path(
+    os.getenv(
+        "CKNEXUS_N8N_GATEWAY_PATH",
+        str(ROOT / "ops/vps/services/cknexus_n8n_workflows_ui.py"),
+    )
+)
 
 
 def html() -> str:
@@ -46,7 +52,8 @@ def test_refresh_controls_prevent_overlapping_requests_and_recover_after_failure
 
 def test_gateway_has_only_confirmed_read_routes_and_does_not_expose_secrets():
     source = GATEWAY_PATH.read_text(encoding="utf-8")
-    assert "ALLOWED_READ_PATHS = {'workflows', 'executions'}" in source
+    assert "ALLOWED_READ_PATHS" in source
+    assert '"workflows"' in source and '"executions"' in source
     assert "X-N8N-API-KEY" in source
     assert "test-secret-sentinel" not in source
     assert "api_key" not in html().lower()

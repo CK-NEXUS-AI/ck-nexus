@@ -62,6 +62,7 @@ def test_successful_run_requires_tests_and_keeps_head_unchanged(tmp_path: Path):
     repo = tmp_path / "repo"
     repo.mkdir()
     state = {"head": "abc", "status": ""}
+    opencode_commands = []
 
     def runner(args, **kwargs):
         if args[:3] == ["git", "show-ref", "--verify"]:
@@ -77,7 +78,8 @@ def test_successful_run_requires_tests_and_keeps_head_unchanged(tmp_path: Path):
             return subprocess.CompletedProcess(args, 0, "", "")
         if args[0].endswith("pytest") and args[1:] == ["-q"]:
             return subprocess.CompletedProcess(args, 0, "1 passed\n", "")
-        if args[:2] == ["codex", "exec"]:
+        if args[:2] == ["opencode", "run"]:
+            opencode_commands.append(args)
             return subprocess.CompletedProcess(args, 0, "implemented\n", "")
         raise AssertionError(args)
 
@@ -86,6 +88,8 @@ def test_successful_run_requires_tests_and_keeps_head_unchanged(tmp_path: Path):
     ).run_once()
     assert result.state == "verified"
     assert result.tests_ok is True
+    assert opencode_commands and "--dir" in opencode_commands[0]
+    assert "--auto" not in opencode_commands[0]
     assert store.get("n8n-job-1")["state"] == "completed"
     evidence = json.loads(Path(result.evidence_path).read_text(encoding="utf-8"))
     assert evidence["head_unchanged"] is True
@@ -114,7 +118,7 @@ def test_dirty_primary_repo_uses_isolated_git_worktree(tmp_path: Path):
     store = _queue(tmp_path, _safe_payload())
 
     def runner(args, **kwargs):
-        if args[0] == "codex":
+        if args[0] == "opencode":
             (Path(kwargs["cwd"]) / "creator_app" / "n8n_intelligence" / "analysis.py").write_text(
                 "baseline = True\nagent_change = True\n", encoding="utf-8"
             )

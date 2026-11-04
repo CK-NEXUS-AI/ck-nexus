@@ -2,25 +2,25 @@
   "schema_version": 2,
   "gate": "Q10",
   "status": "PREPARED_NOT_EXECUTED",
-  "required_executor": "Codex Security Deep Security Scan",
+  "required_executor": "CK-NEXUS Open-Source Layered Security Gate",
   "repository": "spinlnw10-art/ck-nexus",
-  "target_sha": "512837c8b1a3e6e8e844252a1b0781d8de011b07",
-  "target_tree_sha": "43f9cb9691a0d028a1ef396a0a475c5cd80c4a99",
-  "frozen_runtime_source_sha": "4cf17cd3befaafeaf64cd4c149739133aa220f73",
-  "frozen_runtime_source_tree_sha": "dfe3888bb6adc9aebbb0351efe4a06006f4e0a48",
-  "release_subject_manifest_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f",
+  "target_sha": "ad2fac7aa0752117dde065c7ad9b0b8d41136aa2",
+  "target_tree_sha": "eb2074176319072ca3f31d5c8c990752ba849b0a",
+  "frozen_runtime_source_sha": "ad2fac7aa0752117dde065c7ad9b0b8d41136aa2",
+  "frozen_runtime_source_tree_sha": "eb2074176319072ca3f31d5c8c990752ba849b0a",
+  "release_subject_manifest_sha256": "772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200",
   "target_scope": ".",
-  "scan_mode": "deep",
+  "scan_mode": "layered",
   "minimum_required_phases": [
-    "preflight",
-    "repeated_discovery",
-    "canonical_validation",
-    "attack_path_analysis",
-    "canonical_draft",
-    "completion_with_generated_report"
+    "frozen_dependency_install",
+    "dependency_vulnerability_audit",
+    "static_security_analysis",
+    "secret_scan",
+    "security_attack_regression",
+    "canonical_report",
+    "completion_with_report_digest"
   ],
   "acceptance": {
-    "must_use_native_codex_security_deep_scan": true,
     "must_scan_exact_target_sha": true,
     "must_preserve_scope": true,
     "must_complete_validation": true,
@@ -29,23 +29,30 @@
     "must_record_coverage": true,
     "must_not_claim_no_findings_when_discovery_count_is_zero": true,
     "runtime_subject_must_remain_frozen": true,
-    "valid_runtime_finding_fix_requires_subject_rebaseline": true
+    "valid_runtime_finding_fix_requires_subject_rebaseline": true,
+    "must_use_open_source_layered_scan": true,
+    "must_run_bandit": true,
+    "must_run_secret_scan": true,
+    "must_run_dependency_audit": true,
+    "must_run_security_attack_regression": true,
+    "must_generate_report": true
   },
   "required_q10_pass_fields": [
     "gate_result=PASS",
-    "codex_security_deep_scan=PASS",
+    "open_source_security_scan=PASS",
     "production_promotion_allowed=true",
-    "codex_security_scan_id",
-    "codex_security_report_sha256",
-    "codex_security_completed_at"
+    "security_scan_run_id",
+    "security_report_sha256",
+    "security_scan_completed_at"
   ],
   "prohibited_substitutions": [
     "bandit-only",
     "secret-scan-only",
     "dependency-audit-only",
     "manual-review-only",
-    "ordinary-ci-only"
+    "ordinary-ci-only",
+    "single-tool-only"
   ],
-  "promotion_rule": "Q10 remains NOT_VERIFIED until native Codex Security Deep Security Scan completion evidence is sealed, reportable findings are resolved according to release policy, and the scan is bound to this exact closure target and frozen runtime subject.",
+  "promotion_rule": "Q10 remains NOT_VERIFIED until the complete open-source layered security gate succeeds, all required reports are generated and hashed, reportable findings are resolved according to release policy, and evidence is bound to this exact closure target and frozen runtime subject.",
   "production_status": "NO-GO"
 }

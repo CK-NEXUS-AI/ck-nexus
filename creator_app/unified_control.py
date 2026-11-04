@@ -14,6 +14,7 @@ from creator_app.development_control import (
     COMPETENCY_CRITERIA,
     DevelopmentState,
     DevelopmentStatusStore,
+    default_development_status_db_path,
     evaluate_competency,
 )
 
@@ -55,15 +56,14 @@ CONTROL_GROUPS: tuple[dict[str, Any], ...] = (
     },
     {
         "id": "development",
-        "title": "Development Council & Codex",
+        "title": "Development Council & OpenCode",
         "summary": (
             "Multi-role development council, advisory orchestration and gated "
-            "Codex execution."
+            "OpenCode execution."
         ),
-        "prefixes": ("/api/dev-team", "/api/codex"),
+        "prefixes": ("/api/dev-team",),
         "modules": (
             "creator_app/dev_team.py",
-            "creator_app/codex_bridge.py",
             "orchestration/",
         ),
         "deep_link": "/demo",
@@ -195,7 +195,7 @@ def install_unified_control(app: FastAPI) -> FastAPI:
     development_store = DevelopmentStatusStore(
         os.environ.get(
             "CKNEXUS_DEVELOPMENT_STATUS_DB",
-            "~/.local/state/ck-nexus/development-status.sqlite3",
+            str(default_development_status_db_path()),
         )
     )
     human_approval_token = os.environ.get("CKNEXUS_HUMAN_APPROVAL_TOKEN", "").strip()
@@ -540,8 +540,6 @@ def install_unified_control(app: FastAPI) -> FastAPI:
             "development": {
                 "council_enabled": bool(settings.dev_team_enabled),
                 "council_ready": bool(app.state.dev_team.ready),
-                "codex_enabled": bool(settings.codex_enabled),
-                "codex_ready": bool(app.state.codex_bridge.ready),
             },
             "integrations": {
                 "github": github,

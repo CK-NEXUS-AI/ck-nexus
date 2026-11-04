@@ -124,6 +124,6 @@ The patch itself is a development artifact and must be independently verified be
 
 ## Production boundary
 
-This component does not promote Q10, Q11, or Q12; does not substitute for Native Codex Security;
+This component does not promote Q10, Q11, or Q12; does not by itself satisfy the Q10 open-source layered security gate;
 and does not authorize merging PR #14. Production remains NO-GO until the independent production
 closure requirements pass on their exact subjects.

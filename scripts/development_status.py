@@ -8,13 +8,16 @@ import json
 import os
 from pathlib import Path
 
-from creator_app.development_control import DevelopmentStatusStore
+from creator_app.development_control import (
+    DevelopmentStatusStore,
+    default_development_status_db_path,
+)
 
 
 def _store() -> DevelopmentStatusStore:
     path = os.environ.get(
         "CKNEXUS_DEVELOPMENT_STATUS_DB",
-        "~/.local/state/ck-nexus/development-status.sqlite3",
+        str(default_development_status_db_path()),
     )
     return DevelopmentStatusStore(Path(path))
 

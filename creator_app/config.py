@@ -58,13 +58,6 @@ class Settings:
     rate_limit_per_minute: int = 10
     run_timeout_seconds: int = 90
     max_request_bytes: int = 65_536
-    codex_enabled: bool = False
-    codex_bin: str = "codex"
-    codex_home: Path | None = None
-    codex_workspace: Path = RUNTIME_ROOT
-    codex_sandbox: str = "read-only"
-    codex_timeout_seconds: int = 600
-    codex_max_output_chars: int = 100_000
     email_gateway_enabled: bool = False
     email_database_url: str = ""
     email_database_path: Path | None = None
@@ -128,16 +121,6 @@ class Settings:
                 email_database_path = runtime_root / email_database_path
         else:
             email_database_path = database_path
-
-        codex_workspace_value = os.getenv("CKNEXUS_CODEX_WORKSPACE", "").strip()
-        codex_workspace = (
-            Path(codex_workspace_value).expanduser() if codex_workspace_value else runtime_root
-        ).resolve()
-        codex_home_value = os.getenv("CKNEXUS_CODEX_HOME", "").strip()
-        codex_home = Path(codex_home_value).expanduser().resolve() if codex_home_value else None
-        codex_sandbox = os.getenv("CKNEXUS_CODEX_SANDBOX", "read-only").strip()
-        if codex_sandbox not in {"read-only", "workspace-write"}:
-            codex_sandbox = "read-only"
 
         database_url = os.getenv("CKNEXUS_DATABASE_URL", "").strip()
         session_database_url = os.getenv("CKNEXUS_SESSION_DATABASE_URL", "").strip()
@@ -256,23 +239,6 @@ class Settings:
                 default=65_536,
                 minimum=8_192,
                 maximum=1_048_576,
-            ),
-            codex_enabled=_as_bool(os.getenv("CKNEXUS_CODEX_ENABLED"), default=False),
-            codex_bin=os.getenv("CKNEXUS_CODEX_BIN", "codex").strip() or "codex",
-            codex_home=codex_home,
-            codex_workspace=codex_workspace,
-            codex_sandbox=codex_sandbox,
-            codex_timeout_seconds=_as_int(
-                os.getenv("CKNEXUS_CODEX_TIMEOUT_SECONDS"),
-                default=600,
-                minimum=30,
-                maximum=3_600,
-            ),
-            codex_max_output_chars=_as_int(
-                os.getenv("CKNEXUS_CODEX_MAX_OUTPUT_CHARS"),
-                default=100_000,
-                minimum=1_000,
-                maximum=500_000,
             ),
             email_database_url=os.getenv("CKNEXUS_EMAIL_DATABASE_URL", "").strip(),
             email_gateway_enabled=_as_bool(

@@ -1,72 +1,221 @@
-name: Q10 Evidence Gate (EG-1..EG-4) on self-hosted runner
+name: Q10 Open-Source Layered Security Gate
 
 on:
   workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Exact commit SHA to scan; defaults to this workflow's commit
+        required: false
+        type: string
 
 permissions:
   contents: read
 
-env:
-  Q10_TARGET_SHA: 512837c8b1a3e6e8e844252a1b0781d8de011b07
-  Q10_TARGET_TREE: 43f9cb9691a0d028a1ef396a0a475c5cd80c4a99
-  Q10_OUT_DIR: ${{ github.workspace }}/q10-evidence
-
 jobs:
   evidence-gate:
-    runs-on: [self-hosted, linux, cknexus-q12]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CKNEXUS_ENVIRONMENT: development
+      CKNEXUS_HOST: 127.0.0.1
+      PORT: '8000'
+      CKNEXUS_ACCESS_TOKEN: test-access-value
+      CKNEXUS_SECURITY_ACCESS_TOKEN: test-access-value
+      CKNEXUS_MOCK_AI: 'true'
+      CKNEXUS_GMAIL_OAUTH_ENABLED: 'false'
+      CKNEXUS_GMAIL_SEND_ENABLED: 'false'
+      CKNEXUS_CONNECTOR_FABRIC_ENABLED: 'false'
     steps:
-      - name: Prove non-root runner identity
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "runner_user=$(id -un)"
-          echo "runner_uid=$(id -u)"
-          test "$(id -u)" -ne 0
-      - name: Checkout exact Q10 closure target
+      - name: Checkout gate definition
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ env.Q10_TARGET_SHA }}
-          fetch-depth: 1
-      - name: Verify canonical HEAD and tree
+          fetch-depth: 0
+
+      - name: Resolve and verify exact scan subject
+        id: subject
+        shell: bash
+        env:
+          REQUESTED_TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          target_sha="${REQUESTED_TARGET_SHA:-$GITHUB_SHA}"
+          [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+          if ! git cat-file -e "$target_sha^{commit}" 2>/dev/null; then
+            git fetch --no-tags origin "$target_sha"
+          fi
+          git worktree add q10-target "$target_sha"
+          actual_sha=$(git -C q10-target rev-parse HEAD)
+          actual_tree=$(git -C q10-target rev-parse 'HEAD^{tree}')
+          subject_manifest=$(git -C q10-target ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          test "$actual_sha" = "$target_sha"
+          echo "target_sha=$actual_sha" >> "$GITHUB_OUTPUT"
+          echo "target_tree=$actual_tree" >> "$GITHUB_OUTPUT"
+          echo "subject_manifest=$subject_manifest" >> "$GITHUB_OUTPUT"
+          echo "Q10 target: $actual_sha"
+          echo "Q10 tree: $actual_tree"
+
+      - name: Set up Python and frozen environment
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install uv and sync exact target
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$Q10_TARGET_SHA"
-          test "$(git rev-parse HEAD^{tree})" = "$Q10_TARGET_TREE"
-          echo "Q10 canonical target verified: $Q10_TARGET_SHA"
-      - name: Fetch evidence gate script from main
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/spinlnw10-art/ck-nexus/contents/evidence/q10/q10_evidence_gate.sh?ref=main" \
-            | jq -r '.content' | base64 -d > q10_evidence_gate.sh
-          bash -n q10_evidence_gate.sh
-          echo "script fetched and syntax-checked"
-      - name: Run Q10 evidence gate (EG-1..EG-4)
-        id: gate
+          python -m pip install --upgrade pip uv
+          cd q10-target
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+
+      - name: Run frozen dependency vulnerability audit
+        id: dependencies
         shell: bash
         run: |
           set +e
-          bash q10_evidence_gate.sh "$GITHUB_WORKSPACE" > q10-gate-output.txt 2>&1
-          rc=$?
-          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          cd q10-target
+          .venv/bin/pip-audit --local --skip-editable --progress-spinner off --format json --output ../q10-pip-audit.json
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
           exit 0
-      - name: Record EG-5 BLOCKED and summarize
+
+      - name: Run Bandit and repository secret scan
+        id: static
         shell: bash
         run: |
-          set -euo pipefail
-          echo "EG-5 = BLOCKED (Codex Security research preview, not free)" | tee -a q10-gate-output.txt
-          echo "--- evidence files ---"
-          ls -la "$Q10_OUT_DIR" || true
-          echo "--- manifest ---"
-          cat "$Q10_OUT_DIR/evidence_manifest.json" 2>/dev/null || echo "(no manifest)"
-      - name: Upload Q10 evidence
+          set +e
+          cd q10-target
+          .venv/bin/bandit -q -r creator_app services scripts --format json --output ../q10-bandit.json
+          echo "bandit_exit_code=$?" >> "$GITHUB_OUTPUT"
+          python ../scripts/secret_scan.py > ../q10-secret-scan.txt 2>&1
+          echo "secret_exit_code=$?" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Run security attack regression on isolated runtime
+        id: attack
+        shell: bash
+        run: |
+          set +e
+          cd q10-target
+          nohup .venv/bin/ck-nexus > ../q10-runtime.log 2>&1 &
+          runtime_pid=$!
+          ready=0
+          for _ in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:8000/health/ready >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 0.5
+          done
+          if [ "$ready" -eq 1 ]; then
+            CKNEXUS_SECURITY_EVIDENCE=../security-attack-regression.json .venv/bin/python scripts/security_attack_regression.py
+            rc=$?
+          else
+            cat ../q10-runtime.log || true
+            rc=1
+          fi
+          kill "$runtime_pid" 2>/dev/null || true
+          wait "$runtime_pid" 2>/dev/null || true
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Build immutable Q10 scan report
+        id: report
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        env:
+          TARGET_SHA: ${{ steps.subject.outputs.target_sha }}
+          TARGET_TREE: ${{ steps.subject.outputs.target_tree }}
+          SUBJECT_MANIFEST: ${{ steps.subject.outputs.subject_manifest }}
+          DEPENDENCY_RC: ${{ steps.dependencies.outputs.exit_code }}
+          BANDIT_RC: ${{ steps.static.outputs.bandit_exit_code }}
+          SECRET_RC: ${{ steps.static.outputs.secret_exit_code }}
+          ATTACK_RC: ${{ steps.attack.outputs.exit_code }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          import hashlib, json, os
+          from datetime import UTC, datetime
+          from pathlib import Path
+
+          def load(path, default):
+              try:
+                  return json.loads(Path(path).read_text(encoding='utf-8'))
+              except Exception:
+                  return default
+
+          audit = load('q10-pip-audit.json', {'error': 'missing_or_invalid_report'})
+          bandit = load('q10-bandit.json', {'error': 'missing_or_invalid_report', 'results': []})
+          attack = load('security-attack-regression.json', {'error': 'missing_or_invalid_report'})
+          dependencies = audit.get('dependencies', []) if isinstance(audit, dict) else audit
+          vulnerabilities = sum(len(row.get('vulns', [])) for row in dependencies if isinstance(row, dict))
+          findings = bandit.get('results', []) if isinstance(bandit, dict) else []
+          high_findings = sum(row.get('issue_severity') == 'HIGH' for row in findings)
+          medium_findings = sum(row.get('issue_severity') == 'MEDIUM' for row in findings)
+          low_findings = sum(row.get('issue_severity') == 'LOW' for row in findings)
+          dependency_rc = os.getenv('DEPENDENCY_RC', '')
+          secret_rc = os.getenv('SECRET_RC', '')
+          attack_rc = os.getenv('ATTACK_RC', '')
+          completed = datetime.now(UTC).isoformat()
+          checks = {
+              'pip_audit_exit_code': dependency_rc,
+              'dependency_vulnerabilities': vulnerabilities,
+              'bandit_high_findings': high_findings,
+              'bandit_medium_findings': medium_findings,
+              'bandit_low_findings': low_findings,
+              'secret_scan_exit_code': secret_rc,
+              'security_attack_regression_exit_code': attack_rc,
+          }
+          passed = dependency_rc == '0' and vulnerabilities == 0 and high_findings == 0 and secret_rc == '0' and attack_rc == '0'
+          report = {
+              'schema_version': 1,
+              'gate': 'Q10_OPEN_SOURCE_LAYERED_SECURITY',
+              'source_sha': os.getenv('TARGET_SHA', ''),
+              'source_tree': os.getenv('TARGET_TREE', ''),
+              'release_subject_manifest_sha256': os.getenv('SUBJECT_MANIFEST', ''),
+              'github_run_id': int(os.getenv('RUN_ID', '0')),
+              'completed_at': completed,
+              'tools': ['pip-audit', 'Bandit', 'scripts/secret_scan.py', 'scripts/security_attack_regression.py'],
+              'checks': checks,
+              'bandit_report': bandit,
+              'dependency_report': audit,
+              'secret_scan_output': Path('q10-secret-scan.txt').read_text(encoding='utf-8') if Path('q10-secret-scan.txt').exists() else 'missing report',
+              'attack_regression_report': attack,
+              'open_source_security_scan': 'PASS' if passed else 'FAIL',
+              'security_review_status': 'REQUIRED',
+              'production_promotion_allowed': False,
+          }
+          Path('q10-open-source-security-report.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          digest = hashlib.sha256(Path('q10-open-source-security-report.json').read_bytes()).hexdigest()
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f"scan_status={'PASS' if passed else 'FAIL'}\n")
+              output.write(f"report_sha256={digest}\n")
+          print(json.dumps({'source_sha': report['source_sha'], 'source_tree': report['source_tree'], 'scan_status': report['open_source_security_scan'], 'report_sha256': digest, 'checks': checks}, indent=2))
+          PY
+
+      - name: Upload immutable Q10 evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: q10-evidence-${{ env.Q10_TARGET_SHA }}
+          name: q10-open-source-security-${{ steps.subject.outputs.target_sha || github.sha }}
           path: |
-            q10-gate-output.txt
-            q10-evidence/
+            q10-open-source-security-report.json
+            q10-pip-audit.json
+            q10-bandit.json
+            q10-secret-scan.txt
+            security-attack-regression.json
+            q10-runtime.log
           if-no-files-found: warn
+          retention-days: 90
+
+      - name: Enforce scanner result without promoting Production
+        if: always()
+        shell: bash
+        env:
+          SCAN_STATUS: ${{ steps.report.outputs.scan_status }}
+          REPORT_SHA256: ${{ steps.report.outputs.report_sha256 }}
+        run: |
+          set -euo pipefail
+          echo "Q10 scanner result: ${SCAN_STATUS:-FAIL}"
+          echo "Report SHA-256: ${REPORT_SHA256:-missing}"
+          echo 'Q10 remains NOT_VERIFIED until independent review and subject-bound evidence promotion.'
+          test "${SCAN_STATUS:-FAIL}" = PASS

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 
 import pytest
@@ -37,13 +38,31 @@ def test_python_alias_resolves_to_trusted_system_python_when_missing(monkeypatch
     )
     monkeypatch.setattr("creator_app.agnes.execution.sandbox.runner.shutil.which", lambda _: None)
     resolved = runner._resolve_executable(("python", "-c", "print(1)"))
-    assert resolved[0] in {
-        "/opt/pyvenv/bin/python",
-        "/usr/local/bin/python3",
-        "/usr/bin/python3",
-        "/bin/python3",
-    }
-    assert Path(resolved[0]).is_file()
+    resolved_path = Path(resolved[0]).resolve(strict=True)
+    assert str(resolved_path).startswith(("/usr/", "/bin/", "/opt/", "/usr/local/"))
+    assert resolved_path.is_file()
+
+
+def test_python_alias_rejects_virtualenv_symlink_outside_trusted_roots(monkeypatch, tmp_path: Path):
+    runner = LinuxNamespaceRunner(
+        SandboxPolicy(base_dir=tmp_path / "runtime", repository_root=REPO)
+    )
+    untrusted_python = tmp_path / "outside-trusted-roots" / "python"
+    untrusted_python.parent.mkdir()
+    untrusted_python.write_text("#!/bin/sh" + chr(10) + "exit 0" + chr(10), encoding="utf-8")
+    untrusted_python.chmod(0o755)
+    venv_python = tmp_path / "venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.symlink_to(untrusted_python)
+    monkeypatch.setattr(
+        "creator_app.agnes.execution.sandbox.runner.shutil.which",
+        lambda _: str(venv_python),
+    )
+    resolved = runner._resolve_executable(("python", "-c", "print(1)"))
+    real = Path(resolved[0]).resolve(strict=True)
+    assert str(real).startswith(("/usr/", "/bin/", "/opt/", "/usr/local/"))
+    assert real != untrusted_python.resolve()
+    assert real.is_file() and os.access(real, os.X_OK)
 
 
 def _patch_request(*, approval_id: str | None = None, workspace_id: str = "ws-phase2") -> dict:

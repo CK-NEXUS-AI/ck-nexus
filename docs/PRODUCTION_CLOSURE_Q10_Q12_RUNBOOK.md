@@ -5,11 +5,11 @@ This runbook closes the three remaining P0 production gates without weakening th
 ## Frozen authorities
 
 - Repository: `spinlnw10-art/ck-nexus`
-- Production-closure head to security-scan: `39f5c1adb9d761ab418cf088ff1f051b1ca731d1`
-- Production-closure tree: `0525195934f703a8becf8a39f6397b2411e0bb2e`
-- Frozen runtime source used by Q11/Q12 exact verifiers: `39f5c1adb9d761ab418cf088ff1f051b1ca731d1`
-- Frozen runtime source tree: `0525195934f703a8becf8a39f6397b2411e0bb2e`
-- Frozen runtime/deployment subject: `89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52`
+- Production-closure head to security-scan: `ad2fac7aa0752117dde065c7ad9b0b8d41136aa2`
+- Production-closure tree: `eb2074176319072ca3f31d5c8c990752ba849b0a`
+- Frozen runtime source used by Q11/Q12 exact verifiers: `ad2fac7aa0752117dde065c7ad9b0b8d41136aa2`
+- Frozen runtime source tree: `eb2074176319072ca3f31d5c8c990752ba849b0a`
+- Frozen runtime/deployment subject: `772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200`
 
 Do not replace any value above with `main`, a moving branch name, or a newer commit unless the entire subject-bound production evidence set is deliberately re-baselined.
 
@@ -20,17 +20,17 @@ From a clone with all objects fetched:
 ```bash
 git fetch --all --tags --prune
 
-test "$(git show -s --format=%T 39f5c1adb9d761ab418cf088ff1f051b1ca731d1)" = \
-  "0525195934f703a8becf8a39f6397b2411e0bb2e"
+test "$(git show -s --format=%T ad2fac7aa0752117dde065c7ad9b0b8d41136aa2)" = \
+  "eb2074176319072ca3f31d5c8c990752ba849b0a"
 
-test "$(git show -s --format=%T 39f5c1adb9d761ab418cf088ff1f051b1ca731d1)" = \
-  "0525195934f703a8becf8a39f6397b2411e0bb2e"
+test "$(git show -s --format=%T ad2fac7aa0752117dde065c7ad9b0b8d41136aa2)" = \
+  "eb2074176319072ca3f31d5c8c990752ba849b0a"
 
-subject=$(git ls-tree -r 39f5c1adb9d761ab418cf088ff1f051b1ca731d1 -- \
+subject=$(git ls-tree -r ad2fac7aa0752117dde065c7ad9b0b8d41136aa2 -- \
   app creator_app services gateway orchestration idea_engine migrations deploy observability \
   Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
 
-test "$subject" = "89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52"
+test "$subject" = "772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200"
 echo "FROZEN SUBJECT PASS: $subject"
 ```
 
@@ -38,77 +38,28 @@ Any failure is a hard stop.
 
 ---
 
-## Q10 — Codex Security Deep Security Scan
+## Q10 — Open-source layered security gate
 
-### Why this is still blocked
+### Required checks
 
-`pip-audit` is only the dependency component. Q10 whole-gate PASS requires the native Codex Security **Deep Security Scan**, including repeated discovery, validation, attack-path analysis, canonical completion, and generated report. Bandit, secret scanning, dependency scanning, or ordinary CI are not substitutes.
+Q10 uses a reproducible, multi-tool open-source security gate. The exact frozen source and runtime subject must pass all of the following:
 
-### Exact scan target
+1. Frozen dependency resolution: `uv lock --check` and `uv sync --all-extras --dev --frozen`.
+2. Dependency vulnerability audit: `pip-audit` with no unaccepted vulnerability.
+3. Static security analysis: Bandit over the applicable Python source.
+4. Secret scanning: `scripts/secret_scan.py`.
+5. Black-box security/policy regression: `scripts/security_attack_regression.py`.
+6. Preserve scanner outputs, aggregate a canonical report, and record its SHA-256 plus the successful workflow run ID and completion timestamp.
 
-Checkout the exact production-closure head before opening the repository in Codex Security:
-
-```bash
-git checkout --detach 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
-test "$(git rev-parse HEAD)" = "39f5c1adb9d761ab418cf088ff1f051b1ca731d1"
-```
-
-Use `evidence/q10/Q10_SCAN_REQUEST_FINAL_SUBJECT.json` as the machine-readable request. Scan scope must be repository root (`.`).
-
-Suggested Codex task text:
-
-```text
-Run the native Codex Security Deep Security Scan repository-wide on this exact checkout.
-The official OpenAI Codex Security CLI bootstrap may be used when entitled:
-`curl -fsSL https://openai.com/codex/security/scan.sh | bash`.
-Do not treat a quota-blocked or interrupted CLI attempt as scan completion.
-Target commit: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
-Target tree: 0525195934f703a8becf8a39f6397b2411e0bb2e
-Frozen runtime subject: 89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52
-Scope: .
-Do not substitute Bandit, pip-audit, secret scan, manual review, or ordinary CI.
-Complete repeated discovery, canonical validation, attack-path analysis, canonical draft, completion, coverage, and generated report.md.
-```
+A single scanner, a partial run, or a missing report is not a PASS. Any reportable finding must be triaged and resolved according to release policy. Any source remediation changes the subject and requires regenerating all subject-bound release evidence.
 
 ### Q10 acceptance
 
-Q10 remains blocked until all of these are true:
-
-1. Codex Security completion succeeds and generated `report.md` exists.
-2. Coverage is not falsely represented as complete when discovery did not complete.
-3. Every reportable finding is validated. Findings requiring remediation must be fixed before release.
-4. If a remediation changes any frozen runtime path, stop: the runtime subject changes and subject-bound Q10-Q16 evidence must be regenerated.
-5. Capture the Codex Security scan ID, completion timestamp, and SHA-256 of the generated report.
-
-Compute the report digest:
-
-```bash
-sha256sum /path/to/codex-security/report.md
-```
-
-The committed `evidence/Q10_DEPENDENCY_AUDIT.json` may be promoted to whole-gate PASS only after adding at minimum:
-
-```json
-{
-  "gate_result": "PASS",
-  "codex_security_deep_scan": "PASS",
-  "production_promotion_allowed": true,
-  "codex_security_scan_id": "<sealed-scan-id>",
-  "codex_security_report_sha256": "<sha256>",
-  "codex_security_completed_at": "<RFC3339 timestamp>",
-  "codex_security_target_sha": "39f5c1adb9d761ab418cf088ff1f051b1ca731d1",
-  "codex_security_target_tree_sha": "0525195934f703a8becf8a39f6397b2411e0bb2e",
-  "codex_security_release_subject_manifest_sha256": "89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52"
-}
-```
-
-Do not invent these fields before the workbench produces them.
-
----
+Q10 remains `NOT_VERIFIED` until all checks pass against the exact closure target and frozen runtime subject; the aggregate report exists and is hashed; provenance verifies the successful run and artifact; and `production_promotion_allowed` is true only in the resulting verified evidence. Until then, Production remains NO-GO.
 
 ## Q11 — Live OpenAI provider smoke
 
-The exact verifier already exists on branch `verify/q11-final-subject` and checks out frozen source `39f5c1adb9d761ab418cf088ff1f051b1ca731d1`. The test script is `scripts/test_openai_live.py` and requires the sentinel `CK-NEXUS-P0-SMOKE-PASS`.
+The exact verifier already exists on branch `verify/q11-final-subject` and checks out frozen source `ad2fac7aa0752117dde065c7ad9b0b8d41136aa2`. The test script is `scripts/test_openai_live.py` and requires the sentinel `CK-NEXUS-P0-SMOKE-PASS`.
 
 ### Secure secret setup
 
@@ -212,7 +163,7 @@ That preflight proves host capability only; it is not canonical Q12 evidence.
 Checkout the frozen runtime source and run the exact gate:
 
 ```bash
-git checkout --detach 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
+git checkout --detach ad2fac7aa0752117dde065c7ad9b0b8d41136aa2
 CKNEXUS_ENVIRONMENT=staging \
 CKNEXUS_AGNES_CGROUP_ROOT="$CKNEXUS_AGNES_CGROUP_ROOT" \
 python3 scripts/agnes_cgroup_v2_staging_gate.py | tee Q12_CGROUP_RAW.json
@@ -240,7 +191,7 @@ On the production-closure branch, require all three evidence files to claim PASS
 GITHUB_REPOSITORY=spinlnw10-art/ck-nexus \
 GITHUB_TOKEN="$GITHUB_TOKEN" \
 python .github/release-tools/verify_release_evidence_provenance.py \
-  --expected-subject 89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52 \
+  --expected-subject 772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200 \
   --output release-evidence-provenance.json
 ```
 

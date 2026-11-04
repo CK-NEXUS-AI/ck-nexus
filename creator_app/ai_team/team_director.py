@@ -33,7 +33,10 @@ from creator_app.ai_team.agents import (
 )
 from creator_app.ai_team.auto_response import AgentMessage, AgentMessageBus
 from creator_app.ai_team.shared_knowledge import SharedKnowledge
-from creator_app.development_control import DevelopmentStatusStore
+from creator_app.development_control import (
+    DevelopmentStatusStore,
+    default_development_status_db_path,
+)
 
 
 class TeamDirector:
@@ -65,7 +68,7 @@ class TeamDirector:
             self._register_auto_responder(agent_name, agent)
         self._development_status_path = development_status_path or os.environ.get(
             "CKNEXUS_DEVELOPMENT_STATUS_DB",
-            "~/.local/state/ck-nexus/development-status.sqlite3",
+            str(default_development_status_db_path()),
         )
         self._request_history: list[TeamResult] = []
 

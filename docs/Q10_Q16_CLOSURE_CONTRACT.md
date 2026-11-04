@@ -10,10 +10,11 @@ Required evidence:
 
 - exact-source frozen dependency install: `uv lock --check` and `uv sync --all-extras --dev --frozen`;
 - dependency vulnerability audit with no unaccepted finding;
-- repository-wide Codex Security Deep Security Scan with validation and attack-path analysis completed by the Codex Security workbench;
+- layered open-source security scans: Bandit static analysis, repository secret scan, frozen-environment pip-audit, and black-box security attack regression;
+- successful reports and digests bound to the exact release subject;
 - unresolved reportable security finding => FAIL/NO-GO.
 
-Current dependency-audit component evidence is supplemental. It cannot promote Q10 without the Deep Security Scan.
+No single scanner is sufficient. Q10 remains NOT_VERIFIED until every required scanner and regression succeeds, findings are resolved, and the aggregate evidence is bound to the exact release subject.
 
 ## Q11 — Live AI/provider gate (P0-AI-001)
 

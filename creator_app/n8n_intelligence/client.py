@@ -18,8 +18,21 @@ class N8NReadClient:
         self, base_url: str, key_file: Path, timeout: float = 10.0, max_items: int = 50
     ) -> None:
         parsed = urllib.parse.urlsplit(base_url)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise ValueError("base_url must be http or https")
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+            or (
+                parsed.scheme == "http"
+                and parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+            )
+        ):
+            raise ValueError(
+                "base_url must be HTTPS or loopback HTTP without credentials/query/fragment"
+            )
         if timeout <= 0 or max_items < 1 or max_items > 50:
             raise ValueError("invalid client bounds")
         self.base_url = base_url.rstrip("/")
@@ -52,7 +65,8 @@ class N8NReadClient:
             method="GET",
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            # base_url is validated to use only HTTP or HTTPS in __init__.
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # nosec B310
                 raw = response.read(2_000_001)
             if len(raw) > 2_000_000:
                 raise N8NReadError("n8n response exceeds safe size")

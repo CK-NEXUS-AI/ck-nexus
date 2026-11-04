@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -28,6 +29,12 @@ from mcp.server.fastmcp import FastMCP
 
 from creator_app.ai_team.auto_reply_plugin import AutoReplyError, AutoReplyPlugin
 from creator_app.ai_team.universal_system import UniversalSystem
+from creator_app.brain import BrainRuntime
+from creator_app.capability_fabric.catalog import (
+    ArtifactClass,
+    ArtifactStatus,
+    CapabilityCatalog,
+)
 from creator_app.control_plane import ControlPlaneOrchestrator
 from creator_app.control_plane.task_store import TaskStore
 from creator_app.control_plane.verification import ControlPlaneVerifier
@@ -43,6 +50,7 @@ from creator_app.dev_assistants import (
     ExecutionPolicy,
     ExecutionRequest,
 )
+from creator_app.global_knowledge.ebook_store import EbookKnowledgeStore
 
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 _DEFAULT_PORT = 8765
@@ -163,6 +171,7 @@ _SYSTEM: UniversalSystem | None = None
 _CAPABILITY_MANAGER: SelfCapabilityManager | None = None
 _DEV_ASSISTANT_FABRIC: DevAssistantFabric | None = None
 _DEV_EXECUTION_CONTRACT: DevExecutionContract | None = None
+_BRAIN_RUNTIME: BrainRuntime | None = None
 
 
 def get_system() -> UniversalSystem:
@@ -171,6 +180,15 @@ def get_system() -> UniversalSystem:
     if _SYSTEM is None:
         _SYSTEM = UniversalSystem()
     return _SYSTEM
+
+
+def get_brain_runtime() -> BrainRuntime:
+    """Return the unified, bounded CK-NEXUS cognitive runtime."""
+    global _BRAIN_RUNTIME
+    if _BRAIN_RUNTIME is None:
+        root = Path(__file__).resolve().parents[2]
+        _BRAIN_RUNTIME = BrainRuntime(root=root)
+    return _BRAIN_RUNTIME
 
 
 def get_capability_manager() -> SelfCapabilityManager:
@@ -779,6 +797,101 @@ def cknexus_discovery_catalog() -> dict[str, Any]:
 
 
 @mcp.tool()
+def cknexus_capability_catalog(
+    artifact_class: str | None = None,
+    status: str | None = None,
+) -> dict[str, Any]:
+    """List typed CK-NEXUS capabilities; this inventory grants no execution rights."""
+    catalog_path = Path(__file__).resolve().parents[2] / "config" / "capability_catalog.json"
+    catalog = CapabilityCatalog.load(catalog_path)
+    items = catalog.list()
+    if artifact_class is not None:
+        items = tuple(
+            item for item in items if item.artifact_class is ArtifactClass(artifact_class)
+        )
+    if status is not None:
+        requested_status = ArtifactStatus(status)
+        items = tuple(item for item in items if item.status is requested_status)
+    return {
+        "schema_version": catalog.version,
+        "status": "catalog_only",
+        "execution_authorized": False,
+        "external_authority": "NONE",
+        "core_authority": "CK-NEXUS Core L3 only",
+        "count": len(items),
+        "artifacts": [
+            {
+                "id": item.artifact_id,
+                "name": item.name,
+                "class": item.artifact_class.value,
+                "status": item.status.value,
+                "integration_point": item.integration_point,
+                "authority_scope": item.authority_scope,
+                "license": item.license,
+                "source_url": item.source_url,
+                "capabilities": list(item.capabilities),
+                "notes": item.notes,
+            }
+            for item in items
+        ],
+        "production_status": "NO-GO",
+        "release_evidence": False,
+    }
+
+
+@mcp.tool()
+def cknexus_knowledge_search(query: str, limit: int = 8) -> dict[str, Any]:
+    """Search rights-cleared CK-NEXUS e-book knowledge with source/chunk citations."""
+    db_path = Path(
+        os.getenv(
+            "CKNEXUS_EBOOK_DB",
+            "/var/lib/cknexus-knowledge/ebooks.sqlite3",
+        )
+    )
+    hits = EbookKnowledgeStore(db_path).search_readonly(query, limit=limit)
+    return {
+        "status": "ok",
+        "mode": "lexical_retrieval",
+        "count": len(hits),
+        "knowledge_authority": "NONE",
+        "memory_write_performed": False,
+        "hits": [
+            {
+                "chunk_id": hit.chunk_id,
+                "source_sha256": hit.source_sha256,
+                "title": hit.title,
+                "filename": hit.filename,
+                "chapter_id": hit.chapter_id,
+                "chapter_order": hit.chapter_order,
+                "chunk_order": hit.chunk_order,
+                "rights_basis": hit.rights_basis,
+                "text": hit.text,
+            }
+            for hit in hits
+        ],
+    }
+
+
+@mcp.tool()
+def cknexus_knowledge_sources() -> dict[str, Any]:
+    """List indexed e-book sources and revocation state without exposing source contents."""
+    db_path = Path(
+        os.getenv(
+            "CKNEXUS_EBOOK_DB",
+            "/var/lib/cknexus-knowledge/ebooks.sqlite3",
+        )
+    )
+    documents = EbookKnowledgeStore(db_path).list_documents_readonly()
+    return {
+        "status": "ok",
+        "count": len(documents),
+        "knowledge_authority": "NONE",
+        "memory_write_performed": False,
+        "documents": list(documents),
+    }
+
+
+@mcp.tool()
 def cknexus_dev_assistants() -> dict[str, Any]:
     """Discover approved local developer assistants without installing or executing them."""
     fabric = get_dev_assistant_fabric()
@@ -966,8 +1079,105 @@ def cknexus_browser_read_page() -> dict[str, Any]:
 
 @mcp.tool()
 def cknexus_browser_screenshot() -> dict[str, Any]:
-    """Capture the current browser page to a fixed temporary path; read-only."""
-    return _run_browser_tool("screenshot", "/tmp/cknexus-browser-mcp.png")
+    """Capture the current browser page using a secure process-scoped temp file."""
+    screenshot_path = Path(
+        os.getenv(
+            "CKNEXUS_BROWSER_SCREENSHOT_PATH",
+            str(Path(tempfile.gettempdir()) / f"cknexus-browser-mcp-{os.getpid()}.png"),
+        )
+    )
+    try:
+        descriptor = os.open(
+            screenshot_path,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0),
+            0o600,
+        )
+    except OSError:
+        return {
+            "ok": False,
+            "error_code": "SCREENSHOT_PATH_UNAVAILABLE",
+            "message": "A secure temporary screenshot path could not be reserved.",
+            "execution_state": "NOT_EXECUTED",
+            "secret_values_exposed": False,
+        }
+    os.close(descriptor)
+    try:
+        return _run_browser_tool("screenshot", str(screenshot_path))
+    finally:
+        screenshot_path.unlink(missing_ok=True)
+
+
+@mcp.tool()
+def cknexus_brain_status() -> dict[str, Any]:
+    """Return the unified brain status without invoking models or external writes."""
+    return get_brain_runtime().status()
+
+
+@mcp.tool()
+def cknexus_brain_plan(request: str, priority: int = 2, context: str = "") -> dict[str, Any]:
+    """Decompose work into research, implementation, verification and security roles."""
+    try:
+        return get_brain_runtime().plan(request, priority=priority, context=context)
+    except ValueError as exc:
+        return _task_result_error("INVALID_BRAIN_PLAN", str(exc))
+
+
+@mcp.tool()
+def cknexus_brain_learning_context(task: str) -> dict[str, Any]:
+    """Return bounded learning context derived only from verified evidence summaries."""
+    return {
+        "context": get_brain_runtime().learning_context(task),
+        "raw_task_stored": False,
+        "authority": "NONE",
+    }
+
+
+@mcp.tool()
+def cknexus_brain_record_observation(
+    task: str,
+    outcome: str,
+    reason_code: str = "unspecified",
+    evidence_refs: list[str] | None = None,
+    metrics: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Record a bounded self-reported observation; this never asserts verification."""
+    try:
+        result = get_brain_runtime().record_observation(
+            task=task,
+            outcome=outcome,
+            reason_code=reason_code,
+            evidence_refs=evidence_refs or [],
+            metrics=metrics,
+        )
+        return {"ok": True, **result}
+    except ValueError as exc:
+        return _task_result_error("INVALID_BRAIN_OBSERVATION", str(exc))
+
+
+@mcp.tool()
+def cknexus_brain_propose_improvement(
+    candidate_type: str,
+    title: str,
+    rationale: str,
+    evidence_refs: list[str],
+) -> dict[str, Any]:
+    """Store a candidate improvement for Owner review; never auto-promotes it."""
+    try:
+        result = get_brain_runtime().propose_improvement(
+            candidate_type=candidate_type,
+            title=title,
+            rationale=rationale,
+            evidence_refs=evidence_refs,
+        )
+        return {"ok": True, **result}
+    except ValueError as exc:
+        return _task_result_error("INVALID_IMPROVEMENT_CANDIDATE", str(exc))
+
+
+@mcp.tool()
+def cknexus_brain_journal_summary() -> dict[str, Any]:
+    """Summarize persisted learning observations and pending improvement candidates."""
+    return get_brain_runtime().journal_summary()
 
 
 def run_server() -> None:

@@ -1,6 +1,9 @@
 #!/usr/bin/python3
 """Bounded CK-NEXUS heartbeat watchdog. Never reads or prints credentials."""
-import json, subprocess, time
+
+import json
+import subprocess
+import time
 from pathlib import Path
 
 CONTAINERS = ("ck-sentinel", "ck-ops", "ck-auditor")
@@ -9,11 +12,14 @@ STALE_SECONDS = 180
 WINDOW_SECONDS = 3600
 MAX_RESTARTS = 2
 
+
 def run(args, timeout=15):
     return subprocess.run(args, capture_output=True, text=True, timeout=timeout)
 
+
 def log(msg):
     print("cknexus-watchdog: " + msg, flush=True)
+
 
 def main():
     STATE.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -22,7 +28,11 @@ def main():
     except Exception:
         state = {"restarts": []}
     now = time.time()
-    history = [t for t in state.get("restarts", []) if isinstance(t, (int, float)) and now-t < WINDOW_SECONDS]
+    history = [
+        t
+        for t in state.get("restarts", [])
+        if isinstance(t, (int, float)) and now - t < WINDOW_SECONDS
+    ]
     for name in CONTAINERS:
         p = run(["docker", "inspect", "--format", "{{.State.Status}}", name])
         if p.returncode != 0:
@@ -43,12 +53,18 @@ def main():
                     if age > STALE_SECONDS:
                         stale_reason = f"heartbeat_stale_{int(age)}s"
                     if data.get("has_key") is False:
-                        log(f"{name}: heartbeat fresh but provider key missing; agent remains idle (no secret inspected)")
+                        log(
+                            f"{name}: heartbeat fresh but provider key missing; agent remains idle "
+                            "(no secret inspected)"
+                        )
                 except Exception:
                     stale_reason = "heartbeat_invalid"
         if stale_reason:
             if len(history) >= MAX_RESTARTS:
-                log(f"{name}: {stale_reason}; restart suppressed by rate limit ({len(history)}/{MAX_RESTARTS} per hour)")
+                log(
+                    f"{name}: {stale_reason}; restart suppressed by rate limit "
+                    f"({len(history)}/{MAX_RESTARTS} per hour)"
+                )
                 continue
             log(f"{name}: {stale_reason}; attempting bounded restart")
             rp = run(["docker", "restart", "--time", "10", name], timeout=30)
@@ -59,6 +75,7 @@ def main():
                 log(f"{name}: restart failed (exit {rp.returncode})")
     STATE.write_text(json.dumps({"restarts": history, "checked_at": now}, indent=2) + "\n")
     STATE.chmod(0o600)
+
 
 if __name__ == "__main__":
     main()

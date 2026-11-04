@@ -30,13 +30,13 @@ concurrency:
 
 env:
   BASE_TAG: python:3.12-slim-bookworm
-  IMAGE_REPO: ghcr.io/spinlnw10-art/ck-nexus-verifier-python
+  IMAGE_REPO: ghcr.io/ck-nexus-ai/ck-nexus-verifier-python
 
 jobs:
   verify-image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
 
@@ -124,9 +124,11 @@ jobs:
           image_tag="$IMAGE_REPO:${GITHUB_SHA}"
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           docker tag cknexus-verifier:test "$image_tag"
-          docker push "$image_tag"
+          docker push "$image_tag" | tee /tmp/push.log
+          pushed_digest="$(grep -oE "digest: sha256:[a-f0-9]{64}" /tmp/push.log | head -1 | sed "s/digest: //")"
+          test -n "$pushed_digest"
           docker pull "$image_tag"
-          published_ref="$(docker inspect --format='{{index .RepoDigests 0}}' "$image_tag")"
+          published_ref="$IMAGE_REPO@$pushed_digest"
           case "$published_ref" in
             "$IMAGE_REPO"@sha256:*) ;;
             *) echo 'published image did not resolve to expected GHCR digest' >&2; exit 1 ;;
@@ -180,7 +182,7 @@ jobs:
           print(json.dumps(record, indent=2, sort_keys=True))
           PY
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: trusted-verifier-image-${{ github.sha }}
           path: trusted-verifier-image.json

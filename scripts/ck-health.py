@@ -15,6 +15,11 @@ import sys
 import time
 import urllib.error
 import urllib.request
+
+try:
+    from scripts._safe_http import safe_urlopen
+except ImportError:
+    from _safe_http import safe_urlopen
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -203,7 +208,7 @@ def main() -> int:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=4) as response:
+            with safe_urlopen(req, timeout=4) as response:
                 body = response.read(1024 * 1024)
                 parsed = json.loads(body.decode("utf-8"))
                 if (

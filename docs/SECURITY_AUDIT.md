@@ -30,20 +30,7 @@ Scope: `creator_app/`, `services/`, `main.py`, web assets, dependency environmen
 - Browser access tokens are held in session storage, not persistent local storage.
 - The Docker container runs as a non-root application user.
 - The default server binding is loopback-only.
-- Codex Bridge is disabled by default and cannot run without a configured CK-NEXUS access token.
-- Codex receives a fixed server-configured workspace, uses `read-only` by default, and rejects
-  `danger-full-access`.
-- Codex execution does not use a shell; common secret-bearing environment variables are removed,
-  runtime is bounded, and returned output is capped.
-
-## Open findings and residual risk
-
-### P0 — before claiming a final commercial release
-
-- Live OpenAI execution remains unverified because no usable project-scoped API key was available to this build session.
-- A live Codex response is not verified in this build container because its existing authenticated
-  Codex state directory is read-only. Unit/API bridge behavior is verified with a local fake CLI;
-  production operators must authenticate directly into a writable `CKNEXUS_CODEX_HOME`.
+- OpenCode execution is isolated to a dedicated Git worktree, uses normal permission checks, and requires deterministic post-run verification.
 - Commercial-license placeholders and third-party license approval require seller/legal input.
 - Test the release archive on each operating system promised to buyers.
 
@@ -63,6 +50,6 @@ Scope: `creator_app/`, `services/`, `main.py`, web assets, dependency environmen
 ## Assessment
 
 The checked source is suitable as a **Sellable MVP Candidate** for local-first individual use. The
-Codex endpoint is suitable only for a trusted local operator and must not be exposed as a public
+Development execution endpoints are suitable only for a trusted operator and must not be exposed as a public
 general-purpose coding service. The product must not be represented as fully production-complete
 or enterprise-ready until the P0 gates above are closed.

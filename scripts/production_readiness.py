@@ -77,9 +77,10 @@ def main() -> int:
         ),
         Gate(
             "Q10",
-            "Repository-wide deep security scan",
+            "Open-source layered security scan",
             "BLOCKED",
-            "Requires Codex Security Deep Security Scan evidence for the frozen runtime subject.",
+            "Requires open-source layered security evidence bound to the frozen runtime subject "
+            "(Bandit, secret scan, pip-audit, and attack regression).",
         ),
         Gate(
             "Q11",

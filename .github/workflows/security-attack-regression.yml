@@ -22,11 +22,11 @@ jobs:
       CKNEXUS_GMAIL_SEND_ENABLED: 'false'
       CKNEXUS_CONNECTOR_FABRIC_ENABLED: 'false'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
           cache: pip
@@ -70,7 +70,7 @@ jobs:
 
       - name: Upload development security evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: security-attack-regression-v1
           path: security-attack-regression.json
@@ -81,5 +81,5 @@ jobs:
         if: always()
         run: |
           echo 'Development security regression only.'
-          echo 'This workflow is not Native Codex Security Q10 evidence.'
+          echo 'This workflow is one component of the Q10 open-source layered security gate.'
           echo 'It cannot promote Q10/Q11/Q12 or authorize PR #14 merge.'

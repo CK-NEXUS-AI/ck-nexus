@@ -18,7 +18,7 @@ The Development Council gives CK-NEXUS one user-facing lead orchestrator plus fi
 
 The manager pattern uses Agents-as-tools. `CK-NEXUS Lead Orchestrator` owns the final answer and may consult the specialist agents as bounded tools. In `auto` mode it must consult at least two relevant specialists; in `council` mode it consults all five. A focused mode can call one specialist directly.
 
-The advisory team cannot mutate code, infrastructure, accounts, permissions, production data, or external systems. Any real action must pass through a separate CK-NEXUS execution path such as the guarded Codex bridge or an explicit integration action with its own permissions and production gate.
+The advisory team cannot mutate code, infrastructure, accounts, permissions, production data, or external systems. Any real action must pass through a separate CK-NEXUS execution path such as the isolated OpenCode Auto Developer worker or an explicit integration action with its own permissions and production gate.
 
 ## API
 

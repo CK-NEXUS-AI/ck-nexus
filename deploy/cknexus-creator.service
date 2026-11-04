@@ -1,0 +1,32 @@
+[Unit]
+Description=CK-NEXUS Creator App (loopback only)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=cknexus-creator
+Group=cknexus-creator
+WorkingDirectory=/opt/ck-nexus-src
+Environment=PYTHONUNBUFFERED=1
+Environment=CKNEXUS_HOME=/opt/ck-nexus-src
+Environment=CKNEXUS_ENVIRONMENT=development
+Environment=CKNEXUS_DEV_STATUS_FILE=/opt/ck-nexus-src/data/dev_status.json
+EnvironmentFile=/etc/cknexus/creator.env
+ExecStartPre=/usr/bin/python3 /opt/ck-nexus-src/scripts/check_creator_token.py
+ExecStart=/opt/cknexus-creator-venv/bin/uvicorn creator_app.api:create_app --factory --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/opt/ck-nexus-src/data
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

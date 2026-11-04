@@ -27,8 +27,10 @@ _SETUP_SCRIPT = r"""
 set -euo pipefail
 ROOT="$1"
 WORK="$2"
-LAUNCHER="$3"
-shift 3
+NPROC="$3"
+LAUNCHER="$4"
+shift 4
+ulimit -u "$NPROC"
 mount --make-rprivate /
 for d in usr bin lib lib64 opt; do
   if [ -e "/$d" ]; then
@@ -108,27 +110,41 @@ class LinuxNamespaceRunner:
         }
 
     def _resolve_executable(self, command: tuple[str, ...]) -> tuple[str, ...]:
-        executable = shutil.which(command[0])
-        # Ubuntu may omit the unversioned python alias; use only trusted system interpreters.
+        allowed_roots = ("/usr/", "/bin/", "/opt/", "/usr/local/")
+
+        def trusted_system_executable(candidate: str | None) -> str | None:
+            if not candidate:
+                return None
+            try:
+                resolved = str(Path(candidate).resolve(strict=True))
+            except (OSError, RuntimeError):
+                return None
+            if not resolved.startswith(allowed_roots):
+                return None
+            if not Path(resolved).is_file() or not os.access(resolved, os.X_OK):
+                return None
+            return resolved
+
+        executable = trusted_system_executable(shutil.which(command[0]))
+        # A virtualenv executable can be lexically under /opt while its symlink target
+        # lives under /root/.local/share/uv. That target is absent inside the chroot and
+        # is not a trusted system interpreter. Fall back only for the literal python alias.
         if executable is None and command[0] == "python":
             executable = next(
                 (
-                    candidate
+                    resolved
                     for candidate in (
                         "/opt/pyvenv/bin/python",
                         "/usr/local/bin/python3",
                         "/usr/bin/python3",
                         "/bin/python3",
                     )
-                    if Path(candidate).is_file() and os.access(candidate, os.X_OK)
+                    if (resolved := trusted_system_executable(candidate)) is not None
                 ),
                 None,
             )
         if executable is None:
             raise SandboxViolation(f"command_unavailable:{command[0]}")
-        allowed_roots = ("/usr/", "/bin/", "/opt/", "/usr/local/")
-        if not executable.startswith(allowed_roots):
-            raise SandboxViolation("executable_outside_readonly_system_roots")
         return (executable, *command[1:])
 
     def _launcher_path(self) -> str:
@@ -145,9 +161,6 @@ class LinuxNamespaceRunner:
             resource.RLIMIT_CPU, (self.policy.cpu_seconds, self.policy.cpu_seconds + 1)
         )
         resource.setrlimit(resource.RLIMIT_AS, (self.policy.memory_bytes, self.policy.memory_bytes))
-        resource.setrlimit(
-            resource.RLIMIT_NPROC, (self.policy.max_processes, self.policy.max_processes)
-        )
         resource.setrlimit(
             resource.RLIMIT_FSIZE, (self.policy.max_file_bytes, self.policy.max_file_bytes)
         )
@@ -181,6 +194,7 @@ class LinuxNamespaceRunner:
             "_",
             str(rootfs),
             str(workspace.resolve()),
+            str(self.policy.max_processes),
             self._launcher_path(),
             *resolved,
         ]
