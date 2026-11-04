@@ -12,7 +12,7 @@ permissions:
   packages: read
 
 env:
-  IMAGE_TAG: ghcr.io/spinlnw10-art/ck-nexus-verifier-python:4e7a4eb37ad332a312f236e9b83b7f72f063b74f
+  IMAGE_TAG: ghcr.io/ck-nexus-ai/ck-nexus-verifier-python:${{ github.sha }}
 
 jobs:
   discover:
@@ -39,7 +39,7 @@ jobs:
           test "$found" -eq 1
           digest_ref="$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE_TAG")"
           case "$digest_ref" in
-            ghcr.io/spinlnw10-art/ck-nexus-verifier-python@sha256:*) ;;
+            ghcr.io/ck-nexus-ai/ck-nexus-verifier-python@sha256:*) ;;
             *) echo 'unexpected published image digest' >&2; exit 1 ;;
           esac
           echo "TRUSTED_VERIFIER_IMAGE=$digest_ref" >> "$GITHUB_ENV"
