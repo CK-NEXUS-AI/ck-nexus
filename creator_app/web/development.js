@@ -5,81 +5,120 @@
   const refreshed = document.getElementById("refreshed-at");
   const authForm = document.getElementById("auth-form");
   const tokenInput = document.getElementById("access-token");
-  let accessToken = "";
   if (!root || !banner || !authForm || !tokenInput) return;
+
+  let accessToken = "";
   const labels = {
-    git: "Git repository", open_prs: "Open pull requests", open_issues: "Open issues",
-    main_ci: "Latest main CI", services: "System services", mcp: "MCP listener",
-    disk: "Disk usage", production_status: "Production status (RELEASE_STATUS.md only)",
-    qwen_probe: "Model Studio / Qwen daily probe"
+    git: "Git repository",
+    open_prs: "Open pull requests",
+    open_issues: "Open issues",
+    main_ci: "Latest main CI",
+    services: "System services",
+    mcp: "MCP listener",
+    disk: "Disk usage",
+    production_status: "Production status (release status source)",
+    qwen_probe: "Model Studio / Qwen probe"
   };
-  function safe(value) {
-    if (value === null || value === undefined) return "ตรวจไม่ได้";
-    if (typeof value === "string") return value;
-    return JSON.stringify(value, null, 2);
+
+  function text(value) {
+    if (value === null || value === undefined || value === "") return "NOT_VERIFIED";
+    return typeof value === "string" ? value : JSON.stringify(value, null, 2);
   }
+
+  function setText(element, value) {
+    element.textContent = text(value);
+  }
+
+  function ensureEvidencePanel() {
+    let panel = document.getElementById("verified-status-boundary");
+    if (panel) return panel;
+    panel = document.createElement("section");
+    panel.id = "verified-status-boundary";
+    panel.className = "panel status-boundary";
+    panel.setAttribute("aria-labelledby", "status-boundary-title");
+    const title = document.createElement("h2");
+    title.id = "status-boundary-title";
+    title.textContent = "Verified status boundaries";
+    const runtime = document.createElement("p");
+    runtime.textContent = "Canonical runtime: python -m creator_app.unified. Runtime health: NOT_VERIFIED (no live health request is performed by this dashboard).";
+    const prod = document.createElement("p");
+    prod.className = "no-go-status";
+    prod.textContent = "Production eligibility: NO-GO. Q10–Q16 are not promoted by dashboard or ordinary CI evidence.";
+    const evidence = document.createElement("p");
+    evidence.textContent = "CI evidence source: GitHub Actions run 41781983676 (CK-NEXUS CI, main, 2026-11-04); 41781983784 (Trusted Verifier Image CI, main, 2026-11-04); 41781983695 (Code Quality, main, 2026-11-04). These runs do not establish production health or Q10–Q16 completion.";
+    panel.append(title, runtime, prod, evidence);
+    const form = document.getElementById("auth-form");
+    if (form && form.parentNode) form.parentNode.insertBefore(panel, form.nextSibling);
+    else document.body.insertBefore(panel, document.body.firstChild);
+    return panel;
+  }
+
   function render(payload) {
+    ensureEvidencePanel();
     if (!payload || payload.stale || !payload.available) {
       banner.hidden = false;
-      banner.textContent = "ข้อมูลเก่า/ตรวจไม่ได้ — ซ่อนค่าก่อนหน้าเพื่อป้องกันการแสดงสถานะค้าง";
+      banner.textContent = "Status snapshot is unavailable or stale. Previous snapshot values are suppressed; no live status is asserted.";
       root.replaceChildren();
-      refreshed.textContent = "ไม่มีข้อมูลสด";
+      setText(refreshed, "No current snapshot");
       return;
     }
+
     banner.hidden = true;
-    const minutes = Math.floor((payload.age_seconds || 0) / 60);
-    const sha = payload.items?.git?.status === "ok" ? payload.items.git.value.head : "ตรวจไม่ได้";
-    refreshed.textContent = "อัปเดตเมื่อ " + minutes + " นาทีที่แล้ว · commit " + sha;
+    setText(refreshed, "Snapshot collected at " + (payload.collected_at || "NOT_VERIFIED") +
+      " · age_seconds=" + (payload.age_seconds ?? "NOT_VERIFIED"));
     root.replaceChildren();
     for (const [key, label] of Object.entries(labels)) {
-      const entry = payload.items?.[key];
+      const entry = payload.items && payload.items[key];
       const card = document.createElement("article");
       card.className = "stream";
       const title = document.createElement("strong");
       title.textContent = label;
       const status = document.createElement("span");
-      status.className = entry?.status === "ok" ? "tool-status good" : "tool-status pending";
-      status.textContent = entry?.status === "ok" ? "OK" : "ตรวจไม่ได้";
+      const valid = entry && entry.status === "ok";
+      status.className = valid ? "tool-status good" : "tool-status pending";
+      status.textContent = valid ? "OBSERVED" : "NOT_VERIFIED";
       const value = document.createElement("pre");
-      value.textContent = entry?.status === "ok" ? safe(entry.value) : "ตรวจไม่ได้";
-      const details = document.createElement("details");
-      const summary = document.createElement("summary");
-      summary.textContent = "แหล่งข้อมูลและเวลาเก็บ";
+      value.textContent = valid ? text(entry.value) : "No usable evidence in the current snapshot.";
       const metadata = document.createElement("pre");
-      metadata.textContent = "source: " + (entry?.source || "unknown") +
-        "\ncollected_at: " + (entry?.collected_at || "unknown") +
-        "\nstatus: " + (entry?.status || "error");
-      details.append(summary, metadata);
-      card.append(title, status, value, details);
+      metadata.textContent = "source: " + text(entry && entry.source) +
+        "\ncollected_at: " + text(entry && entry.collected_at) +
+        "\nstatus: " + text(entry && entry.status);
+      card.append(title, status, value, metadata);
       root.append(card);
     }
   }
+
   async function refresh() {
     try {
-      const response = await fetch("/api/dev-status", {cache: "no-store",
+      const response = await fetch("/api/dev-status", {
+        cache: "no-store",
         headers: {
-          "Accept": "application/json",
-          ...(accessToken ? {"Authorization": "Bearer " + accessToken} : {})
-        }});
+          Accept: "application/json",
+          ...(accessToken ? { Authorization: "Bearer " + accessToken } : {})
+        }
+      });
       if (response.status === 401) {
         accessToken = "";
-        render({available: false, stale: true});
-        banner.textContent = "ต้องกรอก Access Token เพื่อดูข้อมูลสด";
+        render({ available: false, stale: true });
+        banner.textContent = "Access token required to read the protected status snapshot.";
         return;
       }
       if (!response.ok) throw new Error("HTTP " + response.status);
       render(await response.json());
     } catch (_) {
-      render({available: false, stale: true});
+      render({ available: false, stale: true });
     }
   }
+
   authForm.addEventListener("submit", (event) => {
     event.preventDefault();
     accessToken = tokenInput.value.trim();
     tokenInput.value = "";
     refresh();
   });
-  render({available: false, stale: true});
-  banner.textContent = "กรอก Access Token เพื่อโหลดข้อมูลสด";
+
+  ensureEvidencePanel();
+  render({ available: false, stale: true });
+  banner.textContent = "Enter the CK-NEXUS access token to request a fresh status snapshot.";
   window.setInterval(refresh, 30000);
 })();
