@@ -1,64 +1,105 @@
-# R14 NOTICE
+# CK-NEXUS Installation Guide — Canonical Runtime
 
-> n8n is retired from the active CK-NEXUS runtime. Any n8n instructions below are historical R4-R13 material and must not be used for R14 deployment. Use `docker-compose.p0.yml` / `docker-compose.prod.yml` as the current source of truth.
+## Runtime and deployment authority
 
-# CK-NEXUS Installation Guide — Docker on Ubuntu/Debian
+CK-NEXUS has one application composition root: `creator_app.unified`.
+It composes `creator_app.api.create_app()` with the unified control plane. Every supported
+launcher, package command, Docker image, and systemd service must invoke this same runtime.
+`main.py` remains a compatibility entry point and delegates to the canonical runtime; it must
+not construct a second FastAPI application.
+
+Deployment definitions have distinct purposes but share the same image and runtime:
+
+- `docker-compose.p0.yml` — isolated P0/staging validation.
+- `docker-compose.prod.yml` — production deployment.
+
+Do not treat these as separate application implementations. Production deployment and release
+evidence must use the production compose definition and the exact release subject under review.
 
 ## 1. Requirements
 
-- 64-bit Linux host with Docker Engine and Compose plugin
-- Recommended starting point: 4 CPU / 8 GB RAM
-- Persistent storage for CK-NEXUS PostgreSQL, n8n PostgreSQL and backups
-- TLS reverse proxy for any internet-facing endpoint
-- Customer-controlled OpenAI API project/key for Live Mode
-- Customer-controlled email/OAuth or SMTP credentials when Email Gateway is enabled
+- 64-bit Linux host with Docker Engine and Docker Compose plugin
+- Persistent storage for PostgreSQL, Redis, and backups
+- TLS reverse proxy for internet-facing endpoints
+- Customer-controlled provider credentials for Live Mode
+- Customer-controlled email/OAuth credentials when those integrations are enabled
 
-## 2. Secrets
+## 2. Configuration and secrets
 
-Keep the runtime environment file outside the repository, restrict it to the service owner (`chmod 600`), and never include API keys/OAuth tokens in a customer delivery ZIP, screenshots, logs or support tickets.
+Keep the runtime environment file outside the repository and restrict it to the service owner
+(`chmod 600`). Never commit API keys, OAuth tokens, database passwords, or bearer tokens.
 
-Minimum secrets include:
+The production compose file requires:
 
 - `CKNEXUS_DB_PASSWORD`
-- `N8N_DB_PASSWORD`
-- `N8N_ENCRYPTION_KEY`
-- `CKNEXUS_ACCESS_TOKEN`
 - `CKNEXUS_EMAIL_WEBHOOK_TOKEN`
-- `OPENAI_API_KEY` when Live Mode is enabled
+- `CKNEXUS_ACCESS_TOKEN`
+- `CKNEXUS_DOMAIN`
 
-## 3. Start in staging first
+`OPENAI_API_KEY` is required only when Live Mode is enabled. Other integration credentials are
+optional unless the corresponding integration is enabled. Use the variable names and defaults
+in `docker-compose.prod.yml` as the authoritative runtime contract.
+
+## 3. Staging validation
+
+Use a dedicated staging environment and its own database/credentials:
 
 ```bash
-docker compose --env-file /secure/path/cknexus.env -f docker-compose.prod.yml up -d --build
+docker compose --env-file /secure/path/cknexus-staging.env \
+  -f docker-compose.p0.yml up -d --build
 curl -fsS http://127.0.0.1:8000/health
 ```
 
-Do not expose ports 8000 or 5678 directly to the internet. Put them behind a TLS reverse proxy and access policy.
+Do not expose port 8000 directly to the public internet. Apply the approved edge proxy and
+access policy. Do not point staging at production volumes or credentials.
 
-## 4. n8n
+## 4. Production deployment
 
-The default RC uses a **customer-owned n8n instance**. CK-NEXUS does not sublicense n8n. Review the current n8n license for the actual use/distribution model before sale or deployment.
-
-Bind customer credentials inside n8n. Run its security audit on the exact staging instance:
-
-```bash
-docker compose --env-file /secure/path/cknexus.env -f docker-compose.prod.yml exec -T n8n n8n audit
-```
-
-Retain the audit report as P0 evidence. Re-check the stable n8n release/security advisories before each GA delivery. The RC compose defaults to 2.32.6 unless `N8N_IMAGE`/version policy is changed deliberately.
-
-## 5. OpenAI Live Mode
-
-The RC default model is `gpt-5-mini`, intended for cost-sensitive workloads. Confirm model access in the customer's OpenAI project. Use the production application path for final smoke evidence rather than relying only on a standalone API call.
-
-## 6. P0 Runbook
-
-Run only in isolated staging first:
+After the release gates and exact-subject evidence are approved:
 
 ```bash
-export CKNEXUS_SOURCE_COMMIT=<exact-commit-sha>
-export CKNEXUS_EVIDENCE_ROOT=/secure/evidence
-python runbooks/p0_runbook_v3.py --env-file /secure/path/cknexus.env
+docker compose --env-file /secure/path/cknexus.env \
+  -f docker-compose.prod.yml up -d --build
+curl -fsS https://your-domain.example/health
 ```
 
-Destructive restore tests require an isolated environment and explicit enablement. Missing prerequisites must remain `BLOCKED`, never `PASS`.
+The environment file is external to the repository. Do not print it or pass secret values on
+the command line. Preserve database volumes and evidence during upgrades and rollback.
+
+## 5. Local development
+
+```bash
+cp .env.example .env.local
+./start.sh
+```
+
+`start.sh` delegates to `start_unified.sh`, which launches:
+
+```bash
+.venv/bin/python -m creator_app.unified
+```
+
+The installed `ck-nexus` command and `python main.py` are compatibility interfaces to the same
+runtime. Do not launch `creator_app.api:create_app` directly for a deployed CK-NEXUS instance.
+
+## 6. systemd deployment
+
+The systemd unit must use the same module entry point as Docker and local development:
+
+```ini
+ExecStart=/opt/cknexus-creator-venv/bin/python -m creator_app.unified
+```
+
+Keep environment values in the configured external `EnvironmentFile`; keep the service bound
+to loopback unless an explicitly reviewed reverse-proxy topology requires otherwise.
+
+## 7. Health and release verification
+
+- `GET /health` — liveness/readiness endpoint.
+- `GET /api/control/manifest` — unified control-plane inventory (when authorized/configured).
+- `python3 scripts/release_check.py` — local release checks.
+- CI evidence must be bound to the exact commit, tree, and release-subject manifest.
+
+A successful local test or container health check is not, by itself, production approval.
+Missing or mismatched evidence remains `BLOCKED` or `NOT_VERIFIED`; never promote a release by
+rewriting evidence or bypassing the canonical gates.
