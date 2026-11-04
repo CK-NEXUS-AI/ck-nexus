@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "gate": "Q10",
+  "status": "PREPARED_NOT_EXECUTED",
+  "required_executor": "Codex Security Deep Security Scan",
+  "repository": "spinlnw10-art/ck-nexus",
+  "target_sha": "45fde79c717b09f8675645aa541a5834ebd4f433",
+  "target_tree_sha": "8bb93b75237ac9891a6c60854f705459dc263921",
+  "target_scope": ".",
+  "scan_mode": "deep",
+  "minimum_required_phases": [
+    "preflight",
+    "repeated_discovery",
+    "canonical_validation",
+    "attack_path_analysis",
+    "canonical_draft",
+    "completion_with_generated_report"
+  ],
+  "acceptance": {
+    "must_use_native_codex_security_deep_scan": true,
+    "must_scan_exact_target_sha": true,
+    "must_preserve_scope": true,
+    "must_complete_validation": true,
+    "must_complete_attack_path_analysis": true,
+    "must_generate_report_md": true,
+    "must_record_coverage": true,
+    "must_not_claim_no_findings_when_discovery_count_is_zero": true
+  },
+  "prohibited_substitutions": [
+    "bandit-only",
+    "secret-scan-only",
+    "dependency-audit-only",
+    "manual-review-only",
+    "ordinary-ci-only"
+  ],
+  "promotion_rule": "Q10 remains BLOCKED until native Deep Security completion evidence is sealed and bound to the exact target SHA/tree.",
+  "production_status": "NO-GO"
+}
