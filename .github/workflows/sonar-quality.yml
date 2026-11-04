@@ -1,0 +1,139 @@
+name: CK-NEXUS Sonar Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sonar-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  config-and-local-policy:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Validate Sonar configuration files
+        run: |
+          python -m py_compile             scripts/sonar/collect_quality_report.py             scripts/sonar/verify_reports_no_secrets.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          policy = json.loads(Path("config/sonar/quality_policy_v1.json").read_text())
+          props = Path("sonar-project.properties").read_text()
+
+          assert policy["sonar_project_key"] == "spinlnw10-art_ck-nexus-pro-evolution"
+          assert "sonar.organization=spinlnw10-art" in props
+          assert "sonar.projectKey=spinlnw10-art_ck-nexus-pro-evolution" in props
+          assert "sonar.yaml.activate=true" in props
+          assert policy["production_effect"] is False
+          assert policy["q10_authority_effect"] == "NONE"
+          print("SONAR_CONFIG_POLICY=PASS")
+          PY
+
+      - name: Verify no embedded Sonar credential
+        run: |
+          if grep -RInE             --exclude-dir=.git             --exclude='*.md'             '(SONAR_TOKEN[[:space:]]*=[[:space:]]*[^$]|sonar\.token[[:space:]]*=|sonar\.login[[:space:]]*=)'             sonar-project.properties config/sonar scripts/sonar .github/workflows/sonar-quality.yml; then
+            echo "Embedded Sonar credential pattern detected"
+            exit 1
+          fi
+          echo "NO_EMBEDDED_SONAR_CREDENTIAL=PASS"
+
+  sonar-cloud-analysis:
+    runs-on: ubuntu-24.04
+    needs: config-and-local-policy
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: https://sonarcloud.io
+      SONAR_SCANNER_VERSION: 8.1.0.6389
+      SONAR_SCANNER_SHA256: bb8f709f9cb73352f8d1260a3b3c506c0f41146754bc630762c126d795499d0b
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Sonar token configuration state
+        id: token
+        shell: bash
+        run: |
+          if [[ -n "${SONAR_TOKEN:-}" ]]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+            echo "SONAR_TOKEN_STATE=CONFIGURED"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "SONAR_TOKEN_STATE=BLOCKED_CONFIGURATION"
+          fi
+
+      - name: Install verified SonarScanner CLI
+        if: steps.token.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux-x64.zip"
+          URL="https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/${ZIP}"
+          curl -fsSLo "/tmp/${ZIP}" "$URL"
+          echo "${SONAR_SCANNER_SHA256}  /tmp/${ZIP}" | sha256sum -c -
+          unzip -q "/tmp/${ZIP}" -d "$RUNNER_TEMP/sonar"
+          echo "$RUNNER_TEMP/sonar/sonar-scanner-${SONAR_SCANNER_VERSION}-linux-x64/bin" >> "$GITHUB_PATH"
+
+      - name: Prepare test coverage where supported
+        if: steps.token.outputs.configured == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv .sonar-venv
+          .sonar-venv/bin/python -m pip install --upgrade pip
+          .sonar-venv/bin/python -m pip install coverage pytest pytest-asyncio
+          set +e
+          .sonar-venv/bin/coverage run -m pytest -q             --ignore=tests/test_agnes_execution_kernel_phase2.py             --ignore=tests/test_agnes_execution_kernel_phase3.py
+          TEST_RC=$?
+          set -e
+          .sonar-venv/bin/coverage xml -o coverage.xml || true
+          echo "TEST_RC=$TEST_RC" >> "$GITHUB_ENV"
+          echo "Coverage generation completed with test_rc=$TEST_RC"
+
+      - name: Run SonarQube Cloud analysis and collect reports
+        if: steps.token.outputs.configured == 'true'
+        shell: bash
+        run: |
+          chmod +x scripts/sonar/run_ci_analysis.sh
+          scripts/sonar/run_ci_analysis.sh spinlnw10-art_ck-nexus-pro-evolution
+
+      - name: Mark missing token as explicit configuration blocker
+        if: steps.token.outputs.configured != 'true'
+        run: |
+          mkdir -p .sonar-reports/configuration
+          printf '%s
+'             'status=BLOCKED_CONFIGURATION'             'reason=SONAR_TOKEN secret is not configured'             'action=Rotate the exposed Sonar token, then store the replacement as GitHub Actions secret SONAR_TOKEN.'             > .sonar-reports/configuration/status.txt
+
+      - name: Upload Sonar evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sonar-quality-${{ github.sha }}
+          path: .sonar-reports/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Enforce configuration on main
+        if: github.ref == 'refs/heads/main' && steps.token.outputs.configured != 'true'
+        run: |
+          echo "Main branch Sonar analysis requires SONAR_TOKEN."
+          exit 1

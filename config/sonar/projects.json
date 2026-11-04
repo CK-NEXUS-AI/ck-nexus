@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "organization": "spinlnw10-art",
+  "host_url": "https://sonarcloud.io",
+  "projects": [
+    {
+      "name": "CK-NEXUS Pro Evolution",
+      "project_key": "spinlnw10-art_ck-nexus-pro-evolution",
+      "status": "CONFIGURED_IN_REPO_AWAITING_AUTHENTICATED_PROJECT_VERIFICATION"
+    }
+  ],
+  "second_project": {
+    "status": "UNRESOLVED_EXACT_IDENTITY",
+    "policy": "Do not guess. Add only after authenticated SonarQube Cloud evidence confirms the exact project key."
+  }
+}

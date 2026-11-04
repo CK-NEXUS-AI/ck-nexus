@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "name": "CK-NEXUS Sonar Quality Policy V1",
+  "status": "DEVELOPMENT_POLICY",
+  "sonar_project_key": "spinlnw10-art_ck-nexus-pro-evolution",
+  "standards_intent": [
+    "Sonar quality/security analysis",
+    "OWASP Top 10-informed security review",
+    "CISQ/ISO 5055-informed quality review"
+  ],
+  "claims_boundary": "This policy is an internal engineering gate, not ISO/CISQ certification.",
+  "new_code": {
+    "security_rating_max": 1.0,
+    "reliability_rating_max": 1.0,
+    "maintainability_rating_max": 1.0,
+    "coverage_min_percent": 80.0,
+    "duplication_max_percent": 3.0,
+    "unreviewed_security_hotspots_max": 0,
+    "blocker_issues_max": 0,
+    "critical_issues_max": 0
+  },
+  "overall_code": {
+    "security_rating_max": 2.0,
+    "reliability_rating_max": 2.0,
+    "maintainability_rating_max": 2.0,
+    "blocker_issues_max": 0,
+    "critical_issues_max": 0
+  },
+  "priority_order": [
+    "BLOCKER_SECURITY",
+    "CRITICAL_SECURITY",
+    "HIGH_RELIABILITY",
+    "SECURITY_HOTSPOT_REVIEW",
+    "TEST_COVERAGE",
+    "MAINTAINABILITY",
+    "DUPLICATION"
+  ],
+  "production_effect": false,
+  "q10_authority_effect": "NONE"
+}
