@@ -1,0 +1,98 @@
+name: Validate Master Capability Evidence Registry
+
+on:
+  push:
+    branches:
+      - post-p0/master-capability-evidence-registry-v1
+      - main
+    paths:
+      - '.github/workflows/validate-registry.yml'
+      - 'config/master_capability_evidence_registry.v1.json'
+      - 'config/master-capability-evidence/*.json'
+      - 'scripts/validate_master_capability_evidence_registry.py'
+      - 'scripts/verify_master_registry_github_evidence.py'
+      - 'tests/test_master_capability_evidence_registry.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-registry.yml'
+      - 'config/master_capability_evidence_registry.v1.json'
+      - 'config/master-capability-evidence/*.json'
+      - 'scripts/validate_master_capability_evidence_registry.py'
+      - 'scripts/verify_master_registry_github_evidence.py'
+      - 'tests/test_master_capability_evidence_registry.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependency
+        run: python -m pip install --disable-pip-version-check pytest
+
+      - name: Run fail-closed registry validator
+        run: python scripts/validate_master_capability_evidence_registry.py
+
+      - name: Run exact-head GitHub evidence binding
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python -m scripts.verify_master_registry_github_evidence
+
+      - name: Run registry regression tests
+        run: python -m pytest tests/test_master_capability_evidence_registry.py -v
+
+      - name: Verify sealed combined-record digest
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from scripts.validate_master_capability_evidence_registry import (
+              _digest_records,
+              load_registry,
+          )
+
+          expected = "75836acd700c7bd648bfb8c1503da61a80b15a2e825fd4b389b1f6191086e1e2"
+          index_path = Path("config/master_capability_evidence_registry.v1.json")
+          index = json.loads(index_path.read_text(encoding="utf-8"))
+          if index.get("records_digest_sha256") != expected:
+              raise SystemExit("sealed index digest changed")
+          data = load_registry(index_path)
+          actual = _digest_records(data["records"])
+          print(f"Current records digest: {actual}")
+          print(f"Expected records digest: {expected}")
+          if actual != expected:
+              raise SystemExit("combined-record digest mismatch")
+          PY
+
+      - name: Assert non-authoritative boundary
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(
+              Path("config/master_capability_evidence_registry.v1.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          authority = data["authority"]
+          assert data["kind"] == "NON_AUTHORITATIVE_RECONCILIATION_PROJECTION"
+          assert authority["registry_can_issue_verified"] is False
+          assert authority["registry_can_mutate_production"] is False
+          assert authority["chat_is_authority"] is False
+          print("Non-authoritative registry boundary: PASS")
+          PY

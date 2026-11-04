@@ -1,0 +1,74 @@
+{
+  "schema_version": "1.0",
+  "registry_id": "CKN-MCER-2026-08-27-v1",
+  "kind": "NON_AUTHORITATIVE_RECONCILIATION_PROJECTION",
+  "baseline": {
+    "repo": "spinlnw10-art/ck-nexus",
+    "branch": "main",
+    "sha": "b4146db8e23dff49520cbbc9d0194a15bcc5872d",
+    "tree": "25d9c74db2b553667ad085172f8ac7beff4146aa"
+  },
+  "defaults": {
+    "adopted": false,
+    "production": false,
+    "production_mutation": false
+  },
+  "authority": {
+    "runtime": "CK-NEXUS",
+    "registry_can_issue_verified": false,
+    "registry_can_mutate_production": false,
+    "chat_is_authority": false,
+    "latest_exact_evidence_wins": true
+  },
+  "maturity_order": [
+    "M0_MISSING",
+    "M1_CANDIDATE",
+    "M2_IMPLEMENTED_PARTIAL",
+    "M3_MEASURED",
+    "M4_INDEPENDENTLY_VERIFIED",
+    "M5_ADOPTED_CANONICAL",
+    "M6_PRODUCTION_QUALIFIED"
+  ],
+  "record_count": 52,
+  "records_digest_sha256": "75836acd700c7bd648bfb8c1503da61a80b15a2e825fd4b389b1f6191086e1e2",
+  "fragments": [
+    {
+      "path": "config/master-capability-evidence/01-canonical-production.json",
+      "count": 11,
+      "sha256": "64cef12621ec29051640494de3322f3fe486c288e77ca564378269882259b001"
+    },
+    {
+      "path": "config/master-capability-evidence/02-platform-foundations.json",
+      "count": 13,
+      "sha256": "a78dc668178b9a2c4ce6ed6b41fffcdd66a9e85daf0f1d1cc34495aaa931ea11"
+    },
+    {
+      "path": "config/master-capability-evidence/03-agnes-triad.json",
+      "count": 8,
+      "sha256": "3cc99ea90860637c2a10e23f2b2a14744fcabb8e8878d4971a02eee01cb2a344"
+    },
+    {
+      "path": "config/master-capability-evidence/04-latest-development.json",
+      "count": 8,
+      "sha256": "5afa278d74738694000ccf1e766c67e4dc38c6a65ebdb27ffd005a34235d5b86"
+    },
+    {
+      "path": "config/master-capability-evidence/05-history-context.json",
+      "count": 2,
+      "sha256": "3351bc5a6f074a6e987eef547e3ab34c1886a3f203497714ddf32e1118790cbb"
+    },
+    {
+      "path": "config/master-capability-evidence/06-research-candidates.json",
+      "count": 10,
+      "sha256": "335fc2c248504b4052cbcc551351bee5eb6772543db0b33bbc20fdfde17a6ece"
+    }
+  ],
+  "invariants": [
+    "CI success is measurement evidence, not independent verification.",
+    "Independent verification does not imply Production qualification.",
+    "Development PR is not canonical before explicit adoption.",
+    "Chat context cannot promote maturity, verification, adoption or Production.",
+    "Production qualification requires canonical adoption, independent verification and exact-subject production-gate evidence.",
+    "This registry cannot grant permissions, execute, approve, merge, deploy or mutate Production."
+  ]
+}
