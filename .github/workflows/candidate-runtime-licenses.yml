@@ -1,9 +1,12 @@
 name: Candidate runtime licenses
 
 on:
-  push:
-    branches: [release/q10-q16-closure]
   workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Exact candidate commit SHA; defaults to this workflow's commit
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -15,12 +18,24 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
+      - name: Resolve exact candidate identity
+        id: subject
+        shell: bash
+        env:
+          REQUESTED_TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          target_sha="${REQUESTED_TARGET_SHA:-$GITHUB_SHA}"
+          [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+          if ! git cat-file -e "$target_sha^{commit}" 2>/dev/null; then git fetch --no-tags origin "$target_sha"; fi
+          git checkout --detach "$target_sha"
+          echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
       - name: Build exact production image
-        run: docker build -t cknexus-license:${{ github.sha }} .
+        run: docker build -t cknexus-license:${{ steps.subject.outputs.target_sha }} .
       - name: Generate runtime-only license inventory
         shell: bash
         run: |
-          docker run --rm -i cknexus-license:${{ github.sha }} python - <<'PY' > Q16_RUNTIME_LICENSE_INVENTORY.json
+          docker run --rm -i cknexus-license:${{ steps.subject.outputs.target_sha }} python3 - <<'PY' > Q16_RUNTIME_LICENSE_INVENTORY.json
           import hashlib
           import importlib.metadata as md
           import json
@@ -68,7 +83,7 @@ jobs:
       - name: Enforce license-evidence completeness
         shell: bash
         run: |
-          python - <<'PY'
+          python3 - <<'PY'
           import json
           rows=json.load(open('Q16_RUNTIME_LICENSE_INVENTORY.json',encoding='utf-8'))
           unresolved=[f"{x['name']}=={x['version']}" for x in rows if not x['license_evidence_present']]
@@ -85,22 +100,27 @@ jobs:
       - name: Bind inventory to release subject
         if: always()
         env:
-          HEAD_SHA: ${{ github.sha }}
+          HEAD_SHA: ${{ steps.subject.outputs.target_sha }}
           RUN_ID: ${{ github.run_id }}
         run: |
+          tree=$(git rev-parse HEAD^{tree})
           subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
-          python - "$HEAD_SHA" "$subject" "$RUN_ID" <<'PY'
+          inventory_sha=$(sha256sum Q16_RUNTIME_LICENSE_INVENTORY.json 2>/dev/null | awk '{print $1}')
+          python3 - "$HEAD_SHA" "$tree" "$subject" "$RUN_ID" "$inventory_sha" <<'PY'
           import json,sys
-          sha,subject,run_id=sys.argv[1:]
+          sha,tree,subject,run_id,inventory_sha=sys.argv[1:]
           p='Q16_RUNTIME_LICENSE_SUMMARY.json'
           try: x=json.load(open(p,encoding='utf-8'))
           except FileNotFoundError: x={'result':'FAIL','unresolved_license_evidence':['inventory_generation_failed']}
           x.update({
-              'schema_version':1,
+              'schema_version':2,
               'gate':'Q16_RUNTIME_LICENSES',
               'source_sha':sha,
+              'source_tree':tree,
               'release_subject_manifest_sha256':subject,
               'github_run_id':int(run_id),
+              'inventory_sha256':inventory_sha or None,
+              'production_promotion_allowed':x.get('result')=='PASS' and not x.get('unresolved_license_evidence'),
               'scope':'exact installed production Docker runtime; CK-NEXUS proprietary distribution excluded',
           })
           with open(p,'w',encoding='utf-8') as f:
@@ -111,7 +131,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: q16-runtime-licenses-${{ github.sha }}
+          name: q16-runtime-licenses-${{ steps.subject.outputs.target_sha }}
           path: |
             Q16_RUNTIME_LICENSE_INVENTORY.json
             Q16_RUNTIME_LICENSE_SUMMARY.json

@@ -1,3 +1,22 @@
+# Current Release Status — 2026-11-05 (supersedes historical sections below)
+
+Decision: **NO-GO FOR PRODUCTION CLAIMS**
+
+- Canonical GitHub `main`: `34d7df48b35903d7861362a72b0d3a1fd8a3b201`
+- Main tree: `af57e2a5202bc95bb07d321c65a57a623205333b`
+- Runtime subject manifest SHA-256: `3f414a4329d35f57cbc05b49f11cb34a184b276dbe1b528792d8cb4317dcc2f6`
+- PR #353: MERGED; canonical runtime entrypoint unification is in main.
+- VPS source/runtime: still on an older feature/release line; production service unit still points to the legacy API factory entrypoint. No deployment has been performed.
+- Q10: `NOT_VERIFIED`. The preliminary run (`41912627988`) is rejected as final evidence because it reported a Bandit MEDIUM B310 finding and stale issue-state metadata. Remediation is implemented on isolated branch `closure/q10-q16-unification-20261105`: the status collector and provenance verifier use CK-NEXUS peer-bound transport, issue state is read live, and scanner tools/rules are pinned. Local YAML, compile, and targeted tests pass; the replacement Q10 scan has not yet run. Owner approved the non-Codex method; independent security review and final Owner approval remain mandatory.
+- Q11: `BLOCKED / NOT_VERIFIED` for the current subject. The `OPENAI_API_KEY` secret name is configured, but no successful exact-subject live-provider run has been verified.
+- Q12: `BLOCKED / NOT_VERIFIED`; the self-hosted runner was brought online temporarily on the VPS. Its existing unit runs as non-root `runner` with `Delegate=cpu memory pids` and `DelegateSubgroup=supervisor`; the unit remains disabled at boot. The exact-subject Q12 workflow has not yet run.
+- Q13–Q16: previous PASS/PASS_CANDIDATE records refer to older subjects and are not transferable. Fresh evidence is required.
+- Production deployment, release tag, and Production Ready claims are not authorized until all gates and approvals pass.
+
+The sections below are retained as historical records only. Do not use their old commit SHA, tree SHA, release subject, workflow run IDs, or evidence statuses as current authority.
+
+---
+
 > **Evidence subject:** Q10 scanner PASS เฉพาะ commit `22edd1f` (run 41231931695).
 > Q11–Q16 ยัง NOT_VERIFIED บน main ปัจจุบัน `f4c4447` และต้องรันใหม่.
 

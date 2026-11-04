@@ -1,9 +1,12 @@
 name: Candidate production image
 
 on:
-  push:
-    branches: [release/q10-q16-closure]
   workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Exact candidate commit SHA; defaults to this workflow's commit
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -15,6 +18,18 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
+      - name: Resolve exact candidate identity
+        id: subject
+        shell: bash
+        env:
+          REQUESTED_TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          target_sha="${REQUESTED_TARGET_SHA:-$GITHUB_SHA}"
+          [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+          if ! git cat-file -e "$target_sha^{commit}" 2>/dev/null; then git fetch --no-tags origin "$target_sha"; fi
+          git checkout --detach "$target_sha"
+          echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
       - name: Validate Compose fail-closed Phase3 default
         run: |
           grep -F 'CKNEXUS_AGNES_PHASE3_ENABLED: $' docker-compose.prod.yml >/dev/null
@@ -27,10 +42,22 @@ jobs:
           grep -F 'uv lock --check' Dockerfile
           grep -F 'uv sync --frozen --no-dev --no-editable' Dockerfile
       - name: Build production image
-        run: docker build --pull -t cknexus-candidate:${{ github.sha }} .
+        run: docker build --pull -t cknexus-candidate:${{ steps.subject.outputs.target_sha }} .
+      - name: Install pinned Trivy scanner
+        run: bash scripts/install_trivy_ci.sh
+      - name: Scan the built production image
+        env:
+          TARGET_SHA: ${{ steps.subject.outputs.target_sha }}
+        shell: bash
+        run: |
+          set +e
+          trivy image --scanners vuln,misconfig --format json --output trivy-image.json cknexus-candidate:${TARGET_SHA}
+          rc=$?
+          echo "Q16_TRIVY_RC=$rc" >> "$GITHUB_ENV"
+          exit 0
       - name: Verify packaged runtime modules and optional dependencies
         run: |
-          docker run --rm -i cknexus-candidate:${{ github.sha }} python - <<'PY'
+          docker run --rm -i cknexus-candidate:${{ steps.subject.outputs.target_sha }} python3 - <<'PY'
           import importlib.util
           import aiosqlite
           import gateway
@@ -48,8 +75,8 @@ jobs:
           PY
           docker run --rm \
             -e UV_CACHE_DIR=/tmp/uv-cache \
-            cknexus-candidate:${{ github.sha }} \
-            uv pip check --python /app/.venv/bin/python
+            cknexus-candidate:${{ steps.subject.outputs.target_sha }} \
+            uv pip check --python /app/.venv/bin/python3
           touch runtime-imports.pass
       - name: Run production image in safe mock mode
         shell: bash
@@ -58,7 +85,7 @@ jobs:
             -p 127.0.0.1:18000:8000 \
             -e CKNEXUS_MOCK_AI=true \
             -e CKNEXUS_AGNES_PHASE3_ENABLED=false \
-            cknexus-candidate:${{ github.sha }}
+            cknexus-candidate:${{ steps.subject.outputs.target_sha }}
           for i in $(seq 1 45); do
             if curl -fsS http://127.0.0.1:18000/health > docker-health.json; then
               break
@@ -67,7 +94,7 @@ jobs:
           done
           curl -fsS http://127.0.0.1:18000/control > docker-control.html
           curl -fsS http://127.0.0.1:18000/api/control/manifest > docker-control-manifest.json
-          python - <<'PY'
+          python3 - <<'PY'
           import json
           h=json.load(open('docker-health.json'))
           m=json.load(open('docker-control-manifest.json'))
@@ -80,27 +107,65 @@ jobs:
       - name: Verify non-root runtime identity
         run: |
           test "$(docker exec cknexus-candidate id -u)" != "0"
-          docker exec cknexus-candidate python -c "import os; assert os.geteuid()!=0; print('non-root PASS')"
+          docker exec cknexus-candidate python3 -c "import os; assert os.geteuid()!=0; print('non-root PASS')"
           touch nonroot.pass
+      - name: Export exact scanned production image
+        if: always()
+        env:
+          TARGET_SHA: ${{ steps.subject.outputs.target_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if docker image inspect "cknexus-candidate:${TARGET_SHA}" >/dev/null 2>&1; then
+            docker save "cknexus-candidate:${TARGET_SHA}" | gzip -1 > q16-production-image.tar.gz
+            sha256sum q16-production-image.tar.gz > q16-production-image.tar.gz.sha256
+          fi
       - name: Capture image evidence
         if: always()
         env:
-          HEAD_SHA: ${{ github.sha }}
+          HEAD_SHA: ${{ steps.subject.outputs.target_sha }}
           RUN_ID: ${{ github.run_id }}
         shell: bash
         run: |
           docker logs cknexus-candidate > docker-server.log 2>&1 || true
           tree=$(git rev-parse HEAD^{tree})
           subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
-          python - "$HEAD_SHA" "$tree" "$subject" "$RUN_ID" <<'PY'
-          import json,sys
+          image_digest=$(docker image inspect --format '{{.Id}}' "cknexus-candidate:${HEAD_SHA}" 2>/dev/null || true)
+          image_archive_sha=$(sha256sum q16-production-image.tar.gz 2>/dev/null | awk '{print $1}' || true)
+          python3 - "$HEAD_SHA" "$tree" "$subject" "$RUN_ID" "$image_digest" "$image_archive_sha" <<'PY'
+          import hashlib, json, os, shutil, subprocess, sys
+          from collections import Counter
           from pathlib import Path
-          sha,tree,subject,run_id=sys.argv[1:]
+          sha,tree,subject,run_id,image_digest,image_archive_sha=sys.argv[1:]
           imports=Path('runtime-imports.pass').exists()
           smoke=Path('runtime-smoke.pass').exists()
           nonroot=Path('nonroot.pass').exists()
-          passed=imports and smoke and nonroot
+          scan_path=Path('trivy-image.json')
+          scan_rc=int(os.getenv('Q16_TRIVY_RC','127'))
+          try:
+            scan=json.loads(scan_path.read_text(encoding='utf-8'))
+          except (OSError,json.JSONDecodeError):
+            scan={}
+          counts=Counter()
+          for result in scan.get('Results',[]) or []:
+            for item in result.get('Vulnerabilities',[]) or []:
+              counts[str(item.get('Severity','UNKNOWN')).upper()]+=1
+            for item in result.get('Misconfigurations',[]) or []:
+              counts[str(item.get('Severity','UNKNOWN')).upper()]+=1
+          if scan_rc != 0 or not scan:
+            image_scan_status='BLOCKED'
+          elif counts.get('CRITICAL',0) or counts.get('HIGH',0):
+            image_scan_status='FAIL'
+          elif counts.get('MEDIUM',0):
+            image_scan_status='REVIEW_REQUIRED'
+          else:
+            image_scan_status='PASS'
+          passed=imports and smoke and nonroot and image_scan_status=='PASS' and image_digest.startswith('sha256:') and len(image_archive_sha)==64
           status=lambda ok: 'PASS' if ok else 'FAIL'
+          scan_sha=hashlib.sha256(scan_path.read_bytes()).hexdigest() if scan_path.is_file() else None
+          trivy_path=shutil.which('trivy')
+          trivy_sha=hashlib.sha256(Path(trivy_path).read_bytes()).hexdigest() if trivy_path else None
+          trivy_version=subprocess.run(['trivy','--version'],text=True,capture_output=True,check=False)
           e={
             'schema_version':3,
             'gate':'Q16_PRODUCTION_IMAGE',
@@ -108,11 +173,19 @@ jobs:
             'source_tree':tree,
             'release_subject_manifest_sha256':subject,
             'github_run_id':int(run_id),
+            'image_config_digest':image_digest or None,
+            'image_archive_sha256':image_archive_sha or None,
+            'image_scan_status':image_scan_status,
+            'image_scan_exit_code':scan_rc,
+            'image_scan_findings_by_severity':dict(counts),
+            'image_scan_report_sha256':scan_sha,
+            'trivy_version':(trivy_version.stdout or trivy_version.stderr).strip().splitlines()[0] if (trivy_version.stdout or trivy_version.stderr).strip() else None,
+            'trivy_binary_sha256':trivy_sha,
             'base_image':'python:3.12-slim@sha256:dd29372629eeba2dd003fd9e9d35a5b8236c44727875a0364254b5127af88e65',
             'uv_version':'0.12.4',
             'dependency_mode':'uv.lock frozen; runtime extras only; no editable install; no dev tooling',
             'runtime_user':'cknexus-non-root',
-            'runtime_entrypoint':'python -m creator_app.unified',
+            'runtime_entrypoint':'python3 -m creator_app.unified',
             'runtime_extras':['email','gateway','billing','github-app'],
             'phase3_default':'false-fail-closed',
             'dependency_check':status(imports),
@@ -121,7 +194,7 @@ jobs:
             'health_smoke':status(smoke),
             'unified_control_smoke':status(smoke),
             'non_root_runtime':status(nonroot),
-            'result':'PASS_CANDIDATE' if passed else 'FAIL',
+            'result':'PASS' if passed else ('REVIEW_REQUIRED' if image_scan_status=='REVIEW_REQUIRED' else ('BLOCKED' if image_scan_status=='BLOCKED' else 'FAIL')),
             'production_promotion_allowed':passed,
           }
           with open('Q16_PRODUCTION_IMAGE.json','w',encoding='utf-8') as f:
@@ -135,13 +208,16 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: q16-production-image-${{ github.sha }}
+          name: q16-production-image-${{ steps.subject.outputs.target_sha }}
           path: |
             Q16_PRODUCTION_IMAGE.json
             docker-health.json
             docker-control-manifest.json
             docker-server.log
+            trivy-image.json
+            q16-production-image.tar.gz
+            q16-production-image.tar.gz.sha256
           if-no-files-found: error
       - name: Enforce production-image gate
         if: always()
-        run: python -c "import json; x=json.load(open('Q16_PRODUCTION_IMAGE.json')); assert x['result']=='PASS_CANDIDATE' and x['production_promotion_allowed'] is True"
+        run: python3 -c "import json; x=json.load(open('Q16_PRODUCTION_IMAGE.json')); assert x['result']=='PASS' and x['production_promotion_allowed'] is True and x['image_scan_status']=='PASS' and x['image_config_digest'].startswith('sha256:')"

@@ -192,7 +192,15 @@ def main() -> int:
 
     executable = evaluate_attachment("invoice.exe", size_bytes=128)
     traversal = evaluate_attachment("../invoice.pdf", size_bytes=128)
-    normal_pdf = evaluate_attachment("invoice.pdf", size_bytes=128)
+    normal_pdf = evaluate_attachment(
+        "invoice.pdf", size_bytes=128, head=b"%PDF-1.7\n"
+    )
+    renamed_executable = evaluate_attachment(
+        "invoice.pdf", size_bytes=128, head=b"MZ\x90\x00"
+    )
+    mismatched_document = evaluate_attachment(
+        "invoice.docx", size_bytes=128, head=b"%PDF-1.7\n"
+    )
     results.append(
         check(
             "attachment_executable_blocked",
@@ -207,6 +215,26 @@ def main() -> int:
     )
     results.append(
         check(
+            "attachment_pdf_signature_validated",
+            normal_pdf.allowed_for_parser_sandbox,
+        )
+    )
+    results.append(
+        check(
+            "attachment_renamed_executable_rejected",
+            not renamed_executable.allowed_for_parser_sandbox
+            and renamed_executable.reason == "content_signature_mismatch",
+        )
+    )
+    results.append(
+        check(
+            "attachment_mismatched_document_rejected",
+            not mismatched_document.allowed_for_parser_sandbox
+            and mismatched_document.reason == "content_signature_mismatch",
+        )
+    )
+    results.append(
+        check(
             "attachment_allowed_file_still_quarantined",
             normal_pdf.allowed_for_parser_sandbox
             and normal_pdf.quarantine_required
@@ -214,17 +242,9 @@ def main() -> int:
         )
     )
 
-    known_open_findings = [
-        {
-            "issue": 65,
-            "title": "DNS-rebinding/TOCTOU SSRF peer binding",
-            "status": "OPEN_REMEDIATION_REQUIRED",
-        },
-        {
-            "issue": 66,
-            "title": "Attachment content/magic validation",
-            "status": "OPEN_HARDENING_REQUIRED",
-        },
+    issue_references = [
+        {"issue": 65, "title": "Security: prevent DNS-rebinding/TOCTOU SSRF in dynamic connector transport"},
+        {"issue": 66, "title": "Security hardening: validate attachment content/magic before parser sandbox"},
     ]
 
     passed = sum(1 for item in results if item["passed"])
@@ -237,7 +257,7 @@ def main() -> int:
         "tests_passed": passed,
         "tests_failed": failed,
         "results": results,
-        "known_open_findings": known_open_findings,
+        "issue_references": issue_references,
         "release_evidence": False,
         "production_promotion": False,
     }

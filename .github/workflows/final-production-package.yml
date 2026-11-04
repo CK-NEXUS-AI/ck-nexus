@@ -1,65 +1,118 @@
 name: Final production package
 
 on:
-  push:
-    branches: [release/q10-q16-closure]
-    paths:
-      - 'evidence/Q10_DEPENDENCY_AUDIT.json'
-      - 'evidence/Q11_OPENAI_LIVE.json'
-      - 'evidence/Q12_CGROUP_V2.json'
-      - 'evidence/Q13_POSTGRES_DR.json'
-      - 'evidence/Q14_OBSERVABILITY_ALERT.json'
-      - 'evidence/Q15_CLEAN_MACHINE.json'
-      - 'evidence/Q16_PRODUCTION_IMAGE.json'
-      - 'evidence/Q16_RUNTIME_LICENSE_SUMMARY.json'
-      - 'THIRD_PARTY_NOTICES.md'
-      - '.github/release-tools/verify_release_evidence_provenance.py'
-      - '.github/workflows/final-production-package.yml'
   workflow_dispatch:
 
 permissions:
   actions: read
   contents: read
-
-env:
-  EXPECTED_RELEASE_SUBJECT: 96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f
+  pull-requests: read
+  issues: read
 
 jobs:
   preflight:
+    if: github.ref_name == 'main'
     runs-on: ubuntu-24.04
     outputs:
       eligible: ${{ steps.gate.outputs.eligible }}
       reason: ${{ steps.gate.outputs.reason }}
+      expected_subject: ${{ steps.subject.outputs.subject }}
+      candidate_sha: ${{ steps.subject.outputs.candidate_sha }}
+      candidate_tree: ${{ steps.subject.outputs.candidate_tree }}
+      release_pr_number: ${{ steps.subject.outputs.release_pr_number }}
+      main_sha: ${{ steps.subject.outputs.main_sha }}
+      main_tree: ${{ steps.subject.outputs.main_tree }}
+      q16_run_id: ${{ steps.gate.outputs.q16_run_id }}
+      q16_artifact_id: ${{ steps.gate.outputs.q16_artifact_id }}
+      q16_image_digest: ${{ steps.gate.outputs.q16_image_digest }}
+      q16_image_archive_sha: ${{ steps.gate.outputs.q16_image_archive_sha }}
+      q16_licenses_run_id: ${{ steps.gate.outputs.q16_licenses_run_id }}
+      q16_licenses_artifact_id: ${{ steps.gate.outputs.q16_licenses_artifact_id }}
     steps:
-      - name: Checkout exact candidate
+      - name: Checkout exact release line
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
+
+      - name: Load and verify immutable release subject and merged PR
+        id: subject
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > "$RUNNER_TEMP/release-subject-values.json"
+          import json, subprocess
+          from pathlib import Path
+          manifest=json.loads(Path('evidence/RELEASE_SUBJECT.json').read_text(encoding='utf-8'))
+          q10=json.loads(Path('evidence/Q10_DEPENDENCY_AUDIT.json').read_text(encoding='utf-8'))
+          sha=q10['source_sha']
+          tree=q10['source_tree']
+          subject=manifest['runtime_subject_manifest_sha256']
+          actual_tree=subprocess.check_output(['git','rev-parse',f'{sha}^{{tree}}'],text=True).strip()
+          def subject_for(ref):
+              listing=subprocess.check_output(['git','ls-tree','-r',ref,'--','app','creator_app','services','gateway','orchestration','idea_engine','migrations','deploy','observability','Dockerfile','docker-compose.prod.yml','main.py','pyproject.toml','uv.lock'],text=True)
+              import hashlib
+              return hashlib.sha256(listing.encode()).hexdigest()
+          candidate_subject=subject_for(sha)
+          subprocess.run(['git','fetch','origin','main'],check=True)
+          head_sha=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          main_sha=subprocess.check_output(['git','rev-parse','origin/main'],text=True).strip()
+          assert head_sha==main_sha, 'main branch drifted after workflow dispatch; rerun on current main'
+          main_subject=subject_for('origin/main')
+          assert actual_tree==tree, 'candidate tree mismatch'
+          assert candidate_subject==subject and main_subject==subject, 'runtime subject mismatch'
+          assert manifest['candidate_branch']=='release/q10-q16-closure-20261105'
+          pr_number=int(manifest['release_pr_number'])
+          pr=json.loads(subprocess.check_output(['gh','api',f"repos/{__import__('os').environ['GITHUB_REPOSITORY']}/pulls/{pr_number}"],text=True))
+          assert pr.get('state')=='closed' and pr.get('merged') is True and pr.get('base',{}).get('ref')=='main', 'closure PR not merged into main'
+          merge_sha=pr.get('merge_commit_sha')
+          subprocess.run(['git','fetch','origin',f'refs/pull/{pr_number}/head:refs/remotes/origin/closure-pr-{pr_number}'],check=True)
+          subprocess.run(['git','merge-base','--is-ancestor',sha,f'refs/remotes/origin/closure-pr-{pr_number}'],check=True)
+          subprocess.run(['git','merge-base','--is-ancestor',merge_sha,'origin/main'],check=True)
+          assert subject_for('origin/main')==subject, 'merged main runtime subject mismatch'
+          values={'candidate_sha':sha,'candidate_tree':tree,'subject':subject,'release_pr_number':pr_number,'main_sha':subprocess.check_output(['git','rev-parse','origin/main'],text=True).strip(),'main_tree':subprocess.check_output(['git','rev-parse','origin/main^{tree}'],text=True).strip(),'merge_sha':merge_sha}
+          print(json.dumps(values))
+          PY
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          x=json.loads(Path(__import__('os').environ['RUNNER_TEMP']+'/release-subject-values.json').read_text())
+          for k,v in x.items(): print(f'{k}={v}')
+          PY
+
       - name: Verify release evidence provenance
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_SUBJECT: ${{ steps.subject.outputs.subject }}
         run: |
-          python .github/release-tools/verify_release_evidence_provenance.py \
-            --expected-subject "$EXPECTED_RELEASE_SUBJECT" \
+          python3 .github/release-tools/verify_release_evidence_provenance.py \
+            --expected-subject "$EXPECTED_SUBJECT" \
             --output release-evidence-provenance.json
-      - name: Evaluate production eligibility without weakening blockers
+
+      - name: Evaluate all seven gates and approvals
         id: gate
         shell: bash
+        env:
+          EXPECTED_SUBJECT: ${{ steps.subject.outputs.subject }}
+          CANDIDATE_SHA: ${{ steps.subject.outputs.candidate_sha }}
+          CANDIDATE_TREE: ${{ steps.subject.outputs.candidate_tree }}
         run: |
-          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
-          python - "$subject" "$EXPECTED_RELEASE_SUBJECT" "$GITHUB_OUTPUT" <<'PY'
-          import json,sys
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
           from pathlib import Path
-          actual,expected,out=sys.argv[1:]
+          import re
+          expected=__import__('os').environ['EXPECTED_SUBJECT']
+          candidate_sha=__import__('os').environ['CANDIDATE_SHA']
+          candidate_tree=__import__('os').environ['CANDIDATE_TREE']
           reasons=[]
           def load(name):
-              try:
-                  return json.loads(Path('evidence',name).read_text(encoding='utf-8'))
+              try: return json.loads(Path('evidence',name).read_text(encoding='utf-8'))
               except Exception as exc:
                   reasons.append(f'{name}: {type(exc).__name__}')
                   return {}
-          if actual != expected:
-              reasons.append(f'runtime subject mismatch: {actual}')
           q10=load('Q10_DEPENDENCY_AUDIT.json')
           q11=load('Q11_OPENAI_LIVE.json')
           q12=load('Q12_CGROUP_V2.json')
@@ -68,49 +121,72 @@ jobs:
           q15=load('Q15_CLEAN_MACHINE.json')
           image=load('Q16_PRODUCTION_IMAGE.json')
           licenses=load('Q16_RUNTIME_LICENSE_SUMMARY.json')
-          for item in (q10,q11,q12,q13,q14,q15,image,licenses):
-              if item and item.get('release_subject_manifest_sha256') != expected:
-                  reasons.append(f"{item.get('gate','unknown')}: stale subject")
-          if q10.get('gate_result') != 'PASS' or q10.get('open_source_security_scan') != 'PASS':
-              reasons.append('Q10 open-source layered security scan not PASS')
-          if q11.get('result') != 'PASS' or q11.get('production_promotion_allowed') is not True:
-              reasons.append('Q11 live provider not PASS')
-          if q12.get('result') != 'PASS' or q12.get('actual_kernel_enforcement') is not True:
-              reasons.append('Q12 delegated cgroup v2 not PASS')
-          if q13.get('status') != 'PASS' or q13.get('sentinel_round_trip') != 'PASS':
-              reasons.append('Q13 PostgreSQL DR not PASS')
-          if q14.get('result') != 'PASS' or q14.get('production_promotion_allowed') is not True:
-              reasons.append('Q14 observability not PASS')
-          if q15.get('result') not in {'PASS','PASS_CANDIDATE'}:
-              reasons.append('Q15 clean-machine not PASS')
-          if image.get('result') != 'PASS_CANDIDATE' or image.get('production_promotion_allowed') is not True:
-              reasons.append('Q16 production image not PASS')
-          if licenses.get('result') != 'PASS' or licenses.get('unresolved_license_evidence'):
-              reasons.append('Q16 runtime licenses not PASS')
+          rows=(q10,q11,q12,q13,q14,q15,image,licenses)
+          for row in rows:
+              if not row: continue
+              if row.get('source_sha') != candidate_sha or row.get('source_tree') != candidate_tree:
+                  reasons.append(f"{row.get('gate','unknown')}: candidate source SHA/tree mismatch")
+              if row.get('release_subject_manifest_sha256') != expected:
+                  reasons.append(f"{row.get('gate','unknown')}: stale runtime subject")
+
+          q10_ok=(
+              q10.get('gate_result')=='NOT_VERIFIED'
+              and q10.get('open_source_security_scan')=='PASS'
+              and q10.get('security_assessment_status')=='READY_FOR_HUMAN_REVIEW'
+              and q10.get('production_promotion_allowed') is False
+              and q10.get('security_scan_run_id')==q10.get('github_run_id')
+              and bool(q10.get('security_report_sha256'))
+              and q10.get('issue_state_verified') is True
+              and q10.get('scanner_toolchain_verified') is True
+              and not q10.get('known_open_findings')
+          )
+          if not q10_ok: reasons.append('Q10: layered scanner evidence is incomplete or improperly promoted')
+          if not (q11.get('result')=='PASS' and q11.get('production_promotion_allowed') is True and q11.get('credential_configured') is True and q11.get('credential_exposed') is False and q11.get('sentinel_observed') is True):
+              reasons.append('Q11: exact-subject live provider evidence not PASS')
+          if not (q12.get('result')=='PASS' and q12.get('actual_kernel_enforcement') is True and q12.get('delegation_ready') is True and q12.get('production_promotion_allowed') is True and q12.get('runner_user') not in {'root','0'} and {'cpu','memory','pids'}.issubset(set(q12.get('controllers',[]))) and {'cpu','memory','pids'}.issubset(set(q12.get('subtree_controllers',[]))) and str(q12.get('runner_cgroup','')).endswith('/supervisor')):
+              reasons.append('Q12: non-root delegated cgroup v2 evidence not PASS')
+          if not (q13.get('status')=='PASS' and q13.get('result')=='PASS' and q13.get('sentinel_round_trip')=='PASS' and q13.get('production_data_used') is False):
+              reasons.append('Q13: isolated PostgreSQL backup/restore evidence not PASS')
+          if not (q14.get('result')=='PASS' and q14.get('production_promotion_allowed') is True and q14.get('alert_delivery')=='PASS' and q14.get('health_metrics_check')=='PASS' and q14.get('alert_receiver_type')=='staging-webhook' and q14.get('production_destination_tested') is False and bool(re.fullmatch(r'sha256:[0-9a-f]{64}',str(q14.get('prometheus_image_digest','')))) and bool(re.fullmatch(r'sha256:[0-9a-f]{64}',str(q14.get('alertmanager_image_digest','')))) and bool(re.fullmatch(r'[0-9a-f]{64}',str(q14.get('alert_receipt_sha256',''))))):
+              reasons.append('Q14: operator alert delivery evidence not PASS')
+          if not (q15.get('result')=='PASS' and q15.get('production_promotion_allowed') is True and q15.get('host_class')=='fresh-github-hosted-vm' and q15.get('portable_regression')=='PASS' and q15.get('phase2_sandbox_regression')=='PASS' and q15.get('phase3_pipeline_regression')=='PASS' and q15.get('unified_health_smoke')=='PASS' and q15.get('unified_control_smoke')=='PASS'):
+              reasons.append('Q15: clean-machine evidence not PASS')
+          image_ok=(image.get('result')=='PASS' and image.get('production_promotion_allowed') is True and image.get('image_scan_status')=='PASS' and bool(re.fullmatch(r'sha256:[0-9a-f]{64}',str(image.get('image_config_digest','')))) and bool(re.fullmatch(r'[0-9a-f]{64}',str(image.get('image_archive_sha256','')))) and bool(image.get('image_scan_report_sha256')))
+          if not image_ok: reasons.append('Q16: immutable production image or image scan not PASS')
+          license_ok=(licenses.get('result')=='PASS' and licenses.get('production_promotion_allowed') is True and not licenses.get('unresolved_license_evidence') and int(licenses.get('runtime_distribution_count',0))>0 and bool(re.fullmatch(r'[0-9a-f]{64}',str(licenses.get('inventory_sha256','')))))
+          if not license_ok: reasons.append('Q16: runtime license evidence incomplete')
           try:
               notices=Path('THIRD_PARTY_NOTICES.md').read_text(encoding='utf-8')
-              if '[ต้องการข้อมูลเพิ่ม' in notices:
-                  reasons.append('third-party notices contain unresolved placeholder')
-          except OSError:
-              reasons.append('THIRD_PARTY_NOTICES.md missing')
+              if '[ต้องการข้อมูลเพิ่ม' in notices: reasons.append('third-party notices contain unresolved placeholder')
+          except OSError: reasons.append('THIRD_PARTY_NOTICES.md missing')
+          try:
+              provenance=json.loads(Path('release-evidence-provenance.json').read_text(encoding='utf-8'))
+              if provenance.get('result')!='PASS': reasons.append('release evidence provenance not PASS')
+              if provenance.get('checks',{}).get('q10_human_approval',{}).get('approved') is not True:
+                  reasons.append('Q10 independent review / Owner approval attestation not verified')
+          except Exception: reasons.append('release evidence provenance report missing/invalid')
           eligible=not reasons
-          with open(out,'a',encoding='utf-8') as handle:
-              handle.write(f"eligible={'true' if eligible else 'false'}\n")
-              safe='; '.join(reasons).replace('\n',' ')[:3000]
-              handle.write(f"reason={safe if safe else 'all production gates pass'}\n")
-          print('eligible=',eligible)
-          for reason in reasons:
-              print('BLOCKER:',reason)
+          print('eligible='+('true' if eligible else 'false'))
+          print('reason='+('; '.join(reasons) if reasons else 'all seven gates and approvals pass'))
+          if image.get('github_run_id'): print('q16_run_id='+str(image['github_run_id']))
+          if image.get('artifact_id'): print('q16_artifact_id='+str(image['artifact_id']))
+          if image.get('image_config_digest'): print('q16_image_digest='+str(image['image_config_digest']))
+          if image.get('image_archive_sha256'): print('q16_image_archive_sha='+str(image['image_archive_sha256']))
+          if licenses.get('github_run_id'): print('q16_licenses_run_id='+str(licenses['github_run_id']))
+          if licenses.get('artifact_id'): print('q16_licenses_artifact_id='+str(licenses['artifact_id']))
           PY
+
       - name: Write eligibility summary
         shell: bash
+        env:
+          EXPECTED_SUBJECT: ${{ steps.subject.outputs.subject }}
         run: |
           {
             echo '## Final production eligibility'
             echo '- Evidence provenance: `PASS`'
             echo '- Eligible: `${{ steps.gate.outputs.eligible }}`'
             echo '- Reason: `${{ steps.gate.outputs.reason }}`'
-            echo '- Runtime subject: `'$EXPECTED_RELEASE_SUBJECT'`'
+            echo '- Runtime subject: `'$EXPECTED_SUBJECT'`'
           } >> "$GITHUB_STEP_SUMMARY"
 
   package:
@@ -118,62 +194,208 @@ jobs:
     if: needs.preflight.outputs.eligible == 'true'
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout exact candidate
+      - name: Checkout exact release line
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
-      - name: Verify release evidence provenance again
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          python .github/release-tools/verify_release_evidence_provenance.py \
-            --expected-subject "$EXPECTED_RELEASE_SUBJECT" \
-            --output release-evidence-provenance-package.json
-      - name: Re-enforce all production evidence
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          subject='96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f'
-          names=['Q10_DEPENDENCY_AUDIT.json','Q11_OPENAI_LIVE.json','Q12_CGROUP_V2.json','Q13_POSTGRES_DR.json','Q14_OBSERVABILITY_ALERT.json','Q15_CLEAN_MACHINE.json','Q16_PRODUCTION_IMAGE.json','Q16_RUNTIME_LICENSE_SUMMARY.json']
-          rows={name:json.loads(Path('evidence',name).read_text(encoding='utf-8')) for name in names}
-          assert all(row.get('release_subject_manifest_sha256')==subject for row in rows.values())
-          assert rows['Q10_DEPENDENCY_AUDIT.json']['gate_result']=='PASS'
-          assert rows['Q10_DEPENDENCY_AUDIT.json']['open_source_security_scan']=='PASS'
-          assert rows['Q11_OPENAI_LIVE.json']['result']=='PASS'
-          assert rows['Q12_CGROUP_V2.json']['result']=='PASS' and rows['Q12_CGROUP_V2.json']['actual_kernel_enforcement'] is True
-          assert rows['Q13_POSTGRES_DR.json']['status']=='PASS'
-          assert rows['Q14_OBSERVABILITY_ALERT.json']['result']=='PASS'
-          assert rows['Q15_CLEAN_MACHINE.json']['result'] in {'PASS','PASS_CANDIDATE'}
-          assert rows['Q16_PRODUCTION_IMAGE.json']['result']=='PASS_CANDIDATE'
-          assert rows['Q16_RUNTIME_LICENSE_SUMMARY.json']['result']=='PASS'
-          PY
-      - name: Set up pinned Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: '3.12'
-      - name: Re-run frozen release checks
-        run: |
-          python -m pip install "uv==0.12.4"
-          uv lock --check
-          uv sync --all-extras --dev --frozen
-          .venv/bin/python -m compileall -q main.py creator_app services gateway orchestration idea_engine scripts
-          .venv/bin/ruff check main.py creator_app services gateway orchestration idea_engine tests scripts
-          .venv/bin/python scripts/secret_scan.py
-          .venv/bin/pytest -q --ignore=tests/test_agnes_execution_kernel_phase2.py --ignore=tests/test_agnes_execution_kernel_phase3.py
-      - name: Build exact production image and export runtime licenses
+
+      - name: Verify main baseline before packaging
         shell: bash
         run: |
           set -euo pipefail
-          docker build -t cknexus-final:${GITHUB_SHA} .
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+
+      - name: Verify release evidence provenance again
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_SUBJECT: ${{ needs.preflight.outputs.expected_subject }}
+        run: |
+          python3 .github/release-tools/verify_release_evidence_provenance.py \
+            --expected-subject "$EXPECTED_SUBJECT" \
+            --output release-evidence-provenance-package.json
+
+      - name: Download the exact Q16 scanned image artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          Q16_RUN_ID: ${{ needs.preflight.outputs.q16_run_id }}
+          CANDIDATE_SHA: ${{ needs.preflight.outputs.candidate_sha }}
+          EXPECTED_ARCHIVE_SHA: ${{ needs.preflight.outputs.q16_image_archive_sha }}
+          EXPECTED_IMAGE_DIGEST: ${{ needs.preflight.outputs.q16_image_digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p q16-image
+          gh run download "$Q16_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "q16-production-image-${CANDIDATE_SHA}" --dir q16-image
+          echo "$EXPECTED_ARCHIVE_SHA  q16-image/q16-production-image.tar.gz" | sha256sum -c -
+          docker load -i q16-image/q16-production-image.tar.gz
+          actual=$(docker image inspect --format '{{.Id}}' "cknexus-candidate:${CANDIDATE_SHA}")
+          test "$actual" = "$EXPECTED_IMAGE_DIGEST"
+
+      - name: Download exact Q16 runtime-license inventory artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          Q16_LICENSES_RUN_ID: ${{ needs.preflight.outputs.q16_licenses_run_id }}
+          CANDIDATE_SHA: ${{ needs.preflight.outputs.candidate_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p q16-licenses
+          gh run download "$Q16_LICENSES_RUN_ID" --repo "$GITHUB_REPOSITORY" \
+            --name "q16-runtime-licenses-${CANDIDATE_SHA}" --dir q16-licenses
+          expected=$(python3 -c "import json; print(json.load(open('evidence/Q16_RUNTIME_LICENSE_SUMMARY.json'))['inventory_sha256'])")
+          echo "$expected  q16-licenses/Q16_RUNTIME_LICENSE_INVENTORY.json" | sha256sum -c -
+
+      - name: Download exact Q10-Q15 evidence artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          gates={
+              'Q10':'evidence/Q10_DEPENDENCY_AUDIT.json',
+              'Q11':'evidence/Q11_OPENAI_LIVE.json',
+              'Q12':'evidence/Q12_CGROUP_V2.json',
+              'Q13':'evidence/Q13_POSTGRES_DR.json',
+              'Q14':'evidence/Q14_OBSERVABILITY_ALERT.json',
+              'Q15':'evidence/Q15_CLEAN_MACHINE.json',
+          }
+          for gate,path in gates.items():
+              evidence=json.loads(Path(path).read_text(encoding='utf-8'))
+              run_id=str(evidence['github_run_id'])
+              artifact_name=evidence['artifact_name']
+              artifact_id=int(evidence['artifact_id'])
+              digest=evidence['artifact_digest']
+              response=subprocess.check_output(['gh','api',f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{run_id}/artifacts?per_page=100"],text=True)
+              artifacts=json.loads(response).get('artifacts',[])
+              match=[item for item in artifacts if int(item.get('id',-1))==artifact_id and item.get('name')==artifact_name and item.get('digest')==digest and item.get('expired') is False]
+              assert len(match)==1, f'{gate}: exact artifact metadata mismatch'
+              destination=Path('gate-artifacts')/gate
+              destination.mkdir(parents=True,exist_ok=True)
+              subprocess.run(['gh','run','download',run_id,'--repo',os.environ['GITHUB_REPOSITORY'],'--name',artifact_name,'--dir',str(destination)],check=True)
+              downloaded=destination/Path(path).name
+              assert downloaded.is_file(), f'{gate}: raw evidence file missing from artifact'
+              raw=json.loads(downloaded.read_text(encoding='utf-8'))
+              metadata={'artifact_id','artifact_digest','artifact_name','artifact_created_at','artifact_expires_at','github_run_head_sha','github_run_head_branch','github_run_conclusion','github_run_event','workflow_path','workflow_name','workflow_url'}
+              committed=json.loads(Path(path).read_text(encoding='utf-8'))
+              committed_raw={key:value for key,value in committed.items() if key not in metadata}
+              assert raw==committed_raw, f'{gate}: committed evidence differs from immutable workflow artifact'
+          PY
+
+      - name: Verify exact evidence artifact contents and provenance manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          root=Path('evidence')
+          metadata={'artifact_id','artifact_digest','artifact_name','artifact_created_at','artifact_expires_at','github_run_head_sha','github_run_head_branch','github_run_conclusion','github_run_event','workflow_path','workflow_name','workflow_url'}
+          files={
+              'Q10':'Q10_DEPENDENCY_AUDIT.json','Q11':'Q11_OPENAI_LIVE.json','Q12':'Q12_CGROUP_V2.json',
+              'Q13':'Q13_POSTGRES_DR.json','Q14':'Q14_OBSERVABILITY_ALERT.json','Q15':'Q15_CLEAN_MACHINE.json',
+              'Q16_PRODUCTION_IMAGE':'Q16_PRODUCTION_IMAGE.json','Q16_RUNTIME_LICENSES':'Q16_RUNTIME_LICENSE_SUMMARY.json',
+          }
+          manifest=json.loads((root/'ARTIFACT_PROVENANCE_MANIFEST.json').read_text(encoding='utf-8'))
+          assert set(manifest['artifacts'])==set(files), 'artifact manifest gate set mismatch'
+          q10=json.loads((root/files['Q10']).read_text(encoding='utf-8'))
+          assert manifest['candidate_source_sha']==q10['source_sha']
+          assert manifest['candidate_source_tree']==q10['source_tree']
+          for gate,filename in files.items():
+              committed=json.loads((root/filename).read_text(encoding='utf-8'))
+              entry=manifest['artifacts'][gate]
+              assert entry['run_id']==committed['github_run_id']
+              assert entry['head_sha']==committed['source_sha']
+              assert entry['artifact_id']==committed['artifact_id']
+              assert entry['artifact_name']==committed['artifact_name']
+              assert entry['artifact_digest']==committed['artifact_digest']
+              folder=Path('q16-image') if gate=='Q16_PRODUCTION_IMAGE' else (Path('q16-licenses') if gate=='Q16_RUNTIME_LICENSES' else Path('gate-artifacts')/gate)
+              raw_path=folder/filename
+              assert raw_path.is_file(), f'{gate}: artifact evidence missing'
+              raw=json.loads(raw_path.read_text(encoding='utf-8'))
+              assert raw=={k:v for k,v in committed.items() if k not in metadata}, f'{gate}: artifact evidence content mismatch'
+          q11_output=Path('gate-artifacts/Q11/q11-output.txt')
+          q11_evidence=json.loads((root/files['Q11']).read_text(encoding='utf-8'))
+          assert q11_output.is_file() and hashlib.sha256(q11_output.read_bytes()).hexdigest()==q11_evidence['diagnostic_sha256']
+          q11_text=q11_output.read_text(encoding='utf-8',errors='replace')
+          assert q11_evidence['diagnostic_redaction_verified'] is True
+          assert not __import__('re').search(r'(?i)sk-(?:proj-)?[A-Za-z0-9_-]{20,}',q11_text)
+          report_path=Path('gate-artifacts/Q10/q10-open-source-security-report.json')
+          assert report_path.is_file()
+          assert hashlib.sha256(report_path.read_bytes()).hexdigest()==q10['security_report_sha256']
+          report=json.loads(report_path.read_text(encoding='utf-8'))
+          for item in report['report_artifacts'].values():
+              path=Path('gate-artifacts/Q10')/item['file']
+              assert path.is_file() and path.stat().st_size==item['bytes']
+              assert hashlib.sha256(path.read_bytes()).hexdigest()==item['sha256'], item['file']
+          image=json.loads((root/files['Q16_PRODUCTION_IMAGE']).read_text(encoding='utf-8'))
+          archive=Path('q16-image/q16-production-image.tar.gz')
+          assert archive.is_file() and hashlib.sha256(archive.read_bytes()).hexdigest()==image['image_archive_sha256']
+          licenses=json.loads((root/files['Q16_RUNTIME_LICENSES']).read_text(encoding='utf-8'))
+          inventory=Path('q16-licenses/Q16_RUNTIME_LICENSE_INVENTORY.json')
+          assert inventory.is_file() and hashlib.sha256(inventory.read_bytes()).hexdigest()==licenses['inventory_sha256']
+          print('All eight exact-subject evidence artifacts, raw report hashes, Q16 image and license inventory verified.')
+          PY
+
+      - name: Re-run source integrity, lint and regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check "uv==0.12.4"
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+          .venv/bin/python3 -m compileall -q main.py creator_app services gateway orchestration idea_engine scripts
+          .venv/bin/ruff check main.py creator_app services gateway orchestration idea_engine tests scripts
+          .venv/bin/python3 scripts/secret_scan.py
+          .venv/bin/pytest -q --ignore=tests/test_agnes_execution_kernel_phase2.py --ignore=tests/test_agnes_execution_kernel_phase3.py
+
+      - name: Re-verify exact scanned production image runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name cknexus-final-verified \
+            -p 127.0.0.1:18000:8000 \
+            -e CKNEXUS_MOCK_AI=true \
+            -e CKNEXUS_AGNES_PHASE3_ENABLED=false \
+            "cknexus-candidate:${{ needs.preflight.outputs.candidate_sha }}"
+          trap 'docker rm -f cknexus-final-verified >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:18000/health > final-docker-health.json; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:18000/api/control/manifest > final-control-manifest.json
+          docker exec cknexus-final-verified python3 -c "import os; assert os.geteuid()!=0"
+          python3 - <<'PY'
+          import json
+          h=json.load(open('final-docker-health.json'))
+          m=json.load(open('final-control-manifest.json'))
+          assert h['status']=='ok'
+          assert m['name']=='CK-NEXUS Unified Control Surface'
+          assert len(m['groups'])==8 and m['route_count']>0
+          PY
+
+      - name: Export exact runtime license files and inventory
+        env:
+          CANDIDATE_SHA: ${{ needs.preflight.outputs.candidate_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_count=$(python3 -c "import json; print(json.load(open('evidence/Q16_RUNTIME_LICENSE_SUMMARY.json'))['runtime_distribution_count'])")
           rm -rf package-root
           mkdir -p package-root/ck-nexus/third_party_runtime
           git archive HEAD | tar -x -C package-root/ck-nexus
           docker run --rm -i --user 0:0 \
             -v "$PWD/package-root/ck-nexus/third_party_runtime:/out" \
-            cknexus-final:${GITHUB_SHA} python - <<'PY'
-          import hashlib, importlib.metadata as md, json, re
+            -v "$PWD/q16-licenses:/source:ro" \
+            "cknexus-candidate:${CANDIDATE_SHA}" python3 - "$expected_count" <<'PY'
+          import hashlib, importlib.metadata as md, json, re, sys
           from pathlib import Path
+          expected_count=int(sys.argv[1])
           out=Path('/out')
           inventory=[]
           for dist in md.distributions():
@@ -185,40 +407,113 @@ jobs:
               files=[]
               for i,rel in enumerate(dist.files or []):
                   base=Path(str(rel)).name
-                  if not any(t in base.lower() for t in ('license','licence','copying','notice')):
+                  if not any(token in base.lower() for token in ('license','licence','copying','notice')):
                       continue
-                  try:
-                      data=Path(dist.locate_file(rel)).read_bytes()
-                  except OSError:
-                      continue
+                  try: data=Path(dist.locate_file(rel)).read_bytes()
+                  except OSError: continue
                   target.mkdir(parents=True,exist_ok=True)
                   dst=target/f'{i:03d}-{base}'
                   dst.write_bytes(data)
                   files.append({'path':str(rel),'exported':str(dst.relative_to(out)),'sha256':hashlib.sha256(data).hexdigest()})
               inventory.append({'name':name,'version':dist.version,'license_expression':dist.metadata.get('License-Expression'),'license':dist.metadata.get('License'),'license_classifiers':[x for x in dist.metadata.get_all('Classifier',[]) if x.startswith('License ::')],'license_files':files})
           inventory.sort(key=lambda x:x['name'].lower())
-          assert len(inventory)==55
+          assert len(inventory)==expected_count, (len(inventory),expected_count)
           assert all(x['license_expression'] or x['license'] or x['license_classifiers'] or x['license_files'] for x in inventory)
+          source=json.loads(Path('/source/Q16_RUNTIME_LICENSE_INVENTORY.json').read_text(encoding='utf-8'))
+          source_by={(x['name'].lower(),x['version']):x for x in source}
+          actual_by={(x['name'].lower(),x['version']):x for x in inventory}
+          assert set(source_by)==set(actual_by), 'license inventory distribution identity mismatch'
+          for key,expected in source_by.items():
+              actual=actual_by[key]
+              assert expected.get('license_expression')==actual.get('license_expression')
+              assert expected.get('license')==actual.get('license')
+              assert expected.get('license_classifiers',[])==actual.get('license_classifiers',[])
+              expected_hashes=sorted(x['sha256'] for x in expected.get('license_files',[]) if x.get('sha256'))
+              actual_hashes=sorted(x['sha256'] for x in actual.get('license_files',[]) if x.get('sha256'))
+              assert expected_hashes==actual_hashes, f'license file digest mismatch: {key}'
           (out/'RUNTIME_LICENSE_INVENTORY.json').write_text(json.dumps(inventory,indent=2,sort_keys=True)+'\n',encoding='utf-8')
           PY
-      - name: Build release manifest and clean source archive
+          cp q16-image/q16-production-image.tar.gz package-root/ck-nexus/third_party_runtime/CK-NEXUS_PRODUCTION_IMAGE.tar.gz
+          cp q16-licenses/Q16_RUNTIME_LICENSE_INVENTORY.json package-root/ck-nexus/third_party_runtime/Q16_RUNTIME_LICENSE_INVENTORY.json
+          mkdir -p package-root/ck-nexus/third_party_runtime/evidence-artifacts
+          cp -a gate-artifacts/. package-root/ck-nexus/third_party_runtime/evidence-artifacts/
+          cp -a q16-image package-root/ck-nexus/third_party_runtime/evidence-artifacts/Q16_PRODUCTION_IMAGE
+          rm -f package-root/ck-nexus/third_party_runtime/evidence-artifacts/Q16_PRODUCTION_IMAGE/q16-production-image.tar.gz
+          cp -a q16-licenses package-root/ck-nexus/third_party_runtime/evidence-artifacts/Q16_RUNTIME_LICENSES
+          cp release-evidence-provenance-package.json package-root/ck-nexus/third_party_runtime/evidence-artifacts/RELEASE_EVIDENCE_PROVENANCE.json
+          image_archive_sha=$(sha256sum package-root/ck-nexus/third_party_runtime/CK-NEXUS_PRODUCTION_IMAGE.tar.gz | awk '{print $1}')
+          test "$image_archive_sha" = "${{ needs.preflight.outputs.q16_image_archive_sha }}"
+          license_inventory_sha=$(sha256sum package-root/ck-nexus/third_party_runtime/RUNTIME_LICENSE_INVENTORY.json | awk '{print $1}')
+          echo "LICENSE_INVENTORY_SHA=$license_inventory_sha" >> "$GITHUB_ENV"
+
+      - name: Build checksummed production source and image package
+        env:
+          EXPECTED_SUBJECT: ${{ needs.preflight.outputs.expected_subject }}
+          CANDIDATE_SHA: ${{ needs.preflight.outputs.candidate_sha }}
+          CANDIDATE_TREE: ${{ needs.preflight.outputs.candidate_tree }}
+          Q16_IMAGE_DIGEST: ${{ needs.preflight.outputs.q16_image_digest }}
+          Q16_IMAGE_ARCHIVE_SHA: ${{ needs.preflight.outputs.q16_image_archive_sha }}
+          RELEASE_PR_NUMBER: ${{ needs.preflight.outputs.release_pr_number }}
         shell: bash
         run: |
           set -euo pipefail
-          sha=$(git rev-parse HEAD)
           mkdir -p dist
-          tar -czf "dist/CK-NEXUS_PRODUCTION_${sha}.tar.gz" -C package-root ck-nexus
-          archive_sha=$(sha256sum "dist/CK-NEXUS_PRODUCTION_${sha}.tar.gz" | awk '{print $1}')
-          printf '%s  %s\n' "$archive_sha" "CK-NEXUS_PRODUCTION_${sha}.tar.gz" > dist/SHA256SUMS
-          python - "$sha" "$archive_sha" <<'PY'
+          release_commit=$(git rev-parse HEAD)
+          tar -czf "dist/CK-NEXUS_PRODUCTION_${release_commit}.tar.gz" -C package-root ck-nexus
+          archive_sha=$(sha256sum "dist/CK-NEXUS_PRODUCTION_${release_commit}.tar.gz" | awk '{print $1}')
+          printf '%s  %s\n' "$archive_sha" "CK-NEXUS_PRODUCTION_${release_commit}.tar.gz" > dist/SHA256SUMS
+          python3 - "$release_commit" "$CANDIDATE_SHA" "$CANDIDATE_TREE" "$EXPECTED_SUBJECT" "$archive_sha" "$Q16_IMAGE_DIGEST" "$Q16_IMAGE_ARCHIVE_SHA" "$LICENSE_INVENTORY_SHA" <<'PY'
           import json,sys
-          sha,archive_sha=sys.argv[1:]
-          manifest={'schema_version':1,'release_commit':sha,'runtime_subject_sha256':'96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f','archive_sha256':archive_sha,'production_gate':'PASS','third_party_runtime_inventory_included':True,'third_party_license_files_included':True,'release_evidence_provenance':'PASS'}
-          with open('dist/RELEASE_MANIFEST.json','w',encoding='utf-8') as f:
-              json.dump(manifest,f,indent=2,sort_keys=True); f.write('\n')
+          from pathlib import Path
+          release_commit,candidate_sha,candidate_tree,subject,archive_sha,image_digest,image_archive_sha,license_sha=sys.argv[1:]
+          q10=json.loads(Path('evidence/Q10_DEPENDENCY_AUDIT.json').read_text(encoding='utf-8'))
+          provenance=json.loads(Path('release-evidence-provenance-package.json').read_text(encoding='utf-8'))
+          q10_approval=provenance['checks']['q10_human_approval']
+          artifact_manifest=json.loads(Path('evidence/ARTIFACT_PROVENANCE_MANIFEST.json').read_text(encoding='utf-8'))
+          artifact_manifest_sha=__import__('hashlib').sha256(Path('evidence/ARTIFACT_PROVENANCE_MANIFEST.json').read_bytes()).hexdigest()
+          provenance_sha=__import__('hashlib').sha256(Path('release-evidence-provenance-package.json').read_bytes()).hexdigest()
+          manifest={
+              'schema_version':2,
+              'release_commit':release_commit,
+              'candidate_source_sha':candidate_sha,
+              'candidate_source_tree':candidate_tree,
+              'release_pr_number':int(__import__('os').environ['RELEASE_PR_NUMBER']),
+              'main_source_sha':'${{ needs.preflight.outputs.main_sha }}',
+              'main_source_tree':'${{ needs.preflight.outputs.main_tree }}',
+              'runtime_subject_sha256':subject,
+              'source_package_sha256':archive_sha,
+              'production_image_config_digest':image_digest,
+              'production_image_archive_sha256':image_archive_sha,
+              'runtime_license_inventory_sha256':license_sha,
+              'q16_runtime_license_source_inventory_sha256':json.loads(Path('evidence/Q16_RUNTIME_LICENSE_SUMMARY.json').read_text(encoding='utf-8'))['inventory_sha256'],
+              'q10_security_report_sha256':q10['security_report_sha256'],
+              'q10_effective_status':'PASS',
+              'q10_review_attestation':q10_approval,
+              'q15_phase2_sandbox_regression':json.loads(Path('evidence/Q15_CLEAN_MACHINE.json').read_text(encoding='utf-8'))['phase2_sandbox_regression'],
+              'q15_phase3_pipeline_regression':json.loads(Path('evidence/Q15_CLEAN_MACHINE.json').read_text(encoding='utf-8'))['phase3_pipeline_regression'],
+              'q14_alert_receiver_type':json.loads(Path('evidence/Q14_OBSERVABILITY_ALERT.json').read_text(encoding='utf-8'))['alert_receiver_type'],
+              'q14_production_destination_tested':json.loads(Path('evidence/Q14_OBSERVABILITY_ALERT.json').read_text(encoding='utf-8'))['production_destination_tested'],
+              'production_gate':'PASS',
+              'third_party_runtime_inventory_included':True,
+              'third_party_license_files_included':True,
+              'release_evidence_provenance':'PASS',
+              'release_evidence_provenance_sha256':provenance_sha,
+              'evidence_artifacts_included':True,
+              'artifact_provenance_manifest_sha256':artifact_manifest_sha,
+              'artifact_provenance':artifact_manifest['artifacts'],
+          }
+          Path('dist/RELEASE_MANIFEST.json').write_text(json.dumps(manifest,indent=2,sort_keys=True)+'\n',encoding='utf-8')
           PY
-          (cd dist && sha256sum -c SHA256SUMS)
-      - name: Upload production artifact
+          (cd dist && sha256sum "CK-NEXUS_PRODUCTION_${release_commit}.tar.gz" RELEASE_MANIFEST.json > SHA256SUMS && sha256sum -c SHA256SUMS)
+
+      - name: Verify main has not drifted during packaging
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+
+      - name: Upload production release artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ck-nexus-production-${{ github.sha }}

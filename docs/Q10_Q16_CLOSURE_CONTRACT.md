@@ -1,6 +1,8 @@
 # CK-NEXUS Q10-Q16 Production Closure Contract
 
-Adopted for the canonical Q09 baseline `45fde79c717b09f8675645aa541a5834ebd4f433`.
+Historical baseline: canonical Q09 `45fde79c717b09f8675645aa541a5834ebd4f433`.
+
+Current re-baseline (2026-11-05): source `34d7df48b35903d7861362a72b0d3a1fd8a3b201`, tree `af57e2a5202bc95bb07d321c65a57a623205333b`, runtime subject `3f414a4329d35f57cbc05b49f11cb34a184b276dbe1b528792d8cb4317dcc2f6`. The old Q09 baseline and all earlier Q10–Q16 evidence are historical and are not transferable to this subject.
 
 This document maps the remaining production blockers into explicit gates. It is a new closure contract for the current release line; it does not rewrite historical R-series evidence. Every gate is fail-closed. `PASS` applies only to evidence bound to the same immutable release identity. A partial/component pass never promotes the whole gate.
 
@@ -9,12 +11,13 @@ This document maps the remaining production blockers into explicit gates. It is 
 Required evidence:
 
 - exact-source frozen dependency install: `uv lock --check` and `uv sync --all-extras --dev --frozen`;
-- dependency vulnerability audit with no unaccepted finding;
-- layered open-source security scans: Bandit static analysis, repository secret scan, frozen-environment pip-audit, and black-box security attack regression;
-- successful reports and digests bound to the exact release subject;
-- unresolved reportable security finding => FAIL/NO-GO.
+- Semgrep static analysis, Bandit Python analysis, Gitleaks repository/history scan, frozen-environment `pip-audit`, and Trivy filesystem/configuration scan;
+- CK-NEXUS security attack regression and coverage/completeness verification;
+- tool versions, rule/configuration versions, per-tool exit codes, raw report hashes, source SHA/tree, runtime subject, and successful workflow provenance;
+- no exposed credential, dependency vulnerability, critical/high issue, medium/high Bandit issue, Semgrep ERROR, or failed security regression;
+- documented independent review of all findings, non-equivalence, scanner coverage and false-positive handling.
 
-No single scanner is sufficient. Q10 remains NOT_VERIFIED until every required scanner and regression succeeds, findings are resolved, and the aggregate evidence is bound to the exact release subject.
+The Owner approved the non-Codex evidence direction on 2026-11-05; see `docs/evidence/Q10_NATIVE_SCAN_RETIREMENT_DECISION.md`. This is not an equivalence claim. The immutable scanner evidence remains `NOT_VERIFIED` and is never rewritten. The release provenance verifier independently validates a real APPROVED GitHub PR review and a later Owner approval comment, both bound to the candidate SHA and report SHA. Only then may the final release manifest record an effective Q10 `PASS`.
 
 ## Q11 — Live AI/provider gate (P0-AI-001)
 

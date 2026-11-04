@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
-"""Read-only CK-NEXUS development status collector. Python stdlib only."""
+"""Read-only CK-NEXUS status collector with peer-bound provider probes."""
 from __future__ import annotations
 
 import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from creator_app.connector_fabric.transport import UrllibHttpTransport  # noqa: E402
+
 OUTPUT = Path(os.getenv("CKNEXUS_DEV_STATUS_FILE", ROOT / "data/dev_status.json"))
 TIMEOUT = 20
 SECRET_PATTERNS = (
@@ -267,21 +271,33 @@ def probe_qwen_daily() -> dict[str, Any]:
                 "max_tokens": 8,
             }
         ).encode()
-        req = Request(base + "/chat/completions", data=body, headers={
-            "Authorization": "Bearer " + key, "Content-Type": "application/json"})
         started = time.monotonic()
         try:
-            with urlopen(req, timeout=15) as response:
-                payload = json.loads(response.read(65536))
-                success = response.status == 200 and bool(payload.get("choices"))
-                result = {"last_success": now() if success else None,
-                          "last_failure": None if success else now(),
-                          "http_status": response.status,
-                          "latency_seconds": round(time.monotonic() - started, 2),
-                          "model": model}
-        except (HTTPError, URLError, TimeoutError, OSError) as exc:
-            result = {"last_success": None, "last_failure": now(),
-                      "detail": type(exc).__name__}
+            response = UrllibHttpTransport(max_response_bytes=65536).request(
+                "POST",
+                base + "/chat/completions",
+                headers={
+                    "Authorization": "Bearer " + key,
+                    "Content-Type": "application/json",
+                },
+                body=body,
+                timeout=15,
+            )
+            payload = json.loads(response.body)
+            success = response.status == 200 and bool(payload.get("choices"))
+            result = {
+                "last_success": now() if success else None,
+                "last_failure": None if success else now(),
+                "http_status": response.status,
+                "latency_seconds": round(time.monotonic() - started, 2),
+                "model": model,
+            }
+        except Exception as exc:
+            result = {
+                "last_success": None,
+                "last_failure": now(),
+                "detail": type(exc).__name__,
+            }
         state_file.parent.mkdir(parents=True, exist_ok=True)
         tmp = state_file.with_suffix(".tmp")
         tmp.write_text(

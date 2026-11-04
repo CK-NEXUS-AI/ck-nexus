@@ -147,3 +147,44 @@ def test_collect_does_not_use_non_readonly_github_credentials(monkeypatch) -> No
     assert not any(args[:2] == ["gh", "pr"] for args in calls)
     assert not any(args[:2] == ["gh", "issue"] for args in calls)
     assert not any(args[:2] == ["gh", "run"] for args in calls)
+
+
+def test_qwen_probe_uses_peer_bound_transport_and_redacts_credential(
+    tmp_path, monkeypatch
+) -> None:
+    import json
+
+    monkeypatch.setattr(collector, "OUTPUT", tmp_path / "dev_status.json")
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "test-secret-never-persist")
+    monkeypatch.setenv("QWEN_MODEL", "qwen-test")
+    monkeypatch.setenv(
+        "DASHSCOPE_BASE_URL",
+        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    )
+    calls = []
+
+    class Response:
+        status = 200
+        body = b'{"choices":[{"message":{"content":"OK"}}]}'
+
+    class FakeTransport:
+        def __init__(self, *, max_response_bytes):
+            assert max_response_bytes == 65536
+
+        def request(self, method, url, *, headers, body, timeout):
+            calls.append((method, url, headers, body, timeout))
+            return Response()
+
+    monkeypatch.setattr(collector, "UrllibHttpTransport", FakeTransport)
+    result = collector.probe_qwen_daily()
+
+    assert result["status"] == "ok"
+    assert len(calls) == 1
+    method, url, headers, body, timeout = calls[0]
+    assert method == "POST"
+    assert url.endswith("/chat/completions")
+    assert headers["Authorization"] == "Bearer test-secret-never-persist"
+    assert json.loads(body)["model"] == "qwen-test"
+    assert timeout == 15
+    state = (tmp_path / "qwen_probe_state.json").read_text(encoding="utf-8")
+    assert "test-secret-never-persist" not in state
