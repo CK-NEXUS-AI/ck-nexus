@@ -1,0 +1,115 @@
+name: Closure Master Preflight V2
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/release-tools/**'
+      - '.github/workflows/closure-master-preflight-v2.yml'
+      - '.github/workflows/closure-converge-v3.yml'
+      - 'evidence/closure/**'
+      - 'evidence/q10/**'
+      - 'evidence/q11/**'
+      - 'evidence/q12/**'
+      - 'docs/PRODUCTION_CLOSURE_MASTER_V2.md'
+      - 'docs/PRODUCTION_CLOSURE_AUTOMATION_V3.md'
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile all closure tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            .github/release-tools/closure_master.py \
+            .github/release-tools/cknexus_gpt_parallel_contract_sim.py \
+            .github/release-tools/codex_security_bridge.py \
+            .github/release-tools/q11_live_runner.py \
+            .github/release-tools/q12_cgroup_runner.py \
+            .github/release-tools/reconcile_provenance.py \
+            .github/release-tools/build_final_package.py \
+            .github/release-tools/canonical_verifier_handoff.py \
+            .github/release-tools/promote_closure_evidence.py \
+            .github/release-tools/wait_for_workflow_artifact.py \
+            .github/release-tools/dispatch_workflow_and_require_artifact.py
+      - name: Validate closure manifest remains fail-closed
+        run: |
+          python - <<'PY'
+          import json
+          p='evidence/closure/CKNEXUS_CLOSURE_MANIFEST_V2.json'
+          d=json.load(open(p,encoding='utf-8'))
+          assert d['production_status']=='NO-GO'
+          assert d['gates']['Q10']['state']=='NOT_VERIFIED'
+          assert d['gates']['Q11']['state']=='BLOCKED'
+          assert d['gates']['Q12']['state']=='BLOCKED'
+          assert d['runtime_source']=='39f5c1adb9d761ab418cf088ff1f051b1ca731d1'
+          assert d['runtime_source_tree']=='0525195934f703a8becf8a39f6397b2411e0bb2e'
+          assert d['runtime_subject']=='89f2925cd871332b16f755f0dae1e058826c38b728f66d2001f2eaaec6301a52'
+          PY
+      - name: Prove Q10 bridge fails closed without native evidence
+        shell: bash
+        run: |
+          set +e
+          python .github/release-tools/codex_security_bridge.py \
+            --scan-manifest /tmp/missing-scan-manifest.json \
+            --report /tmp/missing-report.md \
+            --baseline-evidence evidence/Q10_DEPENDENCY_AUDIT.json \
+            --output q10-missing-result.json
+          rc=$?
+          set -e
+          test "$rc" -eq 2
+          python - <<'PY'
+          import json
+          d=json.load(open('q10-missing-result.json',encoding='utf-8'))
+          assert d['result']=='BLOCKED'
+          assert d['production_promotion_allowed'] is False
+          PY
+      - name: Prove closure master fails closed on current BLOCKED evidence
+        shell: bash
+        run: |
+          set +e
+          python .github/release-tools/closure_master.py \
+            --q10 evidence/Q10_DEPENDENCY_AUDIT.json \
+            --q11 evidence/Q11_OPENAI_LIVE.json \
+            --q12 evidence/Q12_CGROUP_V2.json \
+            --provenance /tmp/missing-provenance.json \
+            --output closure-current-result.json
+          rc=$?
+          set -e
+          test "$rc" -eq 2
+          python - <<'PY'
+          import json
+          d=json.load(open('closure-current-result.json',encoding='utf-8'))
+          assert d['status']=='NO-GO'
+          assert d['errors']
+          PY
+      - name: Run 25-case architecture contract simulation
+        run: |
+          python .github/release-tools/cknexus_gpt_parallel_contract_sim.py > cknexus-gpt-parallel-contract-sim.json
+      - name: Confirm templates do not claim PASS
+        run: |
+          python - <<'PY'
+          import json
+          for p in ['evidence/q11/Q11_LIVE_PROVIDER_TEMPLATE_V2.json','evidence/q12/Q12_CGROUP_V2_TEMPLATE_V2.json']:
+              d=json.load(open(p,encoding='utf-8'))
+              assert d['result']=='BLOCKED'
+              assert d['production_promotion_allowed'] is False
+          PY
+      - name: Upload simulation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: closure-master-preflight-v2
+          path: |
+            cknexus-gpt-parallel-contract-sim.json
+            q10-missing-result.json
+            closure-current-result.json
+          if-no-files-found: error

@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "classification": "POST_P0_BACKLOG_NOT_PRODUCTION_EVIDENCE",
+  "governor": "CK-NEXUS",
+  "authority_rule": "Capabilities propose/execute only through governed leases; no skill is authority by itself.",
+  "categories": {
+    "cognitive": ["intent-understanding","planning","task-graph","council","debate","shadow-evaluation","provider-routing","uncertainty-handling"],
+    "research": ["web-research","document-research","source-ranking","knowledge-synthesis","citation-provenance","browser-intelligence"],
+    "agents": ["AGNES","architect","research-analyst","product-ux","engineering-automation","security-qa-devops"],
+    "execution": ["sandbox-execution","workflow-engine","retry","circuit-breaker","idempotency","compensation","reconciliation"],
+    "security_governance": ["cognitive-governor","policy-engine","capability-leases","credential-broker","approval-flow","council-veto","fail-closed-gates","quarantine","supply-chain-provenance"],
+    "memory_knowledge": ["memory-records","knowledge-claims","RAG","knowledge-graph","retention-forgetting","skill-ingestion","evidence-bound-memory"],
+    "providers_protocols": ["OpenAI","Anthropic","Google","local-models","MCP","A2A","REST","OpenAPI","OAuth","webhooks"],
+    "integrations": ["GitHub","GitLab","Slack","Telegram","Microsoft-Teams","Gmail","Outlook","Google-Drive","Dropbox","Box","OneDrive","Notion","Confluence","Jira","Linear","Trello","Asana","ClickUp","Google-Sheets","Airtable","Salesforce","HubSpot","Zendesk","Shopify","Stripe","Figma","Canva","Zapier","Make"],
+    "data_infra": ["PostgreSQL","SQLite","Redis","Neon","Supabase","Docker","cgroup-v2","observability","Prometheus","Alertmanager"],
+    "ui": ["Cognitive-Control-Universe","12-level-zoom","AI-Office-2.5D","Evidence-Ledger","Command-Palette","Event-Timeline","Simple-Advanced-Engineer-Auditor-modes"],
+    "release_evidence": ["exact-subject-verification","SHA-256","artifact-provenance","secret-scan","dependency-audit","deep-security-scan","live-provider-smoke","cgroup-enforcement","final-package"]
+  },
+  "activation_policy": {
+    "default": "DENY",
+    "requirements": ["publisher/source provenance", "manifest/schema digest", "least-privilege capability", "lease expiry", "credential isolation", "sandbox/quarantine where applicable", "independent verification", "evidence receipt"],
+    "production_promotion": "Requires separate exact-subject release evidence; catalogue presence never means installed/connected/executed/verified."
+  }
+}
