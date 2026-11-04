@@ -1,51 +1,70 @@
 # CK-NEXUS — System Development Dashboard
 
-> **สถานะระบบ:** 🚧 Development / Pre-Production · `production_status = NO-GO` · อัปเดตจากการตรวจ VPS และ Repository วันที่ 23 ตุลาคม 2026
-> **หลักฐานสำคัญ:** ชุดทดสอบ Control Plane + Remote MCP ที่เลือกผ่าน 84 tests; ยังไม่ใช่ผลทดสอบเต็มทั้ง Repository หรือการรับรอง Production
-> **หน้า UI:** เปิด `/development` หลังรัน Creator App เพื่อดูเปอร์เซ็นต์ถ่วงน้ำหนัก, workstreams, เครื่องมือ, ผลตรวจสอบ และงานถัดไป
+> Canonical runtime: `python -m creator_app.unified`
+> Compatibility note: `python main.py` and the legacy shell launchers remain available as compatibility entry points, but the repo's canonical app runtime is `creator_app.unified`.
+> Production status: `NO-GO` — repository metadata and CI evidence are available, but Q10–Q16 gate execution and independent review remain incomplete.
+
+> **สถานะระบบ:** 🚧 Development / Pre-Production · `production_status = NO-GO` · อัปเดตจากการตรวจ VPS และ Repository วันที่ 2026-11-04
+> **หลักฐานสำคัญ:** CK-NEXUS CI / Trusted Verifier Image CI และ Code Quality บน main สำเร็จ; ผลดังกล่าวเป็น CI evidence ไม่ใช่ production certification และไม่ลดระดับ Q10–Q16 ที่ยังคง `NOT_VERIFIED / BLOCKED`.
+> **หน้า UI:** เปิด `/development` หลังรัน Creator App เพื่อดูสถานะหลักฐานและแหล่งข้อมูลที่ตรวจยืนยันได้
 
 ## ภาพรวมใน 1 นาที
 
 | หมวด | สถานะจริงล่าสุด | หลักฐาน / ข้อจำกัด |
 |---|---|---|
-| Control Plane | ✅ ทดสอบชุดเป้าหมายผ่าน | 84 passed หลังแก้ MCP SDK compatibility |
-| MCP Service | ✅ Active · Localhost only | `127.0.0.1:8765`; ห้ามเปิดสู่ Internet |
-| API Gateway / Scanner | ✅ Active | ตรวจสถานะ systemd จาก VPS |
-| Watchdog | ✅ Timer Active | ต้องตรวจผลการฟื้นตัวเมื่อเกิดเหตุจริงแยกต่างหาก |
-| Disk | ⚠️ เฝ้าระวัง | Root 81% ใช้ 32 GB / เหลือ 7.5 GB |
-| Git worktree | ⚠️ มีงานค้าง | `main` ahead 7; `uv.lock` ถูกแก้ไข และมีไฟล์สถานะใหม่ 2 ไฟล์ก่อนการแก้รอบนี้ |
-| Model Studio | ⏳ ยังไม่ยืนยัน Inference | HTTPS เชื่อมต่อได้; ยังไม่ได้ทดสอบ API Key/เรียกโมเดลจริง |
-| Production | 🔒 **NO-GO** | ยังไม่ผ่าน End-to-End และ Deployment Verification |
+| Repository metadata | ✅ Verified | GitHub repo metadata and branch state fetched from GitHub API |
+| CI / tests | ✅ Success on main | `CK-NEXUS CI`, `Trusted Verifier Image CI`, `Code Quality: Push on main` completed successfully |
+| Security scan | ❌ Not verified | Q10 layered open-source security gate remains `PREPARED_NOT_EXECUTED` / `NOT_VERIFIED` |
+| Runtime health | ⚠️ Not independently verified | Local execution not performed in this session; no live runtime evidence claimed |
+| Production readiness | 🔒 **NO-GO** | Q10–Q16 evidence remains incomplete; no production claim or release gate pass |
 
-> **เปอร์เซ็นต์ความคืบหน้า:** ยังไม่แสดงตัวเลขรวม เพราะยังไม่มีสูตรคำนวณที่ผูกกับ GitHub Issues/Milestones และหลักฐานการทดสอบอย่างครบถ้วน การใส่เปอร์เซ็นต์ตอนนี้จะเป็นการคาดเดา
+> **เปอร์เซ็นต์ความคืบหน้า:** ยังไม่แสดงตัวเลขรวมเพราะไม่ได้มีหลักฐานขั้นสุดท้ายต่อ Q10–Q16.
+
+## Canonical runtime and compatibility
+
+The repository has multiple startup paths. The canonical runtime for the application is:
+
+```bash
+python -m creator_app.unified
+```
+
+Compatibility entry points that still exist and remain supported are:
+
+```bash
+python main.py
+./start.sh
+./start_unified.sh
+```
+
+These legacy launcher paths are compatibility wrappers. They are not the process that should be used as the documented canonical runtime in onboarding or release documentation.
 
 ## แผนผังสถาปัตยกรรม
 
 ```text
                     CK-NEXUS PLATFORM
                             |
-            +---------------+----------------+
-            |                                |
-       Control Plane                    MCP / API Layer
-   Task Store · Worker · Verify       Gateway · MCP Tools
-            |                                |
-            +---------------+----------------+
-                            |
-                 Safety / Execution Gates
-          Safe Canary only · Least Privilege
-                            |
-                Evidence · Tests · Audit Logs
+             +---------------+----------------+
+             |                                |
+        Control Plane                    MCP / API Layer
+    Task Store · Worker · Verify       Gateway · MCP Tools
+             |                                |
+             +---------------+----------------+
+                             |
+                  Safety / Execution Gates
+           Safe Canary only · Least Privilege
+                             |
+                 Evidence · Tests · Audit Logs
 
-   Model Studio / Qwen ── pending authenticated inference
-   Production Gate     ── NO-GO (locked)
+    Model Studio / Qwen ── pending authenticated inference
+    Production Gate     ── NO-GO (locked)
 ```
 
 ## Roadmap ตามลำดับความสำคัญ
 
-1. **P0 — รักษาสถานะและตรวจความต่าง**: เก็บ Git diff/ไฟล์ที่ยังไม่ติดตาม ตรวจ Dependency และแยกโค้ดใน Repository ออกจากโค้ดที่ Deploy อยู่
+1. **P0 — รักษาสถานะและตรวจความต่าง**: เก็บ Git diff/ไฟล์ที่ยังไม่ติดตาม ตรวจ Dependency และเก็บหลักฐาน
 2. **P1 — MCP Regression & Deployment**: ตรวจ SDK compatibility, ทดสอบ Auth/Resource/Audience และทำ Canary หลัง Deploy ก่อน Restart บริการ
-3. **P2 — Model Studio**: ตรวจ Credential ผ่านช่องทางปลอดภัยและเรียกโมเดลจริงเมื่อได้รับอนุญาตด้านค่าใช้จ่าย
-4. **P3 — Autonomous Workflow**: เพิ่ม Handler ที่ได้รับอนุมัติ, Sandbox และ Dependency-aware dispatch; คงการทำงานไว้ที่ Safe Canary จนกว่าจะผ่าน Gate
+3. **P2 — Model Studio**: ตรวจ Credential ผ่านช่องทางปลอดภัยและเรียกโมเดลจริงเมื่อได้รับอนุญาต
+4. **P3 — Autonomous Workflow**: เพิ่ม Handler ที่ได้รับอนุมัติ, Sandbox และ Dependency-aware dispatch; คงการทำงานไว้ที่ safe frontier
 5. **P4 — Production Readiness**: End-to-End, Security Review, Rollback และหลักฐานการทดสอบครบก่อนเปลี่ยน NO-GO
 
 ## Safety Gates
@@ -56,6 +75,7 @@
 - ห้าม Reset/Clean/Merge/Auto-commit งานเดิมโดยไม่ตรวจ diff และเก็บหลักฐาน
 - ห้ามแสดง API Key, Token หรือข้อมูลรับรองใน Log/README
 - ห้ามอ้างว่า Model Studio ทำงานจริงจนกว่าจะมีผล Inference ที่ยืนยันได้
+- No evidence -> no done. Q10–Q16 remains blocked until actual execution and reviewer evidence exists.
 
 ## ลิงก์และหลักฐาน
 
@@ -64,37 +84,14 @@
 - [GitHub Actions](https://github.com/CK-NEXUS-AI/ck-nexus/actions)
 - [Execution Ledger / progress.md](progress.md)
 - [Project Status](PROJECT_STATUS.md)
+- [Release Status](RELEASE_STATUS.md)
+- [Q10 Closure Contract](docs/Q10_Q16_CLOSURE_CONTRACT.md)
 - [Control Plane tests](tests/)
 - [แผนงานและรายงาน](docs/plans/)
-- [รายงาน Hardening](docs/plans/2026-10-22-phase-abc-hardening-report.md)
 
 ---
 
-
-> สถานะรุ่นนี้: **Creator Edition v0.2.0 candidate** — ใช้งานและทดสอบได้ครบใน Demo Mode, รองรับ Demo Mode และ provider routing; Live Mode ต้องผ่านการทดสอบ API จริงก่อนยืนยัน
-
-## สิ่งที่มีในรุ่น MVP
-
-- เว็บแอปภาษาไทย Responsive ใช้ได้บนมือถือและเดสก์ท็อป
-- Minimalist Typography & Motion UI แบบไม่ใช้ icon font, emoji หรือ third-party frontend CDN
-- 3 ธีม: Deep Midnight, Clean Alabaster และ Cyber Aurora พร้อมเลือกอัตโนมัติตามเวลา
-- Text-based runtime status, number ticker, magnetic hover, kinetic mesh และ reduced-motion mode
-- Command Palette แบบ text-only ผ่าน `Ctrl/Cmd + K`
-- Creator Agents 4 ตัว
-  - Content Strategist
-  - Script Writer
-  - Repurpose Studio
-  - Editorial Reviewer
-- OpenAI Agents SDK runtime พร้อม session memory แบบ SQLite
-- Demo Mode สำหรับสาธิตและทดสอบโดยไม่เสียค่า API
-- Local run history และ API สำหรับอ่านผลย้อนหลัง
-- Copy/ดาวน์โหลดผลงานเป็น `.txt` และลบ history/memory ของ session จากหน้าเว็บ
-- Optional bearer token สำหรับการเปิดใช้ผ่านเครือข่าย
-- Request-size limit, rate limit, validation และ security headers
-- Health/status endpoints, Dockerfile, automated tests และ release check
-- Commercial license template และ seller checklist
-- OpenCode-based Auto Developer พร้อม isolated Git worktree และการตรวจสอบผลหลังทำงาน
-- โมดูล Billing เดิมถูกเก็บไว้เป็น optional extra และไม่อยู่ใน critical path ของรุ่นขายซอร์ส
+> สถานะรุ่นนี้: **Creator Edition v0.2.0 candidate** — ใช้งานและทดสอบได้ใน Demo Mode ภายใต้เงื่อนไขไม่ใช่ Production Ready. ความปลอดภัยและ Q10–Q16 ยังต้องผ่านการทดสอบจริงและ review ที่เป็นอิสระก่อนจะมีผลการยืนยันผลิตภัณฑ์.
 
 ## เริ่มใช้งานเร็วที่สุด
 
@@ -105,7 +102,7 @@ cp .env.example .env.local
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -e ".[dev]"
-python main.py
+python -m creator_app.unified
 ```
 
 Windows PowerShell:
@@ -114,14 +111,12 @@ Windows PowerShell:
 Copy-Item .env.example .env.local
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
-.\.venv\Scripts\python.exe main.py
+.\.venv\Scripts\python.exe -m creator_app.unified
 ```
 
 เปิด `http://127.0.0.1:8000`
 
-หลังติดตั้ง package แล้วสามารถใช้คำสั่ง `ck-nexus` ได้โดยตรง ระบบจะอ่าน `.env.local` และเก็บ `data/` ใต้ working directory ปัจจุบัน หรือใต้ `CKNEXUS_HOME` หากตั้งค่าไว้
-
-ไฟล์ตัวอย่างเปิด `CKNEXUS_MOCK_AI=true` เพื่อให้ผู้ซื้อทดลองระบบได้ทันทีโดยไม่ใช้ API key
+หลังติดตั้ง package แล้วสามารถใช้คำสั่ง `ck-nexus` ได้โดยตรง ระบบจะอ่าน `.env.local` และเริ่มจาก `creator_app.unified` โดยตรง
 
 ## เปิด Live Mode
 
@@ -153,7 +148,7 @@ uv build
 python scripts/package_release.py
 ```
 
-`pip-audit` เป็นการตรวจ dependency ที่ติดตั้งอยู่ใน environment ปัจจุบัน จึงควรรันอีกครั้งจาก clean environment ก่อนส่งมอบทุกเวอร์ชัน
+`pip-audit` เป็นการตรวจ dependency ที่ติดตั้งอยู่ใน environment ปัจจุบัน จึงควรรันอีกครั้งต่อเมื่อมี environment ที่ตรงกับ subject และมีหลักฐาน full scan เป็นจริง
 
 ## API หลัก
 
@@ -177,12 +172,13 @@ creator_app/
   api.py            HTTP API, auth gate, limits, security headers
   catalog.py        Creator Agent catalog และ instructions
   runtime.py        OpenAI Agents SDK / Demo Mode
+  unified.py        Canonical runtime entry point
   dev_team.py       Lead Orchestrator + 5 Development Council advisers
   storage.py        Local SQLite history
   web/              หน้าเว็บแบบไม่มี third-party CDN
-docs/               build brief, architecture, prompt และคู่มือผู้ขาย
-tests/              API, storage, auth, rate-limit และ configuration tests
-services/billing/   โมดูล SaaS เดิม (optional, ไม่เปิดใช้ใน Creator Edition)
+  docs/             build brief, architecture, prompt และคู่มือผู้ขาย
+  tests/            API, storage, auth, rate-limit และ configuration tests
+services/billing/  โมดูล SaaS เดิม (optional, ไม่เปิดใช้ใน Creator Edition)
 ```
 
 ## ขอบเขตที่ยังไม่ควรโฆษณาเกินจริง
@@ -193,15 +189,13 @@ services/billing/   โมดูล SaaS เดิม (optional, ไม่เป
 - License template ต้องใส่ชื่อผู้ขาย เงื่อนไข support และผ่านการตรวจทางกฎหมายก่อนใช้จริง
 - หากเปิดใช้อินเทอร์เน็ตสาธารณะ ควรวางหลัง HTTPS reverse proxy และตั้ง `CKNEXUS_ACCESS_TOKEN`
 
-อ่าน [Release Checklist](docs/RELEASE_CHECKLIST.md) ก่อนออก release จริง ส่วน Commercial License / Seller Checklist อยู่ใน seller package แยกจาก source repository เพื่อไม่ปะปนเอกสารธุรกรรมกับโค้ดส่งมอบ
+อ่าน [Release Checklist](docs/RELEASE_CHECKLIST.md) ก่อนออก release จริง ส่วน Commercial License / Seller Checklist อยู่ใน seller package แยกต่างหาก
 
-รายละเอียด Integration Hub อยู่ใน [Integration Hub](docs/INTEGRATION_HUB.md), ทีมผู้ช่วยพัฒนาอยู่ใน [Development Council](docs/DEVELOPMENT_COUNCIL.md) และสถานะปัจจุบันอยู่ใน [Release Status](RELEASE_STATUS.md)
-
-รายละเอียด UI อยู่ใน [UX Design System](docs/UX_DESIGN_SYSTEM.md), ผลตรวจอยู่ใน [Security Audit](docs/SECURITY_AUDIT.md) และ [Test Report](docs/TEST_REPORT.md)
+รายละเอียด Integration Hub อยู่ใน [Integration Hub](docs/INTEGRATION_HUB.md), ทีมผู้ช่วยพัฒนาอยู่ใน [Development Council](docs/DEVELOPMENT_COUNCIL.md), และผลตรวจอยู่ใน [Security Audit](docs/SECURITY_AUDIT.md) และ [Test Report](docs/TEST_REPORT.md)
 
 ## เอกสารอ้างอิงทางเทคนิค
 
-Agent runtime ออกแบบตาม [OpenAI Agents SDK guide](https://developers.openai.com/api/docs/guides/agents) และใช้ `Runner.run` พร้อม local session memory ตาม [Running agents](https://developers.openai.com/api/docs/guides/agents/running-agents)
+Agent runtime ออกแบบตาม [OpenAI Agents SDK guide](https://developers.openai.com/api/docs/guides/agents) และใช้ `Runner.run` พร้อม local session memory ที่ไม่ใช่ production evidence สำหรับ Q10-Q16.
 
 ## R7 Credential Broker & Provider Router Cutover
 
@@ -228,3 +222,4 @@ isolated sandbox. It adds real seccomp-BPF filtering, no-new-privileges/capabili
 integration hooks, distributed Redis/PostgreSQL idempotency adapters, workspace lifecycle, pipeline
 state/evidence, and candidate artifacts. The pipeline always stops before merge and production deploy.
 See `docs/AGNES_EXECUTION_KERNEL_PHASE3_HARDENED_PIPELINE.md`.
+
