@@ -1,2 +1,0 @@
-CK-NEXUS unified control package trigger.
-The final packaging workflow must run from this commit or a descendant on agent/unified-control-package.
