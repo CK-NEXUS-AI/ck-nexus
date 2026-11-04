@@ -7,6 +7,7 @@ import threading
 import time
 from collections import defaultdict
 from dataclasses import dataclass
+from hashlib import sha256
 from uuid import uuid4
 
 CORRELATION_HEADER = "X-Correlation-ID"
@@ -115,3 +116,128 @@ class MetricsRegistry:
             for (method, route), count in sorted(self._errors.items()):
                 lines.append(f'ckn_http_5xx_total{{method="{method}",route="{route}"}} {count}')
             return lines
+
+
+_GENAI_ALLOWED_OPERATIONS = {
+    "chat",
+    "create_agent",
+    "embeddings",
+    "execute_tool",
+    "generate_content",
+    "invoke_agent",
+    "invoke_workflow",
+    "retrieval",
+    "text_completion",
+}
+
+_GENAI_ALLOWED_EXTRA_ATTRIBUTES = frozenset(
+    {
+        "gen_ai.response.id",
+        "gen_ai.response.model",
+        "gen_ai.response.time_to_first_chunk",
+        "gen_ai.usage.input_tokens",
+        "gen_ai.usage.output_tokens",
+        "gen_ai.usage.cache_read.input_tokens",
+        "gen_ai.usage.cache_creation.input_tokens",
+        "gen_ai.usage.reasoning.output_tokens",
+        "gen_ai.workflow.name",
+        "cknexus.workflow.id",
+        "cknexus.node.id",
+    }
+)
+
+
+@dataclass(frozen=True, slots=True)
+class CKExecutionContext:
+    task_id: str
+    run_id: str
+    correlation_id: str
+    causation_id: str | None = None
+    agent_id: str | None = None
+    tool_id: str | None = None
+    evidence_id: str | None = None
+    verifier_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class GenAISpanEnvelope:
+    span_name: str
+    attributes: dict[str, str | int | float | bool]
+    links: dict[str, str]
+
+
+class OTelGenAIBridge:
+    """Build safe exporter-neutral GenAI correlation metadata without exporting it."""
+
+    @staticmethod
+    def build_span(
+        *,
+        operation: str,
+        context: CKExecutionContext,
+        provider_name: str | None = None,
+        request_model: str | None = None,
+        response_model: str | None = None,
+        extra_attributes: dict[str, str | int | float | bool] | None = None,
+    ) -> GenAISpanEnvelope:
+        operation = operation.strip()
+        if operation not in _GENAI_ALLOWED_OPERATIONS:
+            raise ValueError("unsupported_gen_ai_operation")
+        if not context.task_id or not context.run_id or not context.correlation_id:
+            raise ValueError("ck_execution_identity_incomplete")
+
+        attrs: dict[str, str | int | float | bool] = {
+            "gen_ai.operation.name": operation,
+            "cknexus.task.id": context.task_id,
+            "cknexus.run.id": context.run_id,
+            "cknexus.correlation.id": context.correlation_id,
+            "cknexus.telemetry.content_recording": False,
+        }
+        if context.agent_id:
+            attrs["cknexus.agent.id"] = context.agent_id
+        if context.tool_id:
+            attrs["cknexus.tool.id"] = context.tool_id
+        if context.verifier_id:
+            attrs["cknexus.verifier.id"] = context.verifier_id
+        if provider_name:
+            attrs["gen_ai.provider.name"] = provider_name
+        if request_model:
+            attrs["gen_ai.request.model"] = request_model
+        if response_model:
+            attrs["gen_ai.response.model"] = response_model
+
+        for key, value in (extra_attributes or {}).items():
+            if key not in _GENAI_ALLOWED_EXTRA_ATTRIBUTES:
+                raise ValueError(f"gen_ai_attribute_not_allowlisted:{key}")
+            attrs[key] = value
+
+        links: dict[str, str] = {
+            "task": _genai_digest_ref(context.task_id),
+            "run": _genai_digest_ref(context.run_id),
+            "correlation": _genai_digest_ref(context.correlation_id),
+        }
+        if context.causation_id:
+            links["causation"] = _genai_digest_ref(context.causation_id)
+        if context.evidence_id:
+            links["evidence"] = _genai_digest_ref(context.evidence_id)
+
+        return GenAISpanEnvelope(
+            span_name=f"gen_ai.{operation}",
+            attributes=attrs,
+            links=links,
+        )
+
+    @staticmethod
+    def safe_baggage(context: CKExecutionContext) -> dict[str, str]:
+        """Return only non-secret CK correlation identifiers suitable for propagation."""
+        baggage = {
+            "cknexus.task.id": context.task_id,
+            "cknexus.run.id": context.run_id,
+            "cknexus.correlation.id": context.correlation_id,
+        }
+        if context.causation_id:
+            baggage["cknexus.causation.id"] = context.causation_id
+        return baggage
+
+
+def _genai_digest_ref(value: str) -> str:
+    return f"sha256:{sha256(value.encode('utf-8')).hexdigest()}"
