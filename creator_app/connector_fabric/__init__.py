@@ -1,3 +1,15 @@
+from creator_app.connector_fabric.access_governance import (
+    AccessOutcome,
+    ConsentValidator,
+    ExternalAccessClass,
+    ExternalAccessDecision,
+    ExternalAccessGovernor,
+    ExternalAccessRequest,
+    ExternalAction,
+    IngestionAssessment,
+    assess_external_content,
+    content_sha256,
+)
 from creator_app.connector_fabric.evidence import ConnectorEvidenceLedger
 from creator_app.connector_fabric.fabric import (
     ConnectorFabric,
@@ -16,17 +28,27 @@ from creator_app.connector_fabric.openapi import OpenAPIClient
 from creator_app.connector_fabric.registry import ConnectorRegistry
 
 __all__ = [
+    "AccessOutcome",
+    "ConsentValidator",
     "ConnectorConfig",
     "ConnectorEvidenceLedger",
     "ConnectorFabric",
     "ConnectorProtocol",
     "ConnectorRegistry",
     "ConnectorState",
+    "ExternalAccessClass",
+    "ExternalAccessDecision",
+    "ExternalAccessGovernor",
+    "ExternalAccessRequest",
+    "ExternalAction",
     "FailClosedAuthorizer",
+    "IngestionAssessment",
     "MCPClient",
     "MCP_PROTOCOL_VERSION",
     "NormalizedTool",
     "OpenAPIClient",
     "RiskClass",
     "ToolAuthorizationDecision",
+    "assess_external_content",
+    "content_sha256",
 ]
