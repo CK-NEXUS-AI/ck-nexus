@@ -1,0 +1,82 @@
+name: Semgrep Exact Finding Proof 2026-09-04
+
+on:
+  push:
+    branches:
+      - security/semgrep-exact-proof-20260904
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BASE_SHA: b4146db8e23dff49520cbbc9d0194a15bcc5872d
+
+jobs:
+  exact-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify development branch ancestry and clean tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          test -z "$(git status --porcelain=v1)"
+          printf 'base=%s\nhead=%s\ntree=%s\n' \
+            "$BASE_SHA" "$(git rev-parse HEAD)" "$(git rev-parse HEAD^{tree})" \
+            > subject-binding.txt
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install locked development environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip uv
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+
+      - name: Run exact Semgrep finding regression proofs
+        shell: bash
+        run: |
+          set -euo pipefail
+          .venv/bin/pytest -q tests/test_semgrep_exact_findings_regression.py \
+            creator_app/dynamic_verifier/tests/test_verifier.py
+          .venv/bin/pytest -q tests/test_agnes_execution_kernel_phase2.py \
+            -k workspace_requires_full_commit_and_rejects_symlinks
+
+      - name: Compile and lint proof delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          .venv/bin/python -m compileall -q tests/test_semgrep_exact_findings_regression.py
+          .venv/bin/ruff check tests/test_semgrep_exact_findings_regression.py
+
+      - name: Record proof boundary
+        shell: bash
+        run: |
+          cat > proof-boundary.txt <<'EOF'
+          DEVELOPMENT SECURITY PROOF ONLY
+          Passing regression tests can support false-positive triage but do not erase scanner findings automatically.
+          No Semgrep rule is disabled or broadly suppressed by this workflow.
+          Q10 remains NOT_VERIFIED; Q11/Q12 remain BLOCKED; Production remains NO-GO.
+          EOF
+          sha256sum subject-binding.txt proof-boundary.txt > SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: semgrep-exact-finding-proof
+          path: |
+            subject-binding.txt
+            proof-boundary.txt
+            SHA256SUMS
+          if-no-files-found: error
