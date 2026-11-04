@@ -1,0 +1,56 @@
+name: Q10 Read-Only Source Materialization Helper
+
+on:
+  push:
+    branches:
+      - ops/q10-source-materialization-helper
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  package-frozen-source:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout helper history read-only
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify frozen subject exists and tree matches
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET_SHA="39f5c1adb9d761ab418cf088ff1f051b1ca731d1"
+          EXPECTED_TREE="0525195934f703a8becf8a39f6397b2411e0bb2e"
+          git cat-file -e "${TARGET_SHA}^{commit}"
+          TREE_SHA="$(git rev-parse "${TARGET_SHA}^{tree}")"
+          test "$TREE_SHA" = "$EXPECTED_TREE"
+          {
+            echo "repository=spinlnw10-art/ck-nexus"
+            echo "target_sha=$TARGET_SHA"
+            echo "target_tree_sha=$TREE_SHA"
+            echo "materialization_mode=git-archive-from-read-only-actions-checkout"
+          } > q10-source-identity.txt
+
+      - name: Archive exact frozen subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET_SHA="39f5c1adb9d761ab418cf088ff1f051b1ca731d1"
+          git archive --format=tar.gz --output=q10-frozen-source-39f5c1adb9d7.tar.gz "$TARGET_SHA"
+          sha256sum q10-frozen-source-39f5c1adb9d7.tar.gz | tee q10-frozen-source.sha256
+
+      - name: Upload frozen source artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: q10-frozen-source-39f5c1adb9d7
+          path: |
+            q10-frozen-source-39f5c1adb9d7.tar.gz
+            q10-frozen-source.sha256
+            q10-source-identity.txt
+          if-no-files-found: error
+          retention-days: 3
