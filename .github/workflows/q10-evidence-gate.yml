@@ -68,7 +68,8 @@ jobs:
         run: |
           set +e
           cd "$GITHUB_WORKSPACE"
-          .venv/bin/pip-audit --local --skip-editable --progress-spinner off --format json --output $RUNNER_TEMP/q10-results/q10-pip-audit.json
+          mkdir -p "$RUNNER_TEMP/q10-results"
+          .venv/bin/pip-audit --local --skip-editable --progress-spinner off --format json --output "$RUNNER_TEMP/q10-results/q10-pip-audit.json"
           echo "Q10_PIP_AUDIT_RC=$?" >> "$GITHUB_ENV"
           exit 0
 

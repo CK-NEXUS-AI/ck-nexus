@@ -2,6 +2,15 @@
 
 The Q10 scanner artifact is immutable and remains `gate_result=NOT_VERIFIED`. The final release provenance verifier calculates effective Q10 approval only from GitHub API-backed human attestations on the closure PR.
 
+## Scanner finding classification
+
+The raw Semgrep JSON is always retained. An ERROR finding blocks the security assessment when its metadata category is security or is absent/unknown. The explicitly non-security categories maintainability, correctness, best-practice, and performance remain visible in the report review queue and do not, by themselves, block a security-only assessment.
+
+The two broad audit rules dangerous-subprocess-use-audit and dangerous-asyncio-create-exec-audit are not treated as resolved or ignored. Their call sites are counted separately as semgrep_subprocess_audit_review and must be reviewed by the independent reviewer. Tainted-input and command-injection rules remain blocking.
+
+The repository .gitleaksignore contains only exact fingerprints for triaged synthetic test fixtures, blank .env.example values, and one documentation phrase false positive. It contains no path-wide or rule-wide exclusions. The independent reviewer must inspect each exact fingerprint and its rationale; any new fingerprint is blocking until separately investigated.
+
+
 ## Independent reviewer — GitHub PR review
 
 A repository collaborator or organization member other than the Owner must submit an **APPROVED** review on the final PR head. The review body must contain all of these exact markers and values:

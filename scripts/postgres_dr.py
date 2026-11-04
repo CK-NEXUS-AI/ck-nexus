@@ -7,10 +7,11 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 REQUIRED_TABLES = ("agnes_idempotency", "creator_runs", "email_journal", "email_outbox")
 
@@ -42,6 +43,67 @@ def _same_database(a: DbIdentity, b: DbIdentity) -> bool:
         b.port or 5432,
         b.database.lower(),
     )
+
+
+def _pgpass_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace(":", "\\:")
+
+
+def _postgres_environment(url: str, credential_dir: Path) -> dict[str, str]:
+    """Create a private libpq passfile; never put database passwords in argv."""
+    parsed = urlsplit(url)
+    if parsed.scheme not in {"postgres", "postgresql"}:
+        raise DRBlocked("database URL must use postgres:// or postgresql://")
+    if not parsed.hostname or not parsed.path.lstrip("/"):
+        raise DRBlocked("database URL must include host and database name")
+    username = unquote(parsed.username or "")
+    password = unquote(parsed.password or "")
+    if not username:
+        raise DRBlocked("database URL must include a database username")
+    try:
+        port = str(parsed.port or 5432)
+    except ValueError as exc:
+        raise DRBlocked("database URL contains an invalid port") from exc
+    host = parsed.hostname
+    database = unquote(parsed.path.lstrip("/").split("?", 1)[0])
+    if any(ord(character) < 32 or ord(character) == 127 for field in (host, port, database, username, password) for character in field):
+        raise DRBlocked("database URL contains control characters")
+    credential_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    passfile = credential_dir / "pgpass"
+    passfile.write_text(
+        ":".join(_pgpass_escape(item) for item in (host, port, database, username, password)) + "\n",
+        encoding="utf-8",
+    )
+    passfile.chmod(0o600)
+    env = os.environ.copy()
+    env.update(
+        {
+            "PGHOST": host,
+            "PGPORT": port,
+            "PGDATABASE": database,
+            "PGUSER": username,
+            "PGPASSFILE": str(passfile),
+        }
+    )
+    allowed_query = {
+        "sslmode": "PGSSLMODE",
+        "sslrootcert": "PGSSLROOTCERT",
+        "sslcert": "PGSSLCERT",
+        "sslkey": "PGSSLKEY",
+        "connect_timeout": "PGCONNECT_TIMEOUT",
+        "application_name": "PGAPPNAME",
+        "target_session_attrs": "PGTARGETSESSIONATTRS",
+        "options": "PGOPTIONS",
+    }
+    for key, value in parse_qsl(parsed.query, keep_blank_values=True):
+        target = allowed_query.get(key)
+        if target is None:
+            raise DRBlocked("database URL contains an unsupported connection parameter")
+        env[target] = value
+    env.pop("PGPASSWORD", None)
+    env.pop("CKNEXUS_DATABASE_URL", None)
+    env.pop("CKNEXUS_RESTORE_DATABASE_URL", None)
+    return env
 
 
 def validate_restore_boundary(
@@ -90,13 +152,16 @@ def backup(source_url: str, output_dir: Path, rpo_seconds: int) -> dict[str, obj
     output_dir.mkdir(parents=True, exist_ok=False)
     dump = output_dir / "postgres.dump"
     started = time.time()
-    with dump.open("wb") as fh:
-        proc = subprocess.run(
-            [pg_dump, "--dbname", source_url, "--format=custom", "--no-owner", "--no-acl"],
-            stdout=fh,
-            stderr=subprocess.PIPE,
-            check=False,
-        )
+    with tempfile.TemporaryDirectory(prefix="cknexus-pgpass-") as credential_root:
+        env = _postgres_environment(source_url, Path(credential_root))
+        with dump.open("wb") as fh:
+            proc = subprocess.run(
+                [pg_dump, "--format=custom", "--no-owner", "--no-acl"],
+                env=env,
+                stdout=fh,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
     if proc.returncode != 0:
         dump.unlink(missing_ok=True)
         raise RuntimeError(f"pg_dump failed with exit code {proc.returncode}")
@@ -148,24 +213,25 @@ def restore(
     integrity = verify_dump(backup_dir)
     dump = backup_dir / "postgres.dump"
     started = time.time()
-    proc = _run(
-        [
-            pg_restore,
-            "--dbname",
-            target_url,
-            "--clean",
-            "--if-exists",
-            "--no-owner",
-            "--no-acl",
-            str(dump),
-        ]
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(f"pg_restore failed with exit code {proc.returncode}")
     table_sql = (
         "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' ORDER BY tablename;"
     )
-    verify = _run([psql, target_url, "-Atqc", table_sql])
+    with tempfile.TemporaryDirectory(prefix="cknexus-pgpass-") as credential_root:
+        env = _postgres_environment(target_url, Path(credential_root))
+        proc = _run(
+            [
+                pg_restore,
+                "--clean",
+                "--if-exists",
+                "--no-owner",
+                "--no-acl",
+                str(dump),
+            ],
+            env=env,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"pg_restore failed with exit code {proc.returncode}")
+        verify = _run([psql, "-Atqc", table_sql], env=env)
     if verify.returncode != 0:
         raise RuntimeError(
             f"post-restore verification query failed with exit code {verify.returncode}"
@@ -193,26 +259,27 @@ def main() -> int:
     )
     sub = parser.add_subparsers(dest="command", required=True)
     b = sub.add_parser("backup")
-    b.add_argument("--source-url", default=os.getenv("CKNEXUS_DATABASE_URL", ""))
     b.add_argument("--output-dir", required=True)
     b.add_argument(
         "--rpo-seconds", type=int, default=int(os.getenv("CKNEXUS_RPO_TARGET_SECONDS", "3600"))
     )
     r = sub.add_parser("restore")
-    r.add_argument("--source-url", default=os.getenv("CKNEXUS_DATABASE_URL", ""))
-    r.add_argument("--target-url", default=os.getenv("CKNEXUS_RESTORE_DATABASE_URL", ""))
     r.add_argument("--backup-dir", required=True)
     r.add_argument(
         "--rto-seconds", type=int, default=int(os.getenv("CKNEXUS_RTO_TARGET_SECONDS", "900"))
     )
     args = parser.parse_args()
+    source_url = os.getenv("CKNEXUS_DATABASE_URL", "").strip()
+    target_url = os.getenv("CKNEXUS_RESTORE_DATABASE_URL", "").strip()
     try:
+        if not source_url:
+            raise DRBlocked("CKNEXUS_DATABASE_URL is not configured")
         if args.command == "backup":
-            result = backup(args.source_url, Path(args.output_dir), args.rpo_seconds)
+            result = backup(source_url, Path(args.output_dir), args.rpo_seconds)
         else:
-            result = restore(
-                args.source_url, args.target_url, Path(args.backup_dir), args.rto_seconds
-            )
+            if not target_url:
+                raise DRBlocked("CKNEXUS_RESTORE_DATABASE_URL is not configured")
+            result = restore(source_url, target_url, Path(args.backup_dir), args.rto_seconds)
         print(json.dumps(result, sort_keys=True))
         return 0 if result.get("status") == "PASS" else 1
     except DRBlocked as exc:

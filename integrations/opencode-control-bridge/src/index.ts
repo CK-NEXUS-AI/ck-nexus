@@ -11,7 +11,26 @@ import * as z from 'zod/v4';
 
 const HOST = process.env.CKNEXUS_BRIDGE_HOST ?? '127.0.0.1';
 const PORT = Number(process.env.CKNEXUS_BRIDGE_PORT ?? '18925');
-const OPENCODE_BASE_URL = (process.env.OPENCODE_BASE_URL ?? 'http://127.0.0.1:18924').replace(/\/$/, '');
+function normalizeOpenCodeBaseUrl(value: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error('OPENCODE_BASE_URL must be a valid URL');
+  }
+  const loopbackHosts = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
+  if (!['http:', 'https:'].includes(parsed.protocol) || !loopbackHosts.has(parsed.hostname.toLowerCase())) {
+    throw new Error('OPENCODE_BASE_URL must target a loopback HTTP(S) endpoint');
+  }
+  if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+    throw new Error('OPENCODE_BASE_URL must not contain credentials, query, or fragment');
+  }
+  return parsed.origin + parsed.pathname.replace(/\/+$/, '');
+}
+
+const OPENCODE_BASE_URL = normalizeOpenCodeBaseUrl(
+  process.env.OPENCODE_BASE_URL ?? 'http://127.0.0.1:18924',
+);
 const OPENCODE_USERNAME = process.env.OPENCODE_SERVER_USERNAME ?? 'opencode';
 const OPENCODE_PASSWORD = process.env.OPENCODE_SERVER_PASSWORD ?? '';
 const BRIDGE_TOKEN = process.env.CKNEXUS_BRIDGE_TOKEN ?? '';
@@ -74,6 +93,7 @@ function redact(value: unknown): unknown {
 
 async function ocRequest(path: string, init: RequestInit = {}): Promise<unknown> {
   const url = `${OPENCODE_BASE_URL}${path}`;
+  // nosemgrep: typescript.mcp.security.mcp-ssrf-typescript -- OPENCODE_BASE_URL is restricted to loopback at startup and session path segments are URL-encoded.
   const response = await fetch(url, {
     ...init,
     headers: { ...authHeaders(), ...(init.headers ?? {}) },

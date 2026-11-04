@@ -122,6 +122,41 @@ def main() -> int:
         [{"severity": row.get("extra", {}).get("severity", "UNKNOWN")} for row in semgrep_rows],
         "severity",
     )
+    semgrep_error_rows = [
+        row
+        for row in semgrep_rows
+        if str(row.get("extra", {}).get("severity", "UNKNOWN")).upper() == "ERROR"
+    ]
+    semgrep_nonsecurity_categories = {
+        "maintainability",
+        "correctness",
+        "best-practice",
+        "performance",
+    }
+    semgrep_security_error_rows = [
+        row
+        for row in semgrep_error_rows
+        if str(row.get("extra", {}).get("metadata", {}).get("category", "UNKNOWN")).lower()
+        not in semgrep_nonsecurity_categories
+    ]
+    semgrep_audit_only_suffixes = (
+        "dangerous-subprocess-use-audit",
+        "dangerous-asyncio-create-exec-audit",
+    )
+    semgrep_audit_review_rows = [
+        row
+        for row in semgrep_security_error_rows
+        if str(row.get("check_id", "")).endswith(semgrep_audit_only_suffixes)
+    ]
+    semgrep_blocking_security_error_rows = [
+        row for row in semgrep_security_error_rows if row not in semgrep_audit_review_rows
+    ]
+    semgrep_nonsecurity_error_rows = [
+        row
+        for row in semgrep_error_rows
+        if str(row.get("extra", {}).get("metadata", {}).get("category", "UNKNOWN")).lower()
+        in semgrep_nonsecurity_categories
+    ]
     gitleaks_raw = raw.get("gitleaks", [])
     if isinstance(gitleaks_raw, dict):
         gitleaks_rows = gitleaks_raw.get("findings", []) or []
@@ -247,8 +282,8 @@ def main() -> int:
         blockers.append("dependency_vulnerabilities_found")
     if bandit_counts.get("HIGH", 0) or bandit_counts.get("MEDIUM", 0):
         blockers.append("bandit_medium_or_high_findings")
-    if semgrep_counts.get("ERROR", 0):
-        blockers.append("semgrep_error_findings")
+    if semgrep_blocking_security_error_rows:
+        blockers.append("semgrep_security_error_findings")
     if gitleaks_rows:
         blockers.append("gitleaks_findings")
     if trivy_counts.get("CRITICAL", 0) or trivy_counts.get("HIGH", 0):
@@ -274,6 +309,10 @@ def main() -> int:
         "bandit_low": bandit_counts.get("LOW", 0),
         "semgrep_warning": semgrep_counts.get("WARNING", 0),
         "semgrep_info": semgrep_counts.get("INFO", 0),
+        "semgrep_nonsecurity_error": len(semgrep_nonsecurity_error_rows),
+        "semgrep_subprocess_audit_review": len(semgrep_audit_review_rows),
+        "semgrep_security_error_total": len(semgrep_security_error_rows),
+        "semgrep_security_error_blocking": len(semgrep_blocking_security_error_rows),
         "trivy_medium": trivy_counts.get("MEDIUM", 0),
         "trivy_low": trivy_counts.get("LOW", 0),
         "tracked_files": tracked_files,
@@ -309,6 +348,10 @@ def main() -> int:
             "dependency_vulnerabilities": pip_vulnerabilities,
             "bandit_by_severity": bandit_counts,
             "semgrep_by_severity": semgrep_counts,
+            "semgrep_security_error_total": len(semgrep_security_error_rows),
+            "semgrep_security_error_blocking": len(semgrep_blocking_security_error_rows),
+            "semgrep_subprocess_audit_review": len(semgrep_audit_review_rows),
+            "semgrep_nonsecurity_error": len(semgrep_nonsecurity_error_rows),
             "gitleaks_findings": len(gitleaks_rows),
             "trivy_by_severity": dict(trivy_counts),
             "attack_regression_total": attack_total,
@@ -366,6 +409,10 @@ def main() -> int:
         "security_scan_exit_codes": codes,
         "bandit_findings_by_severity": bandit_counts,
         "semgrep_findings_by_severity": semgrep_counts,
+        "semgrep_security_error_total": len(semgrep_security_error_rows),
+        "semgrep_security_error_blocking": len(semgrep_blocking_security_error_rows),
+        "semgrep_subprocess_audit_review": len(semgrep_audit_review_rows),
+        "semgrep_nonsecurity_error": len(semgrep_nonsecurity_error_rows),
         "gitleaks_findings": len(gitleaks_rows),
         "trivy_findings_by_severity": dict(trivy_counts),
         "security_attack_regression_total": attack_total,

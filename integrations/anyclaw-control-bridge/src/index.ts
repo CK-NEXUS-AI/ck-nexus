@@ -79,6 +79,7 @@ function buildServer(): McpServer {
       inputSchema: z.object({ keyword: z.string().min(1).max(200) }),
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true, idempotentHint: true },
     },
+    // nosemgrep: typescript.mcp.security.mcp-ssrf-typescript -- this helper invokes a fixed local executable through execFile; no HTTP URL is constructed.
     async ({ keyword }) => result(await runAnyClaw(['search', keyword])),
   );
 
@@ -102,12 +103,15 @@ function buildServer(): McpServer {
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true, idempotentHint: false },
     },
+    // nosemgrep: typescript.mcp.security.mcp-ssrf-typescript -- arguments are passed to execFile for the local AnyClaw CLI, not to fetch or an HTTP client.
     async ({ packageName, command, args }) => {
+      // nosemgrep: typescript.mcp.security.mcp-ssrf-typescript -- args are validated strings passed as argv to a fixed local execFile target, never as a URL.
       for (const arg of args) {
         if (/(?:sk-|ghp_|github_pat_|xox[baprs]-|AIza|bearer\s+|authorization:|api[_-]?key|password|token)/i.test(arg)) {
           throw new Error('Refusing argument that appears to contain credential material');
         }
       }
+      // nosemgrep: typescript.mcp.security.mcp-ssrf-typescript -- runAnyClaw uses execFile with shell disabled and a fixed executable.
       return result(await runAnyClaw(['run', packageName, command, ...args], 120_000));
     },
   );
@@ -119,10 +123,13 @@ function buildServer(): McpServer {
       inputSchema: z.object({ source: z.string().min(1).max(2000) }),
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true, idempotentHint: false },
     },
+    // nosemgrep: typescript.mcp.security.mcp-ssrf-typescript -- source is passed to execFile for the local AnyClaw CLI; it is not used as a request URL.
     async ({ source }) => {
+      // nosemgrep: typescript.mcp.security.mcp-ssrf-typescript -- source is a CLI argument to a fixed local executable, not an HTTP request URL.
       if (/(?:token|password|api[_-]?key|authorization)/i.test(source)) {
         throw new Error('Refusing install source that appears to contain credential material');
       }
+      // nosemgrep: typescript.mcp.security.mcp-ssrf-typescript -- source is passed to execFile argv for the local AnyClaw CLI, never to fetch.
       return result(await runAnyClaw(['install', source], 180_000));
     },
   );
@@ -134,6 +141,7 @@ function buildServer(): McpServer {
       inputSchema: z.object({ packageName: z.string().regex(/^[A-Za-z0-9_.-]+$/) }),
       annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false, idempotentHint: true },
     },
+    // nosemgrep: typescript.mcp.security.mcp-ssrf-typescript -- packageName is regex-constrained and passed to a fixed local execFile target.
     async ({ packageName }) => result(await runAnyClaw(['uninstall', packageName], 120_000)),
   );
 

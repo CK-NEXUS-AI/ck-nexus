@@ -203,3 +203,121 @@ def test_report_rejects_open_security_issue_state(tmp_path, monkeypatch) -> None
         }
     ]
     assert "unresolved_security_issues_open" in report["findings"]["blocking_reasons"]
+
+
+def test_report_keeps_nonsecurity_semgrep_errors_in_review_queue(tmp_path, monkeypatch) -> None:
+    _write_reports(tmp_path)
+    semgrep = json.loads((tmp_path / "q10-semgrep.json").read_text())
+    semgrep["results"] = [
+        {
+            "check_id": "python.lang.maintainability.useless-inner-function",
+            "extra": {"severity": "ERROR", "metadata": {"category": "maintainability"}},
+        }
+    ]
+    (tmp_path / "q10-semgrep.json").write_text(json.dumps(semgrep), encoding="utf-8")
+    _set_exit_codes(monkeypatch)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "q10_open_source_gate_report.py",
+            "--output-dir",
+            str(tmp_path),
+            "--source-sha",
+            "a" * 40,
+            "--source-tree",
+            "b" * 40,
+            "--subject",
+            "c" * 64,
+            "--run-id",
+            "12345",
+        ],
+    )
+
+    assert gate_report.main() == 0
+    report = json.loads((tmp_path / "q10-open-source-security-report.json").read_text())
+    assert report["security_assessment_status"] == "READY_FOR_HUMAN_REVIEW"
+    assert report["findings"]["semgrep_nonsecurity_error"] == 1
+    assert report["findings"]["semgrep_security_error_blocking"] == 0
+    assert "semgrep_security_error_findings" not in report["findings"]["blocking_reasons"]
+
+
+def test_report_blocks_unknown_or_security_semgrep_error_categories(tmp_path, monkeypatch) -> None:
+    _write_reports(tmp_path)
+    semgrep = json.loads((tmp_path / "q10-semgrep.json").read_text())
+    semgrep["results"] = [
+        {
+            "check_id": "python.lang.security.injection.command",
+            "extra": {"severity": "ERROR", "metadata": {"category": "security"}},
+        },
+        {
+            "check_id": "python.lang.security.unknown-category",
+            "extra": {"severity": "ERROR", "metadata": {}},
+        },
+    ]
+    (tmp_path / "q10-semgrep.json").write_text(json.dumps(semgrep), encoding="utf-8")
+    _set_exit_codes(monkeypatch)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "q10_open_source_gate_report.py",
+            "--output-dir",
+            str(tmp_path),
+            "--source-sha",
+            "a" * 40,
+            "--source-tree",
+            "b" * 40,
+            "--subject",
+            "c" * 64,
+            "--run-id",
+            "12345",
+        ],
+    )
+
+    assert gate_report.main() == 1
+    report = json.loads((tmp_path / "q10-open-source-security-report.json").read_text())
+    assert report["findings"]["semgrep_security_error_blocking"] == 2
+    assert "semgrep_security_error_findings" in report["findings"]["blocking_reasons"]
+
+
+def test_report_keeps_subprocess_audit_rules_as_independent_review_items(tmp_path, monkeypatch) -> None:
+    _write_reports(tmp_path)
+    semgrep = json.loads((tmp_path / "q10-semgrep.json").read_text())
+    semgrep["results"] = [
+        {
+            "check_id": "python.lang.security.audit.dangerous-subprocess-use-audit",
+            "extra": {"severity": "ERROR", "metadata": {"category": "security"}},
+        },
+        {
+            "check_id": "python.lang.security.audit.dangerous-asyncio-create-exec-audit",
+            "extra": {"severity": "ERROR", "metadata": {"category": "security"}},
+        },
+    ]
+    (tmp_path / "q10-semgrep.json").write_text(json.dumps(semgrep), encoding="utf-8")
+    _set_exit_codes(monkeypatch)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "q10_open_source_gate_report.py",
+            "--output-dir",
+            str(tmp_path),
+            "--source-sha",
+            "a" * 40,
+            "--source-tree",
+            "b" * 40,
+            "--subject",
+            "c" * 64,
+            "--run-id",
+            "12345",
+        ],
+    )
+
+    assert gate_report.main() == 0
+    report = json.loads((tmp_path / "q10-open-source-security-report.json").read_text())
+    assert report["findings"]["semgrep_subprocess_audit_review"] == 2
+    assert report["findings"]["semgrep_security_error_blocking"] == 0
+    assert report["independent_review_status"] == "PENDING"
+    assert report["owner_approval_status"] == "PENDING"
+    assert report["production_promotion_allowed"] is False
