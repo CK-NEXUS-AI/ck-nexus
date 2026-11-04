@@ -66,14 +66,19 @@ def _postgres_environment(url: str, credential_dir: Path) -> dict[str, str]:
         raise DRBlocked("database URL contains an invalid port") from exc
     host = parsed.hostname
     database = unquote(parsed.path.lstrip("/").split("?", 1)[0])
-    if any(ord(character) < 32 or ord(character) == 127 for field in (host, port, database, username, password) for character in field):
+    has_control_characters = any(
+        ord(character) < 32 or ord(character) == 127
+        for field in (host, port, database, username, password)
+        for character in field
+    )
+    if has_control_characters:
         raise DRBlocked("database URL contains control characters")
     credential_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     passfile = credential_dir / "pgpass"
-    passfile.write_text(
-        ":".join(_pgpass_escape(item) for item in (host, port, database, username, password)) + "\n",
-        encoding="utf-8",
-    )
+    passfile_contents = ":".join(
+        _pgpass_escape(item) for item in (host, port, database, username, password)
+    ) + "\n"
+    passfile.write_text(passfile_contents, encoding="utf-8")
     passfile.chmod(0o600)
     env = os.environ.copy()
     env.update(

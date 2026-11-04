@@ -281,7 +281,9 @@ def test_report_blocks_unknown_or_security_semgrep_error_categories(tmp_path, mo
     assert "semgrep_security_error_findings" in report["findings"]["blocking_reasons"]
 
 
-def test_report_keeps_subprocess_audit_rules_as_independent_review_items(tmp_path, monkeypatch) -> None:
+def test_report_keeps_subprocess_audit_rules_as_independent_review_items(
+    tmp_path, monkeypatch
+) -> None:
     _write_reports(tmp_path)
     semgrep = json.loads((tmp_path / "q10-semgrep.json").read_text())
     semgrep["results"] = [

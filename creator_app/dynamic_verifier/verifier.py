@@ -253,7 +253,8 @@ class IsolatedDynamicVerifier:
             limits=request.limits,
         )
         try:
-            # nosemgrep: python.django.security.injection.command.subprocess-injection -- argv is built by _verifier_container_command from allowlisted engines/profiles and digest-trusted images; shell execution is disabled.
+            # nosemgrep: python.django.security.injection.command.subprocess-injection
+            # Safe: fixed argv, allowlisted image/profile, shell disabled.
             result = subprocess.run(
                 command,
                 check=False,
