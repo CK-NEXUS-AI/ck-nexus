@@ -1,1 +1,0 @@
-probe: connector write test to .github/ root (2026-10-04)
