@@ -1379,7 +1379,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/", include_in_schema=False)
     async def index() -> FileResponse:
-        return FileResponse(WEB_DIR / "index.html")
+        return FileResponse(WEB_DIR / "adaptive-chat.html")
 
     # ── Provider Hub Routes ──
     from creator_app.provider_hub import (

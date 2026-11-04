@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="description" content="CK-NEXUS Adaptive Cognitive Chat — runtime-driven AI workspace" />
+  <title>CK-NEXUS · Adaptive Cognitive Chat</title>
+  <link rel="stylesheet" href="/static/adaptive-chat.css" />
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"><i></i><i></i><i></i></div>
+  <header class="topbar">
+    <button class="icon-btn mobile-only" id="sidebar-toggle" aria-label="เปิดเมนู">☰</button>
+    <a class="brand" href="/">
+      <span class="brand-mark">◇</span><span><b>CK-NEXUS</b><small>ADAPTIVE COGNITIVE CHAT</small></span>
+    </a>
+    <div class="top-state"><span class="pulse"></span><span id="global-state">CHECKING</span></div>
+    <button class="command-btn" id="refresh-all">REFRESH <kbd>R</kbd></button>
+  </header>
+
+  <main class="shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="side-head"><span>CONVERSATIONS</span><button class="icon-btn" id="new-chat">＋</button></div>
+      <nav class="conversation-list" id="conversation-list"><p class="muted">กำลังโหลดประวัติ…</p></nav>
+      <section class="workspace-card">
+        <span class="micro">WORKSPACE</span>
+        <div><span>Session</span><strong id="session-label">creator-default</strong></div>
+        <div><span>Runs</span><strong id="run-count">00</strong></div>
+        <div><span>Specialists</span><strong id="agent-count">00</strong></div>
+      </section>
+    </aside>
+
+    <section class="chat-stage">
+      <div class="stage-head">
+        <div><span class="agent-glyph">⬡</span><b>AGNES</b><small>COGNITIVE CORE</small></div>
+        <span class="state-pill" id="agnes-state"><i></i> CHECKING</span>
+      </div>
+
+      <section class="agnes-hero" aria-label="AGNES runtime character">
+        <div class="orbit orbit-a"></div><div class="orbit orbit-b"></div>
+        <div class="data-node n1"></div><div class="data-node n2"></div><div class="data-node n3"></div>
+        <div class="agnes" id="agnes-character">
+          <div class="ear left"></div><div class="ear right"></div>
+          <div class="head"><div class="face"><i class="eye"></i><i class="eye"></i><span class="mouth"></span></div></div>
+          <div class="body"><span class="core"></span></div>
+        </div>
+        <h1>AGNES</h1>
+        <p id="agnes-copy">กำลังตรวจสอบ Runtime และ Provider ที่พร้อมใช้งาน</p>
+      </section>
+
+      <section class="messages" id="messages" aria-live="polite">
+        <article class="message system-message">
+          <span class="avatar">CK</span>
+          <div><small>SYSTEM</small><p>หน้านี้อ่านสถานะจาก CK-NEXUS runtime จริง และไม่แสดง raw credentials</p></div>
+        </article>
+      </section>
+
+      <form class="composer" id="composer">
+        <div class="composer-main">
+          <textarea id="prompt" rows="1" maxlength="8000" placeholder="ถาม CK-NEXUS…" required></textarea>
+          <button type="button" class="tool-btn" id="tools-btn">TOOLS</button>
+        </div>
+        <div class="composer-foot">
+          <select id="agent-select" aria-label="เลือก Specialist"><option value="">กำลังโหลด Specialist…</option></select>
+          <div class="send-side"><span id="char-count">0 / 8,000</span><button class="send-btn" id="send-btn" type="submit">SEND ↗</button></div>
+        </div>
+      </form>
+    </section>
+
+    <aside class="control-rail">
+      <section class="panel">
+        <header><span>RUNTIME</span><b class="live">● LIVE</b></header>
+        <dl id="runtime-status"><div><dt>Mode</dt><dd>CHECKING</dd></div><div><dt>Model</dt><dd>—</dd></div><div><dt>Database</dt><dd>—</dd></div><div><dt>Session Access</dt><dd>—</dd></div><div><dt>Dev Team</dt><dd>—</dd></div></dl>
+      </section>
+
+      <section class="panel">
+        <header><span>PROVIDER HUB</span><button class="text-btn" id="provider-refresh">REFRESH</button></header>
+        <div class="provider-list" id="provider-list"><p class="muted">กำลังตรวจ Provider…</p></div>
+      </section>
+
+      <section class="panel">
+        <header><span>CREDENTIAL BROKER</span><b class="safe">SHIELDED</b></header>
+        <dl id="credential-status"><div><dt>Secrets exposed</dt><dd>NO</dd></div><div><dt>Vault</dt><dd>CHECKING</dd></div><div><dt>Key material</dt><dd>HIDDEN</dd></div></dl>
+      </section>
+
+      <section class="panel evidence-panel">
+        <header><span>RUN EVIDENCE</span><b id="evidence-count">00</b></header>
+        <div id="evidence-list"><p class="muted">ยังไม่มี run ใน session นี้</p></div>
+      </section>
+    </aside>
+  </main>
+
+
+
+  <div class="toast" id="toast" role="status"></div>
+  <script src="/static/adaptive-chat.js" defer></script>
+</body>
+</html>
