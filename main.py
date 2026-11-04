@@ -5,8 +5,10 @@ import os
 import uvicorn
 
 from creator_app.api import create_app
+from creator_app.control_universe import install_control_universe
 
 app = create_app()
+install_control_universe(app)
 
 
 def main() -> None:
