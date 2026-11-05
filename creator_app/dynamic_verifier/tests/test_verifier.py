@@ -18,8 +18,8 @@ from creator_app.patch_verifier import verifier as static_module
 
 _EXECUTION_ID = "devexec-" + "a" * 20
 _IMAGE = (
-    "ghcr.io/spinlnw10-art/ck-nexus-verifier-python@sha256:"
-    "f495574f3076eea84467f486ee6eb3ebb0136d7e41322429eb0bc435561ad751"
+    "ghcr.io/ck-nexus-ai/ck-nexus-verifier-python@sha256:"
+    "fee488944575873dd7e1e42e355f5272953cba8bf6342e9ea043f8e257c1d60c"
 )
 _UNTRUSTED_IMAGE = "ghcr.io/example/unreviewed@sha256:" + "b" * 64
 _PATCH = (
@@ -127,9 +127,9 @@ def test_dynamic_verify_rechecks_static_and_uses_disposable_worktree(
     assert verification["patched_code_executed_on_host"] is False
     assert verification["patch_applied_to_canonical_checkout"] is False
     assert verification["trusted_image_source_commit"] == (
-        "4e7a4eb37ad332a312f236e9b83b7f72f063b74f"
+        "942ef54229b5e46334820a94affa09ca14110820"
     )
-    assert verification["trusted_image_discovery_run_id"] == 32302752416
+    assert verification["trusted_image_discovery_run_id"] == 41941102071
     assert (repo / "example.txt").read_text(encoding="utf-8") == "old\n"
 
 
@@ -183,6 +183,48 @@ def test_command_rejects_digest_pinned_but_untrusted_image(tmp_path: Path) -> No
             gid=1000,
             limits=DynamicVerifierLimits(),
         )
+
+
+def test_validate_rejects_retired_personal_namespace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, source_sha = _repo(tmp_path)
+    _non_root(monkeypatch)
+    request = DynamicVerificationInput(
+        patch=_PATCH,
+        patch_digest=hashlib.sha256(_PATCH).hexdigest(),
+        execution_id=_EXECUTION_ID,
+        assistant_id="aider",
+        repository_path=repo,
+        source_sha=source_sha,
+        verifier_image=(
+            "ghcr.io/spinlnw10-art/ck-nexus-verifier-python@sha256:"
+            "f495574f3076eea84467f486ee6eb3ebb0136d7e41322429eb0bc435561ad751"
+        ),
+    )
+    with pytest.raises(DynamicVerificationBlocked, match="trusted registry"):
+        IsolatedDynamicVerifier._validate(request)
+
+
+def test_validate_rejects_unapproved_container_engine(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo, source_sha = _repo(tmp_path)
+    _non_root(monkeypatch)
+    request = DynamicVerificationInput(
+        patch=_PATCH,
+        patch_digest=hashlib.sha256(_PATCH).hexdigest(),
+        execution_id=_EXECUTION_ID,
+        assistant_id="aider",
+        repository_path=repo,
+        source_sha=source_sha,
+        verifier_image=_IMAGE,
+        engine="bash",
+    )
+    with pytest.raises(DynamicVerificationBlocked, match="engine is not allowlisted"):
+        IsolatedDynamicVerifier._validate(request)
 
 
 def test_validate_rejects_unknown_profile(

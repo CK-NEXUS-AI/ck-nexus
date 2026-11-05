@@ -239,18 +239,18 @@ class IsolatedDynamicVerifier:
 
     @staticmethod
     def _run_verifier_container(
-        request: DynamicVerificationInput,
+        verification_input: DynamicVerificationInput,
         worktree: Path,
     ) -> int:
         command = _verifier_container_command(
-            engine=request.engine,
+            engine=verification_input.engine,
             worktree=worktree,
-            verifier_image=request.verifier_image,
-            profile=request.profile,
-            execution_id=request.execution_id,
+            verifier_image=verification_input.verifier_image,
+            profile=verification_input.profile,
+            execution_id=verification_input.execution_id,
             uid=os.getuid(),
             gid=os.getgid(),
-            limits=request.limits,
+            limits=verification_input.limits,
         )
         try:
             # nosemgrep: python.django.security.injection.command.subprocess-injection
@@ -260,7 +260,7 @@ class IsolatedDynamicVerifier:
                 check=False,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                timeout=request.limits.timeout_seconds,
+                timeout=verification_input.limits.timeout_seconds,
             )
         except subprocess.TimeoutExpired as exc:
             raise DynamicVerificationBlocked("dynamic verification exceeded timeout") from exc
