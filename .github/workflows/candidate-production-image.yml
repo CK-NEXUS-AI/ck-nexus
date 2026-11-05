@@ -39,7 +39,7 @@ jobs:
         run: |
           grep -Fx 'FROM python:3.12.16-alpine3.24@sha256:e6dae589c1c05976188fd3bd019afd091445fc533ed2ea29001beddc7368a9c8' Dockerfile
           grep -F 'apk upgrade --no-cache' Dockerfile
-          grep -F 'uv==0.13.4' Dockerfile
+          grep -F 'pip==26.3 uv==0.13.7' Dockerfile
           grep -F 'COPY pyproject.toml uv.lock README.md ./' Dockerfile
           grep -F 'uv lock --check' Dockerfile
           grep -F 'uv sync --frozen --no-dev --no-editable' Dockerfile
@@ -184,7 +184,7 @@ jobs:
             'trivy_version':(trivy_version.stdout or trivy_version.stderr).strip().splitlines()[0] if (trivy_version.stdout or trivy_version.stderr).strip() else None,
             'trivy_binary_sha256':trivy_sha,
             'base_image':'python:3.12.16-alpine3.24@sha256:e6dae589c1c05976188fd3bd019afd091445fc533ed2ea29001beddc7368a9c8',
-            'uv_version':'0.13.4',
+            'uv_version':'0.13.7',
             'dependency_mode':'uv.lock frozen; runtime extras only; no editable install; no dev tooling',
             'runtime_user':'cknexus-non-root',
             'runtime_entrypoint':'python3 -m creator_app.unified',
