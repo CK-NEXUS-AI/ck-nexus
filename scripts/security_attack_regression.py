@@ -24,9 +24,7 @@ from creator_app.gmail_oauth import GmailOAuthError, OAuthStateStore
 
 BASE_URL = os.getenv("CKNEXUS_SECURITY_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 ACCESS_TOKEN = os.getenv("CKNEXUS_SECURITY_ACCESS_TOKEN", "test-access-value")
-EVIDENCE_PATH = Path(
-    os.getenv("CKNEXUS_SECURITY_EVIDENCE", "security-attack-regression.json")
-)
+EVIDENCE_PATH = Path(os.getenv("CKNEXUS_SECURITY_EVIDENCE", "security-attack-regression.json"))
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
 
@@ -92,17 +90,12 @@ def main() -> int:
 
     status, headers, body = request("/api/integrations/gmail/status", auth=True)
     decoded = body.decode("utf-8", errors="replace")
-    results.append(
-        check("protected_route_accepts_valid_bearer", status == 200, f"status={status}")
-    )
+    results.append(check("protected_route_accepts_valid_bearer", status == 200, f"status={status}"))
     lowered = decoded.lower()
     results.append(
         check(
             "gmail_status_does_not_expose_secret_fields",
-            all(
-                term not in lowered
-                for term in ("access_token", "refresh_token", "client_secret")
-            ),
+            all(term not in lowered for term in ("access_token", "refresh_token", "client_secret")),
         )
     )
     normalized_headers = {key.lower(): value for key, value in headers.items()}
@@ -131,7 +124,7 @@ def main() -> int:
         )
     )
 
-    oversized = b"{\"x\":\"" + (b"A" * 70_000) + b"\"}"
+    oversized = b'{"x":"' + (b"A" * 70_000) + b'"}'
     status, _, _ = request("/api/run", method="POST", body=oversized, auth=True)
     results.append(check("oversized_request_blocked", status == 413, f"status={status}"))
 
@@ -179,9 +172,7 @@ def main() -> int:
         source="test",
     )
     lease = broker.acquire(CredentialId.GMAIL_ACCESS_TOKEN, consumer="gmail.api")
-    results.append(
-        check("secret_lease_repr_redacted", test_credential not in repr(lease))
-    )
+    results.append(check("secret_lease_repr_redacted", test_credential not in repr(lease)))
     try:
         lease.reveal(consumer="gmail.oauth")
     except CredentialAccessDenied:
@@ -192,7 +183,9 @@ def main() -> int:
 
     executable = evaluate_attachment("invoice.exe", size_bytes=128)
     traversal = evaluate_attachment("../invoice.pdf", size_bytes=128)
-    normal_pdf = evaluate_attachment("invoice.pdf", size_bytes=128)
+    normal_pdf = evaluate_attachment("invoice.pdf", size_bytes=128, head=b"%PDF-1.7\n")
+    renamed_executable = evaluate_attachment("invoice.pdf", size_bytes=128, head=b"MZ\x90\x00")
+    mismatched_document = evaluate_attachment("invoice.docx", size_bytes=128, head=b"%PDF-1.7\n")
     results.append(
         check(
             "attachment_executable_blocked",
@@ -207,6 +200,26 @@ def main() -> int:
     )
     results.append(
         check(
+            "attachment_pdf_signature_validated",
+            normal_pdf.allowed_for_parser_sandbox,
+        )
+    )
+    results.append(
+        check(
+            "attachment_renamed_executable_rejected",
+            not renamed_executable.allowed_for_parser_sandbox
+            and renamed_executable.reason == "content_signature_mismatch",
+        )
+    )
+    results.append(
+        check(
+            "attachment_mismatched_document_rejected",
+            not mismatched_document.allowed_for_parser_sandbox
+            and mismatched_document.reason == "content_signature_mismatch",
+        )
+    )
+    results.append(
+        check(
             "attachment_allowed_file_still_quarantined",
             normal_pdf.allowed_for_parser_sandbox
             and normal_pdf.quarantine_required
@@ -214,16 +227,14 @@ def main() -> int:
         )
     )
 
-    known_open_findings = [
+    issue_references = [
         {
             "issue": 65,
-            "title": "DNS-rebinding/TOCTOU SSRF peer binding",
-            "status": "OPEN_REMEDIATION_REQUIRED",
+            "title": "Security: prevent DNS-rebinding/TOCTOU SSRF in dynamic connector transport",
         },
         {
             "issue": 66,
-            "title": "Attachment content/magic validation",
-            "status": "OPEN_HARDENING_REQUIRED",
+            "title": "Security hardening: validate attachment content/magic before parser sandbox",
         },
     ]
 
@@ -237,7 +248,7 @@ def main() -> int:
         "tests_passed": passed,
         "tests_failed": failed,
         "results": results,
-        "known_open_findings": known_open_findings,
+        "issue_references": issue_references,
         "release_evidence": False,
         "production_promotion": False,
     }

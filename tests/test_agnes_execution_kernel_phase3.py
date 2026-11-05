@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import difflib
 import errno
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -15,6 +17,25 @@ from tests.omni_context_factory import make_test_omni_context
 BASELINE = "dce9e0f30e4e17d43c794c7f8ddb1e7d6e85f17e"
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS = ROOT / "creator_app" / "skills" / "agnes" / "SKILL.md"
+
+
+def _readme_patch(addition: str) -> str:
+    baseline_readme = subprocess.check_output(
+        ["git", "show", f"{BASELINE}:README.md"],
+        cwd=ROOT,
+        text=True,
+    )
+    original = baseline_readme.splitlines(keepends=True)
+    updated = list(original)
+    updated.insert(1, addition + "\n")
+    return "".join(
+        difflib.unified_diff(
+            original,
+            updated,
+            fromfile="a/README.md",
+            tofile="b/README.md",
+        )
+    )
 
 
 def _agnes(tmp_path: Path) -> AgnesNervousSystem:
@@ -97,17 +118,7 @@ async def test_redis_idempotency_coordinates_two_dispatcher_instances():
 async def test_autonomous_pipeline_stops_at_candidate_and_can_discard(tmp_path: Path):
     agnes = _agnes(tmp_path)
     assert agnes.dev_controller is not None
-    patch = (
-        "--- a/README.md\n"
-        "+++ b/README.md\n"
-        "@@ -1,3 +1,4 @@\n"
-        " # CK-NEXUS Creator Edition\n"
-        "+Phase3 candidate test.\n"
-        "\n"
-        " ระบบ AI แบบเมนูสำหรับครีเอเตอร์: เลือก Agent, ใส่ Creative Brief "
-        "สั้น ๆ, สร้างผลงาน "
-        "และเก็บประวัติไว้ใน SQLite บนเครื่องของผู้ใช้\n"
-    )
+    patch = _readme_patch("Phase3 candidate test.")
     from creator_app.agnes.execution.request import ExecutorType, SkillExecutionRequest
 
     request = SkillExecutionRequest(
@@ -120,7 +131,6 @@ async def test_autonomous_pipeline_stops_at_candidate_and_can_discard(tmp_path: 
         inputs={
             "patch": patch,
             "test_command": ["python", "-m", "compileall", "-q", "."],
-            "scan_command": ["python", "-c", "print('security-scan:PASS')"],
         },
         workspace_id="p3ws",
         baseline_commit=BASELINE,
@@ -196,9 +206,7 @@ async def test_autonomous_pipeline_stops_at_candidate_and_can_discard(tmp_path: 
 @pytest.mark.asyncio
 async def test_pipeline_failure_rolls_back_workspace(tmp_path: Path):
     agnes = _agnes(tmp_path)
-    patch = (
-        "--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-# CK-NEXUS Creator Edition\n+# BROKEN\n"
-    )
+    patch = _readme_patch("BROKEN")
     from creator_app.agnes.execution.request import ExecutorType, SkillExecutionRequest
 
     req = SkillExecutionRequest(
@@ -259,17 +267,7 @@ def test_phase3_api_pending_approval_then_advance_to_candidate(tmp_path: Path):
         agnes_sandbox_root=tmp_path / "sandbox",
         agnes_sandbox_repository_root=ROOT,
     )
-    patch = (
-        "--- a/README.md\n"
-        "+++ b/README.md\n"
-        "@@ -1,3 +1,4 @@\n"
-        " # CK-NEXUS Creator Edition\n"
-        "+API Phase3 candidate.\n"
-        " \n"
-        " ระบบ AI แบบเมนูสำหรับครีเอเตอร์: เลือก Agent, ใส่ Creative Brief "
-        "สั้น ๆ, สร้างผลงาน "
-        "และเก็บประวัติไว้ใน SQLite บนเครื่องของผู้ใช้\n"
-    )
+    patch = _readme_patch("API Phase3 candidate.")
     app = create_app(settings)
     app.state.agnes.execution_context_factory = make_test_omni_context
     with TestClient(app) as client:

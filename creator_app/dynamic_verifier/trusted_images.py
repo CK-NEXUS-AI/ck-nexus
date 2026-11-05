@@ -20,11 +20,11 @@ class TrustedVerifierImage:
 TRUSTED_VERIFIER_IMAGES: tuple[TrustedVerifierImage, ...] = (
     TrustedVerifierImage(
         image_ref=(
-            "ghcr.io/spinlnw10-art/ck-nexus-verifier-python@sha256:"
-            "f495574f3076eea84467f486ee6eb3ebb0136d7e41322429eb0bc435561ad751"
+            "ghcr.io/ck-nexus-ai/ck-nexus-verifier-python@sha256:"
+            "fee488944575873dd7e1e42e355f5272953cba8bf6342e9ea043f8e257c1d60c"
         ),
-        source_commit="4e7a4eb37ad332a312f236e9b83b7f72f063b74f",
-        discovery_run_id=32302752416,
+        source_commit="942ef54229b5e46334820a94affa09ca14110820",
+        discovery_run_id=41941102071,
         profile="python_quality",
     ),
 )

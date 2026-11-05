@@ -1,0 +1,253 @@
+name: Verify Q14 final release subject
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Exact candidate commit SHA; defaults to this workflow's commit
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  q14:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout workflow branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+      - name: Resolve exact candidate identity
+        id: subject
+        shell: bash
+        env:
+          REQUESTED_TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          target_sha="${REQUESTED_TARGET_SHA:-$GITHUB_SHA}"
+          [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$target_sha" = "$GITHUB_SHA" || { echo "target_sha_must_match_dispatch_head" >&2; exit 1; }
+          if ! git cat-file -e "$target_sha^{commit}" 2>/dev/null; then git fetch --no-tags origin "$target_sha"; fi
+          git checkout --detach "$target_sha"
+          tree=$(git rev-parse 'HEAD^{tree}')
+          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          test "$(git rev-parse HEAD)" = "$target_sha"
+          echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
+          echo "target_tree=$tree" >> "$GITHUB_OUTPUT"
+          echo "subject=$subject" >> "$GITHUB_OUTPUT"
+      - name: Set up pinned Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - name: Verify immutable release subject
+        env:
+          Q14_SOURCE_SHA: ${{ steps.subject.outputs.target_sha }}
+          Q14_SOURCE_TREE: ${{ steps.subject.outputs.target_tree }}
+          Q14_RELEASE_SUBJECT: ${{ steps.subject.outputs.subject }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$Q14_SOURCE_SHA"
+          test "$(git rev-parse HEAD^{tree})" = "$Q14_SOURCE_TREE"
+          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          test "$subject" = "$Q14_RELEASE_SUBJECT"
+      - name: Frozen verifier environment
+        run: |
+          python3 -m pip install "uv==0.13.7"
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+      - name: Start CK-NEXUS and inject an expired email lease into its real repository
+        shell: bash
+        env:
+          CKNEXUS_MOCK_AI: 'true'
+          CKNEXUS_EMAIL_GATEWAY_ENABLED: 'true'
+          CKNEXUS_EMAIL_DATABASE_PATH: /tmp/q14-email.db
+          CKNEXUS_ACCESS_TOKEN: q14-staging-access-token
+          CKNEXUS_HOST: 127.0.0.1
+          PORT: '8000'
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from datetime import UTC, datetime, timedelta
+          from pathlib import Path
+          from services.email_gateway.repository import EmailGatewayRepository
+          repository=EmailGatewayRepository(Path('/tmp/q14-email.db'))
+          repository.initialize()
+          now=datetime.now(UTC)-timedelta(minutes=10)
+          result=repository.claim_message(
+              mailbox='q14-staging@example.invalid',
+              provider='q14-staging',
+              provider_message_id='q14-expired-lease',
+              claimed_by='q14-failure-injection',
+              lease_seconds=60,
+              now=now,
+          )
+          assert result.claimed and result.journal_id
+          print('injected one expired lease into the CK-NEXUS email repository')
+          PY
+          ./start_unified.sh >q14-server.log 2>&1 & echo $! >q14-server.pid
+          ready=0
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" -eq 1
+          CKNEXUS_ACCESS_TOKEN=q14-staging-access-token python3 scripts/q14_candidate_metrics_check.py --expected-stale-leases 1
+          cat > /tmp/q14_receiver.py <<'PY'
+          from http.server import BaseHTTPRequestHandler, HTTPServer
+          from pathlib import Path
+          class H(BaseHTTPRequestHandler):
+              def do_POST(self):
+                  data=self.rfile.read(int(self.headers.get('Content-Length','0')))
+                  Path('alert-receipt.json').write_bytes(data)
+                  self.send_response(200)
+                  self.end_headers()
+                  self.wfile.write(b'ok')
+              def log_message(self,*args): pass
+          HTTPServer(('127.0.0.1',18093),H).serve_forever()
+          PY
+          cat > /tmp/alertmanager.yml <<'YAML'
+          route:
+            receiver: cknexus-staging-operator
+            group_wait: 1s
+            group_interval: 1s
+            repeat_interval: 1h
+          receivers:
+            - name: cknexus-staging-operator
+              webhook_configs:
+                - url: http://127.0.0.1:18093/
+          YAML
+          cat > /tmp/prometheus.yml <<'YAML'
+          global:
+            scrape_interval: 1s
+            evaluation_interval: 1s
+          alerting:
+            alertmanagers:
+              - static_configs:
+                  - targets: ['127.0.0.1:9093']
+          rule_files:
+            - /etc/prometheus/alert_rules.yaml
+          scrape_configs:
+            - job_name: cknexus-candidate
+              metrics_path: /metrics
+              authorization:
+                type: Bearer
+                credentials: q14-staging-access-token
+              static_configs:
+                - targets: ['127.0.0.1:8000']
+          YAML
+          docker pull prom/alertmanager:v0.28.1
+          docker pull prom/prometheus:v2.55.1
+          alertmanager_ref=$(docker image inspect --format '{{index .RepoDigests 0}}' prom/alertmanager:v0.28.1)
+          prometheus_ref=$(docker image inspect --format '{{index .RepoDigests 0}}' prom/prometheus:v2.55.1)
+          [[ "$alertmanager_ref" == *@sha256:* && "$prometheus_ref" == *@sha256:* ]]
+          echo "Q14_ALERTMANAGER_IMAGE_REF=$alertmanager_ref" >> "$GITHUB_ENV"
+          echo "Q14_PROMETHEUS_IMAGE_REF=$prometheus_ref" >> "$GITHUB_ENV"
+          python3 /tmp/q14_receiver.py >/tmp/q14-receiver.log 2>&1 & echo $! >/tmp/q14-receiver.pid
+          docker run -d --name q14-alertmanager --network host \
+            -v /tmp/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro \
+            "$alertmanager_ref" >/tmp/q14-alertmanager.cid
+          docker run -d --name q14-prometheus --network host \
+            -v /tmp/prometheus.yml:/etc/prometheus/prometheus.yml:ro \
+            -v "$PWD/observability/alert_rules.yaml:/etc/prometheus/alert_rules.yaml:ro" \
+            "$prometheus_ref" >/tmp/q14-prometheus.cid
+      - name: Wait through configured alert for-duration for operator delivery
+        shell: bash
+        run: |
+          for i in $(seq 1 180); do
+            if test -s alert-receipt.json && python3 - <<'PY'
+          import json
+          x=json.load(open('alert-receipt.json',encoding='utf-8'))
+          ok=any(a.get('status')=='firing' and a.get('labels',{}).get('alertname')=='CKNexusEmailStaleLeases' for a in x.get('alerts',[]))
+          raise SystemExit(0 if ok else 1)
+          PY
+            then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs q14-prometheus || true
+          docker logs q14-alertmanager || true
+          exit 1
+      - name: Verify candidate health and injected metrics
+        id: health
+        shell: bash
+        env:
+          CKNEXUS_ACCESS_TOKEN: q14-staging-access-token
+        run: |
+          set -euo pipefail
+          python3 scripts/q14_candidate_metrics_check.py --expected-stale-leases 1 | tee q14-observability-check.txt
+          echo "rc=0" >> "$GITHUB_OUTPUT"
+      - name: Emit exact Q14 evidence
+        if: always()
+        env:
+          RUN_ID: ${{ github.run_id }}
+          Q14_SOURCE_SHA: ${{ steps.subject.outputs.target_sha }}
+          Q14_SOURCE_TREE: ${{ steps.subject.outputs.target_tree }}
+          Q14_RELEASE_SUBJECT: ${{ steps.subject.outputs.subject }}
+          Q14_HEALTH_RC: ${{ steps.health.outputs.rc }}
+        run: |
+          .venv/bin/python3 - "$Q14_SOURCE_SHA" "$Q14_SOURCE_TREE" "$Q14_RELEASE_SUBJECT" "$RUN_ID" <<'PY'
+          import hashlib,json,os,sys
+          from pathlib import Path
+          sha,tree,subject,run_id=sys.argv[1:]
+          receipt_path=Path('alert-receipt.json')
+          data=receipt_path.read_bytes() if receipt_path.is_file() else b''
+          metrics_path=Path('q14-candidate-metrics.txt')
+          metrics_data=metrics_path.read_bytes() if metrics_path.is_file() else b''
+          try: receipt=json.loads(data) if data else {}
+          except json.JSONDecodeError: receipt={}
+          matched=[a for a in receipt.get('alerts',[]) if a.get('status')=='firing' and a.get('labels',{}).get('alertname')=='CKNexusEmailStaleLeases']
+          health_passed=os.getenv('Q14_HEALTH_RC')=='0'
+          prom_ref=os.getenv('Q14_PROMETHEUS_IMAGE_REF','')
+          am_ref=os.getenv('Q14_ALERTMANAGER_IMAGE_REF','')
+          prom_digest=prom_ref.rsplit('@',1)[-1] if '@sha256:' in prom_ref else None
+          am_digest=am_ref.rsplit('@',1)[-1] if '@sha256:' in am_ref else None
+          metrics_passed=b'ckn_email_stale_processing_leases 1' in metrics_data
+          passed=bool(matched and health_passed and metrics_passed and prom_digest and am_digest and data)
+          evidence={
+              'schema_version':5,'gate':'Q14','source_sha':sha,'source_tree':tree,
+              'release_subject_manifest_sha256':subject,'github_run_id':int(run_id),
+              'failure_injection':'expired PROCESSING email_journal lease inserted through EmailGatewayRepository.claim_message',
+              'metrics_source':'CK-NEXUS candidate /metrics endpoint scraped by Prometheus',
+              'injected_stale_lease_metric':1,
+              'production_rule_file':'observability/alert_rules.yaml','alertname':'CKNexusEmailStaleLeases',
+              'alert_for_duration':'2m','operator_receiver_class':'staging-webhook-receiver',
+              'alert_receiver_type':'staging-webhook','production_destination_tested':False,
+              'alert_receipt_sha256':hashlib.sha256(data).hexdigest() if data else None,
+              'candidate_metrics_report_sha256':hashlib.sha256(metrics_data).hexdigest() if metrics_data else None,
+              'candidate_metrics_source':'CK-NEXUS /metrics',
+              'candidate_metrics_check':'PASS' if metrics_passed else 'FAIL',
+              'prometheus_image':prom_ref or None,'prometheus_image_digest':prom_digest,
+              'alertmanager_image':am_ref or None,'alertmanager_image_digest':am_digest,
+              'alert_delivery':'PASS' if matched else 'FAIL',
+              'health_metrics_check':'PASS' if health_passed else 'FAIL',
+              'health_metrics_exit_code':os.getenv('Q14_HEALTH_RC'),
+              'result':'PASS' if passed else 'FAIL','production_promotion_allowed':passed,
+          }
+          with open('Q14_OBSERVABILITY_ALERT.json','w',encoding='utf-8') as f:
+              json.dump(evidence,f,indent=2,sort_keys=True); f.write('\n')
+          print(json.dumps(evidence,indent=2,sort_keys=True))
+          if not passed: raise SystemExit(1)
+          PY
+      - name: Cleanup
+        if: always()
+        shell: bash
+        run: |
+          test -f q14-server.pid && kill "$(cat q14-server.pid)" 2>/dev/null || true
+          docker rm -f q14-prometheus q14-alertmanager 2>/dev/null || true
+          test -f /tmp/q14-receiver.pid && kill "$(cat /tmp/q14-receiver.pid)" 2>/dev/null || true
+      - name: Upload Q14 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: q14-final-${{ steps.subject.outputs.target_sha || github.sha }}
+          path: |
+            Q14_OBSERVABILITY_ALERT.json
+            alert-receipt.json
+            q14-observability-check.txt
+            q14-candidate-metrics.txt
+            q14-server.log
+          if-no-files-found: error

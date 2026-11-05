@@ -9,6 +9,7 @@ Post-P0 development integration. This bridge exposes governed AnyClaw CLI capabi
 - Non-loopback binding is refused unless `CKNEXUS_ANYCLAW_TOKEN` is set.
 - Raw API keys/tokens/passwords must never be passed as tool arguments.
 - Credential-looking arguments are rejected.
+- This bridge exposes discovery/status only; execution and package mutation are disabled until CK-NEXUS Core approval integration exists.
 - Tool output is redacted for common credential formats.
 - AnyClaw results are development/tool evidence only and cannot substitute for Native Codex Security Q10 evidence.
 - Production status remains NO-GO until the canonical closure gates pass.
@@ -63,11 +64,7 @@ Do not commit the token.
 - `anyclaw_list_installed`
 - `anyclaw_search_registry`
 - `anyclaw_daemon_status`
-- `anyclaw_run`
-- `anyclaw_install`
-- `anyclaw_uninstall`
-
-Use discovery/status tools before mutation. Install/uninstall/run remain governed actions and must not be used to bypass CK-NEXUS policy or provider restrictions.
+Execution, install and uninstall tools are intentionally disabled. They will be added only after the bridge delegates authorization, approval, policy checks and evidence recording to CK-NEXUS Core. This version is discovery-only; it cannot execute package commands or mutate installed capabilities.
 
 ## ChatGPT connection
 

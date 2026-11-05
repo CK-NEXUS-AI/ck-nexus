@@ -1,8 +1,6 @@
 name: Q10-Q12 operator preflight
 
 on:
-  push:
-    branches: [ops/q10-q12-production-closure]
   workflow_dispatch:
 
 permissions:
@@ -12,26 +10,22 @@ jobs:
   preflight:
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout operator pack
+      - name: Checkout release candidate
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
-      - name: Verify frozen authority and gate inputs
-        run: python .github/release-tools/q10_q12_operator_preflight.py
-      - name: Verify Q10 request is fail-closed
+      - name: Verify candidate identity and fail-closed Q10-Q12 inputs
+        run: python3 .github/release-tools/q10_q12_operator_preflight.py
+      - name: Verify Q10 request declares the complete non-Codex toolset
         run: |
-          python - <<'PY'
+          python3 - <<'PY'
           import json
           from pathlib import Path
-          p=json.loads(Path('evidence/q10/Q10_SCAN_REQUEST_FINAL_SUBJECT.json').read_text())
-          assert p['status']=='PREPARED_NOT_EXECUTED'
-          assert p['required_executor']=='CK-NEXUS Open-Source Layered Security Gate'
-          assert p['target_sha']=='ad2fac7aa0752117dde065c7ad9b0b8d41136aa2'
-          assert p['target_tree_sha']=='eb2074176319072ca3f31d5c8c990752ba849b0a'
-          assert p['release_subject_manifest_sha256']=='772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200'
-          assert p['target_scope']=='.'
+          p=json.loads(Path('evidence/q10/Q10_SCAN_REQUEST_FINAL_SUBJECT.json').read_text(encoding='utf-8'))
+          required={'Semgrep','Bandit','Gitleaks','pip-audit','Trivy','CK-NEXUS security regression','coverage/completeness'}
+          assert p['status'] in {'PREPARED_NOT_EXECUTED','EXECUTED_PENDING_REVIEW'}
           assert p['scan_mode']=='layered'
-          assert p['acceptance']['must_use_open_source_layered_scan'] is True
+          assert required.issubset(set(p['required_tools']))
           assert p['production_status']=='NO-GO'
-          print('Q10 request contract PASS')
+          print('Q10 request contract PASS; whole Q10 remains unverified until independent review and Owner approval.')
           PY

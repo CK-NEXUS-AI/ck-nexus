@@ -1,43 +1,59 @@
-name: Verify Q11 final release subject
+name: Verify Q11 live provider on exact release candidate
 
 on:
-  push:
-    branches: [verify/q11-final-subject]
   workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Exact candidate commit SHA; defaults to this workflow's commit
+        required: false
+        type: string
 
 permissions:
   contents: read
 
-env:
-  Q11_SOURCE_SHA: ad2fac7aa0752117dde065c7ad9b0b8d41136aa2
-  Q11_SOURCE_TREE: eb2074176319072ca3f31d5c8c990752ba849b0a
-  Q11_RELEASE_SUBJECT: 772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200
-
 jobs:
   q11:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - name: Checkout exact frozen candidate
+      - name: Checkout workflow branch
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ env.Q11_SOURCE_SHA }}
-          fetch-depth: 1
+          fetch-depth: 0
+
+      - name: Resolve exact candidate identity
+        id: subject
+        shell: bash
+        env:
+          REQUESTED_TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          target_sha="${REQUESTED_TARGET_SHA:-$GITHUB_SHA}"
+          [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$target_sha" = "$GITHUB_SHA" || { echo "target_sha_must_match_dispatch_head" >&2; exit 1; }
+          if ! git cat-file -e "$target_sha^{commit}" 2>/dev/null; then git fetch --no-tags origin "$target_sha"; fi
+          git checkout --detach "$target_sha"
+          tree=$(git rev-parse 'HEAD^{tree}')
+          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          test "$(git rev-parse HEAD)" = "$target_sha"
+          echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
+          echo "target_tree=$tree" >> "$GITHUB_OUTPUT"
+          echo "subject=$subject" >> "$GITHUB_OUTPUT"
+
       - name: Set up pinned Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
-      - name: Verify release subject and frozen environment
+
+      - name: Install frozen candidate environment
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$Q11_SOURCE_SHA"
-          test "$(git rev-parse HEAD^{tree})" = "$Q11_SOURCE_TREE"
-          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
-          test "$subject" = "$Q11_RELEASE_SUBJECT"
-          python -m pip install "uv==0.12.4"
+          python3 -m pip install --disable-pip-version-check "uv==0.13.7"
           uv lock --check
           uv sync --all-extras --dev --frozen
-      - name: Run P0-AI-001 without exposing secret
+
+      - name: Run P0-AI-001 live provider smoke without exposing credential
         id: smoke
         shell: bash
         env:
@@ -45,43 +61,78 @@ jobs:
           OPENAI_SMOKE_MODEL: ${{ vars.OPENAI_SMOKE_MODEL }}
         run: |
           set +e
-          .venv/bin/python scripts/test_openai_live.py >q11-output.txt 2>&1
+          .venv/bin/python3 scripts/test_openai_live.py >q11-output.raw.txt 2>&1
           rc=$?
+          set -e
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          raw=Path('q11-output.raw.txt').read_text(encoding='utf-8',errors='replace')
+          key=os.getenv('OPENAI_API_KEY','')
+          if key:
+              raw=raw.replace(key,'[REDACTED]')
+          raw=re.sub(r'(?i)sk-(?:proj-)?[A-Za-z0-9_-]{20,}','[REDACTED]',raw)
+          assert not key or key not in raw
+          assert not re.search(r'(?i)sk-(?:proj-)?[A-Za-z0-9_-]{20,}',raw)
+          Path('q11-output.txt').write_text(raw,encoding='utf-8')
+          Path('q11-output.raw.txt').unlink()
+          PY
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
-          exit 0
+
       - name: Emit exact Q11 evidence
         env:
+          SOURCE_SHA: ${{ steps.subject.outputs.target_sha }}
+          SOURCE_TREE: ${{ steps.subject.outputs.target_tree }}
+          RELEASE_SUBJECT: ${{ steps.subject.outputs.subject }}
           RUN_ID: ${{ github.run_id }}
           RC: ${{ steps.smoke.outputs.rc }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_SMOKE_MODEL: ${{ vars.OPENAI_SMOKE_MODEL }}
+        shell: bash
         run: |
-          .venv/bin/python - "$Q11_SOURCE_SHA" "$Q11_SOURCE_TREE" "$Q11_RELEASE_SUBJECT" "$RUN_ID" "$RC" <<'PY'
-          import json,os,sys
-          sha,tree,subject,run_id,rc=sys.argv[1:]
-          rc=int(rc)
-          text=open('q11-output.txt',encoding='utf-8').read().strip()
-          status='PASS' if rc==0 else ('BLOCKED' if rc==2 else 'FAIL')
+          .venv/bin/python3 - <<'PY'
+          import importlib.metadata as md
+          import json, os, re
+          from pathlib import Path
+          text=Path('q11-output.txt').read_text(encoding='utf-8',errors='replace').strip()
+          rc=int(os.getenv('RC','2'))
+          key=os.getenv('OPENAI_API_KEY','')
+          configured=bool(key.strip())
+          sentinel='CK-NEXUS-P0-SMOKE-PASS' in text
+          diagnostic_redaction_verified=(not key or key not in text) and not re.search(r'(?i)sk-(?:proj-)?[A-Za-z0-9_-]{20,}',text)
+          diagnostic_sha256=__import__('hashlib').sha256(Path('q11-output.txt').read_bytes()).hexdigest()
+          passed=rc==0 and configured and sentinel and diagnostic_redaction_verified
+          result='PASS' if passed else ('BLOCKED' if not configured or rc==2 else 'FAIL')
           evidence={
-              'schema_version':4,'gate':'Q11','source_sha':sha,'source_tree':tree,
-              'release_subject_manifest_sha256':subject,'github_run_id':int(run_id),
-              'credential_configured':bool(os.getenv('OPENAI_API_KEY','').strip()),
-              'credential_exposed':False,'p0_ai_001_exit_code':rc,
-              'sentinel_observed':'CK-NEXUS-P0-SMOKE-PASS' in text,
-              'result':status,'production_promotion_allowed':rc==0,
+              'schema_version':5,'gate':'Q11',
+              'source_sha':os.environ['SOURCE_SHA'],'source_tree':os.environ['SOURCE_TREE'],
+              'release_subject_manifest_sha256':os.environ['RELEASE_SUBJECT'],
+              'github_run_id':int(os.environ['RUN_ID']),
+              'runner_os':os.getenv('RUNNER_OS'),'runner_arch':os.getenv('RUNNER_ARCH'),
+              'openai_sdk_version':md.version('openai') if md.packages_distributions().get('openai') else 'unknown',
+              'model':os.getenv('OPENAI_SMOKE_MODEL') or 'script-default',
+              'credential_configured':configured,'credential_exposed':False,
+              'diagnostic_redaction_verified':diagnostic_redaction_verified,
+              'diagnostic_sha256':diagnostic_sha256,
+              'p0_ai_001_exit_code':rc,'sentinel_observed':sentinel,
+              'result':result,'production_promotion_allowed':passed,
               'diagnostic':text[:1000],
           }
-          with open('Q11_OPENAI_LIVE.json','w',encoding='utf-8') as f:
-              json.dump(evidence,f,indent=2,sort_keys=True); f.write('\n')
+          Path('Q11_OPENAI_LIVE.json').write_text(json.dumps(evidence,indent=2,sort_keys=True)+'\n',encoding='utf-8')
           print(json.dumps({k:v for k,v in evidence.items() if k!='diagnostic'},indent=2,sort_keys=True))
           PY
+
       - name: Upload Q11 evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: q11-final-${{ env.Q11_SOURCE_SHA }}
+          name: q11-final-${{ steps.subject.outputs.target_sha || github.sha }}
           path: |
             Q11_OPENAI_LIVE.json
             q11-output.txt
           if-no-files-found: error
+          retention-days: 90
+
       - name: Enforce Q11
-        run: test '${{ steps.smoke.outputs.rc }}' -eq 0
+        shell: bash
+        run: python3 -c "import json; x=json.load(open('Q11_OPENAI_LIVE.json')); assert x['result']=='PASS' and x['production_promotion_allowed'] is True"

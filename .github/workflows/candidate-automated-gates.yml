@@ -1,215 +1,22 @@
 name: Candidate automated gates
 
 on:
-  push:
-    branches: [release/q10-q16-closure]
   workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Exact candidate commit SHA; defaults to this workflow's commit
+        required: false
+        type: string
+      q16_run_id:
+        description: Successful Q16 production-image workflow run for this exact candidate
+        required: true
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
-  q10_dependency_component:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      CKNEXUS_ENVIRONMENT: development
-      CKNEXUS_HOST: 127.0.0.1
-      PORT: '8000'
-      CKNEXUS_ACCESS_TOKEN: test-access-value
-      CKNEXUS_SECURITY_ACCESS_TOKEN: test-access-value
-      CKNEXUS_MOCK_AI: 'true'
-      CKNEXUS_GMAIL_OAUTH_ENABLED: 'false'
-      CKNEXUS_GMAIL_SEND_ENABLED: 'false'
-      CKNEXUS_CONNECTOR_FABRIC_ENABLED: 'false'
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
-        with:
-          python-version: '3.12'
-      - name: Frozen candidate environment
-        run: |
-          python -m pip install --upgrade pip uv
-          uv lock --check
-          uv sync --all-extras --dev --frozen
-      - name: Exact frozen dependency audit
-        shell: bash
-        run: |
-          set +e
-          .venv/bin/pip-audit --local --skip-editable --progress-spinner off --format json --output q10-pip-audit.json
-          rc=$?
-          echo "Q10_AUDIT_RC=$rc" >> "$GITHUB_ENV"
-          exit 0
-      - name: Layered static security and secret scans
-        shell: bash
-        run: |
-          set +e
-          .venv/bin/bandit -q -r creator_app services scripts --format json --output q10-bandit.json
-          .venv/bin/python - <<'PYBANDIT'
-          import json
-          from pathlib import Path
-          report = json.loads(Path('q10-bandit.json').read_text(encoding='utf-8'))
-          high = sum(item.get('issue_severity') == 'HIGH' for item in report.get('results', []))
-          print(f'Bandit: {len(report.get("results", []))} findings recorded; high-severity={high}')
-          with open('/tmp/q10-bandit-rc', 'w', encoding='utf-8') as stream:
-              stream.write('1' if high else '0')
-          PYBANDIT
-          echo "Q10_BANDIT_RC=$(cat /tmp/q10-bandit-rc)" >> "$GITHUB_ENV"
-          .venv/bin/python scripts/secret_scan.py > q10-secret-scan.txt 2>&1
-          echo "Q10_SECRET_SCAN_RC=$?" >> "$GITHUB_ENV"
-
-      - name: Run security attack regression on isolated local runtime
-        shell: bash
-        run: |
-          set +e
-          nohup .venv/bin/ck-nexus > /tmp/cknexus-q10-runtime.log 2>&1 &
-          runtime_pid=$!
-          echo "$runtime_pid" > /tmp/cknexus-q10-runtime.pid
-          ready=0
-          for _ in $(seq 1 60); do
-            if curl --silent --fail http://127.0.0.1:8000/health/ready >/dev/null; then
-              ready=1
-              break
-            fi
-            sleep 0.5
-          done
-          if [ "$ready" -eq 1 ]; then
-            CKNEXUS_SECURITY_EVIDENCE=../security-attack-regression.json .venv/bin/python scripts/security_attack_regression.py
-            rc=$?
-          else
-            cat /tmp/cknexus-q10-runtime.log || true
-            rc=1
-          fi
-          kill "$runtime_pid" 2>/dev/null || true
-          wait "$runtime_pid" 2>/dev/null || true
-          echo "Q10_ATTACK_REGRESSION_RC=$rc" >> "$GITHUB_ENV"
-          exit 0
-
-      - name: Exact dependency license inventory
-        run: |
-          .venv/bin/python - <<'PY'
-          import importlib.metadata as md, json
-          rows=[]
-          for dist in md.distributions():
-              name=dist.metadata.get('Name') or ''
-              if name.lower() == 'ck-nexus-creator':
-                  continue
-              rows.append({
-                  'name': name,
-                  'version': dist.version,
-                  'license_expression': dist.metadata.get('License-Expression'),
-                  'license': dist.metadata.get('License'),
-                  'homepage': dist.metadata.get('Home-page'),
-              })
-          rows.sort(key=lambda x: x['name'].lower())
-          with open('Q16_DEPENDENCY_LICENSE_INVENTORY.json','w',encoding='utf-8') as f:
-              json.dump(rows,f,indent=2,sort_keys=True); f.write('\n')
-          print('dependency distributions=',len(rows))
-          PY
-      - name: Emit Q10 open-source layered security evidence
-        env:
-          RUN_ID: ${{ github.run_id }}
-          HEAD_SHA: ${{ github.sha }}
-        run: |
-          tree=$(git rev-parse HEAD^{tree})
-          manifest=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
-          .venv/bin/python - "$HEAD_SHA" "$tree" "$manifest" "$RUN_ID" "$Q10_AUDIT_RC" "$Q10_BANDIT_RC" "$Q10_SECRET_SCAN_RC" "$Q10_ATTACK_REGRESSION_RC" <<'PY'
-          import hashlib, json, sys
-          from datetime import UTC, datetime
-          source_sha, tree, manifest, run_id, audit_rc, bandit_rc, secret_rc, attack_rc = sys.argv[1:]
-          audit_rc, bandit_rc, secret_rc, attack_rc = map(int, (audit_rc, bandit_rc, secret_rc, attack_rc))
-          raw = json.load(open('q10-pip-audit.json', encoding='utf-8'))
-          deps = raw.get('dependencies', []) if isinstance(raw, dict) else raw
-          vulns = sum(len(x.get('vulns', [])) for x in deps if isinstance(x, dict))
-          try:
-              bandit = json.load(open('q10-bandit.json', encoding='utf-8'))
-          except Exception:
-              bandit = {'error': 'bandit_report_missing_or_invalid'}
-          secret_output = open('q10-secret-scan.txt', encoding='utf-8').read()
-          try:
-              attack = json.load(open('security-attack-regression.json', encoding='utf-8'))
-          except Exception:
-              attack = {'error': 'security_attack_regression_report_missing_or_invalid'}
-          completed = datetime.now(UTC).isoformat()
-          checks = {
-              'pip_audit_exit_code': audit_rc,
-              'dependency_vulnerabilities': vulns,
-              'bandit_high_severity_exit_code': bandit_rc,
-              'secret_scan_exit_code': secret_rc,
-              'security_attack_regression_exit_code': attack_rc,
-          }
-          passed = audit_rc == 0 and vulns == 0 and bandit_rc == 0 and secret_rc == 0 and attack_rc == 0
-          report = {
-              'schema_version': 1,
-              'gate': 'Q10_OPEN_SOURCE_LAYERED_SECURITY',
-              'source_sha': source_sha,
-              'source_tree': tree,
-              'release_subject_manifest_sha256': manifest,
-              'github_run_id': int(run_id),
-              'completed_at': completed,
-              'tools': {
-                  'dependency_auditor': 'pip-audit',
-                  'static_security': 'Bandit (high severity blocking threshold)',
-                  'secret_scanner': 'scripts/secret_scan.py',
-                  'attack_regression': 'scripts/security_attack_regression.py',
-              },
-              'checks': checks,
-              'bandit_report': bandit,
-              'secret_scan_output': secret_output,
-              'attack_regression_report': attack,
-              'open_source_security_scan': 'PASS' if passed else 'FAIL',
-              'production_promotion_allowed': False,
-          }
-          with open('q10-open-source-security-report.json', 'w', encoding='utf-8') as f:
-              json.dump(report, f, indent=2, sort_keys=True)
-              f.write('\n')
-          report_sha = hashlib.sha256(open('q10-open-source-security-report.json', 'rb').read()).hexdigest()
-          evidence = {
-              'schema_version': 5,
-              'gate': 'Q10',
-              'source_sha': source_sha,
-              'source_tree': tree,
-              'subject_manifest_sha256': manifest,
-              'release_subject_manifest_sha256': manifest,
-              'github_run_id': int(run_id),
-              'dependency_install': 'uv sync --all-extras --dev --frozen',
-              'auditor': 'pip-audit',
-              'vulnerabilities_found': vulns,
-              'pip_audit_exit_code': audit_rc,
-              'component_result': 'PASS' if audit_rc == 0 and vulns == 0 else 'FAIL',
-              'open_source_security_scan': 'PASS' if passed else 'FAIL',
-              'security_scan_run_id': int(run_id),
-              'security_report_sha256': report_sha,
-              'security_scan_completed_at': completed,
-              'security_scan_tools': ['pip-audit', 'Bandit', 'secret_scan.py', 'security_attack_regression.py'],
-              'bandit_high_severity_exit_code': bandit_rc,
-              'secret_scan_exit_code': secret_rc,
-              'security_attack_regression_exit_code': attack_rc,
-              'gate_result': 'NOT_VERIFIED',
-              'production_promotion_allowed': False,
-          }
-          with open('Q10_DEPENDENCY_AUDIT.json', 'w', encoding='utf-8') as f:
-              json.dump(evidence, f, indent=2, sort_keys=True)
-              f.write('\n')
-          print(json.dumps(evidence, indent=2, sort_keys=True))
-          assert passed, 'Q10 layered security gate failed; evidence remains non-promotable'
-          PY
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always()
-        with:
-          name: q10-candidate-${{ github.sha }}
-          path: |
-            Q10_DEPENDENCY_AUDIT.json
-            q10-open-source-security-report.json
-            q10-pip-audit.json
-            q10-bandit.json
-            q10-secret-scan.txt
-            security-attack-regression.json
-            Q16_DEPENDENCY_LICENSE_INVENTORY.json
-          if-no-files-found: warn
-
   q13_postgres_dr:
     runs-on: ubuntu-24.04
     services:
@@ -234,6 +41,19 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
+      - name: Resolve exact candidate identity
+        id: subject
+        shell: bash
+        env:
+          REQUESTED_TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          target_sha="${REQUESTED_TARGET_SHA:-$GITHUB_SHA}"
+          [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$target_sha" = "$GITHUB_SHA" || { echo "target_sha_must_match_dispatch_head" >&2; exit 1; }
+          if ! git cat-file -e "$target_sha^{commit}" 2>/dev/null; then git fetch --no-tags origin "$target_sha"; fi
+          git checkout --detach "$target_sha"
+          echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.12'
@@ -256,8 +76,8 @@ jobs:
             -c 'CREATE DATABASE cknexus_restore_dr;'
       - name: Run destructive isolated DR gate
         run: |
-          python scripts/gate_postgres_dr.py | tee Q13_POSTGRES_DR.json
-          python - <<'PY'
+          python3 scripts/gate_postgres_dr.py | tee Q13_POSTGRES_DR.json
+          python3 - <<'PY'
           import json
           x=json.load(open('Q13_POSTGRES_DR.json'))
           assert x['status']=='PASS' and x['backup']=='completed' and x['restore']=='completed'
@@ -266,23 +86,27 @@ jobs:
       - name: Bind Q13 evidence to candidate identity
         env:
           RUN_ID: ${{ github.run_id }}
-          HEAD_SHA: ${{ github.sha }}
+          HEAD_SHA: ${{ steps.subject.outputs.target_sha }}
         run: |
           tree=$(git rev-parse HEAD^{tree})
-          python - "$HEAD_SHA" "$tree" "$RUN_ID" <<'PY'
+          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          python3 - "$HEAD_SHA" "$tree" "$subject" "$RUN_ID" <<'PY'
           import json,sys
-          sha,tree,run_id=sys.argv[1:]
+          sha,tree,subject,run_id=sys.argv[1:]
           raw=json.load(open('Q13_POSTGRES_DR.json'))
+          passed=(raw.get('status')=='PASS' and raw.get('backup')=='completed' and raw.get('restore')=='completed')
           raw.update({
               'schema_version':2,
               'gate':'Q13',
               'source_sha':sha,
               'source_tree':tree,
+              'release_subject_manifest_sha256':subject,
               'github_run_id':int(run_id),
               'environment_class':'ephemeral-isolated-staging',
               'production_data_used':False,
-              'sentinel_round_trip':'PASS',
-              'result':'PASS_CANDIDATE',
+              'sentinel_round_trip':'PASS' if passed else 'FAIL',
+              'result':'PASS' if passed else 'FAIL',
+              'production_promotion_allowed':passed,
           })
           json.dump(raw,open('Q13_POSTGRES_DR.json','w'),indent=2,sort_keys=True)
           open('Q13_POSTGRES_DR.json','a').write('\n')
@@ -290,16 +114,64 @@ jobs:
           PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: q13-postgres-dr-${{ github.sha }}
+          name: q13-postgres-dr-${{ steps.subject.outputs.target_sha }}
           path: Q13_POSTGRES_DR.json
           if-no-files-found: error
 
   q15_clean_machine:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           fetch-depth: 0
+      - name: Resolve exact candidate identity
+        id: subject
+        shell: bash
+        env:
+          REQUESTED_TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          target_sha="${REQUESTED_TARGET_SHA:-$GITHUB_SHA}"
+          [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$target_sha" = "$GITHUB_SHA" || { echo "target_sha_must_match_dispatch_head" >&2; exit 1; }
+          if ! git cat-file -e "$target_sha^{commit}" 2>/dev/null; then git fetch --no-tags origin "$target_sha"; fi
+          git checkout --detach "$target_sha"
+          echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
+      - name: Install exact Q16 production image artifact
+        id: production_image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ steps.subject.outputs.target_sha }}
+          Q16_RUN_ID: ${{ inputs.q16_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/q16-image"
+          run_meta=$(gh run view "$Q16_RUN_ID" --json headSha,conclusion,name)
+          python3 - "$run_meta" "$TARGET_SHA" <<'PY'
+          import json,sys
+          run=json.loads(sys.argv[1])
+          assert run['headSha']==sys.argv[2], 'Q16 run head does not match candidate SHA'
+          assert run['conclusion']=='success', 'Q16 image workflow did not succeed'
+          assert run['name']=='Candidate production image'
+          PY
+          gh run download "$Q16_RUN_ID" --name "q16-production-image-$TARGET_SHA" --dir "$RUNNER_TEMP/q16-image"
+          python3 - "$RUNNER_TEMP/q16-image" "$TARGET_SHA" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          evidence=json.loads((root/'Q16_PRODUCTION_IMAGE.json').read_text(encoding='utf-8'))
+          assert evidence['source_sha']==sys.argv[2]
+          assert evidence['result']=='PASS' and evidence['production_promotion_allowed'] is True
+          assert evidence['image_scan_status']=='PASS'
+          assert hashlib.sha256((root/'q16-production-image.tar.gz').read_bytes()).hexdigest()==evidence['image_archive_sha256']
+          assert hashlib.sha256((root/'trivy-image.json').read_bytes()).hexdigest()==evidence['image_scan_report_sha256']
+          assert hashlib.sha256((root/'trivy-image-full.json').read_bytes()).hexdigest()==evidence['image_scan_full_report_sha256']
+          PY
+          docker load -i "$RUNNER_TEMP/q16-image/q16-production-image.tar.gz"
+          docker image inspect "cknexus-candidate:$TARGET_SHA" >/dev/null
+          echo "artifact_sha=$(sha256sum "$RUNNER_TEMP/q16-image/q16-production-image.tar.gz" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.12'
@@ -307,13 +179,47 @@ jobs:
         shell: bash
         run: |
           start=$(date +%s)
-          python -m pip install --upgrade pip uv
+          echo "Q15_INSTALL_STARTED=$start" >> "$GITHUB_ENV"
+          python3 -m pip install --upgrade pip "uv==0.13.7"
           uv lock --check
           uv sync --all-extras --dev --frozen
-          .venv/bin/python -m compileall -q main.py creator_app services scripts
+          .venv/bin/python3 -m compileall -q main.py creator_app services scripts
           .venv/bin/ruff check main.py creator_app services tests scripts
-          .venv/bin/pytest -q --ignore=tests/test_agnes_execution_kernel_phase2.py --ignore=tests/test_agnes_execution_kernel_phase3.py
-          echo "Q15_INSTALL_STARTED=$start" >> "$GITHUB_ENV"
+      - name: Run portable regression suite
+        id: portable
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          .venv/bin/pytest -q --ignore=tests/test_agnes_execution_kernel_phase2.py --ignore=tests/test_agnes_execution_kernel_phase3.py | tee q15-portable-tests.log
+          rc=$?
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          if [ "$rc" -eq 0 ]; then touch q15-portable-regression.pass; fi
+          exit 0
+      - name: Run Phase 2 Linux namespace isolation regression
+        id: phase2
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          # Execute as the hosted runner identity, matching the non-root production service boundary.
+          .venv/bin/pytest -q tests/test_agnes_execution_kernel_phase2.py | tee q15-phase2-tests.log
+          rc=$?
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          if [ "$rc" -eq 0 ]; then touch q15-phase2-regression.pass; fi
+          exit 0
+      - name: Run Phase 3 autonomous pipeline regression
+        id: phase3
+        shell: bash
+        run: |
+          set -o pipefail
+          set +e
+          # Execute Phase 3 kernel namespace/seccomp assertions as the non-root runner identity.
+          .venv/bin/pytest -q tests/test_agnes_execution_kernel_phase3.py | tee q15-phase3-tests.log
+          rc=$?
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          if [ "$rc" -eq 0 ]; then touch q15-phase3-regression.pass; fi
+          exit 0
       - name: Unified runtime smoke
         shell: bash
         env:
@@ -322,14 +228,16 @@ jobs:
           PORT: '8000'
         run: |
           ./start_unified.sh > q15-server.log 2>&1 &
-          echo $! > q15-server.pid
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          echo "$server_pid" > q15-server.pid
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8000/health > q15-health.json; then break; fi
             sleep 1
           done
           curl -fsS http://127.0.0.1:8000/control > q15-control.html
           curl -fsS http://127.0.0.1:8000/api/control/manifest > q15-control-manifest.json
-          .venv/bin/python - <<'PY'
+          .venv/bin/python3 - <<'PY'
           import json
           h=json.load(open('q15-health.json'))
           m=json.load(open('q15-control-manifest.json'))
@@ -339,24 +247,83 @@ jobs:
           assert 'CK-NEXUS' in open('q15-control.html',encoding='utf-8').read()
           PY
           kill "$(cat q15-server.pid)" || true
+      - name: Run exact production image on clean host as non-root
+        id: production_runtime
+        if: always()
+        env:
+          TARGET_SHA: ${{ steps.subject.outputs.target_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --rm --name q15-production-image -p 18000:8000 \
+            -e CKNEXUS_MOCK_AI=true -e CKNEXUS_HOST=0.0.0.0 -e PORT=8000 \
+            "cknexus-candidate:$TARGET_SHA" >/dev/null
+          trap 'docker rm -f q15-production-image >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:18000/health > q15-image-health.json; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:18000/api/control/manifest > q15-image-control-manifest.json
+          runtime_uid=$(docker exec q15-production-image id -u)
+          test "$runtime_uid" -ne 0
+          docker inspect --format '{{.Config.User}}' q15-production-image > q15-image-user.txt
+          python3 - <<'PY'
+          import json
+          h=json.load(open('q15-image-health.json',encoding='utf-8'))
+          m=json.load(open('q15-image-control-manifest.json',encoding='utf-8'))
+          assert h['status']=='ok'
+          assert m['name']=='CK-NEXUS Unified Control Surface'
+          assert m['route_count']>0 and len(m['groups'])==8
+          PY
+          python3 - "$runtime_uid" <<'PY'
+          import json,sys
+          from pathlib import Path
+          p=Path('q15-production-image-smoke.json')
+          p.write_text(json.dumps({'result':'PASS','runtime_uid':int(sys.argv[1]),'runtime_user':Path('q15-image-user.txt').read_text().strip(),'health':'PASS','control':'PASS'},indent=2,sort_keys=True)+'\n')
+          PY
+          echo "rc=0" >> "$GITHUB_OUTPUT"
       - name: Emit clean-machine evidence
+        if: always()
         env:
           RUN_ID: ${{ github.run_id }}
-          HEAD_SHA: ${{ github.sha }}
+          HEAD_SHA: ${{ steps.subject.outputs.target_sha }}
           IMAGE_OS: ${{ env.ImageOS }}
           IMAGE_VERSION: ${{ env.ImageVersion }}
+          PORTABLE_RC: ${{ steps.portable.outputs.rc }}
+          PHASE2_RC: ${{ steps.phase2.outputs.rc }}
+          PHASE3_RC: ${{ steps.phase3.outputs.rc }}
+          PRODUCTION_IMAGE_RC: ${{ steps.production_runtime.outputs.rc }}
+          PRODUCTION_IMAGE_SHA256: ${{ steps.production_image.outputs.artifact_sha }}
         run: |
           finish=$(date +%s)
           duration=$((finish-Q15_INSTALL_STARTED))
           tree=$(git rev-parse HEAD^{tree})
-          .venv/bin/python - "$HEAD_SHA" "$tree" "$RUN_ID" "$duration" <<'PY'
+          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          python3 - "$HEAD_SHA" "$tree" "$subject" "$RUN_ID" "$duration" <<'PY'
           import json,os,platform,sys
-          sha,tree,run_id,duration=sys.argv[1:]
+          from pathlib import Path
+          sha,tree,subject,run_id,duration=sys.argv[1:]
+          portable=Path('q15-portable-regression.pass').exists() and os.getenv('PORTABLE_RC')=='0'
+          phase2=Path('q15-phase2-regression.pass').exists() and os.getenv('PHASE2_RC')=='0'
+          phase3=Path('q15-phase3-regression.pass').exists() and os.getenv('PHASE3_RC')=='0'
+          try:
+              health=json.load(open('q15-health.json',encoding='utf-8')).get('status')=='ok'
+              manifest=json.load(open('q15-control-manifest.json',encoding='utf-8'))
+              control=manifest.get('name')=='CK-NEXUS Unified Control Surface' and len(manifest.get('groups',[]))==8 and manifest.get('route_count',0)>0
+          except (OSError,json.JSONDecodeError):
+              health=control=False
+          try:
+              image_smoke=json.load(open('q15-production-image-smoke.json',encoding='utf-8'))
+              image_installed=image_smoke.get('result')=='PASS' and image_smoke.get('runtime_uid',0)>0
+          except (OSError,json.JSONDecodeError):
+              image_installed=False
+          passed=portable and phase2 and phase3 and health and control and image_installed and os.getenv('PRODUCTION_IMAGE_RC')=='0'
           evidence={
               'schema_version':2,
               'gate':'Q15',
               'source_sha':sha,
               'source_tree':tree,
+              'release_subject_manifest_sha256':subject,
               'github_run_id':int(run_id),
               'host_class':'fresh-github-hosted-vm',
               'os':platform.platform(),
@@ -364,11 +331,17 @@ jobs:
               'image_os':os.getenv('ImageOS'),
               'image_version':os.getenv('ImageVersion'),
               'install':'uv sync --all-extras --dev --frozen',
-              'portable_regression':'PASS',
-              'unified_health_smoke':'PASS',
-              'unified_control_smoke':'PASS',
+              'portable_regression':'PASS' if portable else 'FAIL',
+              'phase2_sandbox_regression':'PASS' if phase2 else 'FAIL',
+              'phase3_pipeline_regression':'PASS' if phase3 else 'FAIL',
+              'unified_health_smoke':'PASS' if health else 'FAIL',
+              'unified_control_smoke':'PASS' if control else 'FAIL',
+              'exact_q16_production_image_installation':'PASS' if image_installed else 'FAIL',
+              'production_image_artifact_sha256':os.getenv('PRODUCTION_IMAGE_SHA256'),
               'elapsed_seconds':int(duration),
-              'result':'PASS_CANDIDATE',
+              'test_exit_codes':{'portable':os.getenv('PORTABLE_RC'),'phase2':os.getenv('PHASE2_RC'),'phase3':os.getenv('PHASE3_RC')},
+              'result':'PASS' if passed else 'FAIL',
+              'production_promotion_allowed':passed,
               'supported_production_host_verified':'Linux Ubuntu 24.04',
           }
           json.dump(evidence,open('Q15_CLEAN_MACHINE.json','w'),indent=2,sort_keys=True)
@@ -376,11 +349,22 @@ jobs:
           print(json.dumps(evidence,indent=2,sort_keys=True))
           PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
-          name: q15-clean-machine-${{ github.sha }}
+          name: q15-clean-machine-${{ steps.subject.outputs.target_sha }}
           path: |
             Q15_CLEAN_MACHINE.json
             q15-health.json
             q15-control-manifest.json
             q15-server.log
-          if-no-files-found: error
+            q15-portable-tests.log
+            q15-phase2-tests.log
+            q15-phase3-tests.log
+            q15-production-image-smoke.json
+            q15-image-health.json
+            q15-image-control-manifest.json
+            q15-image-user.txt
+          if-no-files-found: warn
+      - name: Enforce Q15
+        if: always()
+        run: python3 -c "import json; x=json.load(open('Q15_CLEAN_MACHINE.json')); assert x['result']=='PASS' and x['production_promotion_allowed'] is True"

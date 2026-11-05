@@ -27,6 +27,8 @@ jobs:
         run: npm install --ignore-scripts
       - name: Typecheck
         run: npm run typecheck
+      - name: URL policy regression tests
+        run: npm test
       - name: Verify no local secrets/state are tracked
         run: |
           test ! -f .env

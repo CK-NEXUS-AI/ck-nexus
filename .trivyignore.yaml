@@ -1,0 +1,31 @@
+vulnerabilities:
+  - id: CVE-2025-69720
+    statement: "No vendor FixedVersion was reported by the full Trivy scan on 2026-11-05. Suppression is conditional on a valid, time-limited Owner approval record; it is not independently sufficient for promotion."
+    expired_at: 2026-12-05
+  - id: CVE-2026-119373
+    statement: "No vendor FixedVersion was reported by the full Trivy scan on 2026-11-05. Suppression is conditional on a valid, time-limited Owner approval record; it is not independently sufficient for promotion."
+    expired_at: 2026-12-05
+  - id: CVE-2026-16742
+    statement: "No vendor FixedVersion was reported by the full Trivy scan on 2026-11-05. Suppression is conditional on a valid, time-limited Owner approval record; it is not independently sufficient for promotion."
+    expired_at: 2026-12-05
+  - id: CVE-2026-54369
+    statement: "No vendor FixedVersion was reported by the full Trivy scan on 2026-11-05. Suppression is conditional on a valid, time-limited Owner approval record; it is not independently sufficient for promotion."
+    expired_at: 2026-12-05
+  - id: CVE-2026-76642
+    statement: "No vendor FixedVersion was reported by the full Trivy scan on 2026-11-05. Suppression is conditional on a valid, time-limited Owner approval record; it is not independently sufficient for promotion."
+    expired_at: 2026-12-05
+  - id: CVE-2026-76844
+    statement: "No vendor FixedVersion was reported by the full Trivy scan on 2026-11-05. Suppression is conditional on a valid, time-limited Owner approval record; it is not independently sufficient for promotion."
+    expired_at: 2026-12-05
+  - id: CVE-2026-78408
+    statement: "No vendor FixedVersion was reported by the full Trivy scan on 2026-11-05. Suppression is conditional on a valid, time-limited Owner approval record; it is not independently sufficient for promotion."
+    expired_at: 2026-12-05
+  - id: CVE-2026-78409
+    statement: "No vendor FixedVersion was reported by the full Trivy scan on 2026-11-05. Suppression is conditional on a valid, time-limited Owner approval record; it is not independently sufficient for promotion."
+    expired_at: 2026-12-05
+  - id: CVE-2026-78410
+    statement: "No vendor FixedVersion was reported by the full Trivy scan on 2026-11-05. Suppression is conditional on a valid, time-limited Owner approval record; it is not independently sufficient for promotion."
+    expired_at: 2026-12-05
+  - id: CVE-2026-9538
+    statement: "No vendor FixedVersion was reported by the full Trivy scan on 2026-11-05. Suppression is conditional on a valid, time-limited Owner approval record; it is not independently sufficient for promotion."
+    expired_at: 2026-12-05

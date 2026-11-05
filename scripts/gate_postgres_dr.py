@@ -44,16 +44,17 @@ def main() -> int:
         return 2
     with tempfile.TemporaryDirectory(prefix="cknexus-r19-dr-") as tmp:
         backup_dir = Path(tmp) / "backup"
+        backup_env = os.environ.copy()
+        backup_env["CKNEXUS_DATABASE_URL"] = source
         backup = subprocess.run(
             [
                 sys.executable,
                 "scripts/postgres_dr.py",
                 "backup",
-                "--source-url",
-                source,
                 "--output-dir",
                 str(backup_dir),
             ],
+            env=backup_env,
             text=True,
             capture_output=True,
         )
@@ -63,18 +64,18 @@ def main() -> int:
             )
             print(json.dumps(result, sort_keys=True))
             return backup.returncode
+        restore_env = os.environ.copy()
+        restore_env["CKNEXUS_DATABASE_URL"] = source
+        restore_env["CKNEXUS_RESTORE_DATABASE_URL"] = target
         restore = subprocess.run(
             [
                 sys.executable,
                 "scripts/postgres_dr.py",
                 "restore",
-                "--source-url",
-                source,
-                "--target-url",
-                target,
                 "--backup-dir",
                 str(backup_dir),
             ],
+            env=restore_env,
             text=True,
             capture_output=True,
         )
