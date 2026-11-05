@@ -11,7 +11,7 @@ WORKDIR /app
 RUN apk upgrade --no-cache
 
 RUN addgroup -S cknexus && adduser -S -G cknexus cknexus \
-    && python -m pip install --no-cache-dir --upgrade pip==26.3 uv==0.13.7
+    && python -m pip install --no-cache-dir --upgrade pip==26.3 setuptools==83.0.0 uv==0.13.7
 
 COPY pyproject.toml uv.lock README.md ./
 COPY app ./app

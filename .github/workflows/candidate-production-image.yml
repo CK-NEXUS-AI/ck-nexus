@@ -39,7 +39,7 @@ jobs:
         run: |
           grep -Fx 'FROM python:3.12.16-alpine3.24@sha256:e6dae589c1c05976188fd3bd019afd091445fc533ed2ea29001beddc7368a9c8' Dockerfile
           grep -F 'apk upgrade --no-cache' Dockerfile
-          grep -F 'pip==26.3 uv==0.13.7' Dockerfile
+          grep -F 'pip==26.3 setuptools==83.0.0 uv==0.13.7' Dockerfile
           grep -F 'COPY pyproject.toml uv.lock README.md ./' Dockerfile
           grep -F 'uv lock --check' Dockerfile
           grep -F 'uv sync --frozen --no-dev --no-editable' Dockerfile
