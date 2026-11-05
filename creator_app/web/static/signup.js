@@ -136,7 +136,11 @@ async function addKey() {
   const slug = document.getElementById('provSelect').value;
   const key = document.getElementById('keyInput').value;
   const msg = document.getElementById('formMsg');
-  if (!slug || !key) { msg.innerHTML = '<span style="color:var(--hub-red)">⚠️ Select provider and enter key</span>'; return; }
+  if (!slug || !key) {
+    msg.textContent = '⚠️ Select provider and enter key';
+    msg.style.color = 'var(--hub-red)';
+    return;
+  }
   try {
     const r = await fetch(`${API}/${slug}/set-key`, {
       method: 'POST', headers: {'Content-Type':'application/json'},
@@ -144,11 +148,18 @@ async function addKey() {
     });
     const d = await r.json();
     if (d.success) {
-      msg.innerHTML = `<span style="color:var(--hub-green)">✅ Key set for ${slug}</span>`;
+      msg.textContent = `✅ Key set for ${slug}`;
+      msg.style.color = 'var(--hub-green)';
       document.getElementById('keyInput').value = '';
       runScan();
-    } else { msg.innerHTML = `<span style="color:var(--hub-red)">❌ ${d.error}</span>`; }
-  } catch { msg.innerHTML = '<span style="color:var(--hub-red)">❌ Backend not connected</span>'; }
+    } else {
+      msg.textContent = `❌ ${String(d.error || 'Provider key could not be added')}`;
+      msg.style.color = 'var(--hub-red)';
+    }
+  } catch {
+    msg.textContent = '❌ Backend not connected';
+    msg.style.color = 'var(--hub-red)';
+  }
 }
 
 async function validateAll() {

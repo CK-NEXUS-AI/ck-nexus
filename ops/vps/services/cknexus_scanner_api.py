@@ -52,7 +52,8 @@ class H(BaseHTTPRequestHandler):
                 return self.out(400, {"error": "invalid_json"})
             if not isinstance(d, dict):
                 return self.out(400, {"error": "invalid_request"})
-            if Path(d.get("target", "")).resolve() != R:
+            target = d.get("target")
+            if not isinstance(target, str) or target != str(R):
                 return self.out(400, {"error": "target_not_allowed"})
             rawss = d.get("scanners", "trivy,semgrep")
             vals = rawss if isinstance(rawss, list) else str(rawss).split(",")

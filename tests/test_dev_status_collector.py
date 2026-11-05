@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import stat
 import subprocess
 from pathlib import Path
 from unittest.mock import Mock
@@ -147,3 +148,12 @@ def test_collect_does_not_use_non_readonly_github_credentials(monkeypatch) -> No
     assert not any(args[:2] == ["gh", "pr"] for args in calls)
     assert not any(args[:2] == ["gh", "issue"] for args in calls)
     assert not any(args[:2] == ["gh", "run"] for args in calls)
+
+
+def test_atomic_status_snapshot_is_owner_only(tmp_path, monkeypatch) -> None:
+    output = tmp_path / "dev_status.json"
+    monkeypatch.setattr(collector, "OUTPUT", output)
+    collector.write_atomic({"schema_version": 1, "items": {"health": {"status": "ok"}}})
+
+    assert output.exists()
+    assert stat.S_IMODE(output.stat().st_mode) == 0o600

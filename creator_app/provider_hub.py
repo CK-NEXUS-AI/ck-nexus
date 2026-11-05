@@ -363,7 +363,7 @@ def _validate_anthropic(key: str) -> dict[str, Any]:
             return {"valid": False, "error": "Invalid API key"}
         if "429" in err or "rate" in err.lower():
             return {"valid": True, "error": "Rate limited (key is valid)"}
-        return {"valid": False, "error": err[:100]}
+        return {"valid": False, "error": "Provider validation failed"}
 
 
 def _validate_generic(
@@ -391,7 +391,7 @@ def _validate_generic(
             return {"valid": False, "error": "Invalid API key"}
         if "429" in err:
             return {"valid": True, "error": "Rate limited (key is valid)"}
-        return {"valid": False, "error": err[:100]}
+        return {"valid": False, "error": "Provider validation failed"}
 
 
 def validate_provider(slug: str) -> dict[str, Any]:

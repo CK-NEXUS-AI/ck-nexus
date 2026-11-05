@@ -175,7 +175,8 @@ async function addKey() {
   const result = document.getElementById('addResult');
 
   if (!slug || !key) {
-    result.innerHTML = '<span style="color:#ef4444">⚠️ Select provider and enter API key</span>';
+    result.textContent = '⚠️ Select provider and enter API key';
+    result.style.color = '#ef4444';
     return;
   }
 
@@ -187,14 +188,17 @@ async function addKey() {
     });
     const data = await resp.json();
     if (data.success) {
-      result.innerHTML = `<span style="color:#22c55e">✅ Key added for ${slug}</span>`;
+      result.textContent = `✅ Key added for ${slug}`;
+      result.style.color = '#22c55e';
       document.getElementById('apiKeyInput').value = '';
       scanProviders();
     } else {
-      result.innerHTML = `<span style="color:#ef4444">❌ ${data.error}</span>`;
+      result.textContent = `❌ ${String(data.error || 'Provider key could not be added')}`;
+      result.style.color = '#ef4444';
     }
   } catch (e) {
-    result.innerHTML = '<span style="color:#ef4444">❌ Backend not connected</span>';
+    result.textContent = '❌ Backend not connected';
+    result.style.color = '#ef4444';
   }
 }
 
