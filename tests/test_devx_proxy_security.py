@@ -2,7 +2,6 @@ from pathlib import Path
 from runpy import run_path
 from unittest.mock import patch
 
-
 SCRIPT = Path("ops/vps/scripts/ck-nexus-devx-proxy.py")
 
 
