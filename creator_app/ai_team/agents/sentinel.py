@@ -1,7 +1,8 @@
-"""Sentinel — ผู้ตรวจหลักฐานอิสระแบบ fail-closed.
+"""Sentinel — fail-closed structural evidence checker.
 
-Sentinel ตรวจโครงสร้างและความสอดคล้องของ evidence bundle เท่านั้น
-ไม่เข้าถึงระบบภายนอก ไม่อนุมัติการปล่อยระบบ และไม่แทน CK-NEXUS Core/L3
+Sentinel checks evidence-bundle structure and subject binding only. It does not
+fetch artifacts, recompute artifact digests, verify signatures, or replace
+CK-NEXUS Core/L3 or an independent human reviewer.
 """
 
 from __future__ import annotations
@@ -25,22 +26,19 @@ _SHA256 = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
 class SentinelAgent(Agent):
-    """ตรวจ evidence provenance และป้องกันการสรุป DONE โดยไม่มีหลักฐาน."""
+    """ตรวจโครงสร้าง evidence bundle แบบ fail-closed โดยไม่อ้างว่า verify provenance."""
 
     def __init__(self) -> None:
         super().__init__(
             name="Sentinel",
             role=AgentRole.SENTINEL,
             expertise=(
-                "evidence verification",
-                "evidence provenance",
-                "release gate",
-                "artifact integrity",
-                "commit verification",
-                "independent review",
+                "evidence structure",
+                "subject binding",
+                "release gate challenge",
                 "fail closed",
             ),
-            description="ผู้ตรวจหลักฐานอิสระ — ตรวจความครบถ้วนและความสอดคล้องก่อนส่งต่อให้ Core/L3",
+            description="ผู้ตรวจโครงสร้างหลักฐานแบบ read-only — ส่งผล candidate ให้ Core/L3 ตรวจต่อ",
             capabilities=(
                 AgentCapability("evidence_structure", "ตรวจโครงสร้าง evidence bundle", level=10),
                 AgentCapability("subject_binding", "ตรวจ SHA ของหลักฐานให้ตรงกับเป้าหมาย", level=9),
@@ -149,6 +147,9 @@ class SentinelAgent(Agent):
             subject_sha=subject_sha,
             checks_total=len(normalized_checks),
             source=source,
+            verification_scope="STRUCTURE_ONLY",
+            artifact_digest_verified=False,
+            authority_attestation_verified=False,
         )
 
     def _blocked(

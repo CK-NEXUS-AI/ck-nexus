@@ -37,6 +37,9 @@ class TestSentinelEvidenceGate:
 
         assert result.status == TaskStatus.BLOCKED
         assert result.metadata["evidence_status"] == "CANDIDATE_UNVERIFIED"
+        assert result.metadata["verification_scope"] == "STRUCTURE_ONLY"
+        assert result.metadata["artifact_digest_verified"] is False
+        assert result.metadata["authority_attestation_verified"] is False
         assert "Core/L3" in result.output
 
     def test_only_sentinel_receives_evidence_bundle(self, monkeypatch):
