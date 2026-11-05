@@ -30,6 +30,7 @@ from creator_app.ai_team.agents import (
     EngineerAgent,
     GuardianAgent,
     ResearcherAgent,
+    SentinelAgent,
 )
 from creator_app.ai_team.auto_response import AgentMessage, AgentMessageBus
 from creator_app.ai_team.shared_knowledge import SharedKnowledge
@@ -61,6 +62,7 @@ class TeamDirector:
             "researcher": ResearcherAgent(),
             "designer": DesignerAgent(),
             "connector": ConnectorAgent(),
+            "sentinel": SentinelAgent(),
         }
         self.knowledge = SharedKnowledge(persistence_path=knowledge_path)
         self.message_bus = AgentMessageBus(max_hops=4, max_history=500)
@@ -79,6 +81,7 @@ class TeamDirector:
         priority: int = 2,
         context: str = "",
         constraints: tuple[str, ...] = (),
+        evidence_bundle: dict[str, Any] | None = None,
     ) -> TeamResult:
         """สั่งงานทั้งทีม — ครั้งเดียวจบทั้งระบบ."""
         start = time.time()
@@ -129,14 +132,15 @@ class TeamDirector:
                 "completed_steps": completed_steps,
                 "step_results": step_results,
                 "knowledge_context": knowledge_context,
+                "evidence_bundle": evidence_bundle,
             }
 
             result = agent.process(request, context=agent_context)
             agent.record_result(result)
             step_results.append(result)
-            completed_steps.add(step.step_id)
 
             if result.status == TaskStatus.COMPLETED:
+                completed_steps.add(step.step_id)
                 self.knowledge.add(
                     topic=description[:100],
                     agent_name=agent.name,
@@ -148,11 +152,22 @@ class TeamDirector:
         # Director รวมผล
         synthesis = self.director.synthesize_results(step_results, request)
 
+        if any(result.status == TaskStatus.FAILED for result in step_results):
+            team_status = TaskStatus.FAILED
+        elif any(result.status == TaskStatus.BLOCKED for result in step_results):
+            team_status = TaskStatus.BLOCKED
+        elif len(step_results) != plan.total_steps:
+            team_status = TaskStatus.BLOCKED
+        else:
+            team_status = TaskStatus.COMPLETED
+
         team_result = TeamResult(
             request_id=request.request_id,
             final_output=synthesis.output,
-            status=TaskStatus.COMPLETED,
-            steps_completed=len(step_results),
+            status=team_status,
+            steps_completed=sum(
+                1 for result in step_results if result.status == TaskStatus.COMPLETED
+            ),
             steps_total=plan.total_steps,
             team_members_used=tuple(dict.fromkeys(r.agent_name for r in step_results)),
             duration_seconds=time.time() - start,

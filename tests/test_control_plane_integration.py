@@ -53,7 +53,9 @@ def test_dispatch_stops_downstream_after_failed_dependency() -> None:
 
 def test_default_handlers_delegate_to_existing_team_director() -> None:
     class FakeTeam:
-        def process_request(self, description: str, *, priority: int, context: str):
+        def process_request(
+            self, description: str, *, priority: int, context: str, evidence_bundle=None
+        ):
             return SimpleNamespace(
                 final_output=f"handled:{description}",
                 status=SimpleNamespace(value="completed"),
@@ -110,3 +112,54 @@ def test_queue_adapter_rejects_unknown_node() -> None:
         assert "unknown task node" in str(exc)
     else:
         raise AssertionError("unknown node must be rejected")
+
+
+def test_dispatch_preserves_blocked_team_result_and_blocks_dependents() -> None:
+    from types import SimpleNamespace
+
+    class BlockedTeam:
+        def process_request(
+            self, description: str, *, priority: int, context: str, evidence_bundle=None
+        ):
+            return SimpleNamespace(
+                final_output="NO EVIDENCE → NO DONE",
+                status=SimpleNamespace(value="blocked"),
+                team_members_used=("Sentinel",),
+                confidence=0.0,
+            )
+
+    orchestrator = ControlPlaneOrchestrator(team_director=BlockedTeam())
+    graph = orchestrator.plan("verify release evidence")
+    result = asyncio.run(orchestrator.dispatch(graph))
+
+    assert result.execution_state is ExecutionState.BLOCKED
+    assert result.results["task-01-research"]["state"] == "blocked"
+    assert result.results["task-02-implementation"]["state"] == "blocked_dependency"
+    assert result.results["task-03-verification"]["state"] == "blocked_dependency"
+
+
+def test_control_plane_forwards_evidence_bundle_to_team_director() -> None:
+    from types import SimpleNamespace
+
+    class CapturingTeam:
+        received = None
+
+        def process_request(
+            self, description: str, *, priority: int, context: str, evidence_bundle=None
+        ):
+            self.received = evidence_bundle
+            return SimpleNamespace(
+                final_output="candidate",
+                status=SimpleNamespace(value="blocked"),
+                team_members_used=("Sentinel",),
+                confidence=0.1,
+            )
+
+    bundle = {"subject_sha": "a" * 40, "checks": []}
+    team = CapturingTeam()
+    orchestrator = ControlPlaneOrchestrator(team_director=team)
+    graph = orchestrator.plan("verify release evidence", evidence_bundle=bundle)
+    handler = orchestrator.default_handlers()["research"]
+    handler(graph.nodes[0])
+
+    assert team.received is bundle

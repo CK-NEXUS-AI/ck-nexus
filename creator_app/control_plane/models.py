@@ -21,6 +21,7 @@ class ControlPlaneRequest:
     description: str
     priority: int = 2
     context: str = ""
+    evidence_bundle: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not self.description.strip():
@@ -38,6 +39,7 @@ class TaskNode:
     depends_on: tuple[str, ...] = ()
     candidates: tuple[str, ...] = ()
     state: ExecutionState = ExecutionState.PLANNED_NOT_EXECUTED
+    evidence_bundle: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True, slots=True)

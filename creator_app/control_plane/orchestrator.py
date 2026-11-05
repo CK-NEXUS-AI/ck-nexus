@@ -57,8 +57,14 @@ class ControlPlaneOrchestrator:
         *,
         priority: int = 2,
         context: str = "",
+        evidence_bundle: dict[str, Any] | None = None,
     ) -> TaskGraph:
-        request = ControlPlaneRequest(description=description, priority=priority, context=context)
+        request = ControlPlaneRequest(
+            description=description,
+            priority=priority,
+            context=context,
+            evidence_bundle=evidence_bundle,
+        )
         nodes: list[TaskNode] = []
         previous_id: str | None = None
         for index, spec in enumerate(_ROLE_SPECS, start=1):
@@ -72,6 +78,7 @@ class ControlPlaneOrchestrator:
                     required_capabilities=spec.capabilities,
                     depends_on=(previous_id,) if previous_id and spec.role != "security" else (),
                     candidates=tuple(row["assistant_id"] for row in candidates),
+                    evidence_bundle=request.evidence_bundle,
                 )
             )
             if spec.role in {"research", "implementation"}:
@@ -88,6 +95,7 @@ class ControlPlaneOrchestrator:
                 depends_on=(implementation_id,),
                 candidates=node.candidates,
                 state=node.state,
+                evidence_bundle=node.evidence_bundle,
             )
             for node in nodes
         ]
@@ -126,6 +134,7 @@ class ControlPlaneOrchestrator:
                 node.task,
                 priority=2,
                 context=f"CK-NEXUS control-plane role={node.role}; planned node={node.node_id}",
+                evidence_bundle=node.evidence_bundle,
             )
             return {
                 "final_output": result.final_output,
@@ -156,7 +165,8 @@ class ControlPlaneOrchestrator:
                 if all(results.get(dep, {}).get("state") == "completed" for dep in node.depends_on):
                     ready.append(node)
                 elif any(
-                    results.get(dep, {}).get("state") in {"failed", "blocked_dependency"}
+                    results.get(dep, {}).get("state")
+                    in {"failed", "blocked", "blocked_dependency"}
                     for dep in node.depends_on
                 ):
                     results[node.node_id] = {"state": "blocked_dependency"}
@@ -195,8 +205,20 @@ class ControlPlaneOrchestrator:
                 timeout=timeout,
             )
             for item in batch:
+                if item.status is not TaskStatus.COMPLETED:
+                    state = "failed"
+                elif isinstance(item.result, dict) and "status" in item.result:
+                    reported_status = str(item.result["status"]).strip().lower()
+                    if reported_status in {"completed", "success", "ok"}:
+                        state = "completed"
+                    elif reported_status in {"failed", "error"}:
+                        state = "failed"
+                    else:
+                        state = "blocked"
+                else:
+                    state = "completed"
                 results[item.task_id] = {
-                    "state": "completed" if item.status is TaskStatus.COMPLETED else "failed",
+                    "state": state,
                     "result": item.result,
                     "error": item.error,
                 }
@@ -206,10 +228,15 @@ class ControlPlaneOrchestrator:
         all_completed = bool(graph.nodes) and len(results) == len(graph.nodes) and all(
             item.get("state") == "completed" for item in results.values()
         )
-        return DispatchResult(
-            execution_state=ExecutionState.COMPLETED if all_completed else ExecutionState.FAILED,
-            results=results,
-        )
+        if all_completed:
+            execution_state = ExecutionState.COMPLETED
+        elif any(item.get("state") == "failed" for item in results.values()):
+            execution_state = ExecutionState.FAILED
+        elif any(item.get("state") == "blocked" for item in results.values()):
+            execution_state = ExecutionState.BLOCKED
+        else:
+            execution_state = ExecutionState.FAILED
+        return DispatchResult(execution_state=execution_state, results=results)
 
     @staticmethod
     def _task_for(role: str, description: str) -> str:
