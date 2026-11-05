@@ -63,9 +63,12 @@ class SentinelAgent(Agent):
                 missing=("evidence_bundle",),
             )
 
-        subject_sha = str(bundle.get("subject_sha", "")).strip().lower()
-        source = str(bundle.get("source", "")).strip()
-        observed_at = str(bundle.get("observed_at", "")).strip()
+        raw_subject_sha = bundle.get("subject_sha")
+        raw_source = bundle.get("source")
+        raw_observed_at = bundle.get("observed_at")
+        subject_sha = raw_subject_sha.strip().lower() if isinstance(raw_subject_sha, str) else ""
+        source = raw_source.strip() if isinstance(raw_source, str) else ""
+        observed_at = raw_observed_at.strip() if isinstance(raw_observed_at, str) else ""
         checks = bundle.get("checks")
         missing: list[str] = []
 
@@ -73,12 +76,15 @@ class SentinelAgent(Agent):
             missing.append("subject_sha (40/64 hex characters)")
         if not source:
             missing.append("source")
-        try:
-            timestamp = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
-            if timestamp.tzinfo is None:
-                missing.append("observed_at timezone")
-        except ValueError:
+        if not observed_at:
             missing.append("observed_at (ISO-8601 with timezone)")
+        else:
+            try:
+                timestamp = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+                if timestamp.tzinfo is None:
+                    missing.append("observed_at timezone")
+            except ValueError:
+                missing.append("observed_at (ISO-8601 with timezone)")
         if not isinstance(checks, list) or not checks:
             missing.append("checks (non-empty list)")
 
@@ -89,11 +95,16 @@ class SentinelAgent(Agent):
                 if not isinstance(item, dict):
                     missing.append(f"{prefix} object")
                     continue
-                name = str(item.get("name", "")).strip()
-                status = str(item.get("status", "")).strip().upper()
-                evidence_ref = str(item.get("evidence_ref", "")).strip()
-                check_sha = str(item.get("subject_sha", "")).strip().lower()
-                artifact_sha = str(item.get("artifact_sha256", "")).strip()
+                raw_name = item.get("name")
+                raw_status = item.get("status")
+                raw_evidence_ref = item.get("evidence_ref")
+                raw_check_sha = item.get("subject_sha")
+                raw_artifact_sha = item.get("artifact_sha256")
+                name = raw_name.strip() if isinstance(raw_name, str) else ""
+                status = raw_status.strip().upper() if isinstance(raw_status, str) else ""
+                evidence_ref = raw_evidence_ref.strip() if isinstance(raw_evidence_ref, str) else ""
+                check_sha = raw_check_sha.strip().lower() if isinstance(raw_check_sha, str) else ""
+                artifact_sha = raw_artifact_sha.strip() if isinstance(raw_artifact_sha, str) else ""
                 if not name:
                     missing.append(f"{prefix}.name")
                 if status not in {"PASS", "FAIL", "UNKNOWN"}:

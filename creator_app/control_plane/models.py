@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -28,6 +29,8 @@ class ControlPlaneRequest:
             raise ValueError("request must not be empty")
         if not 0 <= self.priority <= 3:
             raise ValueError("priority must be between 0 and 3")
+        if self.evidence_bundle is not None:
+            object.__setattr__(self, "evidence_bundle", deepcopy(self.evidence_bundle))
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +43,10 @@ class TaskNode:
     candidates: tuple[str, ...] = ()
     state: ExecutionState = ExecutionState.PLANNED_NOT_EXECUTED
     evidence_bundle: dict[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        if self.evidence_bundle is not None:
+            object.__setattr__(self, "evidence_bundle", deepcopy(self.evidence_bundle))
 
 
 @dataclass(frozen=True, slots=True)

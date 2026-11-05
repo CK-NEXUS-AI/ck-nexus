@@ -136,6 +136,7 @@ def test_dispatch_preserves_blocked_team_result_and_blocks_dependents() -> None:
     assert result.results["task-01-research"]["state"] == "blocked"
     assert result.results["task-02-implementation"]["state"] == "blocked_dependency"
     assert result.results["task-03-verification"]["state"] == "blocked_dependency"
+    assert result.results["task-04-security"]["state"] == "blocked_dependency"
 
 
 def test_control_plane_forwards_evidence_bundle_to_team_director() -> None:
@@ -163,9 +164,74 @@ def test_control_plane_forwards_evidence_bundle_to_team_director() -> None:
     security_node = next(node for node in graph.nodes if node.role == "security")
 
     assert research_node.evidence_bundle is None
-    assert security_node.evidence_bundle is bundle
+    assert security_node.evidence_bundle == bundle
+    assert security_node.evidence_bundle is not bundle
 
     orchestrator.default_handlers()["research"](research_node)
     assert team.received is None
     orchestrator.default_handlers()["security"](security_node)
-    assert team.received is bundle
+    assert team.received == bundle
+    assert team.received is not bundle
+
+
+def test_default_dispatch_does_not_require_evidence_for_ordinary_verification() -> None:
+    graph = ControlPlaneOrchestrator().plan("improve MCP routing")
+    result = asyncio.run(ControlPlaneOrchestrator().dispatch(graph))
+
+    assert result.execution_state is ExecutionState.COMPLETED
+    assert all(item["state"] == "completed" for item in result.results.values())
+
+
+def test_explicit_evidence_gate_without_bundle_fails_closed() -> None:
+    graph = ControlPlaneOrchestrator().plan("verify release evidence")
+    result = asyncio.run(ControlPlaneOrchestrator().dispatch(graph))
+
+    assert result.execution_state is ExecutionState.BLOCKED
+    assert result.results["task-01-research"]["state"] == "completed"
+    assert result.results["task-02-implementation"]["state"] == "completed"
+    assert result.results["task-03-verification"]["state"] == "completed"
+    assert result.results["task-04-security"]["state"] == "blocked"
+
+
+def test_dispatch_blocks_non_dict_results_with_empty_status() -> None:
+    graph = ControlPlaneOrchestrator().plan("repair API")
+
+    async def run() -> object:
+        return await ControlPlaneOrchestrator().dispatch(
+            graph,
+            handlers={
+                "research": lambda _node: SimpleNamespace(status=None),
+                "implementation": lambda _node: "must-not-run",
+                "verification": lambda _node: "must-not-run",
+                "security": lambda _node: "must-not-run",
+            },
+        )
+
+    result = asyncio.run(run())
+    assert result.execution_state is ExecutionState.BLOCKED
+    assert result.results["task-01-research"]["state"] == "blocked"
+    assert result.results["task-02-implementation"]["state"] == "blocked_dependency"
+
+
+def test_dispatch_reads_status_from_non_dict_result_objects() -> None:
+    graph = ControlPlaneOrchestrator().plan("repair API")
+
+    async def run() -> object:
+        return await ControlPlaneOrchestrator().dispatch(
+            graph,
+            handlers={
+                "research": lambda _node: SimpleNamespace(
+                    status=SimpleNamespace(value="blocked")
+                ),
+                "implementation": lambda _node: "must-not-run",
+                "verification": lambda _node: "must-not-run",
+                "security": lambda _node: "must-not-run",
+            },
+        )
+
+    result = asyncio.run(run())
+    assert result.execution_state is ExecutionState.BLOCKED
+    assert result.results["task-01-research"]["state"] == "blocked"
+    assert result.results["task-02-implementation"]["state"] == "blocked_dependency"
+    assert result.results["task-03-verification"]["state"] == "blocked_dependency"
+    assert result.results["task-04-security"]["state"] == "blocked_dependency"

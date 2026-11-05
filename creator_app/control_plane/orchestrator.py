@@ -209,16 +209,26 @@ class ControlPlaneOrchestrator:
             for item in batch:
                 if item.status is not TaskStatus.COMPLETED:
                     state = "failed"
-                elif isinstance(item.result, dict) and "status" in item.result:
-                    reported_status = str(item.result["status"]).strip().lower()
-                    if reported_status in {"completed", "success", "ok"}:
-                        state = "completed"
-                    elif reported_status in {"failed", "error"}:
-                        state = "failed"
-                    else:
-                        state = "blocked"
                 else:
-                    state = "completed"
+                    if isinstance(item.result, dict):
+                        status_present = "status" in item.result
+                        raw_status = item.result.get("status")
+                    else:
+                        status_present = hasattr(item.result, "status")
+                        raw_status = getattr(item.result, "status", None)
+                    if status_present:
+                        raw_status = getattr(raw_status, "value", raw_status)
+                        reported_status = (
+                            str(raw_status).strip().lower() if raw_status is not None else ""
+                        )
+                        if reported_status in {"completed", "success", "ok"}:
+                            state = "completed"
+                        elif reported_status in {"failed", "error"}:
+                            state = "failed"
+                        else:
+                            state = "blocked"
+                    else:
+                        state = "completed"
                 results[item.task_id] = {
                     "state": state,
                     "result": item.result,

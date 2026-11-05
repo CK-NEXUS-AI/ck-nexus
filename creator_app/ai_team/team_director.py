@@ -15,6 +15,7 @@ from typing import Any
 
 from creator_app.ai_team.agent import Agent
 from creator_app.ai_team.agent_models import (
+    PlanStep,
     TaskResult,
     TaskStatus,
     TeamPlan,
@@ -113,6 +114,51 @@ class TeamDirector:
         if plan is None:
             plan = TeamPlan(request_id=request.request_id)
 
+        # Sentinel is an explicit evidence gate, never a default verifier.
+        # A supplied bundle forces Sentinel even when task wording is generic;
+        # explicit evidence/artifact/release requests also reach Sentinel so a
+        # missing bundle is reported as MISSING rather than silently skipped.
+        description_lower = description.lower()
+        explicit_evidence_request = any(
+            marker in description_lower
+            for marker in (
+                "evidence",
+                "artifact",
+                "attestation",
+                "provenance",
+                "release",
+                "go/no-go",
+                "หลักฐาน",
+                "ตรวจหลักฐาน",
+                "ปล่อยระบบ",
+            )
+        )
+        control_plane_role = next(
+            (
+                role
+                for role in ("research", "implementation", "verification", "security")
+                if f"control-plane role={role};" in context
+            ),
+            None,
+        )
+        evidence_gate_requested = evidence_bundle is not None or (
+            explicit_evidence_request
+            and (control_plane_role is None or control_plane_role == "security")
+        )
+        sentinel_steps = [step for step in plan.steps if step.agent_role == "sentinel"]
+        plan.steps = [step for step in plan.steps if step.agent_role != "sentinel"]
+        if evidence_gate_requested:
+            sentinel_step = sentinel_steps[0] if sentinel_steps else PlanStep(
+                step_id="step-sentinel-evidence",
+                agent_name="Sentinel",
+                agent_role="sentinel",
+                description="ตรวจโครงสร้าง evidence bundle",
+                priority=request.priority,
+            )
+            sentinel_step.depends_on = ()
+            plan.steps.insert(0, sentinel_step)
+        plan.total_steps = len(plan.steps)
+
         # ทำงานตามแผน
         step_results: list[TaskResult] = []
         completed_steps: set[str] = set()
@@ -158,7 +204,9 @@ class TeamDirector:
         if any(result.status == TaskStatus.FAILED for result in step_results):
             team_status = TaskStatus.FAILED
         elif (
-            any(result.status == TaskStatus.BLOCKED for result in step_results)
+            plan.total_steps == 0
+            or not plan.steps
+            or any(result.status != TaskStatus.COMPLETED for result in step_results)
             or len(step_results) != plan.total_steps
         ):
             team_status = TaskStatus.BLOCKED
