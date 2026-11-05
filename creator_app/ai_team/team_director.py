@@ -15,6 +15,7 @@ from typing import Any
 
 from creator_app.ai_team.agent import Agent
 from creator_app.ai_team.agent_models import (
+    PlanStep,
     TaskResult,
     TaskStatus,
     TeamPlan,
@@ -30,6 +31,7 @@ from creator_app.ai_team.agents import (
     EngineerAgent,
     GuardianAgent,
     ResearcherAgent,
+    SentinelAgent,
 )
 from creator_app.ai_team.auto_response import AgentMessage, AgentMessageBus
 from creator_app.ai_team.shared_knowledge import SharedKnowledge
@@ -61,6 +63,7 @@ class TeamDirector:
             "researcher": ResearcherAgent(),
             "designer": DesignerAgent(),
             "connector": ConnectorAgent(),
+            "sentinel": SentinelAgent(),
         }
         self.knowledge = SharedKnowledge(persistence_path=knowledge_path)
         self.message_bus = AgentMessageBus(max_hops=4, max_history=500)
@@ -79,6 +82,7 @@ class TeamDirector:
         priority: int = 2,
         context: str = "",
         constraints: tuple[str, ...] = (),
+        evidence_bundle: dict[str, Any] | None = None,
     ) -> TeamResult:
         """สั่งงานทั้งทีม — ครั้งเดียวจบทั้งระบบ."""
         start = time.time()
@@ -110,6 +114,58 @@ class TeamDirector:
         if plan is None:
             plan = TeamPlan(request_id=request.request_id)
 
+        # Sentinel is an explicit evidence gate, never a default verifier.
+        # A supplied bundle forces Sentinel even when task wording is generic;
+        # explicit evidence/artifact/release requests also reach Sentinel so a
+        # missing bundle is reported as MISSING rather than silently skipped.
+        description_lower = description.lower()
+        explicit_evidence_request = any(
+            marker in description_lower
+            for marker in (
+                "evidence",
+                "artifact",
+                "attestation",
+                "provenance",
+                "verification",
+                "release",
+                "release gate",
+                "release-gate",
+                "production",
+                "production gate",
+                "production-gate",
+                "go/no-go",
+                "หลักฐาน",
+                "ตรวจหลักฐาน",
+                "ปล่อยระบบ",
+            )
+        )
+        control_plane_role = next(
+            (
+                role
+                for role in ("research", "implementation", "verification", "security")
+                if f"control-plane role={role};" in context
+            ),
+            None,
+        )
+        evidence_gate_requested = evidence_bundle is not None or (
+            explicit_evidence_request
+            and (control_plane_role is None or control_plane_role == "security")
+        )
+        sentinel_steps = [step for step in plan.steps if step.agent_role == "sentinel"]
+        plan.steps = [step for step in plan.steps if step.agent_role != "sentinel"]
+        if evidence_gate_requested:
+            sentinel_step = sentinel_steps[0] if sentinel_steps else PlanStep(
+                step_id="step-sentinel-evidence",
+                agent_name="Sentinel",
+                agent_role="sentinel",
+                description="ตรวจโครงสร้าง evidence bundle",
+                priority=request.priority,
+            )
+            sentinel_step.depends_on = ()
+            plan.steps.insert(0, sentinel_step)
+        plan.total_steps = len(plan.steps)
+        plan.estimated_duration = plan.total_steps * 10.0
+
         # ทำงานตามแผน
         step_results: list[TaskResult] = []
         completed_steps: set[str] = set()
@@ -130,13 +186,17 @@ class TeamDirector:
                 "step_results": step_results,
                 "knowledge_context": knowledge_context,
             }
+            # Evidence bundles are restricted to Sentinel. Other agents receive
+            # no evidence payload, even when the team request carries one.
+            if agent.role.value == "sentinel":
+                agent_context["evidence_bundle"] = evidence_bundle
 
             result = agent.process(request, context=agent_context)
             agent.record_result(result)
             step_results.append(result)
-            completed_steps.add(step.step_id)
 
             if result.status == TaskStatus.COMPLETED:
+                completed_steps.add(step.step_id)
                 self.knowledge.add(
                     topic=description[:100],
                     agent_name=agent.name,
@@ -148,11 +208,25 @@ class TeamDirector:
         # Director รวมผล
         synthesis = self.director.synthesize_results(step_results, request)
 
+        if any(result.status == TaskStatus.FAILED for result in step_results):
+            team_status = TaskStatus.FAILED
+        elif (
+            plan.total_steps == 0
+            or not plan.steps
+            or any(result.status != TaskStatus.COMPLETED for result in step_results)
+            or len(step_results) != plan.total_steps
+        ):
+            team_status = TaskStatus.BLOCKED
+        else:
+            team_status = TaskStatus.COMPLETED
+
         team_result = TeamResult(
             request_id=request.request_id,
             final_output=synthesis.output,
-            status=TaskStatus.COMPLETED,
-            steps_completed=len(step_results),
+            status=team_status,
+            steps_completed=sum(
+                1 for result in step_results if result.status == TaskStatus.COMPLETED
+            ),
             steps_total=plan.total_steps,
             team_members_used=tuple(dict.fromkeys(r.agent_name for r in step_results)),
             duration_seconds=time.time() - start,

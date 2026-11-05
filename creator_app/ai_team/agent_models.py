@@ -17,6 +17,7 @@ class AgentRole(Enum):
     RESEARCHER = "researcher"
     DESIGNER = "designer"
     CONNECTOR = "connector"
+    SENTINEL = "sentinel"
 
 
 class TaskStatus(Enum):
