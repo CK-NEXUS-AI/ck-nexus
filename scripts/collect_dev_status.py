@@ -287,7 +287,7 @@ def probe_qwen_daily() -> dict[str, Any]:
         tmp.write_text(
             json.dumps({"date": today, "result": result, "collected_at": now()}, ensure_ascii=False)
         )
-        os.chmod(tmp, 0o640)
+        os.chmod(tmp, 0o600)
         os.replace(tmp, state_file)
         if result.get("last_success"):
             return item(result, "authenticated DashScope chat completion (max_tokens=8)")
@@ -310,7 +310,7 @@ def write_atomic(payload: dict[str, Any]) -> None:
             json.dump(safe, stream, ensure_ascii=False, indent=2)
             stream.flush()
             os.fsync(stream.fileno())
-        os.chmod(tmp_name, 0o640)
+        os.chmod(tmp_name, 0o600)
         os.replace(tmp_name, OUTPUT)
     finally:
         if os.path.exists(tmp_name):
