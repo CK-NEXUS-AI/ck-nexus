@@ -31,5 +31,5 @@ export function buildOpenCodeRequestUrl(baseUrl: string, path: string): string {
   if (target.origin !== base.origin) {
     throw new Error('OpenCode request path must remain on the configured loopback origin');
   }
-  return z.string().url().parse(target.toString());
+  return z.parse(z.string().url(), target.toString());
 }

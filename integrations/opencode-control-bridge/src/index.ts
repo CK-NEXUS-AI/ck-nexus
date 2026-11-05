@@ -49,7 +49,7 @@ function redact(value: unknown): unknown {
 
 async function ocRequest(path: string, init: RequestInit = {}): Promise<unknown> {
   const url = buildOpenCodeRequestUrl(OPENCODE_BASE_URL, path);
-  const safeUrl = z.string().url().parse(url);
+  const safeUrl = z.parse(z.string().url(), url);
   const response = await fetch(safeUrl, {
     ...init,
     headers: { ...authHeaders(), ...(init.headers ?? {}) },
