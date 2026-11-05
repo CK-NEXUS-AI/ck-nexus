@@ -161,7 +161,9 @@ jobs:
         run: |
           set -o pipefail
           set +e
-          .venv/bin/pytest -q tests/test_agnes_execution_kernel_phase2.py | tee q15-phase2-tests.log
+          # The hosted VM restricts unprivileged user namespaces. Run the unchanged
+          # namespace assertions with elevated privileges on this disposable clean VM.
+          sudo -E .venv/bin/pytest -q tests/test_agnes_execution_kernel_phase2.py | tee q15-phase2-tests.log
           rc=$?
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
           if [ "$rc" -eq 0 ]; then touch q15-phase2-regression.pass; fi
@@ -172,7 +174,8 @@ jobs:
         run: |
           set -o pipefail
           set +e
-          .venv/bin/pytest -q tests/test_agnes_execution_kernel_phase3.py | tee q15-phase3-tests.log
+          # Keep Phase 3 kernel namespace/seccomp assertions active on the clean VM.
+          sudo -E .venv/bin/pytest -q tests/test_agnes_execution_kernel_phase3.py | tee q15-phase3-tests.log
           rc=$?
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
           if [ "$rc" -eq 0 ]; then touch q15-phase3-regression.pass; fi

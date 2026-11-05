@@ -226,6 +226,8 @@ def restore(
         proc = _run(
             [
                 pg_restore,
+                "--dbname",
+                env["PGDATABASE"],
                 "--clean",
                 "--if-exists",
                 "--no-owner",

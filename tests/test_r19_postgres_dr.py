@@ -106,3 +106,49 @@ def test_postgres_environment_rejects_control_characters(tmp_path):
             "postgresql://operator:secret%0Ainjected@db.example.test/cknexus_restore",
             tmp_path,
         )
+
+
+def test_restore_connects_pg_restore_to_isolated_target(tmp_path, monkeypatch):
+    commands = []
+    monkeypatch.setenv("CKNEXUS_ENVIRONMENT", "staging")
+    monkeypatch.setenv("CKNEXUS_ALLOW_DESTRUCTIVE_RESTORE", "YES")
+    monkeypatch.setenv("CKNEXUS_RESTORE_TARGET_CLASS", "isolated-dr")
+    monkeypatch.setattr(postgres_dr, "_require_tool", lambda name: name)
+    monkeypatch.setattr(
+        postgres_dr,
+        "_postgres_environment",
+        lambda url, credential_dir: {"PGDATABASE": "cknexus_restore_dr"},
+    )
+    monkeypatch.setattr(
+        postgres_dr,
+        "verify_dump",
+        lambda backup_dir: {"status": "PASS", "sha256": "a" * 64},
+    )
+
+    def fake_run(command, *, env=None, stdin=None):
+        commands.append(command)
+        if command[0] == "pg_restore":
+            return postgres_dr.subprocess.CompletedProcess(command, 0, "", "")
+        return postgres_dr.subprocess.CompletedProcess(
+            command,
+            0,
+            "\n".join(postgres_dr.REQUIRED_TABLES),
+            "",
+        )
+
+    monkeypatch.setattr(postgres_dr, "_run", fake_run)
+    backup_dir = tmp_path / "backup"
+    backup_dir.mkdir()
+    (backup_dir / "postgres.dump").write_bytes(b"fixture")
+    (backup_dir / "SHA256SUMS").write_text("a" * 64 + "  postgres.dump\n")
+
+    result = postgres_dr.restore(
+        "postgresql://source:secret@db.example.test/cknexus",
+        "postgresql://target:secret@db.example.test/cknexus_restore_dr",
+        backup_dir,
+        900,
+    )
+
+    assert result["status"] == "PASS"
+    assert commands[0][:3] == ["pg_restore", "--dbname", "cknexus_restore_dr"]
+    assert commands[1][0] == "psql"
