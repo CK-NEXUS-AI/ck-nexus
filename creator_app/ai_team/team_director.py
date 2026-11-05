@@ -154,9 +154,10 @@ class TeamDirector:
 
         if any(result.status == TaskStatus.FAILED for result in step_results):
             team_status = TaskStatus.FAILED
-        elif any(result.status == TaskStatus.BLOCKED for result in step_results):
-            team_status = TaskStatus.BLOCKED
-        elif len(step_results) != plan.total_steps:
+        elif (
+            any(result.status == TaskStatus.BLOCKED for result in step_results)
+            or len(step_results) != plan.total_steps
+        ):
             team_status = TaskStatus.BLOCKED
         else:
             team_status = TaskStatus.COMPLETED
