@@ -1,8 +1,8 @@
 """Regression checks for the canonical CK-NEXUS product homepage."""
-from html.parser import HTMLParser
-from pathlib import Path
 import re
 import unittest
+from html.parser import HTMLParser
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 HTML = (ROOT / "creator_app/web/index.html").read_text(encoding="utf-8")
