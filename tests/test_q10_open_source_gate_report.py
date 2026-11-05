@@ -48,7 +48,7 @@ def _write_reports(output: Path, *, bandit_severity: str = "LOW") -> None:
         },
         "q10-tool-versions.json": {
             "python3": "Python 3.12.10",
-            "uv": "uv 0.12.4",
+            "uv": "uv 0.13.7",
             "semgrep": "1.183.0",
             "gitleaks": "8.30.1",
             "trivy": "Version: 0.76.1",

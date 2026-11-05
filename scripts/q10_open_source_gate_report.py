@@ -37,7 +37,7 @@ EXPECTED_SEMGREP_RULE_DIRECTORIES = [
 ]
 EXPECTED_TOOL_VERSIONS = {
     "semgrep": "1.183.0",
-    "uv": "0.12.4",
+    "uv": "0.13.7",
     "gitleaks": "8.30.1",
     "trivy": "0.76.1",
 }
