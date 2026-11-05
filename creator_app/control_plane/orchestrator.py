@@ -78,7 +78,9 @@ class ControlPlaneOrchestrator:
                     required_capabilities=spec.capabilities,
                     depends_on=(previous_id,) if previous_id and spec.role != "security" else (),
                     candidates=tuple(row["assistant_id"] for row in candidates),
-                    evidence_bundle=request.evidence_bundle,
+                    evidence_bundle=(
+                        request.evidence_bundle if spec.role == "security" else None
+                    ),
                 )
             )
             if spec.role in {"research", "implementation"}:

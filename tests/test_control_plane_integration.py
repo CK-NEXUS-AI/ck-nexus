@@ -159,7 +159,13 @@ def test_control_plane_forwards_evidence_bundle_to_team_director() -> None:
     team = CapturingTeam()
     orchestrator = ControlPlaneOrchestrator(team_director=team)
     graph = orchestrator.plan("verify release evidence", evidence_bundle=bundle)
-    handler = orchestrator.default_handlers()["research"]
-    handler(graph.nodes[0])
+    research_node = next(node for node in graph.nodes if node.role == "research")
+    security_node = next(node for node in graph.nodes if node.role == "security")
 
+    assert research_node.evidence_bundle is None
+    assert security_node.evidence_bundle is bundle
+
+    orchestrator.default_handlers()["research"](research_node)
+    assert team.received is None
+    orchestrator.default_handlers()["security"](security_node)
     assert team.received is bundle

@@ -39,6 +39,25 @@ class TestSentinelEvidenceGate:
         assert result.metadata["evidence_status"] == "CANDIDATE_UNVERIFIED"
         assert "Core/L3" in result.output
 
+    def test_only_sentinel_receives_evidence_bundle(self, monkeypatch):
+        team = TeamDirector()
+        bundle = {"subject_sha": "a" * 40, "checks": []}
+        received = {}
+
+        for name, agent in team.agents.items():
+            original = agent.process
+
+            def capture(request, context=None, *, _name=name, _original=original):
+                if context and "evidence_bundle" in context:
+                    received[_name] = context["evidence_bundle"]
+                return _original(request, context=context)
+
+            monkeypatch.setattr(agent, "process", capture)
+
+        team.process_request("verify release evidence", evidence_bundle=bundle)
+
+        assert received == {"sentinel": bundle}
+
     def test_failed_evidence_check_fails_gate(self):
         subject_sha = "c" * 40
         request = TeamRequest(request_id="sentinel-fail", description="verify security release")

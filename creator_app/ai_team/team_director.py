@@ -132,8 +132,11 @@ class TeamDirector:
                 "completed_steps": completed_steps,
                 "step_results": step_results,
                 "knowledge_context": knowledge_context,
-                "evidence_bundle": evidence_bundle,
             }
+            # Evidence bundles are restricted to Sentinel. Other agents receive
+            # no evidence payload, even when the team request carries one.
+            if agent.role.value == "sentinel":
+                agent_context["evidence_bundle"] = evidence_bundle
 
             result = agent.process(request, context=agent_context)
             agent.record_result(result)
