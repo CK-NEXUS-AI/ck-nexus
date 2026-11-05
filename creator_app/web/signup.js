@@ -206,22 +206,36 @@ async function validateAll() {
   const panel = document.getElementById('resultsPanel');
   const list = document.getElementById('resultsList');
   panel.style.display = 'block';
-  list.innerHTML = '<p>⏳ Validating all keys...</p>';
+  list.textContent = '⏳ Validating all keys...';
 
   try {
     const resp = await fetch('/api/providers/validate-all');
     const results = await resp.json();
-    list.innerHTML = results.map(r => `
-      <div class="result-item">
-        <span class="result-icon">${r.icon}</span>
-        <span class="result-name">${r.name}</span>
-        <span class="result-badge ${r.valid ? 'badge-valid' : 'badge-invalid'}">
-          ${r.valid ? '✅ VALID' : '❌ ' + r.error}
-        </span>
-      </div>
-    `).join('');
+    if (!Array.isArray(results)) throw new TypeError('Invalid provider validation response');
+
+    list.textContent = '';
+    for (const row of results) {
+      const result = row && typeof row === 'object' ? row : {};
+      const item = document.createElement('div');
+      item.className = 'result-item';
+
+      const icon = document.createElement('span');
+      icon.className = 'result-icon';
+      icon.textContent = String(result.icon ?? '');
+
+      const name = document.createElement('span');
+      name.className = 'result-name';
+      name.textContent = String(result.name ?? '');
+
+      const badge = document.createElement('span');
+      badge.className = 'result-badge ' + (result.valid ? 'badge-valid' : 'badge-invalid');
+      badge.textContent = result.valid ? '✅ VALID' : '❌ ' + String(result.error || 'Invalid');
+
+      item.append(icon, name, badge);
+      list.append(item);
+    }
   } catch (e) {
-    list.innerHTML = '<p>❌ Backend not connected</p>';
+    list.textContent = '❌ Backend not connected';
   }
 }
 

@@ -7,12 +7,16 @@ Supports Claude/Anthropic, OpenAI, Groq, Gemini, and more.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
+
+
+logger = logging.getLogger(__name__)
 
 
 class ProviderTier(StrEnum):
@@ -358,6 +362,7 @@ def _validate_anthropic(key: str) -> dict[str, Any]:
                 }
             return {"valid": False, "error": f"HTTP {resp.status}"}
     except Exception as e:
+        logger.warning("provider validation failed: %s", type(e).__name__)
         err = str(e)
         if "401" in err or "authentication" in err.lower():
             return {"valid": False, "error": "Invalid API key"}
@@ -386,6 +391,7 @@ def _validate_generic(
                 return {"valid": True, "models": models}
             return {"valid": False, "error": f"HTTP {resp.status}"}
     except Exception as e:
+        logger.warning("provider validation failed: %s", type(e).__name__)
         err = str(e)
         if "401" in err or "403" in err or "unauthorized" in err.lower():
             return {"valid": False, "error": "Invalid API key"}
