@@ -38,6 +38,7 @@ jobs:
       - name: Validate frozen production install contract
         run: |
           grep -Fx 'FROM python:3.12.16-slim-trixie@sha256:e695ab189fa2d082b1c61c69a6b888a5adeca61ceeccad107b1ed2a125721a9e' Dockerfile
+          grep -F 'apt-get upgrade -y --no-install-recommends' Dockerfile
           grep -F 'uv==0.13.4' Dockerfile
           grep -F 'COPY pyproject.toml uv.lock README.md ./' Dockerfile
           grep -F 'uv lock --check' Dockerfile

@@ -8,6 +8,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN addgroup --system cknexus && adduser --system --ingroup cknexus cknexus \
     && python -m pip install --no-cache-dir uv==0.13.4
 
