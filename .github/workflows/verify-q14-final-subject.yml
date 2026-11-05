@@ -55,7 +55,7 @@ jobs:
           test "$subject" = "$Q14_RELEASE_SUBJECT"
       - name: Frozen verifier environment
         run: |
-          python3 -m pip install "uv==0.12.4"
+          python3 -m pip install "uv==0.13.7"
           uv lock --check
           uv sync --all-extras --dev --frozen
       - name: Configure failure injection and staging operator receiver

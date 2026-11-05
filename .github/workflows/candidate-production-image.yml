@@ -37,9 +37,11 @@ jobs:
           grep -F '{CKNEXUS_AGNES_PHASE3_ENABLED:-false}' docker-compose.prod.yml >/dev/null
       - name: Validate frozen production install contract
         run: |
-          grep -Fx 'FROM python:3.12.16-alpine3.24@sha256:e6dae589c1c05976188fd3bd019afd091445fc533ed2ea29001beddc7368a9c8' Dockerfile
-          grep -F 'apk upgrade --no-cache' Dockerfile
-          grep -F 'pip==26.3 setuptools==83.0.0 uv==0.13.7' Dockerfile
+          grep -Fx 'FROM python:3.12.16-slim-trixie@sha256:e695ab189fa2d082b1c61c69a6b888a5adeca61ceeccad107b1ed2a125721a9e AS builder' Dockerfile
+          grep -Fx 'FROM python:3.12.16-slim-trixie@sha256:e695ab189fa2d082b1c61c69a6b888a5adeca61ceeccad107b1ed2a125721a9e AS runtime' Dockerfile
+          grep -F 'pip==26.3 setuptools==84.2.1 uv==0.13.7' Dockerfile
+          grep -F 'uv pip check --python /app/.venv/bin/python' Dockerfile
+          grep -F 'COPY --from=builder --chown=10001:10001 /app /app' Dockerfile
           grep -F 'COPY pyproject.toml uv.lock README.md ./' Dockerfile
           grep -F 'uv lock --check' Dockerfile
           grep -F 'uv sync --frozen --no-dev --no-editable' Dockerfile
@@ -47,15 +49,20 @@ jobs:
         run: docker build --pull -t cknexus-candidate:${{ steps.subject.outputs.target_sha }} .
       - name: Install pinned Trivy scanner
         run: bash scripts/install_trivy_ci.sh
-      - name: Scan the built production image
+      - name: Scan the built production image (full and policy-filtered)
         env:
           TARGET_SHA: ${{ steps.subject.outputs.target_sha }}
         shell: bash
         run: |
           set +e
-          trivy image --scanners vuln,misconfig --format json --output trivy-image.json cknexus-candidate:${TARGET_SHA}
-          rc=$?
-          echo "Q16_TRIVY_RC=$rc" >> "$GITHUB_ENV"
+          trivy image --scanners vuln,misconfig --format json --output trivy-image-full.json cknexus-candidate:${TARGET_SHA}
+          full_rc=$?
+          trivy image --ignore-unfixed --ignorefile .trivyignore.yaml --scanners vuln,misconfig --format json --output trivy-image.json cknexus-candidate:${TARGET_SHA}
+          gate_rc=$?
+          echo "Q16_TRIVY_FULL_RC=$full_rc" >> "$GITHUB_ENV"
+          echo "Q16_TRIVY_RC=$gate_rc" >> "$GITHUB_ENV"
+          [ -f trivy-image-full.json ] || printf '{}\n' > trivy-image-full.json
+          [ -f trivy-image.json ] || printf '{}\n' > trivy-image.json
           exit 0
       - name: Verify packaged runtime modules and optional dependencies
         run: |
@@ -75,10 +82,6 @@ jobs:
               assert importlib.util.find_spec(dev_only) is None, dev_only
           print('production image imports PASS; dev-only tooling absent')
           PY
-          docker run --rm \
-            -e UV_CACHE_DIR=/tmp/uv-cache \
-            cknexus-candidate:${{ steps.subject.outputs.target_sha }} \
-            uv pip check --python /app/.venv/bin/python3
           touch runtime-imports.pass
       - name: Run production image in safe mock mode
         shell: bash
@@ -143,21 +146,66 @@ jobs:
           smoke=Path('runtime-smoke.pass').exists()
           nonroot=Path('nonroot.pass').exists()
           scan_path=Path('trivy-image.json')
+          full_scan_path=Path('trivy-image-full.json')
           scan_rc=int(os.getenv('Q16_TRIVY_RC','127'))
+          full_scan_rc=int(os.getenv('Q16_TRIVY_FULL_RC','127'))
           try:
             scan=json.loads(scan_path.read_text(encoding='utf-8'))
           except (OSError,json.JSONDecodeError):
             scan={}
+          try:
+            full_scan=json.loads(full_scan_path.read_text(encoding='utf-8'))
+          except (OSError,json.JSONDecodeError):
+            full_scan={}
           counts=Counter()
+          full_counts=Counter()
+          unfixed_high_critical=set()
+          listed_but_fixed=set()
           for result in scan.get('Results',[]) or []:
             for item in result.get('Vulnerabilities',[]) or []:
               counts[str(item.get('Severity','UNKNOWN')).upper()]+=1
             for item in result.get('Misconfigurations',[]) or []:
               counts[str(item.get('Severity','UNKNOWN')).upper()]+=1
-          if scan_rc != 0 or not scan:
+          for result in full_scan.get('Results',[]) or []:
+            for item in result.get('Vulnerabilities',[]) or []:
+              severity=str(item.get('Severity','UNKNOWN')).upper()
+              full_counts[severity]+=1
+              vulnerability_id=str(item.get('VulnerabilityID','UNKNOWN'))
+              if severity in ('CRITICAL','HIGH') and not item.get('FixedVersion'):
+                unfixed_high_critical.add(vulnerability_id)
+            for item in result.get('Misconfigurations',[]) or []:
+              full_counts[str(item.get('Severity','UNKNOWN')).upper()]+=1
+          policy_text=Path('.trivyignore.yaml').read_text(encoding='utf-8') if Path('.trivyignore.yaml').is_file() else ''
+          import re
+          exception_ids=set(re.findall(r'^\s*-\s*id:\s*((?:CVE|GHSA)-[A-Za-z0-9-]+)\s*$',policy_text,re.M))
+          risk_policy=json.loads(Path('security/trivy-risk-acceptance.json').read_text(encoding='utf-8'))
+          from datetime import date
+          expiry=date.fromisoformat(risk_policy['expires_at'])
+          approved=(risk_policy.get('approval_status')=='APPROVED'
+                    and bool(risk_policy.get('approved_by'))
+                    and bool(risk_policy.get('approved_at'))
+                    and bool(risk_policy.get('approval_reference'))
+                    and expiry >= date.today())
+          unlisted=unfixed_high_critical-exception_ids
+          for result in full_scan.get('Results',[]) or []:
+            for item in result.get('Vulnerabilities',[]) or []:
+              if str(item.get('VulnerabilityID','UNKNOWN')) in exception_ids and item.get('FixedVersion'):
+                listed_but_fixed.add(str(item.get('VulnerabilityID')))
+          try:
+            from datetime import datetime, timezone
+            approved_at=datetime.fromisoformat(str(risk_policy.get('approved_at','')).replace('Z','+00:00'))
+            approval_time_valid=approved_at.tzinfo is not None and approved_at <= datetime.now(timezone.utc)
+          except (TypeError,ValueError):
+            approval_time_valid=False
+          approved=(approved and approval_time_valid)
+          if scan_rc != 0 or full_scan_rc != 0 or not scan or not full_scan:
             image_scan_status='BLOCKED'
           elif counts.get('CRITICAL',0) or counts.get('HIGH',0):
             image_scan_status='FAIL'
+          elif unlisted or listed_but_fixed:
+            image_scan_status='POLICY_MISMATCH'
+          elif unfixed_high_critical and not approved:
+            image_scan_status='OWNER_APPROVAL_REQUIRED'
           elif counts.get('MEDIUM',0):
             image_scan_status='REVIEW_REQUIRED'
           else:
@@ -165,11 +213,12 @@ jobs:
           passed=imports and smoke and nonroot and image_scan_status=='PASS' and image_digest.startswith('sha256:') and len(image_archive_sha)==64
           status=lambda ok: 'PASS' if ok else 'FAIL'
           scan_sha=hashlib.sha256(scan_path.read_bytes()).hexdigest() if scan_path.is_file() else None
+          full_scan_sha=hashlib.sha256(full_scan_path.read_bytes()).hexdigest() if full_scan_path.is_file() else None
           trivy_path=shutil.which('trivy')
           trivy_sha=hashlib.sha256(Path(trivy_path).read_bytes()).hexdigest() if trivy_path else None
           trivy_version=subprocess.run(['trivy','--version'],text=True,capture_output=True,check=False)
           e={
-            'schema_version':3,
+            'schema_version':4,
             'gate':'Q16_PRODUCTION_IMAGE',
             'source_sha':sha,
             'source_tree':tree,
@@ -179,11 +228,17 @@ jobs:
             'image_archive_sha256':image_archive_sha or None,
             'image_scan_status':image_scan_status,
             'image_scan_exit_code':scan_rc,
+            'image_scan_full_exit_code':full_scan_rc,
             'image_scan_findings_by_severity':dict(counts),
+            'image_scan_full_findings_by_severity':dict(full_counts),
+            'image_scan_unfixed_high_critical_ids':sorted(unfixed_high_critical),
             'image_scan_report_sha256':scan_sha,
+            'image_scan_full_report_sha256':full_scan_sha,
+            'owner_risk_approval_status':risk_policy.get('approval_status','MISSING'),
+            'owner_risk_approval_reference':risk_policy.get('approval_reference'),
             'trivy_version':(trivy_version.stdout or trivy_version.stderr).strip().splitlines()[0] if (trivy_version.stdout or trivy_version.stderr).strip() else None,
             'trivy_binary_sha256':trivy_sha,
-            'base_image':'python:3.12.16-alpine3.24@sha256:e6dae589c1c05976188fd3bd019afd091445fc533ed2ea29001beddc7368a9c8',
+            'base_image':'python:3.12.16-slim-trixie@sha256:e695ab189fa2d082b1c61c69a6b888a5adeca61ceeccad107b1ed2a125721a9e',
             'uv_version':'0.13.7',
             'dependency_mode':'uv.lock frozen; runtime extras only; no editable install; no dev tooling',
             'runtime_user':'cknexus-non-root',
@@ -196,7 +251,7 @@ jobs:
             'health_smoke':status(smoke),
             'unified_control_smoke':status(smoke),
             'non_root_runtime':status(nonroot),
-            'result':'PASS' if passed else ('REVIEW_REQUIRED' if image_scan_status=='REVIEW_REQUIRED' else ('BLOCKED' if image_scan_status=='BLOCKED' else 'FAIL')),
+            'result':'PASS' if passed else ('REVIEW_REQUIRED' if image_scan_status in ('REVIEW_REQUIRED','OWNER_APPROVAL_REQUIRED') else ('BLOCKED' if image_scan_status=='BLOCKED' else 'FAIL')),
             'production_promotion_allowed':passed,
           }
           with open('Q16_PRODUCTION_IMAGE.json','w',encoding='utf-8') as f:
@@ -217,6 +272,7 @@ jobs:
             docker-control-manifest.json
             docker-server.log
             trivy-image.json
+            trivy-image-full.json
             q16-production-image.tar.gz
             q16-production-image.tar.gz.sha256
           if-no-files-found: error

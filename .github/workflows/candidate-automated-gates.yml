@@ -167,6 +167,7 @@ jobs:
           assert evidence['image_scan_status']=='PASS'
           assert hashlib.sha256((root/'q16-production-image.tar.gz').read_bytes()).hexdigest()==evidence['image_archive_sha256']
           assert hashlib.sha256((root/'trivy-image.json').read_bytes()).hexdigest()==evidence['image_scan_report_sha256']
+          assert hashlib.sha256((root/'trivy-image-full.json').read_bytes()).hexdigest()==evidence['image_scan_full_report_sha256']
           PY
           docker load -i "$RUNNER_TEMP/q16-image/q16-production-image.tar.gz"
           docker image inspect "cknexus-candidate:$TARGET_SHA" >/dev/null
@@ -179,7 +180,7 @@ jobs:
         run: |
           start=$(date +%s)
           echo "Q15_INSTALL_STARTED=$start" >> "$GITHUB_ENV"
-          python3 -m pip install --upgrade pip "uv==0.12.4"
+          python3 -m pip install --upgrade pip "uv==0.13.7"
           uv lock --check
           uv sync --all-extras --dev --frozen
           .venv/bin/python3 -m compileall -q main.py creator_app services scripts

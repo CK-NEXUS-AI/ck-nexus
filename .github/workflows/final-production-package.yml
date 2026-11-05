@@ -153,7 +153,7 @@ jobs:
               reasons.append('Q14: operator alert delivery evidence not PASS')
           if not (q15.get('result')=='PASS' and q15.get('production_promotion_allowed') is True and q15.get('host_class')=='fresh-github-hosted-vm' and q15.get('portable_regression')=='PASS' and q15.get('phase2_sandbox_regression')=='PASS' and q15.get('phase3_pipeline_regression')=='PASS' and q15.get('unified_health_smoke')=='PASS' and q15.get('unified_control_smoke')=='PASS'):
               reasons.append('Q15: clean-machine evidence not PASS')
-          image_ok=(image.get('result')=='PASS' and image.get('production_promotion_allowed') is True and image.get('image_scan_status')=='PASS' and bool(re.fullmatch(r'sha256:[0-9a-f]{64}',str(image.get('image_config_digest','')))) and bool(re.fullmatch(r'[0-9a-f]{64}',str(image.get('image_archive_sha256','')))) and bool(image.get('image_scan_report_sha256')))
+          image_ok=(image.get('result')=='PASS' and image.get('production_promotion_allowed') is True and image.get('image_scan_status')=='PASS' and bool(re.fullmatch(r'sha256:[0-9a-f]{64}',str(image.get('image_config_digest','')))) and bool(re.fullmatch(r'[0-9a-f]{64}',str(image.get('image_archive_sha256','')))) and bool(image.get('image_scan_report_sha256')) and bool(image.get('image_scan_full_report_sha256')))
           if not image_ok: reasons.append('Q16: immutable production image or image scan not PASS')
           license_ok=(licenses.get('result')=='PASS' and licenses.get('production_promotion_allowed') is True and not licenses.get('unresolved_license_evidence') and int(licenses.get('runtime_distribution_count',0))>0 and bool(re.fullmatch(r'[0-9a-f]{64}',str(licenses.get('inventory_sha256','')))))
           if not license_ok: reasons.append('Q16: runtime license evidence incomplete')
@@ -395,7 +395,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --disable-pip-version-check "uv==0.12.4"
+          python3 -m pip install --disable-pip-version-check "uv==0.13.7"
           uv lock --check
           uv sync --all-extras --dev --frozen
           .venv/bin/python3 -m compileall -q main.py creator_app services gateway orchestration idea_engine scripts
@@ -465,6 +465,8 @@ jobs:
           assert evidence['image_scan_status']=='PASS'
           assert archive_sha==evidence['image_archive_sha256']
           assert report_sha==evidence['image_scan_report_sha256']
+          full_report_sha=hashlib.sha256((root/'trivy-image-full.json').read_bytes()).hexdigest()
+          assert full_report_sha==evidence['image_scan_full_report_sha256']
           print('Exact Q16 image archive and Trivy report verified')
           PY
           test "$image_archive_sha" = "$(sha256sum "$RUNNER_TEMP/q16-image/q16-production-image.tar.gz" | awk '{print $1}')"

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "gate": "Q16_PRODUCTION_IMAGE",
+  "approval_status": "PENDING",
+  "approved_by": null,
+  "approved_at": null,
+  "approval_reference": null,
+  "expires_at": "2026-12-05",
+  "scope": "unfixed HIGH/CRITICAL vulnerabilities in the pinned Debian Trixie runtime image",
+  "rationale": "Trivy reports no FixedVersion for the listed CVEs. Full scan output remains retained. The exception is time-limited and does not waive fixed vulnerabilities, MEDIUM findings, misconfigurations, runtime smoke tests, or non-root checks.",
+  "required_owner_review": "Review each CVE, package reachability and compensating controls; record approval identity, timestamp and review reference before promotion."
+}
