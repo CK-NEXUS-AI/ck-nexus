@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import threading
 from http.server import ThreadingHTTPServer
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.error import HTTPError
@@ -18,9 +18,9 @@ MODULE_PATH = ROOT / "ops/vps/services/cknexus_scanner_api.py"
 
 @pytest.fixture
 def scanner_api(tmp_path, monkeypatch):
-    spec = importlib.util.spec_from_file_location("cknexus_scanner_api_test", MODULE_PATH)
+    spec = spec_from_file_location("cknexus_scanner_api_test", MODULE_PATH)
     assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
+    module = module_from_spec(spec)
     spec.loader.exec_module(module)
 
     workspace = tmp_path / "workspace"
