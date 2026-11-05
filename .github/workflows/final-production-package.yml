@@ -255,7 +255,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, os, subprocess
+          import json, os, shutil, subprocess
           from pathlib import Path
           gates={
               'Q10':'evidence/Q10_DEPENDENCY_AUDIT.json',
@@ -286,9 +286,40 @@ jobs:
               artifacts=json.loads(response).get('artifacts',[])
               match=[item for item in artifacts if int(item.get('id',-1))==artifact_id and item.get('name')==artifact_name and item.get('digest')==digest and item.get('expired') is False]
               assert len(match)==1, f'{gate}: exact artifact metadata mismatch'
+              import hashlib, stat, urllib.parse, zipfile
+              from pathlib import PurePosixPath
               destination=Path(os.environ['RUNNER_TEMP'])/'gate-artifacts'/gate
               destination.mkdir(parents=True,exist_ok=True)
-              subprocess.run(['gh','run','download',run_id,'--repo',os.environ['GITHUB_REPOSITORY'],'--name',artifact_name,'--dir',str(destination)],check=True)
+              archive_url=match[0].get('archive_download_url','')
+              parsed_url=urllib.parse.urlparse(archive_url)
+              assert parsed_url.scheme=='https' and parsed_url.netloc=='api.github.com', f'{gate}: untrusted artifact download host'
+              archive_path=destination.parent/f'{artifact_id}.zip'
+              subprocess.run([
+                  'curl','--fail','--silent','--show-error','--location',
+                  '--header',f"Authorization: Bearer {os.environ['GH_TOKEN']}",
+                  '--header','Accept: application/vnd.github+json',
+                  archive_url,'--output',str(archive_path)
+              ],check=True)
+              archive_sha=hashlib.sha256(archive_path.read_bytes()).hexdigest()
+              assert digest==f'sha256:{archive_sha}', f'{gate}: downloaded artifact digest mismatch'
+              with zipfile.ZipFile(archive_path) as bundle:
+                  entries=bundle.infolist()
+                  assert len(entries)<=50000, f'{gate}: artifact has too many files'
+                  assert sum(item.file_size for item in entries)<=1024*1024*1024, f'{gate}: artifact exceeds extraction limit'
+                  for item in entries:
+                      relative=PurePosixPath(item.filename)
+                      assert not relative.is_absolute() and '..' not in relative.parts, f'{gate}: unsafe artifact path'
+                      mode=(item.external_attr >> 16) & 0xffff
+                      assert not stat.S_ISLNK(mode), f'{gate}: artifact contains a symbolic link'
+                      target=destination.joinpath(*relative.parts)
+                      assert destination.resolve() in target.resolve().parents or target.resolve()==destination.resolve(), f'{gate}: artifact path escapes destination'
+                      if item.is_dir():
+                          target.mkdir(parents=True,exist_ok=True)
+                      else:
+                          target.parent.mkdir(parents=True,exist_ok=True)
+                          with bundle.open(item) as source, target.open('xb') as output:
+                              shutil.copyfileobj(source,output)
+              archive_path.unlink()
               downloaded=destination/Path(path).name
               assert downloaded.is_file(), f'{gate}: raw evidence file missing from artifact'
               raw=json.loads(downloaded.read_text(encoding='utf-8'))
