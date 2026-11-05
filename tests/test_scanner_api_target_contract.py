@@ -11,7 +11,6 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "ops/vps/services/cknexus_scanner_api.py"
 
