@@ -64,7 +64,11 @@ def test_untrusted_workflow_values_are_not_interpolated_into_inner_html():
     js = inline_scripts(source)
     # API-derived workflow fields must be inserted through DOM text APIs.
     assert "textContent" in js
-    assert not any("innerHTML" in line and any(value in line for value in ("w.name", "w.id", "w.tags", "d.error", "e.message")) for line in js.splitlines())
+    assert not any(
+        "innerHTML" in line
+        and any(value in line for value in ("w.name", "w.id", "w.tags", "d.error", "e.message"))
+        for line in js.splitlines()
+    )
     assert "<script>" not in js
 
 
