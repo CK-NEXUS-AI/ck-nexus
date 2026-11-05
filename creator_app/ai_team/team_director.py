@@ -126,7 +126,13 @@ class TeamDirector:
                 "artifact",
                 "attestation",
                 "provenance",
+                "verification",
                 "release",
+                "release gate",
+                "release-gate",
+                "production",
+                "production gate",
+                "production-gate",
                 "go/no-go",
                 "หลักฐาน",
                 "ตรวจหลักฐาน",
@@ -158,6 +164,7 @@ class TeamDirector:
             sentinel_step.depends_on = ()
             plan.steps.insert(0, sentinel_step)
         plan.total_steps = len(plan.steps)
+        plan.estimated_duration = plan.total_steps * 10.0
 
         # ทำงานตามแผน
         step_results: list[TaskResult] = []

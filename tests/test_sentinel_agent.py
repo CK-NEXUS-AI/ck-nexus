@@ -36,6 +36,7 @@ def test_sentinel_rejects_non_string_evidence_fields() -> None:
     assert "checks[0].name" in result.warnings[-1]
     assert "checks[0].status" in result.warnings[-1]
     assert "checks[0].evidence_ref" in result.warnings[-1]
+    assert "checks[0].subject_sha must match bundle subject" in result.warnings[-1]
     assert "checks[0].artifact_sha256" in result.warnings[-1]
 
 

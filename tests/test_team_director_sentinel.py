@@ -9,6 +9,24 @@ def test_team_director_routes_explicit_artifact_requests_to_sentinel() -> None:
     assert result.status is TaskStatus.BLOCKED
     assert "Sentinel" in result.team_members_used
     assert result.step_results[0].metadata["evidence_status"] == "INCOMPLETE"
+    assert result.plan.estimated_duration == result.steps_total * 10.0
+
+
+def test_team_director_routes_artifact_requests_to_sentinel_without_bundle() -> None:
+    result = TeamDirector().process_request("inspect artifact")
+
+    assert result.status is TaskStatus.BLOCKED
+    assert "Sentinel" in result.team_members_used
+    assert result.step_results[0].metadata["evidence_status"] == "MISSING"
+
+
+def test_team_director_routes_production_verification_to_sentinel() -> None:
+    result = TeamDirector().process_request("verify production deployment")
+
+    assert result.status is TaskStatus.BLOCKED
+    assert "Sentinel" in result.team_members_used
+    assert result.step_results[0].metadata["evidence_status"] == "MISSING"
+    assert result.plan.estimated_duration == result.steps_total * 10.0
 
 
 def test_team_director_does_not_route_ordinary_verification_to_sentinel() -> None:
