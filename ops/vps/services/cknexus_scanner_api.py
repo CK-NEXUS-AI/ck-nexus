@@ -12,7 +12,11 @@ from pathlib import Path
 R = Path("/opt/actions-runner/_work/ck-nexus/ck-nexus").resolve()
 T = Path("/etc/cknexus-scanner/token")
 E = Path("/opt/cknexus/evidence/scans")
-E.mkdir(parents=True, exist_ok=True)
+
+
+def target_is_allowed(target: object) -> bool:
+    """Accept only the exact canonical scanner workspace path."""
+    return isinstance(target, str) and target == str(R)
 
 
 class H(BaseHTTPRequestHandler):
@@ -53,7 +57,7 @@ class H(BaseHTTPRequestHandler):
             if not isinstance(d, dict):
                 return self.out(400, {"error": "invalid_request"})
             target = d.get("target")
-            if not isinstance(target, str) or target != str(R):
+            if not target_is_allowed(target):
                 return self.out(400, {"error": "target_not_allowed"})
             rawss = d.get("scanners", "trivy,semgrep")
             vals = rawss if isinstance(rawss, list) else str(rawss).split(",")
@@ -136,4 +140,10 @@ class H(BaseHTTPRequestHandler):
             self.out(500, {"error": "scanner_error", "type": type(e).__name__})
 
 
-ThreadingHTTPServer(("127.0.0.1", 8787), H).serve_forever()
+def main() -> None:
+    E.mkdir(parents=True, exist_ok=True)
+    ThreadingHTTPServer(("127.0.0.1", 8787), H).serve_forever()
+
+
+if __name__ == "__main__":
+    main()
