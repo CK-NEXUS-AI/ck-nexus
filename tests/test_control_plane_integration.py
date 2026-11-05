@@ -235,3 +235,30 @@ def test_dispatch_reads_status_from_non_dict_result_objects() -> None:
     assert result.results["task-02-implementation"]["state"] == "blocked_dependency"
     assert result.results["task-03-verification"]["state"] == "blocked_dependency"
     assert result.results["task-04-security"]["state"] == "blocked_dependency"
+
+
+def test_control_plane_security_handler_routes_supplied_bundle_to_sentinel() -> None:
+    subject_sha = "a" * 40
+    bundle = {
+        "subject_sha": subject_sha,
+        "source": "https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/123",
+        "observed_at": "2026-11-05T03:00:00Z",
+        "checks": [
+            {
+                "name": "ci",
+                "status": "PASS",
+                "subject_sha": subject_sha,
+                "evidence_ref": "https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/123",
+                "artifact_sha256": "b" * 64,
+            }
+        ],
+    }
+    orchestrator = ControlPlaneOrchestrator()
+    graph = orchestrator.plan("inspect artifact", evidence_bundle=bundle)
+    security_node = next(node for node in graph.nodes if node.role == "security")
+
+    result = orchestrator.default_handlers()["security"](security_node)
+
+    assert result["status"] == "blocked"
+    assert "Sentinel" in result["team_members_used"]
+    assert "Core/L3" in result["final_output"]
