@@ -1,6 +1,4 @@
 import { createServer } from 'node:http';
-import { readFile, writeFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
 import {
   localhostHostValidation,
@@ -8,58 +6,16 @@ import {
   toNodeHandler,
 } from '@modelcontextprotocol/node';
 import * as z from 'zod/v4';
+import { normalizeOpenCodeBaseUrl, SESSION_ID_SCHEMA } from './url_policy.js';
 
 const HOST = process.env.CKNEXUS_BRIDGE_HOST ?? '127.0.0.1';
 const PORT = Number(process.env.CKNEXUS_BRIDGE_PORT ?? '18925');
-function normalizeOpenCodeBaseUrl(value: string): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw new Error('OPENCODE_BASE_URL must be a valid URL');
-  }
-  const loopbackHosts = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
-  if (!['http:', 'https:'].includes(parsed.protocol) || !loopbackHosts.has(parsed.hostname.toLowerCase())) {
-    throw new Error('OPENCODE_BASE_URL must target a loopback HTTP(S) endpoint');
-  }
-  if (parsed.username || parsed.password || parsed.search || parsed.hash) {
-    throw new Error('OPENCODE_BASE_URL must not contain credentials, query, or fragment');
-  }
-  return parsed.origin + parsed.pathname.replace(/\/+$/, '');
-}
-
 const OPENCODE_BASE_URL = normalizeOpenCodeBaseUrl(
   process.env.OPENCODE_BASE_URL ?? 'http://127.0.0.1:18924',
 );
 const OPENCODE_USERNAME = process.env.OPENCODE_SERVER_USERNAME ?? 'opencode';
 const OPENCODE_PASSWORD = process.env.OPENCODE_SERVER_PASSWORD ?? '';
 const BRIDGE_TOKEN = process.env.CKNEXUS_BRIDGE_TOKEN ?? '';
-const DEFAULT_SESSION_ID = process.env.OPENCODE_SESSION_ID ?? '';
-const AUTOSTART = (process.env.CKNEXUS_AUTOSTART ?? 'false').toLowerCase() === 'true';
-const STATE_FILE = process.env.CKNEXUS_BRIDGE_STATE_FILE ?? '.opencode-bridge-state.json';
-
-const EXPECTED_SOURCE_SHA = 'ad2fac7aa0752117dde065c7ad9b0b8d41136aa2';
-const EXPECTED_TREE = 'eb2074176319072ca3f31d5c8c990752ba849b0a';
-const EXPECTED_RUNTIME_SUBJECT = '772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200';
-
-const CONTINUE_PROMPT = `Continue the pending CK-NEXUS work automatically from the latest exact repository evidence.
-
-Authority rules:
-- Latest exact GitHub evidence wins.
-- Production remains NO-GO until Q10 -> Q11 -> Q12 -> provenance -> Final Production Package all pass with genuine evidence.
-- Never fabricate evidence or credentials.
-- Never expose secrets.
-- Never weaken gates.
-- Never merge PR #14.
-- Do not modify frozen runtime subject without a justified closure-contract reason.
-- Fail closed on uncertainty or subject mismatch.
-
-Frozen scan target:
-SOURCE SHA: ${EXPECTED_SOURCE_SHA}
-TREE: ${EXPECTED_TREE}
-RUNTIME SUBJECT: ${EXPECTED_RUNTIME_SUBJECT}
-
-Work autonomously on safe development/preparation tasks, verify all changes, update GitHub evidence/handoff, and stop only on a real external prerequisite or policy blocker. Do not claim Native Codex Security Q10 PASS unless genuine Native Codex Security sealed evidence exists.`;
 
 function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
@@ -121,22 +77,10 @@ async function sessionStatus(): Promise<unknown> {
 }
 
 async function getMessages(sessionId: string, limit: number): Promise<unknown> {
-  return ocRequest(`/session/${encodeURIComponent(sessionId)}/message?limit=${limit}`);
+  const safeSessionId = SESSION_ID_SCHEMA.parse(sessionId);
+  return ocRequest(`/session/${encodeURIComponent(safeSessionId)}/message?limit=${limit}`);
 }
 
-async function sendPromptAsync(sessionId: string, prompt: string): Promise<unknown> {
-  return ocRequest(`/session/${encodeURIComponent(sessionId)}/prompt_async`, {
-    method: 'POST',
-    body: JSON.stringify({ parts: [{ type: 'text', text: prompt }] }),
-  });
-}
-
-async function abortSession(sessionId: string): Promise<unknown> {
-  return ocRequest(`/session/${encodeURIComponent(sessionId)}/abort`, {
-    method: 'POST',
-    body: JSON.stringify({}),
-  });
-}
 
 function result(payload: unknown) {
   const safe = redact(payload);
@@ -151,7 +95,7 @@ function buildServer(): McpServer {
     { name: 'ck-nexus-opencode-control', version: '0.1.0' },
     {
       instructions:
-        'Use read-only status tools before mutation. Keep CK-NEXUS production fail-closed. Never expose secrets or use this bridge to bypass provider restrictions. opencode_continue_cknexus is the preferred governed continuation action.',
+        'This bridge is read-only. Workspace mutation is disabled until CK-NEXUS Core approval, policy and evidence integration exists. Keep production fail-closed and never expose secrets or bypass provider restrictions.',
     },
   );
 
@@ -167,7 +111,7 @@ function buildServer(): McpServer {
   server.registerTool(
     'opencode_list_sessions',
     {
-      description: 'Use this when discovering OpenCode sessions before selecting one to inspect or continue.',
+      description: 'Use this when discovering OpenCode sessions before selecting one for read-only inspection.',
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false, idempotentHint: true },
     },
     async () => result(await listSessions()),
@@ -187,88 +131,21 @@ function buildServer(): McpServer {
     {
       description: 'Use this when reading recent redacted messages from one OpenCode session.',
       inputSchema: z.object({
-        sessionId: z.string().min(1),
+        sessionId: SESSION_ID_SCHEMA,
         limit: z.number().int().min(1).max(50).default(20),
       }),
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false, idempotentHint: true },
     },
-    async ({ sessionId, limit }) => result(await getMessages(sessionId, limit)),
-  );
-
-  server.registerTool(
-    'opencode_run_prompt',
-    {
-      description: 'Use this when sending an explicitly provided task to an authorized OpenCode session. The request is asynchronous and may modify the workspace according to OpenCode permissions.',
-      inputSchema: z.object({
-        sessionId: z.string().min(1),
-        prompt: z.string().min(1).max(20_000),
-      }),
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true, idempotentHint: false },
-    },
-    async ({ sessionId, prompt }) => result(await sendPromptAsync(sessionId, prompt)),
-  );
-
-  server.registerTool(
-    'opencode_continue_cknexus',
-    {
-      description: 'Use this when resuming the pending CK-NEXUS work under the fixed Evidence-First, Exact-Subject, Fail-Closed production policy. It never authorizes Production Ready or PR #14 merge.',
-      inputSchema: z.object({
-        sessionId: z.string().min(1).optional(),
-      }),
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true, idempotentHint: false },
-    },
-    async ({ sessionId }) => {
-      const id = sessionId || DEFAULT_SESSION_ID;
-      if (!id) throw new Error('sessionId is required or OPENCODE_SESSION_ID must be configured');
-      await health();
-      return result(await sendPromptAsync(id, CONTINUE_PROMPT));
+    async ({ sessionId, limit }) => {
+      const safeSessionId = SESSION_ID_SCHEMA.parse(sessionId);
+      return result(await getMessages(safeSessionId, limit));
     },
   );
 
-  server.registerTool(
-    'opencode_abort_session',
-    {
-      description: 'Use this only when stopping a currently running OpenCode session is explicitly necessary for safety or operator intent.',
-      inputSchema: z.object({ sessionId: z.string().min(1) }),
-      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false, idempotentHint: true },
-    },
-    async ({ sessionId }) => result(await abortSession(sessionId)),
-  );
+  // Workspace mutation, continuation and abort are not exposed by this bridge.
+  // They require CK-NEXUS Core approval, policy and evidence integration first.
 
   return server;
-}
-
-async function loadState(): Promise<Record<string, unknown>> {
-  try {
-    return JSON.parse(await readFile(STATE_FILE, 'utf8')) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
-}
-
-async function saveState(state: Record<string, unknown>): Promise<void> {
-  await writeFile(STATE_FILE, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
-}
-
-async function maybeAutostart(): Promise<void> {
-  if (!AUTOSTART || !DEFAULT_SESSION_ID) return;
-  const state = await loadState();
-  const promptHash = createHash('sha256').update(CONTINUE_PROMPT).digest('hex');
-  if (state.autostart_session === DEFAULT_SESSION_ID && state.autostart_prompt_sha256 === promptHash) return;
-  try {
-    await health();
-    await sendPromptAsync(DEFAULT_SESSION_ID, CONTINUE_PROMPT);
-    await saveState({
-      autostart_session: DEFAULT_SESSION_ID,
-      autostart_prompt_sha256: promptHash,
-      sent_at: new Date().toISOString(),
-      production_status: 'NO-GO',
-    });
-    console.error('[bridge] CK-NEXUS continuation accepted by OpenCode');
-  } catch (error) {
-    console.error(`[bridge] autostart blocked: ${(error as Error).message}`);
-    setTimeout(() => void maybeAutostart(), 15_000).unref();
-  }
 }
 
 if (HOST !== '127.0.0.1' && HOST !== 'localhost' && !BRIDGE_TOKEN) {
@@ -310,7 +187,6 @@ const httpServer = createServer((req, res) => {
 httpServer.listen(PORT, HOST, () => {
   console.error(`[bridge] listening on http://${HOST}:${PORT}/mcp`);
   console.error(`[bridge] OpenCode upstream ${OPENCODE_BASE_URL}`);
-  void maybeAutostart();
 });
 
 async function shutdown() {
