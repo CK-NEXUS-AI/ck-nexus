@@ -37,7 +37,7 @@ jobs:
           grep -F '{CKNEXUS_AGNES_PHASE3_ENABLED:-false}' docker-compose.prod.yml >/dev/null
       - name: Validate frozen production install contract
         run: |
-          grep -Fx 'FROM python:3.12.16-slim-bookworm@sha256:62ed8e07e544e8555c5d93748d5275015136b7f5c52b5e8679b4de339c3779d3' Dockerfile
+          grep -Fx 'FROM python:3.12.16-slim-trixie@sha256:e695ab189fa2d082b1c61c69a6b888a5adeca61ceeccad107b1ed2a125721a9e' Dockerfile
           grep -F 'uv==0.13.4' Dockerfile
           grep -F 'COPY pyproject.toml uv.lock README.md ./' Dockerfile
           grep -F 'uv lock --check' Dockerfile
@@ -182,7 +182,7 @@ jobs:
             'image_scan_report_sha256':scan_sha,
             'trivy_version':(trivy_version.stdout or trivy_version.stderr).strip().splitlines()[0] if (trivy_version.stdout or trivy_version.stderr).strip() else None,
             'trivy_binary_sha256':trivy_sha,
-            'base_image':'python:3.12.16-slim-bookworm@sha256:62ed8e07e544e8555c5d93748d5275015136b7f5c52b5e8679b4de339c3779d3',
+            'base_image':'python:3.12.16-slim-trixie@sha256:e695ab189fa2d082b1c61c69a6b888a5adeca61ceeccad107b1ed2a125721a9e',
             'uv_version':'0.13.4',
             'dependency_mode':'uv.lock frozen; runtime extras only; no editable install; no dev tooling',
             'runtime_user':'cknexus-non-root',
