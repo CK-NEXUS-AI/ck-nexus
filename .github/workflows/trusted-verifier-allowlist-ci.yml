@@ -12,7 +12,7 @@ permissions:
   packages: read
 
 env:
-  IMAGE_TAG: ghcr.io/spinlnw10-art/ck-nexus-verifier-python:4e7a4eb37ad332a312f236e9b83b7f72f063b74f
+  IMAGE_REF: ghcr.io/ck-nexus-ai/ck-nexus-verifier-python@sha256:fee488944575873dd7e1e42e355f5272953cba8bf6342e9ea043f8e257c1d60c
 
 jobs:
   discover:
@@ -29,7 +29,7 @@ jobs:
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           found=0
           for attempt in 1 2 3 4 5 6; do
-            if docker pull "$IMAGE_TAG"; then
+            if docker pull "$IMAGE_REF"; then
               found=1
               break
             fi
@@ -37,11 +37,12 @@ jobs:
             sleep 10
           done
           test "$found" -eq 1
-          digest_ref="$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE_TAG")"
+          digest_ref="$(docker inspect --format='{{index .RepoDigests 0}}' "$IMAGE_REF")"
           case "$digest_ref" in
-            ghcr.io/spinlnw10-art/ck-nexus-verifier-python@sha256:*) ;;
+            ghcr.io/ck-nexus-ai/ck-nexus-verifier-python@sha256:*) ;;
             *) echo 'unexpected published image digest' >&2; exit 1 ;;
           esac
+          test "$digest_ref" = "$IMAGE_REF"
           echo "TRUSTED_VERIFIER_IMAGE=$digest_ref" >> "$GITHUB_ENV"
           echo "trusted_verifier_image=$digest_ref"
 
