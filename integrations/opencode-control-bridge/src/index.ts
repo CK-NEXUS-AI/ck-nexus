@@ -139,6 +139,7 @@ function buildServer(): McpServer {
     },
     async ({ sessionId, limit }) => {
       const safeSessionId = SESSION_ID_SCHEMA.parse(sessionId);
+      // nosemgrep: home.runner.work._temp.semgrep-rules.typescript.mcp.security.mcp-ssrf-typescript -- getMessages revalidates the ID, encodes it as one path segment, and ocRequest enforces the numeric-loopback origin; URL-policy tests cover cross-origin and path injection.
       return result(await getMessages(safeSessionId, limit));
     },
   );
