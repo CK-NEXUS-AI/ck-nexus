@@ -6,7 +6,7 @@ import {
   toNodeHandler,
 } from '@modelcontextprotocol/node';
 import * as z from 'zod/v4';
-import { normalizeOpenCodeBaseUrl, SESSION_ID_SCHEMA } from './url_policy.js';
+import { buildOpenCodeRequestUrl, normalizeOpenCodeBaseUrl, SESSION_ID_SCHEMA } from './url_policy.js';
 
 const HOST = process.env.CKNEXUS_BRIDGE_HOST ?? '127.0.0.1';
 const PORT = Number(process.env.CKNEXUS_BRIDGE_PORT ?? '18925');
@@ -48,9 +48,9 @@ function redact(value: unknown): unknown {
 }
 
 async function ocRequest(path: string, init: RequestInit = {}): Promise<unknown> {
-  const url = `${OPENCODE_BASE_URL}${path}`;
-  // nosemgrep: typescript.mcp.security.mcp-ssrf-typescript -- OPENCODE_BASE_URL is restricted to loopback at startup and session path segments are URL-encoded.
-  const response = await fetch(url, {
+  const url = buildOpenCodeRequestUrl(OPENCODE_BASE_URL, path);
+  const safeUrl = z.string().url().parse(url);
+  const response = await fetch(safeUrl, {
     ...init,
     headers: { ...authHeaders(), ...(init.headers ?? {}) },
     signal: AbortSignal.timeout(30_000),

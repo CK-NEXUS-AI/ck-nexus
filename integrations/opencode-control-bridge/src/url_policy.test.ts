@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { normalizeOpenCodeBaseUrl, SESSION_ID_SCHEMA } from './url_policy.js';
+import { buildOpenCodeRequestUrl, normalizeOpenCodeBaseUrl, SESSION_ID_SCHEMA } from './url_policy.js';
 
 test('accepts the configured IPv4 loopback endpoint', () => {
   assert.equal(
@@ -34,4 +34,13 @@ test('rejects path and URL injection in session identifiers', () => {
   for (const value of ['../admin', 'session/other', 'http://127.0.0.1', 'ses%2fadmin']) {
     assert.throws(() => SESSION_ID_SCHEMA.parse(value));
   }
+});
+
+test('builds request URLs only on the configured loopback origin', () => {
+  assert.equal(
+    buildOpenCodeRequestUrl('http://127.0.0.1:18924', '/session/ses_0123456789abcdef/message?limit=20'),
+    'http://127.0.0.1:18924/session/ses_0123456789abcdef/message?limit=20',
+  );
+  assert.throws(() => buildOpenCodeRequestUrl('http://127.0.0.1:18924', '//example.com/path'));
+  assert.throws(() => buildOpenCodeRequestUrl('http://127.0.0.1:18924', 'https://example.com/path'));
 });

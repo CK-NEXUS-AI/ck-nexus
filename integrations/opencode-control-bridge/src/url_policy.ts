@@ -24,3 +24,12 @@ export function normalizeOpenCodeBaseUrl(value: string): string {
   }
   return parsed.origin + parsed.pathname.replace(/\/+$/, '');
 }
+
+export function buildOpenCodeRequestUrl(baseUrl: string, path: string): string {
+  const base = new URL(normalizeOpenCodeBaseUrl(baseUrl));
+  const target = new URL(path, base);
+  if (target.origin !== base.origin) {
+    throw new Error('OpenCode request path must remain on the configured loopback origin');
+  }
+  return z.string().url().parse(target.toString());
+}
