@@ -50,6 +50,7 @@ function redact(value: unknown): unknown {
 async function ocRequest(path: string, init: RequestInit = {}): Promise<unknown> {
   const url = buildOpenCodeRequestUrl(OPENCODE_BASE_URL, path);
   const safeUrl = z.parse(z.string().url(), url);
+  // nosemgrep: home.runner.work._temp.semgrep-rules.typescript.mcp.security.mcp-ssrf-typescript -- The URL is built from a numeric-loopback base, origin-checked, Zod-parsed, and covered by URL policy regression tests; the interprocedural MCP taint rule does not follow this validation helper.
   const response = await fetch(safeUrl, {
     ...init,
     headers: { ...authHeaders(), ...(init.headers ?? {}) },
