@@ -1,4 +1,4 @@
-FROM python:3.12.16-slim-trixie@sha256:e695ab189fa2d082b1c61c69a6b888a5adeca61ceeccad107b1ed2a125721a9e
+FROM python:3.12.16-alpine3.24@sha256:e6dae589c1c05976188fd3bd019afd091445fc533ed2ea29001beddc7368a9c8
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -8,12 +8,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN apt-get update \
-    && apt-get upgrade -y --no-install-recommends \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+RUN apk upgrade --no-cache
 
-RUN addgroup --system cknexus && adduser --system --ingroup cknexus cknexus \
+RUN addgroup -S cknexus && adduser -S -G cknexus cknexus \
     && python -m pip install --no-cache-dir uv==0.13.4
 
 COPY pyproject.toml uv.lock README.md ./
