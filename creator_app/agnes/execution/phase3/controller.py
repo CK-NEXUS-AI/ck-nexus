@@ -152,6 +152,8 @@ class AutonomousDevController:
                 )
                 self._results[handle.pipeline_id]["test"] = result.as_dict()
                 test_output = result.output if isinstance(result.output, dict) else {}
+                if "commands" not in test_output and isinstance(test_output.get("output"), dict):
+                    test_output = test_output["output"]
                 command_results = test_output.get("commands")
                 expected_command = list(
                     request.inputs.get(

@@ -27,6 +27,7 @@ jobs:
           set -euo pipefail
           target_sha="${REQUESTED_TARGET_SHA:-$GITHUB_SHA}"
           [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$target_sha" = "$GITHUB_SHA" || { echo "target_sha_must_match_dispatch_head" >&2; exit 1; }
           if ! git cat-file -e "$target_sha^{commit}" 2>/dev/null; then git fetch --no-tags origin "$target_sha"; fi
           git checkout --detach "$target_sha"
           echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
@@ -36,7 +37,7 @@ jobs:
           grep -F '{CKNEXUS_AGNES_PHASE3_ENABLED:-false}' docker-compose.prod.yml >/dev/null
       - name: Validate frozen production install contract
         run: |
-          grep -F 'FROM python:3.12.16-slim-bookworm@sha256:' Dockerfile
+          grep -Fx 'FROM python:3.12.16-slim-bookworm@sha256:62ed8e07e544e8555c5d93748d5275015136b7f5c52b5e8679b4de339c3779d3' Dockerfile
           grep -F 'uv==0.13.4' Dockerfile
           grep -F 'COPY pyproject.toml uv.lock README.md ./' Dockerfile
           grep -F 'uv lock --check' Dockerfile

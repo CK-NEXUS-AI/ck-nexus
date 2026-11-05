@@ -27,6 +27,7 @@ jobs:
           set -euo pipefail
           target_sha="${REQUESTED_TARGET_SHA:-$GITHUB_SHA}"
           [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$target_sha" = "$GITHUB_SHA" || { echo "target_sha_must_match_dispatch_head" >&2; exit 1; }
           if ! git cat-file -e "$target_sha^{commit}" 2>/dev/null; then git fetch --no-tags origin "$target_sha"; fi
           git checkout --detach "$target_sha"
           echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
@@ -52,12 +53,9 @@ jobs:
                   text=str(rel)
                   base=Path(text).name.lower()
                   if any(token in base for token in ('license','licence','copying','notice')):
-                      try:
-                          absolute=dist.locate_file(rel)
-                          data=Path(absolute).read_bytes()
-                          license_files.append({'path':text,'sha256':hashlib.sha256(data).hexdigest()})
-                      except OSError:
-                          license_files.append({'path':text,'sha256':None})
+                      absolute=dist.locate_file(rel)
+                      data=Path(absolute).read_bytes()
+                      license_files.append({'path':text,'sha256':hashlib.sha256(data).hexdigest()})
               project_urls={}
               for value in dist.metadata.get_all('Project-URL',[]):
                   if ', ' in value:
@@ -86,10 +84,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p runtime-licenses
+          export_root="$RUNNER_TEMP/q16-runtime-licenses"
+          install -d -m 700 "$export_root"
+          test -d "$export_root" && test ! -L "$export_root"
           docker run --rm -i --network none --read-only --cap-drop ALL \
             --security-opt no-new-privileges --tmpfs /tmp:rw,noexec,nosuid,size=32m \
-            --user "$(id -u):$(id -g)" -v "$PWD/runtime-licenses:/out" \
+            --user "$(id -u):$(id -g)" -v "$export_root:/out" \
             "cknexus-license:$TARGET_SHA" python3 - <<'PY'
           import hashlib, importlib.metadata as md, json, re
           from pathlib import Path
@@ -108,12 +108,11 @@ jobs:
                   base=Path(str(rel)).name
                   if not any(token in base.lower() for token in ('license','licence','copying','notice')):
                       continue
-                  try: data=Path(dist.locate_file(rel)).read_bytes()
-                  except OSError: continue
+                  data=Path(dist.locate_file(rel)).read_bytes()
                   target.mkdir(parents=True,exist_ok=True)
                   destination=target/f'{index:03d}-{base}'
                   destination.write_bytes(data)
-                  item={'path':str(destination.relative_to(root)),'sha256':hashlib.sha256(data).hexdigest()}
+                  item={'path':str(destination.relative_to(root)),'source_path':str(rel),'sha256':hashlib.sha256(data).hexdigest()}
                   files.append(item); exported.append(item)
               distributions.append({'name':name,'version':version,'files':exported})
           distributions.sort(key=lambda x:x['name'].lower())
@@ -122,6 +121,24 @@ jobs:
               'schema_version':1,'distribution_count':len(distributions),
               'file_count':len(files),'distributions':distributions,'files':files
           },indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          PY
+      - name: Verify exported license files against exact runtime inventory
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          rows=json.loads(Path('Q16_RUNTIME_LICENSE_INVENTORY.json').read_text(encoding='utf-8'))
+          root=Path(os.environ['RUNNER_TEMP'])/'q16-runtime-licenses'
+          manifest=json.loads((root/'EXPORT_MANIFEST.json').read_text(encoding='utf-8'))
+          expected={(row['name'].lower(),row['version']):{(f['path'],f['sha256']) for f in row['license_files']} for row in rows}
+          actual={(dist['name'].lower(),dist['version']):{(f['source_path'],f['sha256']) for f in dist['files']} for dist in manifest['distributions']}
+          assert set(expected)==set(actual), 'runtime distribution identity mismatch'
+          for identity,files in expected.items():
+              assert files==actual[identity], f'license file export mismatch: {identity}'
+          assert manifest['distribution_count']==len(rows)
+          assert manifest['file_count']==sum(len(files) for files in expected.values())
+          print('Exact runtime license export verified:',len(rows),'distributions')
           PY
       - name: Enforce license-evidence completeness
         shell: bash
@@ -178,5 +195,5 @@ jobs:
           path: |
             Q16_RUNTIME_LICENSE_INVENTORY.json
             Q16_RUNTIME_LICENSE_SUMMARY.json
-            runtime-licenses/
+            ${{ runner.temp }}/q16-runtime-licenses/
           if-no-files-found: error

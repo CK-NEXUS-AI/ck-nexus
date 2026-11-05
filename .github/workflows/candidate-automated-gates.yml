@@ -7,9 +7,14 @@ on:
         description: Exact candidate commit SHA; defaults to this workflow's commit
         required: false
         type: string
+      q16_run_id:
+        description: Successful Q16 production-image workflow run for this exact candidate
+        required: true
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   q13_postgres_dr:
@@ -45,6 +50,7 @@ jobs:
           set -euo pipefail
           target_sha="${REQUESTED_TARGET_SHA:-$GITHUB_SHA}"
           [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$target_sha" = "$GITHUB_SHA" || { echo "target_sha_must_match_dispatch_head" >&2; exit 1; }
           if ! git cat-file -e "$target_sha^{commit}" 2>/dev/null; then git fetch --no-tags origin "$target_sha"; fi
           git checkout --detach "$target_sha"
           echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
@@ -128,9 +134,43 @@ jobs:
           set -euo pipefail
           target_sha="${REQUESTED_TARGET_SHA:-$GITHUB_SHA}"
           [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$target_sha" = "$GITHUB_SHA" || { echo "target_sha_must_match_dispatch_head" >&2; exit 1; }
           if ! git cat-file -e "$target_sha^{commit}" 2>/dev/null; then git fetch --no-tags origin "$target_sha"; fi
           git checkout --detach "$target_sha"
           echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
+      - name: Install exact Q16 production image artifact
+        id: production_image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ steps.subject.outputs.target_sha }}
+          Q16_RUN_ID: ${{ inputs.q16_run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/q16-image"
+          run_meta=$(gh run view "$Q16_RUN_ID" --json headSha,conclusion,name)
+          python3 - "$run_meta" "$TARGET_SHA" <<'PY'
+          import json,sys
+          run=json.loads(sys.argv[1])
+          assert run['headSha']==sys.argv[2], 'Q16 run head does not match candidate SHA'
+          assert run['conclusion']=='success', 'Q16 image workflow did not succeed'
+          assert run['name']=='Candidate production image'
+          PY
+          gh run download "$Q16_RUN_ID" --name "q16-production-image-$TARGET_SHA" --dir "$RUNNER_TEMP/q16-image"
+          python3 - "$RUNNER_TEMP/q16-image" "$TARGET_SHA" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          evidence=json.loads((root/'Q16_PRODUCTION_IMAGE.json').read_text(encoding='utf-8'))
+          assert evidence['source_sha']==sys.argv[2]
+          assert evidence['result']=='PASS' and evidence['production_promotion_allowed'] is True
+          assert evidence['image_scan_status']=='PASS'
+          assert hashlib.sha256((root/'q16-production-image.tar.gz').read_bytes()).hexdigest()==evidence['image_archive_sha256']
+          assert hashlib.sha256((root/'trivy-image.json').read_bytes()).hexdigest()==evidence['image_scan_report_sha256']
+          PY
+          docker load -i "$RUNNER_TEMP/q16-image/q16-production-image.tar.gz"
+          docker image inspect "cknexus-candidate:$TARGET_SHA" >/dev/null
+          echo "artifact_sha=$(sha256sum "$RUNNER_TEMP/q16-image/q16-production-image.tar.gz" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.12'
@@ -207,6 +247,41 @@ jobs:
           assert 'CK-NEXUS' in open('q15-control.html',encoding='utf-8').read()
           PY
           kill "$(cat q15-server.pid)" || true
+      - name: Run exact production image on clean host as non-root
+        id: production_runtime
+        if: always()
+        env:
+          TARGET_SHA: ${{ steps.subject.outputs.target_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --rm --name q15-production-image -p 18000:8000 \
+            -e CKNEXUS_MOCK_AI=true -e CKNEXUS_HOST=0.0.0.0 -e PORT=8000 \
+            "cknexus-candidate:$TARGET_SHA" >/dev/null
+          trap 'docker rm -f q15-production-image >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:18000/health > q15-image-health.json; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:18000/api/control/manifest > q15-image-control-manifest.json
+          runtime_uid=$(docker exec q15-production-image id -u)
+          test "$runtime_uid" -ne 0
+          docker inspect --format '{{.Config.User}}' q15-production-image > q15-image-user.txt
+          python3 - <<'PY'
+          import json
+          h=json.load(open('q15-image-health.json',encoding='utf-8'))
+          m=json.load(open('q15-image-control-manifest.json',encoding='utf-8'))
+          assert h['status']=='ok'
+          assert m['name']=='CK-NEXUS Unified Control Surface'
+          assert m['route_count']>0 and len(m['groups'])==8
+          PY
+          python3 - "$runtime_uid" <<'PY'
+          import json,sys
+          from pathlib import Path
+          p=Path('q15-production-image-smoke.json')
+          p.write_text(json.dumps({'result':'PASS','runtime_uid':int(sys.argv[1]),'runtime_user':Path('q15-image-user.txt').read_text().strip(),'health':'PASS','control':'PASS'},indent=2,sort_keys=True)+'\n')
+          PY
+          echo "rc=0" >> "$GITHUB_OUTPUT"
       - name: Emit clean-machine evidence
         if: always()
         env:
@@ -235,7 +310,12 @@ jobs:
               control=manifest.get('name')=='CK-NEXUS Unified Control Surface' and len(manifest.get('groups',[]))==8 and manifest.get('route_count',0)>0
           except (OSError,json.JSONDecodeError):
               health=control=False
-          passed=portable and phase2 and phase3 and health and control
+          try:
+              image_smoke=json.load(open('q15-production-image-smoke.json',encoding='utf-8'))
+              image_installed=image_smoke.get('result')=='PASS' and image_smoke.get('runtime_uid',0)>0
+          except (OSError,json.JSONDecodeError):
+              image_installed=False
+          passed=portable and phase2 and phase3 and health and control and image_installed and os.getenv('PRODUCTION_IMAGE_RC')=='0'
           evidence={
               'schema_version':2,
               'gate':'Q15',
@@ -254,6 +334,8 @@ jobs:
               'phase3_pipeline_regression':'PASS' if phase3 else 'FAIL',
               'unified_health_smoke':'PASS' if health else 'FAIL',
               'unified_control_smoke':'PASS' if control else 'FAIL',
+              'exact_q16_production_image_installation':'PASS' if image_installed else 'FAIL',
+              'production_image_artifact_sha256':os.getenv('PRODUCTION_IMAGE_SHA256'),
               'elapsed_seconds':int(duration),
               'test_exit_codes':{'portable':os.getenv('PORTABLE_RC'),'phase2':os.getenv('PHASE2_RC'),'phase3':os.getenv('PHASE3_RC')},
               'result':'PASS' if passed else 'FAIL',
@@ -276,6 +358,10 @@ jobs:
             q15-portable-tests.log
             q15-phase2-tests.log
             q15-phase3-tests.log
+            q15-production-image-smoke.json
+            q15-image-health.json
+            q15-image-control-manifest.json
+            q15-image-user.txt
           if-no-files-found: warn
       - name: Enforce Q15
         if: always()

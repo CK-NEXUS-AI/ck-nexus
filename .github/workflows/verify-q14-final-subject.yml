@@ -28,6 +28,7 @@ jobs:
           set -euo pipefail
           target_sha="${REQUESTED_TARGET_SHA:-$GITHUB_SHA}"
           [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$target_sha" = "$GITHUB_SHA" || { echo "target_sha_must_match_dispatch_head" >&2; exit 1; }
           if ! git cat-file -e "$target_sha^{commit}" 2>/dev/null; then git fetch --no-tags origin "$target_sha"; fi
           git checkout --detach "$target_sha"
           tree=$(git rev-parse 'HEAD^{tree}')
