@@ -225,11 +225,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p q16-image
+          mkdir -p "$RUNNER_TEMP/q16-image"
           gh run download "$Q16_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --name "q16-production-image-${CANDIDATE_SHA}" --dir q16-image
-          echo "$EXPECTED_ARCHIVE_SHA  q16-image/q16-production-image.tar.gz" | sha256sum -c -
-          docker load -i q16-image/q16-production-image.tar.gz
+            --name "q16-production-image-$CANDIDATE_SHA" --dir "$RUNNER_TEMP/q16-image"
+          echo "$EXPECTED_ARCHIVE_SHA  $RUNNER_TEMP/q16-image/q16-production-image.tar.gz" | sha256sum -c -
+          docker load -i "$RUNNER_TEMP/q16-image/q16-production-image.tar.gz"
           actual=$(docker image inspect --format '{{.Id}}' "cknexus-candidate:${CANDIDATE_SHA}")
           test "$actual" = "$EXPECTED_IMAGE_DIGEST"
 
@@ -241,11 +241,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p q16-licenses
+          mkdir -p "$RUNNER_TEMP/q16-licenses"
           gh run download "$Q16_LICENSES_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-            --name "q16-runtime-licenses-${CANDIDATE_SHA}" --dir q16-licenses
+            --name "q16-runtime-licenses-$CANDIDATE_SHA" --dir "$RUNNER_TEMP/q16-licenses"
           expected=$(python3 -c "import json; print(json.load(open('evidence/Q16_RUNTIME_LICENSE_SUMMARY.json'))['inventory_sha256'])")
-          echo "$expected  q16-licenses/Q16_RUNTIME_LICENSE_INVENTORY.json" | sha256sum -c -
+          echo "$expected  $RUNNER_TEMP/q16-licenses/Q16_RUNTIME_LICENSE_INVENTORY.json" | sha256sum -c -
 
       - name: Download exact Q10-Q15 evidence artifacts
         env:
@@ -275,7 +275,7 @@ jobs:
               artifacts=json.loads(response).get('artifacts',[])
               match=[item for item in artifacts if int(item.get('id',-1))==artifact_id and item.get('name')==artifact_name and item.get('digest')==digest and item.get('expired') is False]
               assert len(match)==1, f'{gate}: exact artifact metadata mismatch'
-              destination=Path('gate-artifacts')/gate
+              destination=Path(os.environ['RUNNER_TEMP'])/'gate-artifacts'/gate
               destination.mkdir(parents=True,exist_ok=True)
               subprocess.run(['gh','run','download',run_id,'--repo',os.environ['GITHUB_REPOSITORY'],'--name',artifact_name,'--dir',str(destination)],check=True)
               downloaded=destination/Path(path).name
@@ -295,6 +295,7 @@ jobs:
           import hashlib,json
           from pathlib import Path
           root=Path('evidence')
+          temp_root=Path(__import__('os').environ['RUNNER_TEMP'])
           metadata={'artifact_id','artifact_digest','artifact_name','artifact_created_at','artifact_expires_at','github_run_head_sha','github_run_head_branch','github_run_conclusion','github_run_event','workflow_path','workflow_name','workflow_url'}
           files={
               'Q10':'Q10_DEPENDENCY_AUDIT.json','Q11':'Q11_OPENAI_LIVE.json','Q12':'Q12_CGROUP_V2.json',
@@ -314,30 +315,30 @@ jobs:
               assert entry['artifact_id']==committed['artifact_id']
               assert entry['artifact_name']==committed['artifact_name']
               assert entry['artifact_digest']==committed['artifact_digest']
-              folder=Path('q16-image') if gate=='Q16_PRODUCTION_IMAGE' else (Path('q16-licenses') if gate=='Q16_RUNTIME_LICENSES' else Path('gate-artifacts')/gate)
+              folder=temp_root/'q16-image' if gate=='Q16_PRODUCTION_IMAGE' else (temp_root/'q16-licenses' if gate=='Q16_RUNTIME_LICENSES' else temp_root/'gate-artifacts'/gate)
               raw_path=folder/filename
               assert raw_path.is_file(), f'{gate}: artifact evidence missing'
               raw=json.loads(raw_path.read_text(encoding='utf-8'))
               assert raw=={k:v for k,v in committed.items() if k not in metadata}, f'{gate}: artifact evidence content mismatch'
-          q11_output=Path('gate-artifacts/Q11/q11-output.txt')
+          q11_output=temp_root/'gate-artifacts/Q11/q11-output.txt'
           q11_evidence=json.loads((root/files['Q11']).read_text(encoding='utf-8'))
           assert q11_output.is_file() and hashlib.sha256(q11_output.read_bytes()).hexdigest()==q11_evidence['diagnostic_sha256']
           q11_text=q11_output.read_text(encoding='utf-8',errors='replace')
           assert q11_evidence['diagnostic_redaction_verified'] is True
           assert not __import__('re').search(r'(?i)sk-(?:proj-)?[A-Za-z0-9_-]{20,}',q11_text)
-          report_path=Path('gate-artifacts/Q10/q10-open-source-security-report.json')
+          report_path=temp_root/'gate-artifacts/Q10/q10-open-source-security-report.json'
           assert report_path.is_file()
           assert hashlib.sha256(report_path.read_bytes()).hexdigest()==q10['security_report_sha256']
           report=json.loads(report_path.read_text(encoding='utf-8'))
           for item in report['report_artifacts'].values():
-              path=Path('gate-artifacts/Q10')/item['file']
+              path=temp_root/'gate-artifacts/Q10'/item['file']
               assert path.is_file() and path.stat().st_size==item['bytes']
               assert hashlib.sha256(path.read_bytes()).hexdigest()==item['sha256'], item['file']
           image=json.loads((root/files['Q16_PRODUCTION_IMAGE']).read_text(encoding='utf-8'))
-          archive=Path('q16-image/q16-production-image.tar.gz')
+          archive=temp_root/'q16-image/q16-production-image.tar.gz'
           assert archive.is_file() and hashlib.sha256(archive.read_bytes()).hexdigest()==image['image_archive_sha256']
           licenses=json.loads((root/files['Q16_RUNTIME_LICENSES']).read_text(encoding='utf-8'))
-          inventory=Path('q16-licenses/Q16_RUNTIME_LICENSE_INVENTORY.json')
+          inventory=temp_root/'q16-licenses/Q16_RUNTIME_LICENSE_INVENTORY.json'
           assert inventory.is_file() and hashlib.sha256(inventory.read_bytes()).hexdigest()==licenses['inventory_sha256']
           print('All eight exact-subject evidence artifacts, raw report hashes, Q16 image and license inventory verified.')
           PY
@@ -368,72 +369,46 @@ jobs:
           printf 'image_user=%s\nimage_cmd=%s\n' "$image_user" "$image_cmd" > final-image-config.txt
           echo 'Exact Q16 image metadata verified. Runtime execution remains in the isolated candidate-image workflow.'
 
-      - name: Export exact runtime license files and inventory
-        env:
-          CANDIDATE_SHA: ${{ needs.preflight.outputs.candidate_sha }}
+      - name: Verify and package exact runtime license files from candidate workflow
         shell: bash
         run: |
           set -euo pipefail
-          expected_count=$(python3 -c "import json; print(json.load(open('evidence/Q16_RUNTIME_LICENSE_SUMMARY.json'))['runtime_distribution_count'])")
+          export_root="$RUNNER_TEMP/q16-licenses/runtime-licenses"
+          test -f "$export_root/EXPORT_MANIFEST.json"
           rm -rf package-root
           mkdir -p package-root/ck-nexus/third_party_runtime
           git archive HEAD | tar -x -C package-root/ck-nexus
-          docker run --rm -i --user 0:0 \
-            -v "$PWD/package-root/ck-nexus/third_party_runtime:/out" \
-            -v "$PWD/q16-licenses:/source:ro" \
-            "cknexus-candidate:${CANDIDATE_SHA}" python3 - "$expected_count" <<'PY'
-          import hashlib, importlib.metadata as md, json, re, sys
+          python3 - <<'PY'
+          import hashlib, json, os
           from pathlib import Path
-          expected_count=int(sys.argv[1])
-          out=Path('/out')
-          inventory=[]
-          for dist in md.distributions():
-              name=(dist.metadata.get('Name') or '').strip()
-              if name.lower()=='ck-nexus-creator':
-                  continue
-              safe=re.sub(r'[^A-Za-z0-9_.-]+','_',f'{name}-{dist.version}')
-              target=out/'licenses'/safe
-              files=[]
-              for i,rel in enumerate(dist.files or []):
-                  base=Path(str(rel)).name
-                  if not any(token in base.lower() for token in ('license','licence','copying','notice')):
-                      continue
-                  try: data=Path(dist.locate_file(rel)).read_bytes()
-                  except OSError: continue
-                  target.mkdir(parents=True,exist_ok=True)
-                  dst=target/f'{i:03d}-{base}'
-                  dst.write_bytes(data)
-                  files.append({'path':str(rel),'exported':str(dst.relative_to(out)),'sha256':hashlib.sha256(data).hexdigest()})
-              inventory.append({'name':name,'version':dist.version,'license_expression':dist.metadata.get('License-Expression'),'license':dist.metadata.get('License'),'license_classifiers':[x for x in dist.metadata.get_all('Classifier',[]) if x.startswith('License ::')],'license_files':files})
-          inventory.sort(key=lambda x:x['name'].lower())
-          assert len(inventory)==expected_count, (len(inventory),expected_count)
-          assert all(x['license_expression'] or x['license'] or x['license_classifiers'] or x['license_files'] for x in inventory)
-          source=json.loads(Path('/source/Q16_RUNTIME_LICENSE_INVENTORY.json').read_text(encoding='utf-8'))
-          source_by={(x['name'].lower(),x['version']):x for x in source}
-          actual_by={(x['name'].lower(),x['version']):x for x in inventory}
-          assert set(source_by)==set(actual_by), 'license inventory distribution identity mismatch'
-          for key,expected in source_by.items():
-              actual=actual_by[key]
-              assert expected.get('license_expression')==actual.get('license_expression')
-              assert expected.get('license')==actual.get('license')
-              assert expected.get('license_classifiers',[])==actual.get('license_classifiers',[])
-              expected_hashes=sorted(x['sha256'] for x in expected.get('license_files',[]) if x.get('sha256'))
-              actual_hashes=sorted(x['sha256'] for x in actual.get('license_files',[]) if x.get('sha256'))
-              assert expected_hashes==actual_hashes, f'license file digest mismatch: {key}'
-          (out/'RUNTIME_LICENSE_INVENTORY.json').write_text(json.dumps(inventory,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          root=Path(os.environ['RUNNER_TEMP'])/'q16-licenses'/'runtime-licenses'
+          manifest=json.loads((root/'EXPORT_MANIFEST.json').read_text(encoding='utf-8'))
+          summary=json.loads(Path('evidence/Q16_RUNTIME_LICENSE_SUMMARY.json').read_text(encoding='utf-8'))
+          assert manifest['distribution_count']==summary['runtime_distribution_count']
+          files=manifest.get('files',[])
+          assert files, 'runtime license export is empty'
+          for item in files:
+              path=(root/item['path']).resolve()
+              assert root.resolve() in path.parents
+              data=path.read_bytes()
+              assert hashlib.sha256(data).hexdigest()==item['sha256'], item['path']
+          assert len({(x['name'].lower(),x['version']) for x in manifest['distributions']})==summary['runtime_distribution_count']
+          print('Runtime license file export verified:',len(files),'files')
           PY
-          cp q16-image/q16-production-image.tar.gz package-root/ck-nexus/third_party_runtime/CK-NEXUS_PRODUCTION_IMAGE.tar.gz
-          cp q16-licenses/Q16_RUNTIME_LICENSE_INVENTORY.json package-root/ck-nexus/third_party_runtime/Q16_RUNTIME_LICENSE_INVENTORY.json
-          mkdir -p package-root/ck-nexus/third_party_runtime/evidence-artifacts
-          cp -a gate-artifacts/. package-root/ck-nexus/third_party_runtime/evidence-artifacts/
-          cp -a q16-image package-root/ck-nexus/third_party_runtime/evidence-artifacts/Q16_PRODUCTION_IMAGE
-          rm -f package-root/ck-nexus/third_party_runtime/evidence-artifacts/Q16_PRODUCTION_IMAGE/q16-production-image.tar.gz
-          cp -a q16-licenses package-root/ck-nexus/third_party_runtime/evidence-artifacts/Q16_RUNTIME_LICENSES
-          cp release-evidence-provenance-package.json package-root/ck-nexus/third_party_runtime/evidence-artifacts/RELEASE_EVIDENCE_PROVENANCE.json
+          cp "$RUNNER_TEMP/q16-licenses/runtime-licenses/EXPORT_MANIFEST.json" package-root/ck-nexus/third_party_runtime/LICENSE_EXPORT_MANIFEST.json
+          cp -a "$RUNNER_TEMP/q16-licenses/runtime-licenses/licenses" package-root/ck-nexus/third_party_runtime/licenses
+          cp "$RUNNER_TEMP/q16-licenses/Q16_RUNTIME_LICENSE_INVENTORY.json" package-root/ck-nexus/third_party_runtime/Q16_RUNTIME_LICENSE_INVENTORY.json
+          cp "$RUNNER_TEMP/q16-image/q16-production-image.tar.gz" package-root/ck-nexus/third_party_runtime/CK-NEXUS_PRODUCTION_IMAGE.tar.gz
           image_archive_sha=$(sha256sum package-root/ck-nexus/third_party_runtime/CK-NEXUS_PRODUCTION_IMAGE.tar.gz | awk '{print $1}')
-          test "$image_archive_sha" = "${{ needs.preflight.outputs.q16_image_archive_sha }}"
-          license_inventory_sha=$(sha256sum package-root/ck-nexus/third_party_runtime/RUNTIME_LICENSE_INVENTORY.json | awk '{print $1}')
+          test "$image_archive_sha" = "$(python3 -c "import json; print(json.load(open('evidence/Q16_PRODUCTION_IMAGE.json'))['image_archive_sha256'])")"
+          license_inventory_sha=$(sha256sum package-root/ck-nexus/third_party_runtime/Q16_RUNTIME_LICENSE_INVENTORY.json | awk '{print $1}')
           echo "LICENSE_INVENTORY_SHA=$license_inventory_sha" >> "$GITHUB_ENV"
+          mkdir -p package-root/ck-nexus/third_party_runtime/evidence-artifacts
+          cp -a "$RUNNER_TEMP/gate-artifacts/." package-root/ck-nexus/third_party_runtime/evidence-artifacts/
+          cp -a "$RUNNER_TEMP/q16-image" package-root/ck-nexus/third_party_runtime/evidence-artifacts/Q16_PRODUCTION_IMAGE
+          rm -f package-root/ck-nexus/third_party_runtime/evidence-artifacts/Q16_PRODUCTION_IMAGE/q16-production-image.tar.gz
+          cp -a "$RUNNER_TEMP/q16-licenses" package-root/ck-nexus/third_party_runtime/evidence-artifacts/Q16_RUNTIME_LICENSES
+          cp release-evidence-provenance-package.json package-root/ck-nexus/third_party_runtime/evidence-artifacts/RELEASE_EVIDENCE_PROVENANCE.json
 
       - name: Build checksummed production source and image package
         env:

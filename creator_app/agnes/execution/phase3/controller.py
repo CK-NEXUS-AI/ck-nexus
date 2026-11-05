@@ -129,11 +129,13 @@ class AutonomousDevController:
                         "id": "hands.test",
                         "executor": "sandbox",
                         "inputs": {
-                            "command": list(
-                                request.inputs.get(
-                                    "test_command", ["python", "-m", "compileall", "-q", "."]
+                            "commands": [
+                                list(
+                                    request.inputs.get(
+                                        "test_command", ["python", "-m", "compileall", "-q", "."]
+                                    )
                                 )
-                            )
+                            ]
                         },
                         "allowlist_paths": list(request.allowlist_paths),
                         "granted_capabilities": ["test", "shell"],
@@ -149,8 +151,28 @@ class AutonomousDevController:
                     idempotency_key=(request.idempotency_key or request.execution_id) + ":test",
                 )
                 self._results[handle.pipeline_id]["test"] = result.as_dict()
+                test_output = result.output if isinstance(result.output, dict) else {}
+                command_results = test_output.get("commands")
+                expected_command = list(
+                    request.inputs.get(
+                        "test_command", ["python", "-m", "compileall", "-q", "."]
+                    )
+                )
+                if (
+                    not isinstance(command_results, list)
+                    or len(command_results) != 1
+                    or command_results[0].get("argv") != expected_command
+                ):
+                    raise RuntimeError("test_execution_evidence_missing_or_mismatched")
                 if result.status is not ExecutionStatus.SUCCEEDED:
                     raise RuntimeError(result.error or "tests_failed")
+                if any(
+                    item.get("returncode") != 0
+                    or item.get("timed_out")
+                    or item.get("output_limited")
+                    for item in command_results
+                ):
+                    raise RuntimeError("tests_failed")
                 self._transition(status, PipelineState.TESTS_EXECUTED, "tests_passed")
                 return status.state
 
@@ -159,13 +181,9 @@ class AutonomousDevController:
                     {
                         "id": "hands.security_scan",
                         "executor": "sandbox",
-                        "inputs": {
-                            "command": list(
-                                request.inputs.get(
-                                    "scan_command", ["python", "-c", "print('security-scan:PASS')"]
-                                )
-                            )
-                        },
+                        # The security scanner is policy-owned and uses its fixed
+                        # secret-scan helper; never accept caller-supplied scan commands.
+                        "inputs": {},
                         "allowlist_paths": list(request.allowlist_paths),
                         "granted_capabilities": ["security_scan", "shell"],
                         "execution_id": request.execution_id + "-scan",

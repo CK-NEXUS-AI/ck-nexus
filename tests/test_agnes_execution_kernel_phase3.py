@@ -131,7 +131,6 @@ async def test_autonomous_pipeline_stops_at_candidate_and_can_discard(tmp_path: 
         inputs={
             "patch": patch,
             "test_command": ["python", "-m", "compileall", "-q", "."],
-            "scan_command": ["python", "-c", "print('security-scan:PASS')"],
         },
         workspace_id="p3ws",
         baseline_commit=BASELINE,

@@ -80,6 +80,49 @@ jobs:
           rows.sort(key=lambda x:x['name'].lower())
           print(json.dumps(rows,indent=2,sort_keys=True))
           PY
+      - name: Export exact runtime license files
+        env:
+          TARGET_SHA: ${{ steps.subject.outputs.target_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p runtime-licenses
+          docker run --rm -i --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --tmpfs /tmp:rw,noexec,nosuid,size=32m \
+            --user "$(id -u):$(id -g)" -v "$PWD/runtime-licenses:/out" \
+            "cknexus-license:$TARGET_SHA" python3 - <<'PY'
+          import hashlib, importlib.metadata as md, json, re
+          from pathlib import Path
+          root=Path('/out')
+          files=[]
+          distributions=[]
+          for dist in md.distributions():
+              name=(dist.metadata.get('Name') or '').strip()
+              if name.lower()=='ck-nexus-creator':
+                  continue
+              version=dist.version
+              safe=re.sub(r'[^A-Za-z0-9_.-]+','_',f'{name}-{version}')
+              target=root/'licenses'/safe
+              exported=[]
+              for index,rel in enumerate(dist.files or []):
+                  base=Path(str(rel)).name
+                  if not any(token in base.lower() for token in ('license','licence','copying','notice')):
+                      continue
+                  try: data=Path(dist.locate_file(rel)).read_bytes()
+                  except OSError: continue
+                  target.mkdir(parents=True,exist_ok=True)
+                  destination=target/f'{index:03d}-{base}'
+                  destination.write_bytes(data)
+                  item={'path':str(destination.relative_to(root)),'sha256':hashlib.sha256(data).hexdigest()}
+                  files.append(item); exported.append(item)
+              distributions.append({'name':name,'version':version,'files':exported})
+          distributions.sort(key=lambda x:x['name'].lower())
+          assert distributions and files
+          (root/'EXPORT_MANIFEST.json').write_text(json.dumps({
+              'schema_version':1,'distribution_count':len(distributions),
+              'file_count':len(files),'distributions':distributions,'files':files
+          },indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          PY
       - name: Enforce license-evidence completeness
         shell: bash
         run: |
@@ -135,4 +178,5 @@ jobs:
           path: |
             Q16_RUNTIME_LICENSE_INVENTORY.json
             Q16_RUNTIME_LICENSE_SUMMARY.json
+            runtime-licenses/
           if-no-files-found: error
