@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "repository": "CK-NEXUS-AI/ck-nexus",
-  "candidate_branch": "release/q10-q16-closure-20261105",
+  "candidate_branch": "closure/q10-q16-unification-20261105",
   "baseline_main_sha": "34d7df48b35903d7861362a72b0d3a1fd8a3b201",
   "baseline_main_tree": "af57e2a5202bc95bb07d321c65a57a623205333b",
   "target_sha": null,

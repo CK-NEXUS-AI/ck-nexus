@@ -78,6 +78,9 @@ def _postgres_environment(url: str, credential_dir: Path) -> dict[str, str]:
     passfile_contents = ":".join(
         _pgpass_escape(item) for item in (host, port, database, username, password)
     ) + "\n"
+    # codeql[py/clear-text-storage-sensitive-data] libpq requires a passfile;
+    # this one is inside a mode-0700 TemporaryDirectory, chmod 0600, and deleted
+    # automatically when the subprocess scope exits. Never persist or log it.
     passfile.write_text(passfile_contents, encoding="utf-8")
     passfile.chmod(0o600)
     env = os.environ.copy()

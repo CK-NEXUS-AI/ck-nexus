@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 REPOSITORY = "CK-NEXUS-AI/ck-nexus"
-BRANCH = "release/q10-q16-closure-20261105"
+BRANCH = "closure/q10-q16-unification-20261105"
 GATES = {
     "Q10": (
         "q10-open-source-security-",

@@ -43,7 +43,7 @@ def main() -> int:
         candidate_sha = git("rev-parse", "HEAD")
         candidate_tree = git("rev-parse", "HEAD^{tree}")
         expected_subject = str(identity["runtime_subject_manifest_sha256"])
-        if identity.get("candidate_branch") != "release/q10-q16-closure-20261105":
+        if identity.get("candidate_branch") != "closure/q10-q16-unification-20261105":
             failures.append("candidate_branch_mismatch")
         if not isinstance(identity.get("release_pr_number"), int) or identity.get("release_pr_number", 0) < 1:
             failures.append("release_pr_number_missing")

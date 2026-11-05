@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import difflib
 import errno
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -19,7 +20,12 @@ SKILLS = ROOT / "creator_app" / "skills" / "agnes" / "SKILL.md"
 
 
 def _readme_patch(addition: str) -> str:
-    original = (ROOT / "README.md").read_text(encoding="utf-8").splitlines(keepends=True)
+    baseline_readme = subprocess.check_output(
+        ["git", "show", f"{BASELINE}:README.md"],
+        cwd=ROOT,
+        text=True,
+    )
+    original = baseline_readme.splitlines(keepends=True)
     updated = list(original)
     updated.insert(1, addition + "\n")
     return "".join(
