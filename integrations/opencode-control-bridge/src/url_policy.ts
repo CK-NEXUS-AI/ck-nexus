@@ -22,7 +22,10 @@ export function normalizeOpenCodeBaseUrl(value: string): string {
   if (parsed.username || parsed.password || parsed.search || parsed.hash) {
     throw new Error('OPENCODE_BASE_URL must not contain credentials, query, or fragment');
   }
-  return parsed.origin + parsed.pathname.replace(/\/+$/, '');
+  if (parsed.pathname !== '/' && parsed.pathname !== '') {
+    throw new Error('OPENCODE_BASE_URL must not contain a path prefix');
+  }
+  return parsed.origin;
 }
 
 export function buildOpenCodeRequestUrl(baseUrl: string, path: string): string {

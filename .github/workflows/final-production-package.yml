@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   actions: read
@@ -52,6 +53,15 @@ jobs:
           sha=q10['source_sha']
           tree=q10['source_tree']
           subject=manifest['runtime_subject_manifest_sha256']
+          pr_number=int(manifest['release_pr_number'])
+          pr=json.loads(subprocess.check_output(['gh','api',f"repos/{__import__('os').environ['GITHUB_REPOSITORY']}/pulls/{pr_number}"],text=True))
+          assert manifest['candidate_branch']==pr.get('head',{}).get('ref'), 'candidate branch does not match release PR head'
+          assert pr.get('state')=='closed' and pr.get('merged') is True and pr.get('base',{}).get('ref')=='main', 'closure PR not merged into main'
+          assert pr.get('head',{}).get('sha')==sha, 'Q10 candidate SHA does not equal the merged PR head'
+          merge_sha=pr.get('merge_commit_sha')
+          subprocess.run(['git','fetch','origin',f'refs/pull/{pr_number}/head:refs/remotes/origin/closure-pr-{pr_number}'],check=True)
+          if subprocess.run(['git','cat-file','-e',f'{sha}^{{commit}}'],check=False).returncode != 0:
+              raise SystemExit('candidate commit is unavailable after fetching the PR head')
           actual_tree=subprocess.check_output(['git','rev-parse',f'{sha}^{{tree}}'],text=True).strip()
           def subject_for(ref):
               listing=subprocess.check_output(['git','ls-tree','-r',ref,'--','app','creator_app','services','gateway','orchestration','idea_engine','migrations','deploy','observability','Dockerfile','docker-compose.prod.yml','main.py','pyproject.toml','uv.lock'],text=True)
@@ -65,12 +75,6 @@ jobs:
           main_subject=subject_for('origin/main')
           assert actual_tree==tree, 'candidate tree mismatch'
           assert candidate_subject==subject and main_subject==subject, 'runtime subject mismatch'
-          pr_number=int(manifest['release_pr_number'])
-          pr=json.loads(subprocess.check_output(['gh','api',f"repos/{__import__('os').environ['GITHUB_REPOSITORY']}/pulls/{pr_number}"],text=True))
-          assert manifest['candidate_branch']==pr.get('head',{}).get('ref'), 'candidate branch does not match merged release PR head'
-          assert pr.get('state')=='closed' and pr.get('merged') is True and pr.get('base',{}).get('ref')=='main', 'closure PR not merged into main'
-          merge_sha=pr.get('merge_commit_sha')
-          subprocess.run(['git','fetch','origin',f'refs/pull/{pr_number}/head:refs/remotes/origin/closure-pr-{pr_number}'],check=True)
           subprocess.run(['git','merge-base','--is-ancestor',sha,f'refs/remotes/origin/closure-pr-{pr_number}'],check=True)
           subprocess.run(['git','merge-base','--is-ancestor',merge_sha,'origin/main'],check=True)
           assert subject_for('origin/main')==subject, 'merged main runtime subject mismatch'

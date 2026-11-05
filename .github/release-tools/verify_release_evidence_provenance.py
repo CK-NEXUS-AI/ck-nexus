@@ -38,6 +38,16 @@ EXPECTED_BRANCHES = {
     "Q16_PRODUCTION_IMAGE": {EXPECTED_BRANCH},
     "Q16_RUNTIME_LICENSES": {EXPECTED_BRANCH},
 }
+EXPECTED_GATES_BY_FILENAME = {
+    "Q10_DEPENDENCY_AUDIT.json": "Q10",
+    "Q11_OPENAI_LIVE.json": "Q11",
+    "Q12_CGROUP_V2.json": "Q12",
+    "Q13_POSTGRES_DR.json": "Q13",
+    "Q14_OBSERVABILITY_ALERT.json": "Q14",
+    "Q15_CLEAN_MACHINE.json": "Q15",
+    "Q16_PRODUCTION_IMAGE.json": "Q16_PRODUCTION_IMAGE",
+    "Q16_RUNTIME_LICENSE_SUMMARY.json": "Q16_RUNTIME_LICENSES",
+}
 EXPECTED_ARTIFACT_PREFIXES = {
     "Q10": "q10-open-source-security-",
     "Q11": "q11-final-",
@@ -50,17 +60,24 @@ EXPECTED_ARTIFACT_PREFIXES = {
 }
 
 
-def _api_payload(url: str, token: str) -> Any:
-    response = UrllibHttpTransport(max_response_bytes=2_000_000).request(
-        "GET",
+def _api_payload(
+    url: str,
+    token: str,
+    *,
+    method: str = "GET",
+    body: bytes | None = None,
+) -> Any:
+    response = UrllibHttpTransport(max_response_bytes=8_000_000).request(
+        method,
         url,
         headers={
             "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json",
             "X-GitHub-Api-Version": "2022-11-28",
             "User-Agent": "ck-nexus-release-evidence-verifier",
         },
-        body=None,
+        body=body,
         timeout=20,
     )
     if response.status != 200:
@@ -75,11 +92,87 @@ def _api_json(url: str, token: str) -> dict[str, Any]:
     return data
 
 
-def _api_list(url: str, token: str) -> list[dict[str, Any]]:
-    data = _api_payload(url, token)
-    if not isinstance(data, list):
-        raise TypeError("expected JSON array from GitHub API")
-    return data
+def _github_pr_attestations(
+    repository: str,
+    pr_number: int,
+    token: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    owner, name = repository.split("/", 1)
+    query = """
+    query($owner:String!, $name:String!, $number:Int!, $reviewsCursor:String, $commentsCursor:String) {
+      repository(owner:$owner, name:$name) {
+        pullRequest(number:$number) {
+          reviews(first:100, after:$reviewsCursor) {
+            nodes { state commit { oid } body submittedAt url authorAssociation author { login __typename } }
+            pageInfo { hasNextPage endCursor }
+          }
+          comments(first:100, after:$commentsCursor) {
+            nodes { body createdAt url authorAssociation author { login __typename } }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      }
+    }
+    """
+    reviews: list[dict[str, Any]] = []
+    comments: list[dict[str, Any]] = []
+    reviews_cursor: str | None = None
+    comments_cursor: str | None = None
+    for _ in range(100):
+        request_body = json.dumps(
+            {
+                "query": query,
+                "variables": {
+                    "owner": owner,
+                    "name": name,
+                    "number": pr_number,
+                    "reviewsCursor": reviews_cursor,
+                    "commentsCursor": comments_cursor,
+                },
+            }
+        ).encode("utf-8")
+        payload = _api_payload(
+            "https://api.github.com/graphql",
+            token,
+            method="POST",
+            body=request_body,
+        )
+        if payload.get("errors"):
+            raise RuntimeError("GitHub GraphQL attestation lookup returned errors")
+        pr = (((payload.get("data") or {}).get("repository") or {}).get("pullRequest") or {})
+        review_connection = pr.get("reviews") or {}
+        comment_connection = pr.get("comments") or {}
+        for node in review_connection.get("nodes") or []:
+            author = node.get("author") or {}
+            reviews.append(
+                {
+                    "state": node.get("state"),
+                    "commit_id": (node.get("commit") or {}).get("oid"),
+                    "body": node.get("body") or "",
+                    "submitted_at": node.get("submittedAt"),
+                    "html_url": node.get("url"),
+                    "author_association": node.get("authorAssociation"),
+                    "user": {"login": author.get("login"), "type": author.get("__typename")},
+                }
+            )
+        for node in comment_connection.get("nodes") or []:
+            author = node.get("author") or {}
+            comments.append(
+                {
+                    "body": node.get("body") or "",
+                    "created_at": node.get("createdAt"),
+                    "html_url": node.get("url"),
+                    "author_association": node.get("authorAssociation"),
+                    "user": {"login": author.get("login"), "type": author.get("__typename")},
+                }
+            )
+        review_page = review_connection.get("pageInfo") or {}
+        comment_page = comment_connection.get("pageInfo") or {}
+        reviews_cursor = review_page.get("endCursor") if review_page.get("hasNextPage") else None
+        comments_cursor = comment_page.get("endCursor") if comment_page.get("hasNextPage") else None
+        if reviews_cursor is None and comments_cursor is None:
+            return reviews, comments
+    raise RuntimeError("GitHub PR attestation pagination exceeded the safety limit")
 
 
 def _time(value: str) -> datetime:
@@ -128,6 +221,17 @@ def verify(
         failures.append("Q10_DEPENDENCY_AUDIT.json: candidate source tree missing or invalid")
     if q10_identity.get("release_subject_manifest_sha256") != expected_subject:
         failures.append("Q10_DEPENDENCY_AUDIT.json: candidate runtime subject mismatch")
+    if isinstance(candidate_sha, str) and len(candidate_sha) == 40:
+        try:
+            commit = _api_json(
+                f"https://api.github.com/repos/{repository}/git/commits/{candidate_sha}",
+                token,
+            )
+            actual_candidate_tree = (commit.get("tree") or {}).get("sha")
+            if actual_candidate_tree != candidate_tree:
+                failures.append("Q10_DEPENDENCY_AUDIT.json: candidate tree does not match GitHub commit object")
+        except (urllib.error.URLError, TimeoutError, ValueError, TypeError, RuntimeError, OSError) as exc:
+            failures.append(f"Q10_DEPENDENCY_AUDIT.json: candidate tree lookup failed ({type(exc).__name__})")
 
     for filename in EVIDENCE_FILES:
         path = evidence_dir / filename
@@ -137,7 +241,8 @@ def verify(
             failures.append(f"{filename}: cannot load evidence ({type(exc).__name__})")
             continue
 
-        gate = str(evidence.get("gate") or filename)
+        gate = str(evidence.get("gate") or "")
+        expected_gate = EXPECTED_GATES_BY_FILENAME[filename]
         subject = evidence.get("release_subject_manifest_sha256")
         artifact_id = evidence.get("artifact_id")
         artifact_digest = evidence.get("artifact_digest")
@@ -150,6 +255,10 @@ def verify(
             "provenance": "FAIL",
         }
 
+        if gate != expected_gate:
+            failures.append(f"{filename}: gate identity does not match its canonical evidence filename")
+            rows.append(row)
+            continue
         if subject != expected_subject:
             failures.append(f"{filename}: stale release subject")
             rows.append(row)
@@ -176,7 +285,7 @@ def verify(
                 f"https://api.github.com/repos/{repository}/actions/runs/{run_id}",
                 token,
             )
-        except (urllib.error.URLError, TimeoutError, ValueError) as exc:
+        except (urllib.error.URLError, TimeoutError, ValueError, RuntimeError, OSError) as exc:
             failures.append(f"{filename}: GitHub provenance lookup failed ({type(exc).__name__})")
             rows.append(row)
             continue
@@ -227,25 +336,32 @@ def verify(
                     pr = _api_json(
                         f"https://api.github.com/repos/{repository}/pulls/{pr_number}", token
                     )
-                    reviews = _api_list(
-                        f"https://api.github.com/repos/{repository}/pulls/{pr_number}/reviews?per_page=100", token
-                    )
-                    comments = _api_list(
-                        f"https://api.github.com/repos/{repository}/issues/{pr_number}/comments?per_page=100", token
-                    )
+                    reviews, comments = _github_pr_attestations(repository, pr_number, token)
                     current_head = (pr.get("head") or {}).get("sha")
                     candidate_ref = str(candidate_sha)
+                    candidate_tree_ref = str(candidate_tree)
+                    subject_ref = str(expected_subject)
                     report_sha = str(evidence["security_report_sha256"])
+                    run_ref = str(run_id)
+                    def attests(body: str, marker: str) -> bool:
+                        lines = set(body.splitlines())
+                        required = {
+                            marker,
+                            f"source_sha: {candidate_ref}",
+                            f"source_tree: {candidate_tree_ref}",
+                            f"runtime_subject: {subject_ref}",
+                            f"report_sha256: {report_sha}",
+                            f"workflow_run_id: {run_ref}",
+                        }
+                        return required.issubset(lines)
                     matching_reviews = [
                         item for item in reviews
                         if item.get("state") == "APPROVED"
                         and item.get("commit_id") == current_head
-                        and "CKNEXUS-Q10-REVIEW-APPROVED" in (item.get("body") or "")
+                        and attests(item.get("body") or "", "CKNEXUS-Q10-REVIEW-APPROVED")
                         and "COVERAGE-REVIEWED" in (item.get("body") or "")
                         and "FINDINGS-REVIEWED" in (item.get("body") or "")
                         and "NON-EQUIVALENCE-ACKNOWLEDGED" in (item.get("body") or "")
-                        and candidate_ref in (item.get("body") or "")
-                        and report_sha in (item.get("body") or "")
                     ]
                     matching_reviews.sort(key=lambda item: item.get("submitted_at", ""))
                     expected_owner = OWNER_GITHUB_LOGIN
@@ -271,9 +387,7 @@ def verify(
                         item for item in comments
                         if (item.get("user") or {}).get("login") == expected_owner
                         and str(item.get("author_association", "")).upper() in {"MEMBER", "OWNER"}
-                        and "CKNEXUS-Q10-OWNER-APPROVED" in (item.get("body") or "")
-                        and candidate_ref in (item.get("body") or "")
-                        and report_sha in (item.get("body") or "")
+                        and attests(item.get("body") or "", "CKNEXUS-Q10-OWNER-APPROVED")
                     ]
                     matching_comments.sort(key=lambda item: item.get("created_at", ""))
                     if reviewer_login and review_url:
@@ -290,6 +404,7 @@ def verify(
                         and pr.get("merged") is True
                         and (pr.get("base") or {}).get("ref") == "main"
                         and (pr.get("head") or {}).get("ref") == EXPECTED_BRANCH
+                        and current_head == candidate_ref
                     )
                     api_review_ok = bool(
                         pr_ok and reviewer_login and owner_login
@@ -301,6 +416,7 @@ def verify(
                     )
                     approval_checks.update({
                         "release_pr_merged_to_main": pr_ok,
+                        "reviewed_pr_head_matches_candidate_sha": current_head == candidate_ref,
                         "independent_approved_review_exists": bool(reviewer_login),
                         "reviewer_author_association": reviewer_association,
                         "reviewer_is_repository_collaborator_or_member": reviewer_association in {"COLLABORATOR", "MEMBER"},

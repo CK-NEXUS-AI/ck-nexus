@@ -2,6 +2,8 @@
   "candidate_branch": "closure/q10-q16-unification-20261105",
   "owner_github_login": "spinlnw10-art",
   "release_pr_number": 354,
-  "runtime_subject_manifest_sha256": "89df795fd4b5adfeaa173954c963b8f9013dcba0737c56e578cf7a50853a6229",
-  "schema_version": 1
+  "runtime_subject_manifest_sha256": "5129fa855515a13484e9e0e1816eef219f061dd87cc0651eaffae87096741147",
+  "schema_version": 1,
+  "baseline_main_sha": "4d1366cef3cbdd18aa174bdf67308567635c750a",
+  "baseline_main_tree": "57adfe86cd6d9bdbca5c97d336cb733df2308ae5"
 }

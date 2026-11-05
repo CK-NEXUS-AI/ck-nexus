@@ -26,6 +26,11 @@ test('rejects URL credentials, query and fragment', () => {
   assert.throws(() => normalizeOpenCodeBaseUrl('http://127.0.0.1:18924/#fragment'));
 });
 
+
+test('rejects path prefixes that could be discarded by root-relative API paths', () => {
+  assert.throws(() => normalizeOpenCodeBaseUrl('http://127.0.0.1:18924/opencode'));
+});
+
 test('accepts opaque OpenCode session identifiers', () => {
   assert.equal(SESSION_ID_SCHEMA.parse('ses_0123456789abcdef'), 'ses_0123456789abcdef');
 });

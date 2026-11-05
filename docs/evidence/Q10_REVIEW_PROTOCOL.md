@@ -1,43 +1,15 @@
-# Q10 Independent Review and Owner Approval Protocol
+# Q10 independent review and Owner approval protocol
 
-The Q10 scanner artifact is immutable and remains `gate_result=NOT_VERIFIED`. The final release provenance verifier calculates effective Q10 approval only from GitHub API-backed human attestations on the closure PR.
+The independent reviewer must submit an APPROVED review on the exact closure PR head after the Q10 scan completes. The review body must contain:
 
-## Scanner finding classification
+- CKNEXUS-Q10-REVIEW-APPROVED
+- COVERAGE-REVIEWED
+- FINDINGS-REVIEWED
+- NON-EQUIVALENCE-ACKNOWLEDGED
+- source_sha: exact candidate commit SHA
+- source_tree: exact Git tree SHA
+- runtime_subject: exact runtime subject manifest SHA-256
+- report_sha256: exact Q10 report SHA-256
+- workflow_run_id: exact Q10 workflow run ID
 
-The raw Semgrep JSON is always retained. An ERROR finding blocks the security assessment when its metadata category is security or is absent/unknown. The explicitly non-security categories maintainability, correctness, best-practice, and performance remain visible in the report review queue and do not, by themselves, block a security-only assessment.
-
-The two broad audit rules dangerous-subprocess-use-audit and dangerous-asyncio-create-exec-audit are not treated as resolved or ignored. Their call sites are counted separately as semgrep_subprocess_audit_review and must be reviewed by the independent reviewer. Tainted-input and command-injection rules remain blocking.
-
-The repository .gitleaksignore contains only exact fingerprints for triaged synthetic test fixtures, blank .env.example values, and one documentation phrase false positive. It contains no path-wide or rule-wide exclusions. The independent reviewer must inspect each exact fingerprint and its rationale; any new fingerprint is blocking until separately investigated.
-
-
-## Independent reviewer — GitHub PR review
-
-A repository collaborator or organization member other than the Owner must submit an **APPROVED** review on the final PR head. The review body must contain all of these exact markers and values:
-
-```text
-CKNEXUS-Q10-REVIEW-APPROVED
-COVERAGE-REVIEWED
-FINDINGS-REVIEWED
-NON-EQUIVALENCE-ACKNOWLEDGED
-Candidate SHA: <40-character Q10 evidence source_sha>
-Report SHA-256: <64-character Q10 security_report_sha256>
-```
-
-The reviewer must assess scanner configuration, coverage, findings, false-positive handling, unresolved risks, and the fact that the open-source layered toolset is not claimed to be equivalent to Codex Security. The review must be submitted after the Q10 scan completed and against the current PR head.
-
-## Owner — final PR issue comment
-
-After the independent APPROVED review, the pinned repository Owner account (`spinlnw10-art`) must post a PR comment containing:
-
-```text
-CKNEXUS-Q10-OWNER-APPROVED
-Candidate SHA: <40-character Q10 evidence source_sha>
-Report SHA-256: <64-character Q10 security_report_sha256>
-```
-
-## Automated verification
-
-The release provenance verifier checks the PR is merged into `main`, GitHub identifies the independent reviewer as a `COLLABORATOR` or `MEMBER`, the Owner comment is authored by the repository's pinned Owner login (`spinlnw10-art`), the reviewer and Owner are different accounts, the review/comment URLs and markers match, the review follows scan completion, the Owner comment follows the review, and both attestations bind to the exact candidate SHA and report SHA-256.
-
-No evidence JSON is edited to turn `NOT_VERIFIED` into `PASS`. The final release manifest records the effective Q10 `PASS` and the verified API attestation only after all checks succeed.
+The pinned repository Owner (spinlnw10-art) must then add a later PR issue comment containing CKNEXUS-Q10-OWNER-APPROVED and the same five exact identity fields. The reviewer must be a different authenticated repository collaborator/member. The provenance verifier checks the PR head, review commit, actor identities, association, ordering, and every identity field through GitHub's authenticated API. The verifier never accepts a comment or review bound only to a stale ancestor.

@@ -54,6 +54,7 @@ async function ocRequest(path: string, init: RequestInit = {}): Promise<unknown>
   const response = await fetch(safeUrl, {
     ...init,
     headers: { ...authHeaders(), ...(init.headers ?? {}) },
+    redirect: 'manual',
     signal: AbortSignal.timeout(30_000),
   });
   if (!response.ok) {

@@ -9,9 +9,10 @@ This checklist supersedes the previous checklist bound to runtime subject `96dcd
 ## Current release identity
 
 - [x] PR #353 merged: canonical runtime entrypoints converge on `creator_app.unified`.
-- [x] Current GitHub main SHA: `34d7df48b35903d7861362a72b0d3a1fd8a3b201`.
-- [x] Current Git tree: `af57e2a5202bc95bb07d321c65a57a623205333b`.
-- [x] Current runtime subject manifest SHA-256: `3f414a4329d35f57cbc05b49f11cb34a184b276dbe1b528792d8cb4317dcc2f6`.
+- [x] Current GitHub main SHA: `4d1366cef3cbdd18aa174bdf67308567635c750a`.
+- [x] Current Git tree: `57adfe86cd6d9bdbca5c97d336cb733df2308ae5`.
+- [x] Current runtime subject manifest SHA-256: `10113cb5874edbaeee2c444e0a8a002f3f68dd7ff6fbd1a72a5b6634a0415227`.
+- [x] Frozen closure candidate runtime subject SHA-256: `5129fa855515a13484e9e0e1816eef219f061dd87cc0651eaffae87096741147`.
 - [ ] Closure candidate branch and `evidence/RELEASE_SUBJECT.json` frozen.
 - [ ] Exact-subject Q10–Q16 artifacts and provenance recorded.
 - [ ] Final source package includes Q10–Q16 raw evidence artifacts and provenance manifest; production image archive and SHA256SUMS verified.

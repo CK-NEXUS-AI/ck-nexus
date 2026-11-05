@@ -11,7 +11,7 @@ import tempfile
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from urllib.parse import parse_qsl, unquote, urlsplit
+from urllib.parse import unquote, urlsplit
 
 REQUIRED_TABLES = ("agnes_idempotency", "creator_runs", "email_journal", "email_outbox")
 
@@ -57,7 +57,7 @@ def _postgres_environment(url: str, credential_dir: Path) -> dict[str, str]:
     if not parsed.hostname or not parsed.path.lstrip("/"):
         raise DRBlocked("database URL must include host and database name")
     username = unquote(parsed.username or "")
-    password = unquote(parsed.password or "")
+    password = unquote(parsed.password or "") or os.environ.get("PGPASSWORD", "")
     if not username:
         raise DRBlocked("database URL must include a database username")
     try:
@@ -112,7 +112,12 @@ def _postgres_environment(url: str, credential_dir: Path) -> dict[str, str]:
         "target_session_attrs": "PGTARGETSESSIONATTRS",
         "options": "PGOPTIONS",
     }
-    for key, value in parse_qsl(parsed.query, keep_blank_values=True):
+    query_pairs = (
+        (unquote(part.split("=", 1)[0]), unquote(part.split("=", 1)[1]) if "=" in part else "")
+        for part in parsed.query.split("&")
+        if part
+    )
+    for key, value in query_pairs:
         target = allowed_query.get(key)
         if target is None:
             raise DRBlocked("database URL contains an unsupported connection parameter")

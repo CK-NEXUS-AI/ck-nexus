@@ -202,9 +202,8 @@ jobs:
         run: |
           set -o pipefail
           set +e
-          # The hosted VM restricts unprivileged user namespaces. Run the unchanged
-          # namespace assertions with elevated privileges on this disposable clean VM.
-          sudo -E .venv/bin/pytest -q tests/test_agnes_execution_kernel_phase2.py | tee q15-phase2-tests.log
+          # Execute as the hosted runner identity, matching the non-root production service boundary.
+          .venv/bin/pytest -q tests/test_agnes_execution_kernel_phase2.py | tee q15-phase2-tests.log
           rc=$?
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
           if [ "$rc" -eq 0 ]; then touch q15-phase2-regression.pass; fi
@@ -215,8 +214,8 @@ jobs:
         run: |
           set -o pipefail
           set +e
-          # Keep Phase 3 kernel namespace/seccomp assertions active on the clean VM.
-          sudo -E .venv/bin/pytest -q tests/test_agnes_execution_kernel_phase3.py | tee q15-phase3-tests.log
+          # Execute Phase 3 kernel namespace/seccomp assertions as the non-root runner identity.
+          .venv/bin/pytest -q tests/test_agnes_execution_kernel_phase3.py | tee q15-phase3-tests.log
           rc=$?
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
           if [ "$rc" -eq 0 ]; then touch q15-phase3-regression.pass; fi
@@ -293,6 +292,8 @@ jobs:
           PORTABLE_RC: ${{ steps.portable.outputs.rc }}
           PHASE2_RC: ${{ steps.phase2.outputs.rc }}
           PHASE3_RC: ${{ steps.phase3.outputs.rc }}
+          PRODUCTION_IMAGE_RC: ${{ steps.production_runtime.outputs.rc }}
+          PRODUCTION_IMAGE_SHA256: ${{ steps.production_image.outputs.artifact_sha }}
         run: |
           finish=$(date +%s)
           duration=$((finish-Q15_INSTALL_STARTED))

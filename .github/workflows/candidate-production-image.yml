@@ -10,6 +10,8 @@ on:
 
 permissions:
   contents: read
+  issues: read
+  pull-requests: read
 
 jobs:
   docker_image:
@@ -130,6 +132,7 @@ jobs:
         env:
           HEAD_SHA: ${{ steps.subject.outputs.target_sha }}
           RUN_ID: ${{ github.run_id }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           docker logs cknexus-candidate > docker-server.log 2>&1 || true
@@ -160,6 +163,9 @@ jobs:
           counts=Counter()
           full_counts=Counter()
           unfixed_high_critical=set()
+          unfixed_high_critical_findings=set()
+          unfixed_medium=set()
+          unfixed_medium_findings=set()
           listed_but_fixed=set()
           for result in scan.get('Results',[]) or []:
             for item in result.get('Vulnerabilities',[]) or []:
@@ -173,31 +179,109 @@ jobs:
               vulnerability_id=str(item.get('VulnerabilityID','UNKNOWN'))
               if severity in ('CRITICAL','HIGH') and not item.get('FixedVersion'):
                 unfixed_high_critical.add(vulnerability_id)
+                unfixed_high_critical_findings.add(
+                  f"{vulnerability_id}|{item.get('PkgName','UNKNOWN')}|{item.get('InstalledVersion','UNKNOWN')}"
+                )
+              if severity == 'MEDIUM' and not item.get('FixedVersion'):
+                unfixed_medium.add(vulnerability_id)
+                unfixed_medium_findings.add(
+                  f"{vulnerability_id}|{item.get('PkgName','UNKNOWN')}|{item.get('InstalledVersion','UNKNOWN')}"
+                )
             for item in result.get('Misconfigurations',[]) or []:
               full_counts[str(item.get('Severity','UNKNOWN')).upper()]+=1
           policy_text=Path('.trivyignore.yaml').read_text(encoding='utf-8') if Path('.trivyignore.yaml').is_file() else ''
           import re
-          exception_ids=set(re.findall(r'^\s*-\s*id:\s*((?:CVE|GHSA)-[A-Za-z0-9-]+)\s*$',policy_text,re.M))
+          exception_entries={}
+          for block in re.split(r'(?m)^\s*-\s*id:\s*',policy_text)[1:]:
+            vulnerability_id=block.splitlines()[0].strip()
+            statement_match=re.search(r'(?m)^\s*statement:\s*["\']?(.+?)["\']?\s*$',block)
+            expiry_match=re.search(r'(?m)^\s*expired_at:\s*(\d{4}-\d{2}-\d{2})\s*$',block)
+            exception_entries[vulnerability_id]=(
+              statement_match.group(1).strip().strip('"\'') if statement_match else '',
+              expiry_match.group(1) if expiry_match else '',
+            )
+          exception_ids=set(exception_entries)
           risk_policy=json.loads(Path('security/trivy-risk-acceptance.json').read_text(encoding='utf-8'))
+          policy_ids=set(risk_policy.get('vulnerability_ids',[]))
           from datetime import date
-          expiry=date.fromisoformat(risk_policy['expires_at'])
-          approved=(risk_policy.get('approval_status')=='APPROVED'
-                    and bool(risk_policy.get('approved_by'))
-                    and bool(risk_policy.get('approved_at'))
-                    and bool(risk_policy.get('approval_reference'))
-                    and expiry >= date.today())
+          policy_expiry=date.fromisoformat(risk_policy['expires_at'])
           unlisted=unfixed_high_critical-exception_ids
+          if exception_ids != unfixed_high_critical:
+            unlisted.add('trivy_ignore_set_does_not_exactly_match_unfixed_high_critical_findings')
+          if exception_ids != policy_ids:
+            unlisted.add('risk_policy_vulnerability_set_mismatch')
+          if policy_expiry < date.today():
+            unlisted.add('risk_policy_expired')
+          if not risk_policy.get('required_owner_review'):
+            unlisted.add('risk_policy_owner_review_rationale_missing')
+          if risk_policy.get('medium_review_required') is not True or not risk_policy.get('medium_review_mechanism'):
+            unlisted.add('risk_policy_medium_review_contract_missing')
+          for vulnerability_id,(statement,expiry) in exception_entries.items():
+            if not statement or expiry != policy_expiry.isoformat():
+              unlisted.add(f'{vulnerability_id}:missing_statement_or_matching_expiry')
+          expected_base='python:3.12.16-slim-trixie@sha256:e695ab189fa2d082b1c61c69a6b888a5adeca61ceeccad107b1ed2a125721a9e'
+          if risk_policy.get('base_image') != expected_base:
+            unlisted.add('risk_policy_base_image_mismatch')
           for result in full_scan.get('Results',[]) or []:
             for item in result.get('Vulnerabilities',[]) or []:
               if str(item.get('VulnerabilityID','UNKNOWN')) in exception_ids and item.get('FixedVersion'):
                 listed_but_fixed.add(str(item.get('VulnerabilityID')))
-          try:
-            from datetime import datetime, timezone
-            approved_at=datetime.fromisoformat(str(risk_policy.get('approved_at','')).replace('Z','+00:00'))
-            approval_time_valid=approved_at.tzinfo is not None and approved_at <= datetime.now(timezone.utc)
-          except (TypeError,ValueError):
-            approval_time_valid=False
-          approved=(approved and approval_time_valid)
+          scan_sha=hashlib.sha256(scan_path.read_bytes()).hexdigest() if scan_path.is_file() else None
+          full_scan_sha=hashlib.sha256(full_scan_path.read_bytes()).hexdigest() if full_scan_path.is_file() else None
+          from scripts.q16_risk_approval import (
+            verify_independent_medium_review,
+            verify_owner_risk_approval,
+          )
+          owner_approval=None
+          medium_review=None
+          if (unfixed_high_critical or unfixed_medium) and image_digest.startswith('sha256:') and full_scan_sha:
+            try:
+              release_identity=json.loads(Path('evidence/RELEASE_SUBJECT.json').read_text(encoding='utf-8'))
+              pr_number=int(release_identity['release_pr_number'])
+              if release_identity.get('owner_github_login') != 'spinlnw10-art':
+                raise ValueError('pinned_owner_identity_mismatch')
+              pr=json.loads(subprocess.check_output([
+                'gh','api',f"repos/{os.environ['GITHUB_REPOSITORY']}/pulls/{pr_number}"
+              ],text=True))
+              if (
+                pr.get('state') != 'open'
+                or (pr.get('head') or {}).get('sha') != sha
+                or (pr.get('head') or {}).get('ref') != os.environ.get('GITHUB_REF_NAME')
+                or (pr.get('base') or {}).get('ref') != 'main'
+              ):
+                raise ValueError('owner_approval_pr_candidate_mismatch')
+              pages=json.loads(subprocess.check_output([
+                'gh','api','--paginate','--slurp',
+                f"repos/{os.environ['GITHUB_REPOSITORY']}/issues/{pr_number}/comments?per_page=100"
+              ],text=True))
+              comments=[item for page in pages for item in page] if isinstance(pages,list) else []
+              if unfixed_high_critical:
+                owner_approval=verify_owner_risk_approval(
+                  comments,
+                  source_sha=sha,
+                  image_config_digest=image_digest,
+                  report_sha256=full_scan_sha,
+                  vulnerability_ids=unfixed_high_critical,
+                  finding_refs=unfixed_high_critical_findings,
+                )
+                if owner_approval and owner_approval['expires_at'] != risk_policy['expires_at']:
+                  owner_approval=None
+              if unfixed_medium:
+                medium_review=verify_independent_medium_review(
+                  comments,
+                  source_sha=sha,
+                  image_config_digest=image_digest,
+                  report_sha256=full_scan_sha,
+                  vulnerability_ids=unfixed_medium,
+                  finding_refs=unfixed_medium_findings,
+                )
+                if medium_review and medium_review['expires_at'] != risk_policy['expires_at']:
+                  medium_review=None
+            except (OSError,ValueError,KeyError,TypeError,subprocess.CalledProcessError):
+              owner_approval=None
+              medium_review=None
+          approved=(not unfixed_high_critical) or owner_approval is not None
+          medium_reviewed=(not unfixed_medium) or medium_review is not None
           if scan_rc != 0 or full_scan_rc != 0 or not scan or not full_scan:
             image_scan_status='BLOCKED'
           elif counts.get('CRITICAL',0) or counts.get('HIGH',0):
@@ -207,13 +291,13 @@ jobs:
           elif unfixed_high_critical and not approved:
             image_scan_status='OWNER_APPROVAL_REQUIRED'
           elif counts.get('MEDIUM',0):
+            image_scan_status='FAIL'
+          elif unfixed_medium and not medium_reviewed:
             image_scan_status='REVIEW_REQUIRED'
           else:
             image_scan_status='PASS'
           passed=imports and smoke and nonroot and image_scan_status=='PASS' and image_digest.startswith('sha256:') and len(image_archive_sha)==64
           status=lambda ok: 'PASS' if ok else 'FAIL'
-          scan_sha=hashlib.sha256(scan_path.read_bytes()).hexdigest() if scan_path.is_file() else None
-          full_scan_sha=hashlib.sha256(full_scan_path.read_bytes()).hexdigest() if full_scan_path.is_file() else None
           trivy_path=shutil.which('trivy')
           trivy_sha=hashlib.sha256(Path(trivy_path).read_bytes()).hexdigest() if trivy_path else None
           trivy_version=subprocess.run(['trivy','--version'],text=True,capture_output=True,check=False)
@@ -232,10 +316,21 @@ jobs:
             'image_scan_findings_by_severity':dict(counts),
             'image_scan_full_findings_by_severity':dict(full_counts),
             'image_scan_unfixed_high_critical_ids':sorted(unfixed_high_critical),
+            'image_scan_unfixed_high_critical_findings':sorted(unfixed_high_critical_findings),
+            'image_scan_unfixed_medium_ids':sorted(unfixed_medium),
+            'image_scan_unfixed_medium_findings':sorted(unfixed_medium_findings),
             'image_scan_report_sha256':scan_sha,
             'image_scan_full_report_sha256':full_scan_sha,
-            'owner_risk_approval_status':risk_policy.get('approval_status','MISSING'),
-            'owner_risk_approval_reference':risk_policy.get('approval_reference'),
+            'owner_risk_approval_status':'NOT_REQUIRED' if not unfixed_high_critical else ('APPROVED' if owner_approval else 'PENDING'),
+            'owner_risk_approval_actor':owner_approval.get('actor') if owner_approval else None,
+            'owner_risk_approval_reference':owner_approval.get('reference') if owner_approval else None,
+            'owner_risk_approval_created_at':owner_approval.get('created_at') if owner_approval else None,
+            'owner_risk_approval_expires_at':owner_approval.get('expires_at') if owner_approval else None,
+            'medium_findings_review_status':'NOT_REQUIRED' if not unfixed_medium else ('APPROVED' if medium_review else 'PENDING'),
+            'medium_findings_review_actor':medium_review.get('actor') if medium_review else None,
+            'medium_findings_review_reference':medium_review.get('reference') if medium_review else None,
+            'medium_findings_review_created_at':medium_review.get('created_at') if medium_review else None,
+            'medium_findings_review_expires_at':medium_review.get('expires_at') if medium_review else None,
             'trivy_version':(trivy_version.stdout or trivy_version.stderr).strip().splitlines()[0] if (trivy_version.stdout or trivy_version.stderr).strip() else None,
             'trivy_binary_sha256':trivy_sha,
             'base_image':'python:3.12.16-slim-trixie@sha256:e695ab189fa2d082b1c61c69a6b888a5adeca61ceeccad107b1ed2a125721a9e',

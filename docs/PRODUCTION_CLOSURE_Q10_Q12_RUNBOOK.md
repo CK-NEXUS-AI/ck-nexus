@@ -8,9 +8,10 @@
 
 | Identity | Value |
 |---|---|
-| GitHub main source | `34d7df48b35903d7861362a72b0d3a1fd8a3b201` |
-| Git tree | `af57e2a5202bc95bb07d321c65a57a623205333b` |
-| Runtime subject manifest SHA-256 | `3f414a4329d35f57cbc05b49f11cb34a184b276dbe1b528792d8cb4317dcc2f6` |
+| GitHub main source | `4d1366cef3cbdd18aa174bdf67308567635c750a` |
+| Git tree | `57adfe86cd6d9bdbca5c97d336cb733df2308ae5` |
+| Runtime subject manifest SHA-256 | `10113cb5874edbaeee2c444e0a8a002f3f68dd7ff6fbd1a72a5b6634a0415227` |
+| Closure candidate runtime subject SHA-256 | `5129fa855515a13484e9e0e1816eef219f061dd87cc0651eaffae87096741147` |
 | Canonical runtime | `creator_app.unified` |
 | Runtime-unification PR | #353 — MERGED |
 
@@ -66,7 +67,7 @@ Install the exact candidate artifact on a genuinely fresh supported machine or i
 
 ## 8. Q16 — Production image, license inventory, and release convergence
 
-Build the image from the exact candidate, record its immutable digest, scan the image and runtime dependencies, and generate the third-party license inventory/notices from the built image. Verify the clean source package and its SHA-256 from an independent location. Q16 cannot pass while any Q10–Q15 gate, independent review, Owner approval, or release provenance check remains unresolved.
+Build the image from the exact candidate, record its immutable digest, scan the image and runtime dependencies, and generate the third-party license inventory/notices from the built image. Unfixed HIGH/CRITICAL exceptions require a GitHub PR issue comment by spinlnw10-art containing CKNEXUS-Q16-RISK-APPROVED and exact source_sha, image_config_digest, full report_sha256, sorted vulnerability_ids, expires_at (no more than 30 days), and a rationale. The approval is rejected if any identity, finding, base-image, or expiry value differs. Unfixed MEDIUM findings require a separate authenticated PR issue comment from a repository collaborator/member other than the Owner, marked CKNEXUS-Q16-MEDIUM-REVIEW-APPROVED. Both Q16 attestations must bind exact source_sha, image_config_digest, full report_sha256, sorted vulnerability_ids, package-level finding_refs (CVE|package|installed-version), expires_at (no more than 30 days), and a rationale. Unfixed MEDIUM findings remain REVIEW_REQUIRED until that independent disposition exists; Owner approval does not substitute for it. Verify the clean source package and its SHA-256 from an independent location. Q16 cannot pass while any Q10–Q15 gate, independent review, Owner approval, or release provenance check remains unresolved.
 
 ## 9. Evidence and release invariants
 

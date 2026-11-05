@@ -281,7 +281,7 @@ def test_report_blocks_unknown_or_security_semgrep_error_categories(tmp_path, mo
     assert "semgrep_security_error_findings" in report["findings"]["blocking_reasons"]
 
 
-def test_report_keeps_subprocess_audit_rules_as_independent_review_items(
+def test_report_blocks_security_subprocess_audit_errors_until_resolved(
     tmp_path, monkeypatch
 ) -> None:
     _write_reports(tmp_path)
@@ -316,10 +316,35 @@ def test_report_keeps_subprocess_audit_rules_as_independent_review_items(
         ],
     )
 
-    assert gate_report.main() == 0
+    assert gate_report.main() == 1
     report = json.loads((tmp_path / "q10-open-source-security-report.json").read_text())
+    assert report["security_assessment_status"] == "REJECTED"
     assert report["findings"]["semgrep_subprocess_audit_review"] == 2
-    assert report["findings"]["semgrep_security_error_blocking"] == 0
+    assert report["findings"]["semgrep_security_error_blocking"] == 2
+    assert "semgrep_security_error_findings" in report["findings"]["blocking_reasons"]
     assert report["independent_review_status"] == "PENDING"
     assert report["owner_approval_status"] == "PENDING"
     assert report["production_promotion_allowed"] is False
+
+
+def test_report_rejects_structurally_incomplete_scanner_json(tmp_path, monkeypatch) -> None:
+    _write_reports(tmp_path)
+    (tmp_path / "q10-semgrep.json").write_text(json.dumps({"results": []}), encoding="utf-8")
+    _set_exit_codes(monkeypatch)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "q10_open_source_gate_report.py",
+            "--output-dir", str(tmp_path),
+            "--source-sha", "a" * 40,
+            "--source-tree", "b" * 40,
+            "--subject", "c" * 64,
+            "--run-id", "12345",
+        ],
+    )
+    assert gate_report.main() == 2
+    report = json.loads((tmp_path / "q10-open-source-security-report.json").read_text())
+    assert report["scanner_execution_status"] == "BLOCKED"
+    assert "semgrep" in report["coverage"]["invalid_schema_reports"]
+    assert "evidence_schema_invalid" in report["findings"]["blocking_reasons"]

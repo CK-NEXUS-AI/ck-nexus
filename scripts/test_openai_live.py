@@ -9,21 +9,25 @@ def main() -> int:
         return 2
 
     try:
-        from openai import OpenAI
+        from openai import AuthenticationError, OpenAI
     except ImportError as exc:
         print(f"P0-AI-001 BLOCKED: OpenAI SDK unavailable: {exc}")
         return 2
 
     model = os.getenv("OPENAI_SMOKE_MODEL", os.getenv("OPENAI_MODEL", "gpt-5-mini"))
     client = OpenAI()
-    response = client.responses.create(
-        model=model,
-        input=(
-            "Return exactly one line in Thai that contains the token "
-            "CK-NEXUS-P0-SMOKE-PASS and states that the production smoke test passed."
-        ),
-        max_output_tokens=64,
-    )
+    try:
+        response = client.responses.create(
+            model=model,
+            input=(
+                "Return exactly one line in Thai that contains the token "
+                "CK-NEXUS-P0-SMOKE-PASS and states that the production smoke test passed."
+            ),
+            max_output_tokens=64,
+        )
+    except AuthenticationError:
+        print("P0-AI-001 BLOCKED: OpenAI API credential was rejected or expired")
+        return 2
     output = response.output_text.strip()
     if "CK-NEXUS-P0-SMOKE-PASS" not in output:
         print("P0-AI-001 FAIL: expected sentinel missing")

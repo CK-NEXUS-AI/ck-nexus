@@ -93,6 +93,26 @@ def test_postgres_environment_uses_private_passfile_without_password_in_env(tmp_
     assert env["PGDATABASE"] == "cknexus_restore"
     assert env["PGUSER"] == "operator"
     assert env["PGSSLMODE"] == "require"
+    assert "PGPASSWORD" not in env
+
+
+def test_postgres_environment_preserves_literal_plus_in_query_values(tmp_path):
+    env = postgres_dr._postgres_environment(
+        "postgresql://operator:secret@db.example.test/cknexus_restore?application_name=worker+pool",
+        tmp_path,
+    )
+    assert env["PGAPPNAME"] == "worker+pool"
+
+
+def test_postgres_environment_uses_inherited_password_fallback(tmp_path, monkeypatch):
+    monkeypatch.setenv("PGPASSWORD", "inherited-secret")
+    env = postgres_dr._postgres_environment(
+        "postgresql://operator@db.example.test/cknexus_restore",
+        tmp_path,
+    )
+    passfile = Path(env["PGPASSFILE"])
+    assert "inherited-secret" in passfile.read_text(encoding="utf-8")
+    assert "PGPASSWORD" not in env
 
 
 def test_pgpass_escapes_delimiters():
@@ -114,10 +134,15 @@ def test_restore_connects_pg_restore_to_isolated_target(tmp_path, monkeypatch):
     monkeypatch.setenv("CKNEXUS_ALLOW_DESTRUCTIVE_RESTORE", "YES")
     monkeypatch.setenv("CKNEXUS_RESTORE_TARGET_CLASS", "isolated-dr")
     monkeypatch.setattr(postgres_dr, "_require_tool", lambda name: name)
+    target_env = {
+        "PGDATABASE": "cknexus_restore_dr",
+        "PGPASSFILE": str(tmp_path / "target-pgpass"),
+        "PGHOST": "target.example.test",
+    }
     monkeypatch.setattr(
         postgres_dr,
         "_postgres_environment",
-        lambda url, credential_dir: {"PGDATABASE": "cknexus_restore_dr"},
+        lambda url, credential_dir: dict(target_env),
     )
     monkeypatch.setattr(
         postgres_dr,
@@ -126,7 +151,7 @@ def test_restore_connects_pg_restore_to_isolated_target(tmp_path, monkeypatch):
     )
 
     def fake_run(command, *, env=None, stdin=None):
-        commands.append(command)
+        commands.append((command, dict(env or {})))
         if command[0] == "pg_restore":
             return postgres_dr.subprocess.CompletedProcess(command, 0, "", "")
         return postgres_dr.subprocess.CompletedProcess(
@@ -150,5 +175,8 @@ def test_restore_connects_pg_restore_to_isolated_target(tmp_path, monkeypatch):
     )
 
     assert result["status"] == "PASS"
-    assert commands[0][:3] == ["pg_restore", "--dbname", "cknexus_restore_dr"]
-    assert commands[1][0] == "psql"
+    assert commands[0][0][:3] == ["pg_restore", "--dbname", "cknexus_restore_dr"]
+    assert commands[0][1] == target_env
+    assert commands[1][0][0] == "psql"
+    assert commands[1][1] == target_env
+    assert "PGPASSWORD" not in commands[0][1]

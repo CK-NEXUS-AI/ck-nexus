@@ -103,29 +103,40 @@ def main() -> int:
             except (OSError, json.JSONDecodeError):
                 parse_errors.append(name)
 
-    pip_rows = (
-        raw.get("pip_audit", {}).get("dependencies", [])
-        if isinstance(raw.get("pip_audit"), dict)
-        else []
-    )
+    schema_errors: list[str] = []
+    schema_validators = {
+        "pip_audit": lambda value: isinstance(value, dict) and isinstance(value.get("dependencies"), list) and all(isinstance(row, dict) and isinstance(row.get("vulns", []), list) for row in value.get("dependencies", [])),
+        "bandit": lambda value: isinstance(value, dict) and isinstance(value.get("results"), list) and all(isinstance(row, dict) for row in value.get("results", [])),
+        "semgrep": lambda value: isinstance(value, dict) and isinstance(value.get("results"), list) and all(isinstance(row, dict) and isinstance(row.get("extra"), dict) for row in value.get("results", [])) and isinstance(value.get("paths"), dict) and isinstance(value["paths"].get("scanned"), list) and bool(value["paths"].get("scanned")) and all(isinstance(path, str) for path in value["paths"]["scanned"]),
+        "gitleaks": lambda value: (isinstance(value, list) and all(isinstance(row, dict) for row in value)) or (isinstance(value, dict) and isinstance(value.get("findings"), list) and all(isinstance(row, dict) for row in value["findings"])),
+        "trivy": lambda value: isinstance(value, dict) and isinstance(value.get("Results"), list) and all(isinstance(row, dict) and isinstance(row.get("Vulnerabilities", []), list) and isinstance(row.get("Misconfigurations", []), list) for row in value.get("Results", [])),
+        "attack_regression": lambda value: isinstance(value, dict) and all(isinstance(value.get(key), int) for key in ("tests_total", "tests_passed", "tests_failed")) and isinstance(value.get("issue_references"), list) and all(isinstance(row, dict) for row in value["issue_references"]),
+        "tool_versions": lambda value: isinstance(value, dict) and all(name in value for name in EXPECTED_TOOL_VERSIONS),
+        "semgrep_ruleset": lambda value: isinstance(value, dict) and isinstance(value.get("repository"), str) and isinstance(value.get("commit"), str) and isinstance(value.get("directories"), list),
+        "issue_state": lambda value: isinstance(value, dict) and isinstance(value.get("issues"), list) and all(isinstance(row, dict) for row in value["issues"]),
+    }
+    for name, validator in schema_validators.items():
+        if name in raw and not validator(raw[name]):
+            schema_errors.append(name)
+
+    pip_data = raw.get("pip_audit", {})
+    pip_rows = pip_data.get("dependencies", []) if isinstance(pip_data, dict) and isinstance(pip_data.get("dependencies"), list) else []
     pip_vulnerabilities = sum(
         len(row.get("vulns", [])) for row in pip_rows if isinstance(row, dict)
     )
-    bandit_rows = (
-        raw.get("bandit", {}).get("results", []) if isinstance(raw.get("bandit"), dict) else []
-    )
+    bandit_data = raw.get("bandit", {})
+    bandit_rows = bandit_data.get("results", []) if isinstance(bandit_data, dict) and isinstance(bandit_data.get("results"), list) else []
     bandit_counts = severity_counts(bandit_rows, "issue_severity")
-    semgrep_rows = (
-        raw.get("semgrep", {}).get("results", []) if isinstance(raw.get("semgrep"), dict) else []
-    )
+    semgrep_data = raw.get("semgrep", {})
+    semgrep_rows = semgrep_data.get("results", []) if isinstance(semgrep_data, dict) and isinstance(semgrep_data.get("results"), list) else []
     semgrep_counts = severity_counts(
-        [{"severity": row.get("extra", {}).get("severity", "UNKNOWN")} for row in semgrep_rows],
+        [{"severity": (row.get("extra") or {}).get("severity", "UNKNOWN")} for row in semgrep_rows if isinstance(row, dict)],
         "severity",
     )
     semgrep_error_rows = [
         row
         for row in semgrep_rows
-        if str(row.get("extra", {}).get("severity", "UNKNOWN")).upper() == "ERROR"
+        if isinstance(row, dict) and str((row.get("extra") or {}).get("severity", "UNKNOWN")).upper() == "ERROR"
     ]
     semgrep_nonsecurity_categories = {
         "maintainability",
@@ -136,7 +147,7 @@ def main() -> int:
     semgrep_security_error_rows = [
         row
         for row in semgrep_error_rows
-        if str(row.get("extra", {}).get("metadata", {}).get("category", "UNKNOWN")).lower()
+        if str(((row.get("extra") or {}).get("metadata") or {}).get("category", "UNKNOWN")).lower()
         not in semgrep_nonsecurity_categories
     ]
     semgrep_audit_only_suffixes = (
@@ -146,27 +157,26 @@ def main() -> int:
     semgrep_audit_review_rows = [
         row
         for row in semgrep_security_error_rows
-        if str(row.get("check_id", "")).endswith(semgrep_audit_only_suffixes)
+        if isinstance(row, dict) and str(row.get("check_id", "")).endswith(semgrep_audit_only_suffixes)
     ]
-    semgrep_blocking_security_error_rows = [
-        row for row in semgrep_security_error_rows if row not in semgrep_audit_review_rows
-    ]
+    semgrep_blocking_security_error_rows = list(semgrep_security_error_rows)
     semgrep_nonsecurity_error_rows = [
         row
         for row in semgrep_error_rows
-        if str(row.get("extra", {}).get("metadata", {}).get("category", "UNKNOWN")).lower()
+        if str(((row.get("extra") or {}).get("metadata") or {}).get("category", "UNKNOWN")).lower()
         in semgrep_nonsecurity_categories
     ]
     gitleaks_raw = raw.get("gitleaks", [])
     if isinstance(gitleaks_raw, dict):
         gitleaks_rows = gitleaks_raw.get("findings", []) or []
+        if not isinstance(gitleaks_rows, list):
+            gitleaks_rows = []
     elif isinstance(gitleaks_raw, list):
         gitleaks_rows = gitleaks_raw
     else:
         gitleaks_rows = []
-    trivy_results = (
-        raw.get("trivy", {}).get("Results", []) if isinstance(raw.get("trivy"), dict) else []
-    )
+    trivy_data = raw.get("trivy", {})
+    trivy_results = trivy_data.get("Results", []) if isinstance(trivy_data, dict) and isinstance(trivy_data.get("Results"), list) else []
     trivy_counts: Counter[str] = Counter()
     for result in trivy_results or []:
         for row in result.get("Vulnerabilities", []) or []:
@@ -174,16 +184,19 @@ def main() -> int:
         for row in result.get("Misconfigurations", []) or []:
             trivy_counts[str(row.get("Severity", "UNKNOWN")).upper()] += 1
     attack = raw.get("attack_regression", {})
-    attack_failed = int(attack.get("tests_failed", 1)) if isinstance(attack, dict) else 1
-    attack_passed = int(attack.get("tests_passed", 0)) if isinstance(attack, dict) else 0
-    attack_total = int(attack.get("tests_total", 0)) if isinstance(attack, dict) else 0
+    try:
+        attack_failed = int(attack.get("tests_failed", 1)) if isinstance(attack, dict) else 1
+        attack_passed = int(attack.get("tests_passed", 0)) if isinstance(attack, dict) else 0
+        attack_total = int(attack.get("tests_total", 0)) if isinstance(attack, dict) else 0
+    except (TypeError, ValueError):
+        attack_failed, attack_passed, attack_total = 1, 0, 0
     attack_counts_complete = attack_total > 0 and attack_passed + attack_failed == attack_total
     issue_state = raw.get("issue_state", {})
-    issue_items = issue_state.get("issues", []) if isinstance(issue_state, dict) else []
+    issue_items = issue_state.get("issues", []) if isinstance(issue_state, dict) and isinstance(issue_state.get("issues"), list) else []
     attack_issue_refs = (
         {
             int(item.get("issue")): item.get("title")
-            for item in attack.get("issue_references", [])
+            for item in (attack.get("issue_references", []) if isinstance(attack.get("issue_references"), list) else [])
             if isinstance(item, dict) and str(item.get("issue", "")).isdigit()
         }
         if isinstance(attack, dict)
@@ -219,8 +232,8 @@ def main() -> int:
     )
     tracked_files = len(subprocess.check_output(["git", "ls-files"], text=True).splitlines())
     semgrep_paths = (
-        raw.get("semgrep", {}).get("paths", {}).get("scanned", [])
-        if isinstance(raw.get("semgrep"), dict)
+        (raw.get("semgrep", {}).get("paths") or {}).get("scanned", [])
+        if isinstance(raw.get("semgrep"), dict) and isinstance(raw.get("semgrep", {}).get("paths"), dict)
         else []
     )
     versions = raw.get("tool_versions", {}) if isinstance(raw.get("tool_versions"), dict) else {}
@@ -263,6 +276,7 @@ def main() -> int:
     execution_complete = (
         not missing
         and not parse_errors
+        and not schema_errors
         and tracked_files > 0
         and bool(semgrep_paths)
         and attack_counts_complete
@@ -282,7 +296,7 @@ def main() -> int:
         blockers.append("dependency_vulnerabilities_found")
     if bandit_counts.get("HIGH", 0) or bandit_counts.get("MEDIUM", 0):
         blockers.append("bandit_medium_or_high_findings")
-    if semgrep_blocking_security_error_rows:
+    if semgrep_security_error_rows:
         blockers.append("semgrep_security_error_findings")
     if gitleaks_rows:
         blockers.append("gitleaks_findings")
@@ -302,7 +316,9 @@ def main() -> int:
         blockers.append("repository_secret_scan_failed")
     if any(code not in {0, 1} for code in codes.values()):
         blockers.append("scanner_execution_error")
-    if missing or parse_errors or not execution_complete:
+    if schema_errors:
+        blockers.append("evidence_schema_invalid")
+    if missing or parse_errors or schema_errors or not execution_complete:
         blockers.append("evidence_completeness_failed")
 
     review_items = {
@@ -343,6 +359,7 @@ def main() -> int:
             "reports_present": len(report_paths),
             "missing_reports": missing,
             "invalid_reports": parse_errors,
+            "invalid_schema_reports": schema_errors,
         },
         "findings": {
             "dependency_vulnerabilities": pip_vulnerabilities,
