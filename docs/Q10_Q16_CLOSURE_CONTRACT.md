@@ -2,7 +2,7 @@
 
 Historical baseline: canonical Q09 `45fde79c717b09f8675645aa541a5834ebd4f433`.
 
-Current re-baseline (2026-11-05): source `34d7df48b35903d7861362a72b0d3a1fd8a3b201`, tree `af57e2a5202bc95bb07d321c65a57a623205333b`, runtime subject `3f414a4329d35f57cbc05b49f11cb34a184b276dbe1b528792d8cb4317dcc2f6`. The old Q09 baseline and all earlier Q10–Q16 evidence are historical and are not transferable to this subject.
+Pre-closure baseline (2026-11-05): source `4d1366cef3cbdd18aa174bdf67308567635c750a`, tree `57adfe86cd6d9bdbca5c97d336cb733df2308ae5`, runtime subject `10113cb5874edbaeee2c444e0a8a002f3f68dd7ff6fbd1a72a5b6634a0415227`. The old Q09 baseline and all earlier Q10–Q16 evidence are historical and are not transferable to this pre-closure baseline or its candidate descendants.
 
 This document maps the remaining production blockers into explicit gates. It is a new closure contract for the current release line; it does not rewrite historical R-series evidence. Every gate is fail-closed. `PASS` applies only to evidence bound to the same immutable release identity. A partial/component pass never promotes the whole gate.
 
