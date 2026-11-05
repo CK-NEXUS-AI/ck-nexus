@@ -130,7 +130,6 @@ Expected: all selected tests pass.
 ### Task 4: Live-safe canary and final verification
 
 **Files:**
-- Modify: `progress.md`
 - Test: existing repository test suite and live MCP canary commands
 
 **Interfaces:**
@@ -157,7 +156,7 @@ Run the existing `scripts/ck-health` and verify `cknexus-mcp.service`, `cknexus-
 
 - [ ] **Step 5: Record the execution ledger**
 
-Update `/root/ck-nexus/progress.md` with the plan path and one `Task N: complete` line for each independently verified task. Record any non-failing environmental warnings separately; do not mark warnings as failures unless the health gate says so.
+Record task completion and verification in the dated evidence bundle for this plan. Keep `RELEASE_STATUS.md` limited to current release-gate status; do not recreate a root progress ledger.
 
 ## Unresolved externally observable decisions
 

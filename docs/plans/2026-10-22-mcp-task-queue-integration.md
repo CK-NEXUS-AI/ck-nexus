@@ -64,7 +64,6 @@ Do not create a Git commit automatically because the repository is already inten
 
 **Files:**
 - Modify: `docs/plans/2026-10-22-phase-abc-hardening-report.md` only to record verified queue integration results
-- Create: `progress.md` at repository root for execution ledger
 - Test: repository test/lint/compile commands
 
 **Interfaces:**
@@ -137,7 +136,6 @@ No Git commit. Deployment changes are recorded by file hashes and the execution 
 
 **Files:**
 - Modify: `docs/plans/2026-10-22-phase-abc-hardening-report.md`
-- Modify: `progress.md`
 - Create: deployment evidence under the existing `evidence/` convention
 
 **Interfaces:**
