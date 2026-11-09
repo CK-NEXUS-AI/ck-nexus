@@ -35,7 +35,15 @@
         "model-capability-routing",
         "fallback-policy"
       ],
-      "notes": "Gemini Creator inference was verified on 2026-11-01. Other providers require individual inference and routing verification."
+      "notes": "Gemini Creator inference was verified on 2026-11-01. Other providers require individual inference and routing verification.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": false,
+        "runtime_verified": false
+      }
     },
     {
       "id": "litellm-gateway",
@@ -52,7 +60,15 @@
         "fallbacks",
         "cost-tracking"
       ],
-      "notes": "Already installed. Authenticated model listing worked; unauthenticated error path needs Prisma dependency remediation. Do not duplicate with another gateway."
+      "notes": "Already installed. Authenticated model listing worked; unauthenticated error path needs Prisma dependency remediation. Do not duplicate with another gateway.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": false,
+        "runtime_verified": false
+      }
     },
     {
       "id": "connector-fabric",
@@ -69,7 +85,15 @@
         "risk-classification",
         "fail-closed-authorization"
       ],
-      "notes": "Use this as the one connector ingress. Discovered connectors are not automatically activated."
+      "notes": "Use this as the one connector ingress. Discovered connectors are not automatically activated.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": false,
+        "runtime_verified": false
+      }
     },
     {
       "id": "mcp-runtime",
@@ -85,7 +109,15 @@
         "provider-status",
         "browser-tools"
       ],
-      "notes": "22 tools listed after adding read-only capability catalog and knowledge search/source listing. Tool availability does not imply execution permission."
+      "notes": "22 tools listed after adding read-only capability catalog and knowledge search/source listing. Tool availability does not imply execution permission.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": false,
+        "runtime_verified": false
+      }
     },
     {
       "id": "agnes-skills",
@@ -102,7 +134,15 @@
         "skill-selection",
         "quarantine-rules"
       ],
-      "notes": "Skills define procedures; they do not provide credentials or authority. Review AGNES skills against the Agent Skills open format, pin reviewed source commits and hashes, and quarantine bundled scripts before activation."
+      "notes": "Skills define procedures; they do not provide credentials or authority. Review AGNES skills against the Agent Skills open format, pin reviewed source commits and hashes, and quarantine bundled scripts before activation.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": false,
+        "runtime_verified": false
+      }
     },
     {
       "id": "n8n-workflows",
@@ -119,7 +159,15 @@
         "API-automation",
         "human-approval-steps"
       ],
-      "notes": "Keep n8n as the workflow plane only. Live instance has 2 active workflows but no execution records or configured credentials in the inspected database."
+      "notes": "Keep n8n as the workflow plane only. Live instance has 2 active workflows but no execution records or configured credentials in the inspected database.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": false,
+        "runtime_verified": false
+      }
     },
     {
       "id": "global-knowledge",
@@ -139,7 +187,15 @@
         "rights-gated-document-ingestion",
         "local-document-search"
       ],
-      "notes": "Knowledge retrieval is not policy authority. E-book ingestion is an additive capability to build."
+      "notes": "Knowledge retrieval is not policy authority. E-book ingestion is an additive capability to build.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": false,
+        "runtime_verified": false
+      }
     },
     {
       "id": "ebook-epub-ingest",
@@ -163,7 +219,15 @@
         "keyword-search",
         "source-revocation"
       ],
-      "notes": "Local EPUB/PDF text parser, rights-gated chunker, SQLite document index, keyword search and source revocation. No OCR, embeddings or automatic memory writes."
+      "notes": "Local EPUB/PDF text parser, rights-gated chunker, SQLite document index, keyword search and source revocation. No OCR, embeddings or automatic memory writes.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": false,
+        "runtime_verified": false
+      }
     },
     {
       "id": "docling",
@@ -184,7 +248,15 @@
         "tables",
         "MCP"
       ],
-      "notes": "Strong candidate for a separate document worker. Not installed on the constrained VPS because model/dependency footprint is not yet budgeted."
+      "notes": "Strong candidate for a separate document worker. Not installed on the constrained VPS because model/dependency footprint is not yet budgeted.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": true,
+        "runtime_verified": false
+      }
     },
     {
       "id": "ragflow",
@@ -201,7 +273,15 @@
         "citation-backed-retrieval",
         "agent-tools"
       ],
-      "notes": "Official quickstart recommends 16 GB RAM and 50 GB free disk. Not suitable for co-location on this 1.9 GiB RAM VPS."
+      "notes": "Official quickstart recommends 16 GB RAM and 50 GB free disk. Not suitable for co-location on this 1.9 GiB RAM VPS.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": true,
+        "runtime_verified": false
+      }
     },
     {
       "id": "langgraph",
@@ -217,7 +297,15 @@
         "checkpointing",
         "human-in-the-loop"
       ],
-      "notes": "Do not install as a competing control plane. First compare with existing CK-NEXUS control_plane and AGNES execution."
+      "notes": "Do not install as a competing control plane. First compare with existing CK-NEXUS control_plane and AGNES execution.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": true,
+        "runtime_verified": false
+      }
     },
     {
       "id": "letta-memory",
@@ -226,14 +314,36 @@
       "status": "discovery_only",
       "integration_point": "optional isolated agent worker; memory proposals must pass CK-NEXUS memory policy",
       "authority_scope": "NONE",
-      "license": "verify repository license and deployment dependencies before adoption",
+      "license": "Apache-2.0",
       "source_url": "https://github.com/letta-ai/letta",
       "capabilities": [
         "stateful-agents",
         "continual-memory",
         "skills"
       ],
-      "notes": "Do not allow a second memory authority. Evaluate only as an isolated worker or memory-research source."
+      "notes": "Letta Server repository v0.16.8 (2026-05-14), last source push observed 2026-10-18. Its README points current CLI, agent harness, App Server, channels and runtime development to letta-ai/letta-code; that newer harness is tracked as a separate registry artifact. Do not create a second memory authority.",
+      "upstream_version": "0.16.8",
+      "release_date": "2026-05-14",
+      "reviewed_at": "2026-11-09",
+      "maintenance_signal": "Official Letta Server release 0.16.8 published 2026-05-14; latest source commit observed 2026-10-18. The server README states the current CLI, agent harness, App Server, channels and runtime source lives in the separate letta-ai/letta-code repository.",
+      "runtime_compatibility": "This entry refers to the Letta Server repository, not the current Letta Code CLI. Server runtime compatibility and dependency footprint were not re-measured in this pass; evaluate the separate Letta Code artifact for the current CLI/harness.",
+      "dependency_footprint": "Server-side stateful-agent service; installed footprint and full service dependencies were not measured in this pass. Keep discovery-only and do not co-install on the constrained CK-NEXUS VPS.",
+      "permission_scope": "Stateful agent service manages agent identity, memory and conversation state and can expose messaging/channel integrations. No Letta account, remote computer or provider credential was connected in this review.",
+      "latency_cost": "Model-provider usage and server/storage hosting are variable costs; no current Letta Cloud price or CK-NEXUS latency benchmark was verified in this pass.",
+      "security_notes": "Memory and conversation state are first-class mutable agent resources. Treat as a separate agent/memory system, not as a CK-NEXUS memory authority. No independent security audit or live service connection was verified in this pass.",
+      "evidence_urls": [
+        "https://github.com/letta-ai/letta",
+        "https://github.com/letta-ai/letta/releases",
+        "https://github.com/letta-ai/letta-code"
+      ],
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": true,
+        "not_connected": true,
+        "not_integrated": true,
+        "runtime_verified": false
+      }
     },
     {
       "id": "langfuse-observability",
@@ -242,7 +352,7 @@
       "status": "discovery_only",
       "integration_point": "optional trace exporter from CK-NEXUS observability",
       "authority_scope": "NONE",
-      "license": "MIT core; optional enterprise governance features differ",
+      "license": "MIT for files outside ee/ and other explicitly excluded enterprise paths; EE paths use ee/LICENSE; third-party components retain their upstream licenses.",
       "source_url": "https://github.com/langfuse/langfuse",
       "capabilities": [
         "LLM-tracing",
@@ -250,7 +360,32 @@
         "evaluation",
         "experiments"
       ],
-      "notes": "Potentially useful but full self-host stack is too heavy for current VPS. Prefer existing observability/OpenTelemetry first."
+      "notes": "Keep discovery-only. v4.76.0 adds audit-log events for read access to traces, sessions and scores, and exposes Topics summaries/assignments/rules through API, MCP and the in-app agent. Valuable for observability governance, but the full self-host stack is too heavy for the current VPS. Compare its audit/data-minimization coverage with the existing OpenTelemetry and CK-NEXUS evidence pipeline before any separate deployment.",
+      "upstream_version": "4.76.0",
+      "release_date": "2026-11-05",
+      "reviewed_at": "2026-11-09",
+      "maintenance_signal": "Official v4.76.0 release published 2026-11-05; active main-branch commits observed 2026-11-08 and 2026-11-09. Langfuse has been part of ClickHouse since January 2026.",
+      "runtime_compatibility": "Current monorepo package.json requires Node 24 and pnpm 12.16.1. Self-host Docker Compose is suitable for local testing; production options include Kubernetes/Helm and cloud deployments. The service requires web and worker containers plus PostgreSQL, Redis/Valkey, ClickHouse and S3-compatible blob storage; optional AI Gateway adds another service.",
+      "dependency_footprint": "Heavy multi-service stack: Next.js web/API, background worker, PostgreSQL, Redis/Valkey, ClickHouse and S3/MinIO; optional AI Gateway, OpenTelemetry ingestion and MCP/API features. Full installed footprint was not measured and is unsuitable for the current low-memory/low-disk VPS.",
+      "permission_scope": "SDK/OTel instrumentation can ingest prompts, completions, tool inputs/outputs, traces, observations, sessions and scores. Project-scoped API keys and RBAC gate reads; the Topics surface is available through API/MCP. Masking, retention, deletion and audit-log controls are relevant before any data export.",
+      "latency_cost": "Open-source self-host avoids a software subscription for the MIT core but requires substantial database, object-storage, worker and compute capacity. Cloud pricing was not verified in this pass. Event volume, sampling, retention and ClickHouse queries drive storage and latency; no CK-NEXUS benchmark was performed.",
+      "security_notes": "Root LICENSE makes code outside enterprise paths MIT while ee/ paths use ee/LICENSE. SECURITY.md recommends the latest release. Langfuse Cloud reports SOC 2 Type II, ISO 27001 and annual external penetration testing; those attestations do not automatically apply to a self-hosted installation. The self-host compose file includes placeholder/default Postgres, ClickHouse, MinIO, SALT and ENCRYPTION_KEY values; replace every CHANGEME/default secret and restrict inbound ports. Most data services bind to localhost, while web, MinIO and optional AI Gateway ports need explicit host firewall policy. The default telemetry setting is enabled; review it against data policy.",
+      "evidence_urls": [
+        "https://github.com/langfuse/langfuse",
+        "https://github.com/langfuse/langfuse/releases/tag/v4.76.0",
+        "https://github.com/langfuse/langfuse/blob/main/LICENSE",
+        "https://github.com/langfuse/langfuse/blob/main/SECURITY.md",
+        "https://langfuse.com/docs/deployment/self-host",
+        "https://langfuse.com/docs/data-security-privacy"
+      ],
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": true,
+        "not_connected": true,
+        "not_integrated": true,
+        "runtime_verified": false
+      }
     },
     {
       "id": "activepieces",
@@ -266,7 +401,15 @@
         "connectors",
         "AI-automation"
       ],
-      "notes": "Do not co-install alongside n8n without a measured need."
+      "notes": "Do not co-install alongside n8n without a measured need.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": true,
+        "runtime_verified": false
+      }
     },
     {
       "id": "open-vsx-ai-registry",
@@ -283,7 +426,15 @@
         "plugin-discovery",
         "A2A-agent-discovery"
       ],
-      "notes": "Registry metadata is a discovery signal only. Each artifact still requires source, license, checksum, permission and sandbox review."
+      "notes": "Registry metadata is a discovery signal only. Each artifact still requires source, license, checksum, permission and sandbox review.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": true,
+        "runtime_verified": false
+      }
     },
     {
       "id": "superpowers-skills",
@@ -301,7 +452,15 @@
         "planning",
         "verification"
       ],
-      "notes": "Pinned skills are procedures; the lockfile hashes source content. Skills never grant execution authority."
+      "notes": "Pinned skills are procedures; the lockfile hashes source content. Skills never grant execution authority.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": false,
+        "runtime_verified": false
+      }
     },
     {
       "id": "d2l-deep-learning-book",
@@ -321,7 +480,15 @@
         "JAX",
         "TensorFlow"
       ],
-      "notes": "Free, openly licensed textbook. Not downloaded or ingested yet; verify exact source revision and preserve attribution/share-alike terms."
+      "notes": "Free, openly licensed textbook. Not downloaded or ingested yet; verify exact source revision and preserve attribution/share-alike terms.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": true,
+        "runtime_verified": false
+      }
     },
     {
       "id": "huggingface-transformers-course",
@@ -340,7 +507,15 @@
         "LLM-fundamentals",
         "NLP"
       ],
-      "notes": "Free and openly licensed course source. Not downloaded or ingested yet; pin revision and retain attribution."
+      "notes": "Free and openly licensed course source. Not downloaded or ingested yet; pin revision and retain attribution.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": true,
+        "runtime_verified": false
+      }
     },
     {
       "id": "poppler-pdf-parser",
@@ -356,7 +531,15 @@
         "page-preserving-layout",
         "UTF-8-output"
       ],
-      "notes": "Local text extraction only with 30-second timeout and size limits. Scanned/image-only PDF requires a separately reviewed OCR worker."
+      "notes": "Local text extraction only with 30-second timeout and size limits. Scanned/image-only PDF requires a separately reviewed OCR worker.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": false,
+        "runtime_verified": false
+      }
     },
     {
       "id": "ebook-knowledge-store",
@@ -373,7 +556,15 @@
         "read-only-MCP-search",
         "stable-chunk-citations"
       ],
-      "notes": "Separate from personal memory and policy. The production index is initialized but currently empty; imported documents require an explicit rights basis."
+      "notes": "Separate from personal memory and policy. The production index is initialized but currently empty; imported documents require an explicit rights basis.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": false,
+        "not_connected": true,
+        "not_integrated": false,
+        "runtime_verified": false
+      }
     },
     {
       "id": "agent-skills-standard",
@@ -435,7 +626,7 @@
         "CI-security-checks",
         "cost-and-stability-assertions"
       ],
-      "notes": "Official latest release observed: 0.125.1 (2026-10-25). Promptfoo states it is now part of OpenAI and remains MIT-licensed. Official docs list 157 red-team plugins, including coding-agent tests for repository prompt injection, terminal-output injection, secret reads, sandbox escapes, verifier sabotage and delayed CI exfiltration. Some Community-edition plugins use remote inference; inspect the 🌐 marker and data path before selecting them.",
+      "notes": "Official latest release observed: 0.125.1 (2026-10-25). Promptfoo states it is now part of OpenAI and remains MIT-licensed. Official docs list 157 red-team plugins, including coding-agent tests for repository prompt injection, terminal-output injection, secret reads, sandbox escapes, verifier sabotage and delayed CI exfiltration. Some Community-edition plugins use remote inference; inspect the 🌐 marker and data path before selecting them. OpenAI announced its planned acquisition of Promptfoo on 2026-03-09; the current upstream README says Promptfoo is now part of OpenAI and remains MIT-licensed. Treat remote inference and telemetry as separate data flows; use redacted fixtures and restricted egress.",
       "upstream_version": "0.125.1",
       "release_date": "2026-10-25",
       "reviewed_at": "2026-11-09",
@@ -740,6 +931,59 @@
         "https://www.agentclash.dev/docs/concepts/tools-network-and-secrets",
         "https://www.agentclash.dev/docs/guides/security-evaluation",
         "https://www.agentclash.dev/"
+      ]
+    },
+    {
+      "id": "letta-code-agent-harness",
+      "name": "Letta Code Stateful Agent Harness",
+      "class": "agent_framework",
+      "status": "discovery_only",
+      "integration_point": "Optional isolated coding-agent harness; memory/skill proposals must be reviewed and committed only through CK-NEXUS Core policy; no request-path or authority integration",
+      "authority_scope": "NONE",
+      "license": "Apache-2.0",
+      "source_url": "https://github.com/letta-ai/letta-code",
+      "capabilities": [
+        "stateful-agent-memory",
+        "git-backed-memory-filesystem",
+        "agent-scoped-skills",
+        "project-and-global-skill-discovery",
+        "self-improving-agent",
+        "custom-hooks",
+        "permission-modes",
+        "subagents",
+        "scheduled-heartbeats",
+        "MCP-client",
+        "remote-computers",
+        "secret-injection",
+        "messaging-channels"
+      ],
+      "notes": "Current Letta Code agent harness and CLI; separate from the older Letta Server repository. Agents can rewrite their own memory, skills, prompts and harness. The interactive CLI defaults to unrestricted permission mode. High-value research candidate for long-lived coding agents, but high memory/permission governance risk; keep discovery-only.",
+      "upstream_version": "0.34.46",
+      "release_date": "2026-11-09",
+      "reviewed_at": "2026-11-09",
+      "maintenance_signal": "Official GitHub release v0.34.46 published 2026-11-09 with active commits on the same date. Repository is active and publishes frequent patch releases.",
+      "runtime_compatibility": "npm package @letta-ai/letta-code requires Node ^22.23.4, ^24.22.1 or ^26.12.1 and Bun >=1.3.2. Alternative Python installation requires Python >=3.9 and ships Node; wheels support glibc Linux 2.28+ x86-64/ARM64, macOS 14+ and Windows x64. Alpine/musl is unsupported. The VPS Node 24.22.1 satisfies the declared engine, but the CLI is not installed there and was not run.",
+      "dependency_footprint": "Node/Bun CLI includes MCP SDK, node-pty, sharp, OpenAI and Letta agent/client SDKs, cron-parser, WebSocket and terminal UI dependencies plus bundled skills/vendor assets. Package installed size was not measured; no package was installed.",
+      "permission_scope": "Can read/write project and memory files, execute shell commands, run custom hooks, discover/load skills from project/global/agent memory scopes, invoke subagents, schedule recurring work, and use MCP clients. Remote computers and cloud secrets require Letta sign-in; messaging channels include Slack, Telegram and Discord. Permission modes include unrestricted, standard, acceptEdits and strict; upstream docs state interactive CLI defaults to unrestricted.",
+      "latency_cost": "Local CLI can use configured provider keys; cloud agents, remote computers, background dreaming/subagents and model calls add variable service/token/compute cost. Letta Cloud pricing was not verified in this pass; no latency or cost benchmark was performed.",
+      "security_notes": "No root SECURITY.md or independent third-party audit evidence was found in the inspected repository. Agents can self-modify memory, skills, prompts and harness; skills can contain executable scripts and hooks run custom code. The default interactive permission mode is unrestricted; strict mode must be selected explicitly for approval-before-every-tool behavior. Secrets are injected into shell commands and scrubbed from output, but remain available to the invoked process. Use a separate sandbox, strict permissions, reviewed/pinned skills, test-only credentials and no CK-NEXUS production secrets. Letta Code must not become a second memory authority.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": true,
+        "not_connected": true,
+        "not_integrated": true,
+        "runtime_verified": false
+      },
+      "evidence_urls": [
+        "https://github.com/letta-ai/letta-code",
+        "https://github.com/letta-ai/letta-code/releases/tag/v0.34.46",
+        "https://github.com/letta-ai/letta-code/blob/main/LICENSE",
+        "https://github.com/letta-ai/letta-code/blob/main/package.json",
+        "https://docs.letta.com/letta-code/permissions",
+        "https://docs.letta.com/letta-code/memory",
+        "https://docs.letta.com/letta-code/skills",
+        "https://docs.letta.com/letta-code/secrets"
       ]
     }
   ]
