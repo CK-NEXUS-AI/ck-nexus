@@ -29,6 +29,14 @@ def _root(tmp_path: Path) -> Path:
                 "status": "partial",
                 "integration_point": "gateway",
                 "authority_scope": "NONE",
+                "verification_state": {
+                    "discovered": True,
+                    "available_in_chat_session": False,
+                    "online_verified": False,
+                    "not_connected": True,
+                    "not_integrated": False,
+                    "runtime_verified": False,
+                },
             },
         ],
     }
