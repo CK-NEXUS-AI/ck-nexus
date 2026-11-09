@@ -72,3 +72,7 @@ No source above is marked ingested in the catalog. A future ingestion report mus
 The local document path now supports EPUB parsing and text-based PDF extraction through the installed Poppler `pdftotext` utility. PDF extraction is bounded by file/output size and a 30-second process timeout. It does not perform OCR; scanned PDFs require a separate, resource-budgeted OCR worker. Extracted chapters/pages are chunked and stored in a local SQLite index only after the operator supplies a permitted rights basis. Search is lexical (not vector/semantic) in this first slice; no embedding model is silently selected.
 
 The first knowledge-search bridge is now available through MCP as `cknexus_knowledge_search` and `cknexus_knowledge_sources`. Both are read-only; results carry source SHA-256 and stable chunk IDs. The MCP service account receives ACL-based read-only traversal to the dedicated knowledge DB file only. These tools do not write personal memory, alter policy, or grant execution authority.
+
+## External capability registry
+
+The canonical machine-readable inventory is config/capability_catalog.json. The current review, verification-state semantics, candidate risk notes and ChatGPT-session-only availability snapshot are maintained in [AGNES External Capability Registry](../AGNES_EXTERNAL_CAPABILITY_REGISTRY.md). The inventory is descriptive only; all external artifacts have authority_scope=NONE and CK-NEXUS Core remains the sole L3 authority.
