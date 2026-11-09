@@ -63,10 +63,14 @@ class VerificationState:
     @classmethod
     def from_mapping(cls, raw: dict[str, Any]) -> VerificationState:
         if set(raw) != VERIFICATION_STATE_KEYS:
-            raise ValueError("verification_state must contain exactly the six independent status fields")
+            raise ValueError(
+                "verification_state must contain exactly the six independent status fields"
+            )
         if any(type(raw[key]) is not bool for key in VERIFICATION_STATE_KEYS):
             raise ValueError("verification_state fields must be booleans")
-        if not raw["discovered"] and any(raw[key] for key in VERIFICATION_STATE_KEYS - {"discovered"}):
+        if not raw["discovered"] and any(
+            raw[key] for key in VERIFICATION_STATE_KEYS - {"discovered"}
+        ):
             raise ValueError("verification_state flags require discovered=true")
         if raw["not_connected"] and not raw["not_integrated"]:
             raise ValueError("not_connected requires not_integrated")

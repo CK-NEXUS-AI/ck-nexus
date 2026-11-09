@@ -23,6 +23,7 @@ def test_catalog_keeps_tools_plugins_skills_and_workflows_distinct() -> None:
     assert catalog.get("connector-fabric").artifact_class is ArtifactClass.CONNECTOR
     assert catalog.get("mcp-runtime").artifact_class is ArtifactClass.TOOL
     assert catalog.get("litellm-gateway").artifact_class is ArtifactClass.AI_GATEWAY
+    assert catalog.get("opensandbox-agent-sandbox-runtime").artifact_class is ArtifactClass.SANDBOX
 
 
 def test_external_artifacts_never_receive_core_authority() -> None:
@@ -122,3 +123,27 @@ def test_catalog_rejects_non_boolean_verification_state() -> None:
                 },
             }
         )
+
+
+def test_all_discovery_candidates_have_independent_verification_states() -> None:
+    catalog = CapabilityCatalog.load(CATALOG)
+    candidate_ids = (
+        "agent-skills-standard",
+        "promptfoo-evals-redteam",
+        "inspect-ai-evals",
+        "playwright-mcp",
+        "official-mcp-registry",
+        "opensandbox-agent-sandbox-runtime",
+    )
+    for artifact_id in candidate_ids:
+        artifact = catalog.get(artifact_id)
+        state = artifact.verification_state
+        assert artifact.status is ArtifactStatus.DISCOVERY_ONLY
+        assert artifact.authority_scope == "NONE"
+        assert state is not None
+        assert state.discovered is True
+        assert state.available_in_chat_session is False
+        assert state.online_verified is True
+        assert state.not_connected is True
+        assert state.not_integrated is True
+        assert state.runtime_verified is False

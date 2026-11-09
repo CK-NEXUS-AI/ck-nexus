@@ -57,7 +57,7 @@ No auto-install based on search rank, stars, an e-book claim, or a vendor benchm
 
 ## 6. Current deployment constraint
 
-The inspected VPS has 1.9 GiB RAM and about 6.4 GiB free disk. Do not co-install heavyweight RAGFlow, Docling model bundles, vector databases or observability stacks here. Keep parsers and indexing as optional isolated workers or move them to a separate compute node. Current Production status remains NO-GO until Q10/Q11/Q12 and release gates are independently satisfied.
+The read-only inspection on 2026-11-09 found 1.9 GiB RAM (about 438 MiB available) and 2.2 GiB free disk (95% used). Do not co-install browser engines, OpenSandbox, heavyweight RAGFlow, Docling model bundles, vector databases or observability stacks here. Keep parsers and indexing as optional isolated workers or move them to a separate compute node. Current Production status remains NO-GO until Q10/Q11/Q12 and release gates are independently satisfied.
 
 ## 7. Initial open-learning sources for CK-NEXUS Knowledge
 

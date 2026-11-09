@@ -441,10 +441,10 @@
       "reviewed_at": "2026-11-09",
       "maintenance_signal": "Official GitHub release 0.125.1 on 2026-10-25; official installation documentation updated 2026-11-07.",
       "runtime_compatibility": "Node.js >=22.22.0 for npm/npx; Node.js 24 LTS recommended.",
-      "dependency_footprint": "Node.js CLI with a substantial npm dependency tree; use a dedicated CI container/job rather than the CK-NEXUS production image.",
-      "permission_scope": "Runs with invoking OS-user permissions. Configured providers receive selected prompts and test data. Official red-team docs mark some plugins as remote-inference (🌐); those can send attack-generation context to Promptfoo-operated endpoints. Local web UI/MCP interfaces can read configs, run evals, write outputs and invoke providers; do not expose them to untrusted networks.",
-      "latency_cost": "Time and provider cost scale with test cases, red-team strategies, retries and model graders. Remote-inference plugins add network latency and a separate data destination. Apply per-run time/token/cost limits and prefer approved local models/plugins where suitable.",
-      "security_notes": "Promptfoo OSS documents no general sandbox for adversarial eval content. Run untrusted configs, scripts, datasets and fork PRs in isolated containers/VMs with least-privilege credentials and restricted egress. Review each plugin's remote-inference marker and data path; telemetry opt-out is not a general egress firewall. Local UI/MCP is not a security boundary.",
+      "dependency_footprint": "74 direct runtime dependencies and 52 devDependencies in upstream package.json at review time; installed size not measured. Use a dedicated CI container/worker, not the resource-constrained CK-NEXUS VPS.",
+      "permission_scope": "Runs with invoking OS-user permissions and reads configured project/test inputs. Configured providers receive selected prompts and test data. Some Community red-team plugins require Promptfoo-hosted remote inference; review the globe marker and data path. Local UI/MCP interfaces can read configs, run evals, write outputs and invoke providers; do not expose them to untrusted networks.",
+      "latency_cost": "Community plan is free and lists up to 10,000 red-team probes/month. Runtime scales with test cases, strategies, retries and model graders; provider API and remote-inference charges vary. Apply per-run time/token/cost limits and prefer approved local models where suitable.",
+      "security_notes": "Treat configs, scripts, providers, datasets and pull-request content as untrusted code/data. Some remote-only plugins (including SSRF, BOLA/BFLA and indirect-prompt-injection tests) use Promptfoo-hosted generation. PROMPTFOO_DISABLE_REMOTE_GENERATION disables supported remote-generation fallbacks but is not an egress firewall and does not disable all telemetry/provider traffic. Run in an isolated container/VM with least-privilege credentials and restricted egress; use synthetic/redacted fixtures. Local UI/MCP is not a security boundary.",
       "verification_state": {
         "discovered": true,
         "available_in_chat_session": false,
@@ -530,11 +530,11 @@
       "release_date": "2026-10-31",
       "reviewed_at": "2026-11-09",
       "maintenance_signal": "Signed GitHub release 0.0.84 on 2026-10-31; npm metadata reports Apache-2.0 and the same version.",
-      "runtime_compatibility": "Node.js >=18; requires Playwright and browser engines with OS libraries. Pin exact package version and validate paired Playwright/browser build.",
-      "dependency_footprint": "High disk/RAM relative to a lightweight MCP adapter because browser engines and native libraries are required; prefer a separate CI/browser worker.",
-      "permission_scope": "Browser navigation, clicking, typing, JavaScript evaluation, cookies, local/session storage and optional network/devtools. Can mutate authenticated websites and expose session data. Restrict hosts/origins, filesystem roots and tool capabilities; bind to loopback and isolate contexts.",
+      "runtime_compatibility": "Node.js >=18; the v0.0.84 release pins Playwright 1.65.0-alpha-2026-10-30. Inspected VPS Node.js v24.22.1 meets the engine requirement, but the package is not installed or runtime-verified.",
+      "dependency_footprint": "Two direct runtime dependencies (playwright and playwright-core), but the release pins an alpha Playwright build; browser engines and native OS libraries add substantial disk/RAM use. No installed-size measurement. Inspected VPS has 2.2 GiB free disk and about 438 MiB RAM available; do not install there.",
+      "permission_scope": "Browser navigation, accessibility snapshots, clicking/typing, page JavaScript, downloads/uploads and optional cookies/storage/network/devtools. Can mutate authenticated websites and expose session state. browser_run_code_unsafe executes arbitrary JavaScript in the MCP server process and is RCE-equivalent; deny it. Restrict hosts, egress, workspace roots and tool capabilities; bind to loopback and use isolated contexts.",
       "latency_cost": "Browser startup and page/action round trips add latency; CPU/RAM and model tokens are workload-dependent. MCP has a broad schema; CLI plus Skills can be more token-efficient for coding-agent flows.",
-      "security_notes": "Not a security boundary. Do not use --no-sandbox or unrestricted file access for untrusted browsing. Default allowed-origin behavior is permissive; configure explicit origins/hosts, restrict egress, avoid public binding, isolate cookies/storage, and treat URL redaction as convenience only.",
+      "security_notes": "Upstream says this is not a security boundary. browser_run_code_unsafe is explicitly RCE-equivalent; deny it at the client policy. allowed-origins defaults to allow all and origin filters do not protect redirects or form a security boundary. Do not expose the server publicly, attach logged-in profiles, use --no-sandbox or enable unrestricted file access for untrusted pages. Run in a separately sandboxed container with no host secrets/mounts and enforced egress controls; URL redaction is convenience only.",
       "verification_state": {
         "discovered": true,
         "available_in_chat_session": false,
@@ -593,6 +593,55 @@
         "https://github.com/modelcontextprotocol/registry/blob/main/docs/modelcontextprotocol-io/about.mdx",
         "https://github.com/modelcontextprotocol/registry/blob/main/docs/reference/api/official-registry-api.md",
         "https://github.com/modelcontextprotocol/registry/blob/main/LICENSE"
+      ]
+    },
+    {
+      "id": "opensandbox-agent-sandbox-runtime",
+      "name": "OpenSandbox Agent Sandbox Runtime",
+      "class": "sandbox",
+      "status": "discovery_only",
+      "integration_point": "Future separate sandbox worker behind CK-NEXUS Connector Fabric; compare against the existing Linux namespace/cgroup sandbox and sandbox_executor before any adapter or deployment",
+      "authority_scope": "NONE",
+      "license": "Apache-2.0",
+      "source_url": "https://github.com/opensandbox-group/OpenSandbox",
+      "capabilities": [
+        "isolated-code-execution",
+        "sandbox-lifecycle-api",
+        "docker-runtime",
+        "kubernetes-runtime",
+        "gvisor-kata-firecracker",
+        "per-sandbox-egress-policy",
+        "credential-vault",
+        "multi-language-sdks",
+        "signed-container-images"
+      ],
+      "notes": "Official Agentic AI Foundation project. Latest stable release 1.2.0 (2026-10-27; signed); latest upstream pre-release 1.2.1-rc.1 (2026-11-04; images only, SDK/CLI packages deferred to the 1.2.1 stable release). Main branch commit c00e5ad was updated 2026-11-09. Platform-level Docker/Kubernetes runtime, not a lightweight MCP adapter. Keep discovery-only until a separate worker and hardened policy profile are available.",
+      "upstream_version": "1.2.0 stable; 1.2.1-rc.1 pre-release",
+      "release_date": "2026-10-27",
+      "reviewed_at": "2026-11-09",
+      "maintenance_signal": "Signed stable 1.2.0 release on 2026-10-27; signed 1.2.1-rc.1 pre-release on 2026-11-04; official main commit c00e5ad updated 2026-11-09. Security policy supports only latest release and main.",
+      "runtime_compatibility": "Server requires Python >=3.10; inspected VPS Python 3.12.3 and active Docker 29.1.3 satisfy basic prerequisites. kubectl, runsc, kata-runtime and firecracker are absent; OpenSandbox packages are not installed. Current docs/chart require Kubernetes >=1.21.1, Helm 3 and kubectl; release-1.2.0 server/pyproject still describes Kubernetes as planned, so verify the exact server/chart pair before choosing that mode. Secure runtime must be explicitly configured; default runc is not a strong isolation runtime.",
+      "dependency_footprint": "High infrastructure footprint: server/pyproject.toml declares 19 direct runtime dependencies (Docker, FastAPI/Starlette, Kubernetes client, OpenTelemetry, PostgreSQL/Redis clients, gRPC and protobuf); deployment adds controller, ingress gateway and optional fast-sandbox components. No installed-size measurement. Not suitable for the current 2.2 GiB-free VPS.",
+      "permission_scope": "Server API key is optional; an empty key disables authentication, so set it before exposure. Docker mode requires access to the Docker daemon; Kubernetes mode requires cluster RBAC for sandbox CRDs/workloads and controllers. The API can create/delete sandboxes, execute commands, read/write sandbox files and configure egress. The default empty storage.allowed_host_paths rejects host bind mounts; add only narrow explicit paths if required. Multi-tenancy requires Kubernetes namespaces; Docker mode is unsupported.",
+      "latency_cost": "Self-hosted Apache-2.0 software; no per-request SaaS price is stated. Cost is host/cluster compute, storage, network, secure-runtime operations and maintenance. Upstream secure-runtime guide estimates startup overhead of about 10-50 ms/50 MB for gVisor, 500 ms/20-50 MB for Kata QEMU and 125 ms/5 MB for Kata Firecracker; these are vendor estimates, not CK-NEXUS benchmarks.",
+      "security_notes": "Default runc provides process-level cgroups only; configure gVisor, Kata or Firecracker explicitly for stronger isolation. Empty server.api_key means unauthenticated API access. Kubernetes sandboxes can reach other sandbox Pod IPs by default unless platform egress isolation is enforced; use a platform-level deny.always rule or an external CNI policy. The current egress sidecar's NAT interception is incompatible with gVisor; use Kata or CNI policy if both strong isolation and egress filtering are required. Docker mode does not provide the documented multi-tenant isolation. Pin images by digest and verify Cosign/provenance signatures. Only latest release/main receive security updates.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": true,
+        "not_connected": true,
+        "not_integrated": true,
+        "runtime_verified": false
+      },
+      "evidence_urls": [
+        "https://github.com/opensandbox-group/OpenSandbox",
+        "https://github.com/opensandbox-group/OpenSandbox/releases",
+        "https://github.com/opensandbox-group/OpenSandbox/blob/main/LICENSE",
+        "https://github.com/opensandbox-group/OpenSandbox/blob/main/SECURITY.md",
+        "https://open-sandbox.ai/getting-started/configuration",
+        "https://open-sandbox.ai/guides/secure-container",
+        "https://open-sandbox.ai/guides/network-isolation",
+        "https://open-sandbox.ai/deployment/"
       ]
     }
   ]
