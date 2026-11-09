@@ -434,16 +434,16 @@
         "CI-security-checks",
         "cost-and-stability-assertions"
       ],
-      "notes": "Official latest release observed: 0.125.1 (2026-10-25). Promptfoo states it is now part of OpenAI and remains MIT-licensed. Official docs list 157 red-team plugins. Strong candidate for isolated CI eval/red-team, not a production runtime dependency.",
+      "notes": "Official latest release observed: 0.125.1 (2026-10-25). Promptfoo states it is now part of OpenAI and remains MIT-licensed. Official docs list 157 red-team plugins, including coding-agent tests for repository prompt injection, terminal-output injection, secret reads, sandbox escapes, verifier sabotage and delayed CI exfiltration. Some Community-edition plugins use remote inference; inspect the 🌐 marker and data path before selecting them.",
       "upstream_version": "0.125.1",
       "release_date": "2026-10-25",
       "reviewed_at": "2026-11-09",
       "maintenance_signal": "Official GitHub release 0.125.1 on 2026-10-25; official installation documentation updated 2026-11-07.",
       "runtime_compatibility": "Node.js >=22.22.0 for npm/npx; Node.js 24 LTS recommended.",
       "dependency_footprint": "Node.js CLI with a substantial npm dependency tree; use a dedicated CI container/job rather than the CK-NEXUS production image.",
-      "permission_scope": "Runs with invoking OS-user permissions. Configured providers receive selected prompts and test data. Local web UI/MCP interfaces can read configs, run evals, write outputs and invoke providers; do not expose them to untrusted networks.",
-      "latency_cost": "Time and provider cost scale with test cases, red-team strategies, retries and model graders. Apply per-run time/token/cost limits and prefer approved local models where suitable.",
-      "security_notes": "Promptfoo OSS documents no general sandbox for adversarial eval content. Run untrusted configs, scripts, datasets and fork PRs in isolated containers/VMs with least-privilege credentials and restricted egress. Local UI/MCP is not a security boundary; telemetry opt-out is not a general egress firewall.",
+      "permission_scope": "Runs with invoking OS-user permissions. Configured providers receive selected prompts and test data. Official red-team docs mark some plugins as remote-inference (🌐); those can send attack-generation context to Promptfoo-operated endpoints. Local web UI/MCP interfaces can read configs, run evals, write outputs and invoke providers; do not expose them to untrusted networks.",
+      "latency_cost": "Time and provider cost scale with test cases, red-team strategies, retries and model graders. Remote-inference plugins add network latency and a separate data destination. Apply per-run time/token/cost limits and prefer approved local models/plugins where suitable.",
+      "security_notes": "Promptfoo OSS documents no general sandbox for adversarial eval content. Run untrusted configs, scripts, datasets and fork PRs in isolated containers/VMs with least-privilege credentials and restricted egress. Review each plugin's remote-inference marker and data path; telemetry opt-out is not a general egress firewall. Local UI/MCP is not a security boundary.",
       "verification_state": {
         "discovered": true,
         "available_in_chat_session": false,
@@ -479,13 +479,13 @@
         "tracing",
         "time-token-cost-limits"
       ],
-      "notes": "PyPI release 0.3.287 observed on 2026-10-31 with Trusted Publishing provenance. Useful for reproducible agent/task benchmarks and sandboxed tool evaluations. Keep separate from the constrained VPS and canonical runtime.",
-      "upstream_version": "0.3.287",
-      "release_date": "2026-10-31",
+      "notes": "PyPI latest release observed: 0.3.288 (2026-11-07), uploaded with Trusted Publishing provenance. The 35.6 MB wheel and broad dependency surface make it a separate CI benchmark worker, not a production/VPS dependency.",
+      "upstream_version": "0.3.288",
+      "release_date": "2026-11-07",
       "reviewed_at": "2026-11-09",
-      "maintenance_signal": "PyPI 0.3.287 uploaded 2026-10-31; release provenance identifies the official GitHub repository and publishing workflow.",
+      "maintenance_signal": "PyPI 0.3.288 uploaded 2026-11-07 with Trusted Publishing provenance verified by PyPI against the official GitHub repository and release workflow.",
       "runtime_compatibility": "Python >=3.11; supports model providers, task/scorer extensions and Docker sandboxes.",
-      "dependency_footprint": "High compared with a small runtime adapter: dependencies include aiobotocore/boto3, FastAPI, numpy, fsspec/s3fs, pydantic, textual and tiktoken. Prefer a separate CI worker.",
+      "dependency_footprint": "Large distribution and broad Python dependency surface: the 0.3.288 wheel is 35.6 MB; dependencies include cloud SDKs, FastAPI, numpy, fsspec/s3fs, pydantic, textual and tiktoken. Prefer a separate CI worker.",
       "permission_scope": "Evaluation tools can execute shell/Python work in a configured sandbox. Only calls routed through the sandbox interface are isolated; provisioning a container alone does not sandbox arbitrary evaluator code.",
       "latency_cost": "Runtime depends on task/sample count, model calls, concurrency, retries and sandbox startup. Model API usage and worker compute are metered; set explicit task/sample time, message, token and cost limits.",
       "security_notes": "Do not run untrusted task code or third-party evaluation packages with production credentials. Enable a sandbox for tools that execute arbitrary code, restrict egress, and preserve eval logs and exact task/model/config versions.",
@@ -499,7 +499,8 @@
       },
       "evidence_urls": [
         "https://github.com/UKGovernmentBEIS/inspect_ai",
-        "https://pypi.org/project/inspect-ai/0.3.287/",
+        "https://pypi.org/project/inspect-ai/",
+        "https://pypi.org/project/inspect-ai/0.3.288/",
         "https://inspect.aisi.org.uk/running.html",
         "https://inspect.aisi.org.uk/sandboxing.html",
         "https://inspect.aisi.org.uk/eval-logs.html"
@@ -546,6 +547,51 @@
         "https://github.com/microsoft/playwright-mcp/releases",
         "https://github.com/microsoft/playwright-mcp/blob/main/SECURITY.md",
         "https://www.npmjs.com/package/@playwright/mcp"
+      ]
+    },
+    {
+      "id": "official-mcp-registry",
+      "name": "Official Model Context Protocol Server Registry",
+      "class": "knowledge_source",
+      "status": "discovery_only",
+      "integration_point": "Read-only Connector Fabric discovery source; ingest metadata into a review queue only, never auto-install or auto-authorize a listed server",
+      "authority_scope": "NONE",
+      "license": "MIT for legacy contributions; Apache-2.0 for new code/spec contributions; CC-BY-4.0 for documentation during the licensing transition (verify per file)",
+      "source_url": "https://github.com/modelcontextprotocol/registry",
+      "capabilities": [
+        "MCP-server-discovery",
+        "server-json-metadata",
+        "namespace-ownership-verification",
+        "package-source-metadata",
+        "registry-rest-api",
+        "publisher-provenance-metadata"
+      ],
+      "notes": "Official hosted registry; latest repository release v1.8.8 (2026-11-06). Public read API requires no publishing credentials. The registry is a metadata index, not a package host or code-security scanner. API documentation still describes preview status; breaking changes/data resets may occur. Public security advisories include SSRF, stored XSS, open redirect, OIDC token replay and an OCI ownership-check issue; verify advisory status and release commit before relying on the service.",
+      "upstream_version": "v1.8.8",
+      "release_date": "2026-11-06",
+      "reviewed_at": "2026-11-09",
+      "maintenance_signal": "Signed release v1.8.8 on 2026-11-06; active repository with ongoing production/staging deployment and dependency updates.",
+      "runtime_compatibility": "Read-only HTTP REST API and OpenAPI metadata; no local runtime dependency. Publishing requires namespace ownership verification through GitHub OAuth/OIDC or DNS/HTTP proof.",
+      "dependency_footprint": "None for hosted read-only API consumption. Self-hosting requires Go, Docker/ko, PostgreSQL and operations; upstream states the official codebase is not designed for self-hosting.",
+      "permission_scope": "Public metadata reads do not require credentials. Publishing requires namespace ownership proof. Registry membership does not grant the listed MCP server credentials or execution permissions.",
+      "latency_cost": "Network/API pagination latency; no per-call public read price stated in the reviewed docs. Self-hosting adds database, container and operations cost.",
+      "security_notes": "Namespace and package-ownership validation improve publisher identity but do not scan or attest the server code. Registry documentation delegates package scanning to package registries/downstream aggregators. Review the five published advisories (including moderate SSRF and stored XSS); do not treat registry inclusion as safety approval. Validate package signatures, hashes, dependencies, runtime permissions and network egress independently.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": true,
+        "not_connected": true,
+        "not_integrated": true,
+        "runtime_verified": false
+      },
+      "evidence_urls": [
+        "https://registry.modelcontextprotocol.io/",
+        "https://github.com/modelcontextprotocol/registry",
+        "https://github.com/modelcontextprotocol/registry/releases/latest",
+        "https://github.com/modelcontextprotocol/registry/security",
+        "https://github.com/modelcontextprotocol/registry/blob/main/docs/modelcontextprotocol-io/about.mdx",
+        "https://github.com/modelcontextprotocol/registry/blob/main/docs/reference/api/official-registry-api.md",
+        "https://github.com/modelcontextprotocol/registry/blob/main/LICENSE"
       ]
     }
   ]
