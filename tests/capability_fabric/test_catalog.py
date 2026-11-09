@@ -63,3 +63,62 @@ def test_catalog_rejects_duplicate_ids(tmp_path) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ValueError, match="unique"):
         CapabilityCatalog.load(path)
+
+
+
+def test_verification_state_is_exposed_as_read_only_metadata() -> None:
+    catalog = CapabilityCatalog.load(CATALOG)
+    artifact = catalog.get("promptfoo-evals-redteam")
+    state = artifact.verification_state
+    assert state is not None
+    assert state.discovered is True
+    assert state.available_in_chat_session is False
+    assert state.online_verified is True
+    assert state.not_connected is True
+    assert state.not_integrated is True
+    assert state.runtime_verified is False
+    assert artifact.authority_scope == "NONE"
+
+
+def test_catalog_rejects_inconsistent_verification_state() -> None:
+    with pytest.raises(ValueError, match="not_connected requires not_integrated"):
+        CapabilityArtifact.from_mapping(
+            {
+                "id": "invalid-verification",
+                "name": "Invalid verification",
+                "class": "tool",
+                "status": "discovery_only",
+                "integration_point": "review-only",
+                "authority_scope": "NONE",
+                "verification_state": {
+                    "discovered": True,
+                    "available_in_chat_session": False,
+                    "online_verified": True,
+                    "not_connected": True,
+                    "not_integrated": False,
+                    "runtime_verified": False,
+                },
+            }
+        )
+
+
+def test_catalog_rejects_non_boolean_verification_state() -> None:
+    with pytest.raises(ValueError, match="fields must be booleans"):
+        CapabilityArtifact.from_mapping(
+            {
+                "id": "invalid-verification-type",
+                "name": "Invalid verification type",
+                "class": "tool",
+                "status": "discovery_only",
+                "integration_point": "review-only",
+                "authority_scope": "NONE",
+                "verification_state": {
+                    "discovered": True,
+                    "available_in_chat_session": False,
+                    "online_verified": True,
+                    "not_connected": True,
+                    "not_integrated": True,
+                    "runtime_verified": "false",
+                },
+            }
+        )
