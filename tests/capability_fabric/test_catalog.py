@@ -54,6 +54,14 @@ def test_catalog_rejects_external_l3_authority() -> None:
                 "status": "present",
                 "integration_point": "worker",
                 "authority_scope": "L3",
+                "verification_state": {
+                    "discovered": True,
+                    "available_in_chat_session": False,
+                    "online_verified": True,
+                    "not_connected": True,
+                    "not_integrated": True,
+                    "runtime_verified": False,
+                },
             }
         )
 
@@ -194,6 +202,9 @@ def test_all_discovery_candidates_have_independent_verification_states() -> None
         "official-mcp-registry",
         "opensandbox-agent-sandbox-runtime",
         "agentclash-agent-evaluation",
+        "letta-memory",
+        "letta-code-agent-harness",
+        "langfuse-observability",
     )
     for artifact_id in candidate_ids:
         artifact = catalog.get(artifact_id)
@@ -221,3 +232,33 @@ def test_agentclash_remains_discovery_only_and_non_authoritative() -> None:
     assert artifact.verification_state.not_connected is True
     assert artifact.verification_state.not_integrated is True
     assert artifact.verification_state.runtime_verified is False
+
+
+def test_all_non_core_artifacts_have_explicit_verification_state() -> None:
+    catalog = CapabilityCatalog.load(CATALOG)
+    for artifact in catalog.list():
+        if artifact.artifact_class is ArtifactClass.CORE:
+            continue
+        assert artifact.authority_scope == "NONE"
+        state = artifact.verification_state
+        assert state is not None
+        assert state.discovered is True
+        assert isinstance(state.available_in_chat_session, bool)
+        assert isinstance(state.online_verified, bool)
+        assert isinstance(state.not_connected, bool)
+        assert isinstance(state.not_integrated, bool)
+        assert isinstance(state.runtime_verified, bool)
+
+
+def test_catalog_rejects_missing_external_verification_state() -> None:
+    with pytest.raises(ValueError, match="external artifacts must declare verification_state"):
+        CapabilityArtifact.from_mapping(
+            {
+                "id": "missing-verification",
+                "name": "Missing verification state",
+                "class": "tool",
+                "status": "discovery_only",
+                "integration_point": "review-only",
+                "authority_scope": "NONE",
+            }
+        )
