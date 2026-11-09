@@ -32,7 +32,7 @@ All four candidates below have discovered=true, available_in_chat_session=false,
 
 | Candidate | Version/date | License | Compatibility and footprint | Decision |
 |---|---|---|---|---|
-| [Agent Skills specification](https://github.com/agentskills/agentskills) | Living spec; no GitHub Releases observed 2026-11-09 | Apache-2.0 code; CC-BY-4.0 docs | Format only; no runtime dependency. Skills may bundle scripts. | Use as metadata/conformance reference only; pin commits and validate; no auto-install. |
+| [Agent Skills specification](https://github.com/agentskills/agentskills) | Living spec; no GitHub Releases observed 2026-11-09 | Apache-2.0 | Format only; no runtime dependency. Skills may bundle scripts. | Use as metadata/conformance reference only; pin commits and validate; no auto-install. |
 | [Promptfoo](https://github.com/promptfoo/promptfoo) | 0.125.1 (2026-10-25) | MIT | Node.js >=22.22.0; Node 24 LTS recommended; substantial npm CLI footprint. | Highest-priority candidate for isolated CI evals and LLM/agent red-team tests. |
 | [Inspect AI](https://github.com/UKGovernmentBEIS/inspect_ai) | 0.3.287 (2026-10-31; PyPI Trusted Publishing provenance observed) | MIT | Python >=3.11; broad dependency surface including cloud SDKs, FastAPI, numpy, fsspec/s3fs, textual and tiktoken. | Optional separate CI benchmark worker; not production dependency or VPS co-install. |
 | [Microsoft Playwright MCP](https://github.com/microsoft/playwright-mcp) | 0.0.84 (2026-10-31) | Apache-2.0 | Node.js >=18 plus Playwright/browser engines; high disk/RAM footprint. | Evaluate only if existing CK-NEXUS browser adapter has a proven coverage gap. |
@@ -40,7 +40,7 @@ All four candidates below have discovered=true, available_in_chat_session=false,
 
 ### 3.1 Agent Skills specification
 
-Anthropic announced donation of the Agent Skills open standard to the Agentic AI Foundation under the Linux Foundation on 2026-10-22. The specification defines a portable SKILL.md folder format, progressive disclosure, optional compatibility metadata and an experimental allowed-tools field. The latter is not a security boundary and support may vary by client.
+Anthropic announced donation of the Agent Skills open standard to the Agentic AI Foundation under the Linux Foundation on 2026-10-22. Anthropic reports that more than 70 agent platforms, including ChatGPT, Cursor, GitHub Copilot and VS Code, have integrated the format. The repository is Apache-2.0 licensed. The specification defines a portable SKILL.md folder format, progressive disclosure, optional compatibility metadata and an experimental allowed-tools field. The latter is not a security boundary and support may vary by client. Platform-level format support does not prove that a particular skill bundle is installed in this ChatGPT session or that CK-NEXUS Runtime has integrated the loader.
 
 No GitHub Releases were published at review time. Pin a reviewed commit SHA and file hashes rather than relying on a floating branch or assumed semantic version. A skill is procedure/content, not an identity, credential, permission grant or authority source.
 
