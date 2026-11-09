@@ -193,6 +193,7 @@ def test_all_discovery_candidates_have_independent_verification_states() -> None
         "playwright-mcp",
         "official-mcp-registry",
         "opensandbox-agent-sandbox-runtime",
+        "agentclash-agent-evaluation",
     )
     for artifact_id in candidate_ids:
         artifact = catalog.get(artifact_id)
@@ -206,3 +207,17 @@ def test_all_discovery_candidates_have_independent_verification_states() -> None
         assert state.not_connected is True
         assert state.not_integrated is True
         assert state.runtime_verified is False
+
+
+def test_agentclash_remains_discovery_only_and_non_authoritative() -> None:
+    artifact = CapabilityCatalog.load(CATALOG).get("agentclash-agent-evaluation")
+    assert artifact.artifact_class is ArtifactClass.TOOL
+    assert artifact.status is ArtifactStatus.DISCOVERY_ONLY
+    assert artifact.authority_scope == "NONE"
+    assert artifact.verification_state is not None
+    assert artifact.verification_state.discovered is True
+    assert artifact.verification_state.available_in_chat_session is False
+    assert artifact.verification_state.online_verified is True
+    assert artifact.verification_state.not_connected is True
+    assert artifact.verification_state.not_integrated is True
+    assert artifact.verification_state.runtime_verified is False
