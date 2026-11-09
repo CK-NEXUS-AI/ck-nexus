@@ -20,13 +20,13 @@ These flags are independent and must never be collapsed into a generic "availabl
 | discovered | Candidate or tool namespace was located. | Trust, safety, installation or availability. |
 | available_in_chat_session | Tool surface is exposed in this ChatGPT session. | Account authentication, permission to act or CK-NEXUS availability. |
 | online_verified | Authoritative upstream source, official docs, release or package metadata checked on the review date. | Works in CK-NEXUS. |
-| not_connected | No CK-NEXUS Connector Fabric connection to this candidate was verified. | The service is globally unavailable. |
-| not_integrated | No CK-NEXUS adapter/runtime wiring was demonstrated. | No source code or documentation exists. |
+| not_connected | No live authenticated connection to the external service was verified. | No adapter/source-code integration exists. |
+| not_integrated | No CK-NEXUS adapter/runtime wiring was demonstrated. | The external service is not connected; a live connection may exist independently. |
 | runtime_verified | Pinned candidate was exercised through CK-NEXUS runtime and evidence captured. | A future version or different deployment subject. |
 
 The existing status field remains the installation/inventory state (present, partial, discovery_only, not_installed or blocked). New candidates remain discovery_only. The additional verification_state object is research metadata. CapabilityCatalog validates the exact six boolean fields and exposes them as read-only metadata; it does not activate, authorize, connect or execute anything.
 
-All six candidates below have discovered=true, available_in_chat_session=false, online_verified=true, not_connected=true, not_integrated=true, runtime_verified=false and authority_scope=NONE.
+The six discovery-only candidates below have discovered=true, available_in_chat_session=false, online_verified=true, not_connected=true, not_integrated=true, runtime_verified=false and authority_scope=NONE. The OpenAI Agents SDK is recorded separately as an existing partial integration: source/dependency wiring is present, but no live external connection or CK-NEXUS runtime verification was performed.
 
 ## 3. Candidates reviewed
 
@@ -38,6 +38,7 @@ All six candidates below have discovered=true, available_in_chat_session=false, 
 | [Microsoft Playwright MCP](https://github.com/microsoft/playwright-mcp) | 0.0.84 (2026-10-31) | Apache-2.0 | Node.js >=18; release pins Playwright 1.65.0-alpha-2026-10-30 plus browser engines. | Evaluate only if existing CK-NEXUS browser adapter has a proven coverage gap. |
 | [Official MCP Registry](https://registry.modelcontextprotocol.io/) | v1.8.8 (2026-11-06) | MIT legacy contributions; Apache-2.0 new code/spec contributions; CC-BY-4.0 docs during transition | Hosted read-only REST API; no local dependency. Self-hosting requires Go, Docker/ko, PostgreSQL and operations. | Add as read-only discovery metadata source only; registry listing is not a security approval. |
 | [OpenSandbox](https://github.com/opensandbox-group/OpenSandbox) | 1.2.0 stable (2026-10-27); 1.2.1-rc.1 pre-release (2026-11-04) | Apache-2.0 | Python >=3.10; Docker or Kubernetes; 19 direct server dependencies plus controllers/ingress/runtime components. VPS has Docker but lacks Kubernetes and secure runtimes. | Strong future candidate for a separate sandbox worker; do not install on the current VPS. |
+| [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) | 0.24.0 stable (2026-10-15); 0.24.0-alpha.6 pre-release (2026-11-03) | MIT | Python >=3.10; CK-NEXUS requires >=3.11; current lock resolves 0.19.3. | Existing partial integration; review lockfile upgrade separately; no runtime promotion. |
 
 ### 3.1 Agent Skills specification
 
@@ -89,6 +90,17 @@ The inspected VPS has Python 3.12.3 and an active Docker 29.1.3 daemon, but no k
 
 Decision: keep discovery-only. Compare it against CK-NEXUS's existing Linux namespace/cgroup sandbox and sandbox_executor on a separate worker with a fixed conformance and isolation matrix. Do not deploy it on the current VPS or give it authority.
 
+
+### 3.7 OpenAI Agents SDK — existing partial integration
+
+OpenAI's Python Agents SDK is already declared in `pyproject.toml` (`openai-agents[sqlalchemy]>=0.19,<1`) and wired through `creator_app/openai_brain.py` and `creator_app/runtime.py`. The current `uv.lock` resolves version 0.19.3. Upstream PyPI lists 0.24.0 as the latest stable release (2026-10-15) with Trusted Publishing provenance; GitHub lists a signed 0.24.0-alpha.6 pre-release (2026-11-03). The upstream package is MIT licensed and supports Python >=3.10; CK-NEXUS requires Python >=3.11. The 0.24.0 wheel is 1.2 MB and source distribution 7.0 MB. The current 0.19.3 lock resolves `griffelib`, `mcp`, `openai`, `pydantic`, `requests`, `typing-extensions` and `websockets`; the SQLAlchemy extra adds `asyncpg` and `sqlalchemy`.
+
+Current source integration uses `OpenAIProvider` and `RunConfig`; the newer upstream sandbox-agent APIs expose Shell, Filesystem, Skills and Memory capabilities, but those newer capabilities have not been integrated or tested in CK-NEXUS. Model usage is billed at the provider's normal rates; tool/handoff calls and sandbox provisioning add latency and compute. No CK-NEXUS performance or runtime benchmark was performed.
+
+The SDK runs tools in the host process unless a separate sandbox provider is configured. Function/MCP tools can exercise whatever privileges and credentials are passed to them. Keep API keys in the Credential Broker/runtime, not prompts; restrict tool schemas, filesystem mounts, egress, retention and trace payloads; require human approval for side effects. The SDK is a worker orchestration library, not an authority source or security boundary.
+
+**Verification state:** discovered=true, available_in_chat_session=false, online_verified=true, not_connected=true, not_integrated=false, runtime_verified=false, authority_scope=NONE. The source/dependency integration is present, but no live provider connection or CK-NEXUS runtime execution was verified in this review. The lockfile is behind upstream stable; evaluate a dependency update in a separate, tested change rather than upgrading automatically.
+
 ## 4. ChatGPT session tool inventory (session-only)
 
 These namespaces were exposed in the current ChatGPT tool catalog. This is a session-availability snapshot, not proof that each external account is authenticated or that CK-NEXUS can call these services.
@@ -108,7 +120,7 @@ The available Skills tool returned no installed skill bundles for this session; 
 
 ## 4.1 Read-only VPS compatibility snapshot
 
-Checked 2026-11-09: Node.js v24.22.1, npm 11.19.1 and Python 3.12.3; Docker 29.1.3 daemon active; kubectl, runsc, kata-runtime and firecracker absent; RAM 1.9 GiB total with about 438 MiB available; root filesystem has 2.2 GiB free (95% used). Promptfoo and Playwright MCP were not found on PATH or in the global npm package list; OpenSandbox server/SDK packages were not found. Node engine compatibility is therefore only a static compatibility check, not installation or runtime verification. The low free disk/RAM and absence of secure runtimes make this VPS unsuitable for browser engines, large evaluation dependency trees or a multi-component sandbox platform; use separate CI/sandbox workers if later approved.
+Checked 2026-11-09 10:26 +07: Node.js v24.22.1, npm 11.19.1 and Python 3.12.3; Docker 29.1.3 daemon active; kubectl, runsc, kata-runtime and firecracker absent; RAM 1.9 GiB total with about 458 MiB available; root filesystem has 2.2 GiB free (95% used). Promptfoo and Playwright MCP were not found on PATH or in the global npm package list; OpenSandbox server/SDK packages were not found. Node engine compatibility is therefore only a static compatibility check, not installation or runtime verification. The low free disk/RAM and absence of secure runtimes make this VPS unsuitable for browser engines, large evaluation dependency trees or a multi-component sandbox platform; use separate CI/sandbox workers if later approved.
 
 ## 5. Existing CK-NEXUS baseline
 
@@ -117,6 +129,7 @@ Checked 2026-11-09: Node.js v24.22.1, npm 11.19.1 and Python 3.12.3; Docker 29.1
 - Promptfoo and Inspect AI complement existing tests/security gates; they do not replace Q10–Q16 evidence or independent review.
 - Playwright MCP is not considered installed because browser scaffolding exists or ChatGPT exposes TinyFish. Existing browser code must be assessed before another adapter is added.
 - OpenSandbox is a separate-worker candidate only; compare it with the existing Linux namespace/cgroup sandbox and sandbox_executor before any replacement or integration.
+- OpenAI Agents SDK is already a partial source/dependency integration; its lockfile is at 0.19.3 versus upstream stable 0.24.0. Review the upgrade separately; no live provider or runtime verification is claimed.
 - Existing LangGraph, Letta, Langfuse and workflow candidates remain discovery-only; no competing orchestration, memory, observability or workflow plane is proposed.
 - Official MCP Registry is a discovery metadata source, not a package scanner or trust authority; retain Open VSX/other aggregators as subregistries only after separate curation.
 
@@ -128,5 +141,6 @@ Checked 2026-11-09: Node.js v24.22.1, npm 11.19.1 and Python 3.12.3; Docker 29.1
 4. Align AGNES skill metadata and validator checks with Agent Skills; pin every accepted skill source and hash.
 5. Add a read-only MCP Registry discovery feed only after schema/version pinning, advisory checks, package provenance validation and a human approval queue.
 6. Compare OpenSandbox against the native sandbox on a separate worker; verify runtime isolation, API-key enforcement, host-mount restrictions, per-sandbox egress, image provenance, cleanup and resource limits before any integration.
+7. Review the OpenAI Agents SDK lock drift from 0.19.3 to 0.24.0 in an isolated dependency-upgrade change; run compatibility, privacy/tracing, sandbox and regression tests before changing the lockfile.
 
 No package was installed, no community skill was executed, no credential or permission changed, no new account was connected, no service was deployed, and no Q10–Q16 artifact or gate was modified by this review.

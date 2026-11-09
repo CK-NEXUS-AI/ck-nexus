@@ -9,7 +9,7 @@ Status: additive architecture and typed inventory; no external candidate is auto
 | Core | Authority over state, memory policy, permissions, execution grants, evidence and release gates | CK-NEXUS Core / L3 | `control_plane`, `council_authority`, policy and evidence contracts |
 | AI provider | Model inference capability; not a tool registry or workflow engine | Provider Router | OpenAI, Gemini, Qwen, Groq, Anthropic |
 | AI gateway | Unified provider API, routing, quotas and cost accounting | Provider Broker / Router | Existing LiteLLM |
-| Agent framework | Runtime/library for worker reasoning, planning or checkpoints | AGNES worker adapter | LangGraph, Letta (candidates only) |
+| Agent framework | Runtime/library for worker reasoning, planning or checkpoints | AGNES worker adapter | OpenAI Agents SDK (existing partial integration), LangGraph and Letta (candidates only) |
 | Tool | Callable operation with an input/output contract | Connector Fabric / tool authorizer | MCP tools, local CLIs, APIs |
 | Plugin | Packaged integration or product extension; may contain tools and UI | Connector Fabric after review | ChatGPT apps/connectors, community extensions |
 | Connector | Authenticated protocol bridge to an external system | Connector Fabric | MCP, OpenAPI, GitHub, Gmail |
@@ -43,6 +43,7 @@ The catalog is a read-only inventory, not a permission database. A provider can 
 
 - LiteLLM: keep the existing gateway; fix its known dependency/error path rather than add a second gateway.
 - Docling: preferred document parser candidate (MIT code, model-specific licenses); run as a separate worker if resource budget allows.
+- OpenAI Agents SDK: retain the existing partial worker integration behind CK-NEXUS policy; review the 0.19.3 lockfile against upstream stable 0.24.0 before any upgrade. It never becomes Core authority.
 - LangGraph: optional worker orchestration library only if it fills a measured gap in existing control_plane/AGNES.
 - Letta: research/isolated worker only; never replace CK-NEXUS Unified Memory authority.
 - Langfuse: optional trace/evaluation exporter; avoid full stack co-location on current VPS.

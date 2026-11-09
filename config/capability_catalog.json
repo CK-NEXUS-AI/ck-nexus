@@ -643,6 +643,54 @@
         "https://open-sandbox.ai/guides/network-isolation",
         "https://open-sandbox.ai/deployment/"
       ]
+    },
+    {
+      "id": "openai-agents-sdk",
+      "name": "OpenAI Agents SDK",
+      "class": "agent_framework",
+      "status": "partial",
+      "integration_point": "creator_app/openai_brain.py + creator_app/runtime.py; pyproject.toml + uv.lock",
+      "authority_scope": "NONE",
+      "license": "MIT",
+      "source_url": "https://github.com/openai/openai-agents-python",
+      "capabilities": [
+        "agent-orchestration",
+        "function-tools",
+        "MCP-tools",
+        "handoffs",
+        "guardrails",
+        "sessions",
+        "tracing",
+        "sandbox-agents",
+        "skills-capability"
+      ],
+      "notes": "Already declared and wired in CK-NEXUS source as a partial worker runtime. The project range is openai-agents[sqlalchemy]>=0.19,<1, while uv.lock currently resolves 0.19.3; upstream stable is 0.24.0. No live provider connection or CK-NEXUS runtime verification was performed in this review. The SDK remains subordinate to CK-NEXUS Core.",
+      "upstream_version": "0.24.0 stable; 0.24.0-alpha.6 pre-release",
+      "release_date": "2026-10-15",
+      "reviewed_at": "2026-11-09",
+      "maintenance_signal": "PyPI lists 0.24.0 as the latest stable release, uploaded with Trusted Publishing provenance on 2026-10-15; upstream GitHub lists a signed 0.24.0-alpha.6 pre-release on 2026-11-03.",
+      "runtime_compatibility": "Upstream Python >=3.10; CK-NEXUS requires >=3.11; read-only VPS inspection reports Python 3.12.3. pyproject.toml permits >=0.19,<1 but uv.lock currently pins 0.19.3. The current adapter uses OpenAIProvider and RunConfig; newer sandbox-agent capabilities have not been integrated or tested.",
+      "dependency_footprint": "PyPI 0.24.0 wheel is 1.2 MB and sdist is 7.0 MB. The current 0.19.3 lock resolves griffelib, mcp, openai, pydantic, requests, typing-extensions and websockets; the sqlalchemy extra adds asyncpg and sqlalchemy. Optional sandbox/provider extras can expand the footprint; no installed-size or runtime measurement was made.",
+      "permission_scope": "SDK tools execute in the host process with the invoking service's privileges; configured function/MCP tools can access data and credentials passed to them. Sandbox-agent capabilities include Shell, Filesystem, Skills and Memory. Use isolated workspaces, narrow mounts, runtime-injected secrets and explicit human approval for side effects.",
+      "latency_cost": "Model calls are billed at provider model rates; tool/handoff calls and sandbox provisioning add latency and compute. Self-hosted sandbox execution consumes host/container resources; hosted-provider rates vary. No CK-NEXUS benchmark was performed.",
+      "security_notes": "The SDK is orchestration, not policy authority or a sandbox boundary. Keep CK-NEXUS Core as the outer control plane. Resolve credentials through the Credential Broker; never place secrets in prompts. Limit MCP tools, shell/filesystem access, mounts, egress and retention. Review tracing defaults and keep sensitive trace payload capture disabled unless explicitly approved.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": true,
+        "not_connected": true,
+        "not_integrated": false,
+        "runtime_verified": false
+      },
+      "evidence_urls": [
+        "https://github.com/openai/openai-agents-python",
+        "https://github.com/openai/openai-agents-python/releases",
+        "https://pypi.org/project/openai-agents/",
+        "https://developers.openai.com/api/docs/guides/agents/sdk",
+        "https://developers.openai.com/api/docs/guides/agents/sandboxes",
+        "https://developers.openai.com/api/docs/guides/agents/guardrails-approvals",
+        "https://developers.openai.com/api/docs/guides/agents/integrations-observability"
+      ]
     }
   ]
 }

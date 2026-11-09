@@ -24,6 +24,7 @@ def test_catalog_keeps_tools_plugins_skills_and_workflows_distinct() -> None:
     assert catalog.get("mcp-runtime").artifact_class is ArtifactClass.TOOL
     assert catalog.get("litellm-gateway").artifact_class is ArtifactClass.AI_GATEWAY
     assert catalog.get("opensandbox-agent-sandbox-runtime").artifact_class is ArtifactClass.SANDBOX
+    assert catalog.get("openai-agents-sdk").artifact_class is ArtifactClass.AGENT_FRAMEWORK
 
 
 def test_external_artifacts_never_receive_core_authority() -> None:
@@ -82,7 +83,7 @@ def test_verification_state_is_exposed_as_read_only_metadata() -> None:
 
 
 def test_catalog_rejects_inconsistent_verification_state() -> None:
-    with pytest.raises(ValueError, match="not_connected requires not_integrated"):
+    with pytest.raises(ValueError, match="runtime_verified requires connected and integrated"):
         CapabilityArtifact.from_mapping(
             {
                 "id": "invalid-verification",
@@ -97,11 +98,69 @@ def test_catalog_rejects_inconsistent_verification_state() -> None:
                     "online_verified": True,
                     "not_connected": True,
                     "not_integrated": False,
-                    "runtime_verified": False,
+                    "runtime_verified": True,
                 },
             }
         )
 
+
+
+def test_connection_and_integration_states_are_independent() -> None:
+    connected_but_not_integrated = CapabilityArtifact.from_mapping(
+        {
+            "id": "connected-not-integrated",
+            "name": "Connected but not integrated",
+            "class": "connector",
+            "status": "partial",
+            "integration_point": "external service connection only",
+            "authority_scope": "NONE",
+            "verification_state": {
+                "discovered": True,
+                "available_in_chat_session": False,
+                "online_verified": True,
+                "not_connected": False,
+                "not_integrated": True,
+                "runtime_verified": False,
+            },
+        }
+    )
+    integrated_but_not_connected = CapabilityArtifact.from_mapping(
+        {
+            "id": "integrated-not-connected",
+            "name": "Integrated but not connected",
+            "class": "agent_framework",
+            "status": "partial",
+            "integration_point": "source adapter exists; no live service connection",
+            "authority_scope": "NONE",
+            "verification_state": {
+                "discovered": True,
+                "available_in_chat_session": False,
+                "online_verified": True,
+                "not_connected": True,
+                "not_integrated": False,
+                "runtime_verified": False,
+            },
+        }
+    )
+    assert connected_but_not_integrated.verification_state is not None
+    assert connected_but_not_integrated.verification_state.not_connected is False
+    assert connected_but_not_integrated.verification_state.not_integrated is True
+    assert integrated_but_not_connected.verification_state is not None
+    assert integrated_but_not_connected.verification_state.not_connected is True
+    assert integrated_but_not_connected.verification_state.not_integrated is False
+
+
+def test_openai_agents_sdk_is_partial_not_runtime_verified() -> None:
+    artifact = CapabilityCatalog.load(CATALOG).get("openai-agents-sdk")
+    assert artifact.artifact_class is ArtifactClass.AGENT_FRAMEWORK
+    assert artifact.status is ArtifactStatus.PARTIAL
+    assert artifact.authority_scope == "NONE"
+    assert artifact.verification_state is not None
+    assert artifact.verification_state.discovered is True
+    assert artifact.verification_state.online_verified is True
+    assert artifact.verification_state.not_connected is True
+    assert artifact.verification_state.not_integrated is False
+    assert artifact.verification_state.runtime_verified is False
 
 def test_catalog_rejects_non_boolean_verification_state() -> None:
     with pytest.raises(ValueError, match="fields must be booleans"):

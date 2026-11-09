@@ -72,8 +72,7 @@ class VerificationState:
             raw[key] for key in VERIFICATION_STATE_KEYS - {"discovered"}
         ):
             raise ValueError("verification_state flags require discovered=true")
-        if raw["not_connected"] and not raw["not_integrated"]:
-            raise ValueError("not_connected requires not_integrated")
+        # Connection and code integration are independent verification dimensions.
         if raw["runtime_verified"] and (raw["not_connected"] or raw["not_integrated"]):
             raise ValueError("runtime_verified requires connected and integrated")
         return cls(**raw)
