@@ -691,6 +691,56 @@
         "https://developers.openai.com/api/docs/guides/agents/guardrails-approvals",
         "https://developers.openai.com/api/docs/guides/agents/integrations-observability"
       ]
+    },
+    {
+      "id": "agentclash-agent-evaluation",
+      "name": "AgentClash Agent Evaluation and Regression Platform",
+      "class": "tool",
+      "status": "discovery_only",
+      "integration_point": "Optional isolated CI evaluation worker behind CK-NEXUS evidence ingestion; no request-path, orchestration, or authority integration",
+      "authority_scope": "NONE",
+      "license": "MIT",
+      "source_url": "https://github.com/agentclash/agentclash",
+      "capabilities": [
+        "real-task-agent-evaluation",
+        "multi-agent-comparison",
+        "trajectory-replay",
+        "scorecards",
+        "regression-gates",
+        "CI-CD-agent-gates",
+        "multi-turn-challenge-packs",
+        "security-stress-evaluation",
+        "cost-latency-observability",
+        "fleet-eval-sets"
+      ],
+      "notes": "Official release v2.3.0 published 2026-11-08. Active development; upstream SECURITY.md describes the project as pre-1.0. Useful for repeatable real-task agent comparisons and replay/regression gates, but overlaps Promptfoo and Inspect AI and introduces a full platform. Keep discovery-only; compare on an isolated worker and do not adopt its hosted control plane.",
+      "upstream_version": "2.3.0",
+      "release_date": "2026-11-08",
+      "reviewed_at": "2026-11-09",
+      "maintenance_signal": "Official GitHub release v2.3.0 on 2026-11-08 and active commits on 2026-11-08. Upstream security policy states the project is pre-1.0 and targets latest main and latest release.",
+      "runtime_compatibility": "CLI npm wrapper requires Node >=18; self-host guide lists Go >=1.25, Docker, Node 22, pnpm, psql and curl, while current backend/runtime go.mod declares Go 1.26.8. Local stack includes PostgreSQL, Redis, Temporal, API server and worker; web is separate. Real sandboxed runs need E2B or Kubernetes/Docker sandbox configuration.",
+      "dependency_footprint": "v2.3.0 CLI binaries are about 4.9–5.6 MB compressed. Full Go backend/runtime has broad Docker/Kubernetes clients, AWS SDK, Temporal, OpenTelemetry, PostgreSQL and Redis dependencies. Local stack starts PostgreSQL, Redis and Temporal; the full service stack adds API, worker and web. Installed footprint was not measured.",
+      "permission_scope": "Can authenticate and link workspaces, publish challenge packs, start/cancel evaluation runs and use CI tokens; agent tasks execute in configured sandboxes. Workspace-scoped secrets are resolved by runtime primitives, and network egress can be allowed by pack/runtime policy. Use separate test credentials and least-privilege tokens; never pass CK-NEXUS production credentials.",
+      "latency_cost": "Hosted Free lists 25 eval runs/month with bring-your-own LLM key and E2B sandbox token; Pro was listed at $49/month or $39/month billed annually on 2026-11-09. Self-host has no software subscription fee but adds PostgreSQL/Redis/Temporal/worker/storage and sandbox costs. Model calls, sandbox startup, repeats and concurrency drive latency and cost; configure spend caps and time limits.",
+      "security_notes": "Upstream security policy focuses on sandbox escape, secret exposure, tenant isolation, authorization bypass and injection; no independent third-party audit was established in this review. The self-host starter is explicitly development mode: auth is stubbed, sandbox provider is a no-op until configured, and a throwaway secrets key is generated. docker-compose.yml uses demo database credentials and publishes PostgreSQL/Redis/Temporal development ports; never expose those defaults. Upstream docs state network starts disabled and the http_request primitive enforces URL/CIDR checks, but real runs still require an isolated worker, egress restrictions and test-only credentials. AgentClash is not a CK-NEXUS authority or security boundary.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": true,
+        "not_connected": true,
+        "not_integrated": true,
+        "runtime_verified": false
+      },
+      "evidence_urls": [
+        "https://github.com/agentclash/agentclash",
+        "https://github.com/agentclash/agentclash/releases/tag/v2.3.0",
+        "https://github.com/agentclash/agentclash/blob/main/LICENSE",
+        "https://github.com/agentclash/agentclash/blob/main/SECURITY.md",
+        "https://www.agentclash.dev/docs/getting-started/self-host",
+        "https://www.agentclash.dev/docs/concepts/tools-network-and-secrets",
+        "https://www.agentclash.dev/docs/guides/security-evaluation",
+        "https://www.agentclash.dev/"
+      ]
     }
   ]
 }
