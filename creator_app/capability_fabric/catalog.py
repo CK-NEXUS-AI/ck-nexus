@@ -122,6 +122,8 @@ class CapabilityArtifact:
                 raise ValueError("CK-NEXUS Core must declare L3 authority")
         elif authority_scope != "NONE":
             raise ValueError("external artifacts must have authority_scope=NONE")
+        elif verification_state is None:
+            raise ValueError("external artifacts must declare verification_state")
         return cls(
             artifact_id=raw["id"],
             name=raw["name"],
