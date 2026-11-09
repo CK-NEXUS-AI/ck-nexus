@@ -1,8 +1,8 @@
 # AGNES External Capability Registry
 
-**Review date:** 2026-11-09  
-**Repository baseline:** main at 4d1366cef3cbdd18aa174bdf67308567635c750a  
-**Canonical inventory:** [config/capability_catalog.json](../config/capability_catalog.json)  
+**Review date:** 2026-11-09
+**Repository baseline:** main at 4d1366cef3cbdd18aa174bdf67308567635c750a
+**Canonical inventory:** [config/capability_catalog.json](../config/capability_catalog.json)
 **Architecture:** [Unified Capability Fabric V1](architecture/UNIFIED_CAPABILITY_FABRIC_V1.md)
 
 ## 1. Source of truth and authority
