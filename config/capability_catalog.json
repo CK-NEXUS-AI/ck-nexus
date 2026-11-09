@@ -102,7 +102,7 @@
         "skill-selection",
         "quarantine-rules"
       ],
-      "notes": "Skills define procedures; they do not provide credentials or authority."
+      "notes": "Skills define procedures; they do not provide credentials or authority. Review AGNES skills against the Agent Skills open format, pin reviewed source commits and hashes, and quarantine bundled scripts before activation."
     },
     {
       "id": "n8n-workflows",
@@ -374,6 +374,179 @@
         "stable-chunk-citations"
       ],
       "notes": "Separate from personal memory and policy. The production index is initialized but currently empty; imported documents require an explicit rights basis."
+    },
+    {
+      "id": "agent-skills-standard",
+      "name": "Agent Skills Open Specification",
+      "class": "skill",
+      "status": "discovery_only",
+      "integration_point": "creator_app/agnes_skills.py + creator_app/skills/agnes/SKILL.md (format and metadata conformance review only)",
+      "authority_scope": "NONE",
+      "license": "Apache-2.0 (specification code); CC-BY-4.0 (documentation)",
+      "source_url": "https://github.com/agentskills/agentskills",
+      "capabilities": [
+        "SKILL-md-open-format",
+        "progressive-disclosure",
+        "portable-agent-procedures",
+        "skill-frontmatter-validation",
+        "compatibility-metadata"
+      ],
+      "notes": "Open format donated to the Agentic AI Foundation on 2026-10-22. No GitHub Releases were published as checked on 2026-11-09; pin a reviewed commit SHA rather than relying on a version tag. Experimental allowed-tools is not a security boundary. Do not execute bundled scripts without source, license, checksum, permission and sandbox review.",
+      "upstream_version": "living specification; no formal tagged release observed on 2026-11-09",
+      "reviewed_at": "2026-11-09",
+      "maintenance_signal": "Anthropic announced donation to the Linux Foundation AAIF on 2026-10-22; repository has no published Releases at review time.",
+      "runtime_compatibility": "Format-level only; no runtime package required. Loader compatibility must be checked per AGNES client.",
+      "dependency_footprint": "No runtime dependency for reading the specification. Optional skills may bundle arbitrary scripts, references and assets.",
+      "permission_scope": "Skill instructions grant no credentials or authority. A client may execute bundled scripts if configured; quarantine and review scripts before activation.",
+      "latency_cost": "Low baseline cost; progressive disclosure loads metadata first and full instructions/resources only on activation.",
+      "security_notes": "Treat third-party skills as untrusted content. Validate SKILL.md metadata; pin repository commit and file hashes; inspect scripts and allowed-tools. This field is not a replacement for CK-NEXUS policy.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": true,
+        "not_connected": true,
+        "not_integrated": true,
+        "runtime_verified": false
+      },
+      "evidence_urls": [
+        "https://github.com/agentskills/agentskills",
+        "https://github.com/agentskills/agentskills/releases",
+        "https://github.com/agentskills/agentskills/blob/main/docs/specification.mdx",
+        "https://www.anthropic.com/news/donating-agent-skills-to-the-agentic-ai-foundation"
+      ]
+    },
+    {
+      "id": "promptfoo-evals-redteam",
+      "name": "Promptfoo LLM Evaluation and Red-Team CLI",
+      "class": "tool",
+      "status": "discovery_only",
+      "integration_point": "Optional isolated CI evaluation job consuming redacted staging fixtures; no production request-path integration",
+      "authority_scope": "NONE",
+      "license": "MIT",
+      "source_url": "https://github.com/promptfoo/promptfoo",
+      "capabilities": [
+        "LLM-evaluation",
+        "agent-evaluation",
+        "RAG-evaluation",
+        "red-team-testing",
+        "OWASP-LLM-risk-probes",
+        "provider-comparison",
+        "CI-security-checks",
+        "cost-and-stability-assertions"
+      ],
+      "notes": "Official latest release observed: 0.125.1 (2026-10-25). Promptfoo states it is now part of OpenAI and remains MIT-licensed. Official docs list 157 red-team plugins. Strong candidate for isolated CI eval/red-team, not a production runtime dependency.",
+      "upstream_version": "0.125.1",
+      "release_date": "2026-10-25",
+      "reviewed_at": "2026-11-09",
+      "maintenance_signal": "Official GitHub release 0.125.1 on 2026-10-25; official installation documentation updated 2026-11-07.",
+      "runtime_compatibility": "Node.js >=22.22.0 for npm/npx; Node.js 24 LTS recommended.",
+      "dependency_footprint": "Node.js CLI with a substantial npm dependency tree; use a dedicated CI container/job rather than the CK-NEXUS production image.",
+      "permission_scope": "Runs with invoking OS-user permissions. Configured providers receive selected prompts and test data. Local web UI/MCP interfaces can read configs, run evals, write outputs and invoke providers; do not expose them to untrusted networks.",
+      "latency_cost": "Time and provider cost scale with test cases, red-team strategies, retries and model graders. Apply per-run time/token/cost limits and prefer approved local models where suitable.",
+      "security_notes": "Promptfoo OSS documents no general sandbox for adversarial eval content. Run untrusted configs, scripts, datasets and fork PRs in isolated containers/VMs with least-privilege credentials and restricted egress. Local UI/MCP is not a security boundary; telemetry opt-out is not a general egress firewall.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": true,
+        "not_connected": true,
+        "not_integrated": true,
+        "runtime_verified": false
+      },
+      "evidence_urls": [
+        "https://github.com/promptfoo/promptfoo",
+        "https://github.com/promptfoo/promptfoo/releases",
+        "https://github.com/promptfoo/promptfoo/blob/main/SECURITY.md",
+        "https://www.promptfoo.dev/docs/installation/",
+        "https://www.promptfoo.dev/docs/red-team/plugins/"
+      ]
+    },
+    {
+      "id": "inspect-ai-evals",
+      "name": "UK AI Security Institute Inspect AI",
+      "class": "agent_framework",
+      "status": "discovery_only",
+      "integration_point": "Optional isolated CI benchmark/evaluation worker; results ingested as evidence candidates, never as policy authority",
+      "authority_scope": "NONE",
+      "license": "MIT",
+      "source_url": "https://github.com/UKGovernmentBEIS/inspect_ai",
+      "capabilities": [
+        "agent-evaluation",
+        "tool-use-evaluation",
+        "multi-turn-tasks",
+        "model-graders",
+        "sandboxed-evaluation",
+        "evaluation-logs",
+        "tracing",
+        "time-token-cost-limits"
+      ],
+      "notes": "PyPI release 0.3.287 observed on 2026-10-31 with Trusted Publishing provenance. Useful for reproducible agent/task benchmarks and sandboxed tool evaluations. Keep separate from the constrained VPS and canonical runtime.",
+      "upstream_version": "0.3.287",
+      "release_date": "2026-10-31",
+      "reviewed_at": "2026-11-09",
+      "maintenance_signal": "PyPI 0.3.287 uploaded 2026-10-31; release provenance identifies the official GitHub repository and publishing workflow.",
+      "runtime_compatibility": "Python >=3.11; supports model providers, task/scorer extensions and Docker sandboxes.",
+      "dependency_footprint": "High compared with a small runtime adapter: dependencies include aiobotocore/boto3, FastAPI, numpy, fsspec/s3fs, pydantic, textual and tiktoken. Prefer a separate CI worker.",
+      "permission_scope": "Evaluation tools can execute shell/Python work in a configured sandbox. Only calls routed through the sandbox interface are isolated; provisioning a container alone does not sandbox arbitrary evaluator code.",
+      "latency_cost": "Runtime depends on task/sample count, model calls, concurrency, retries and sandbox startup. Model API usage and worker compute are metered; set explicit task/sample time, message, token and cost limits.",
+      "security_notes": "Do not run untrusted task code or third-party evaluation packages with production credentials. Enable a sandbox for tools that execute arbitrary code, restrict egress, and preserve eval logs and exact task/model/config versions.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": true,
+        "not_connected": true,
+        "not_integrated": true,
+        "runtime_verified": false
+      },
+      "evidence_urls": [
+        "https://github.com/UKGovernmentBEIS/inspect_ai",
+        "https://pypi.org/project/inspect-ai/0.3.287/",
+        "https://inspect.aisi.org.uk/running.html",
+        "https://inspect.aisi.org.uk/sandboxing.html",
+        "https://inspect.aisi.org.uk/eval-logs.html"
+      ]
+    },
+    {
+      "id": "playwright-mcp",
+      "name": "Microsoft Playwright MCP Server",
+      "class": "tool",
+      "status": "discovery_only",
+      "integration_point": "Optional isolated browser worker behind Connector Fabric; compare with existing CK-NEXUS browser automation wrapper before adding a second adapter",
+      "authority_scope": "NONE",
+      "license": "Apache-2.0",
+      "source_url": "https://github.com/microsoft/playwright-mcp",
+      "capabilities": [
+        "browser-automation",
+        "accessibility-snapshots",
+        "browser-testing",
+        "network-inspection",
+        "session-isolation",
+        "trace-recording",
+        "webmcp-page-tools"
+      ],
+      "notes": "Official release 0.0.84 observed on 2026-10-31. Adds isolated browser contexts and URL-parameter redaction. Upstream explicitly says Playwright MCP is not a security boundary; its README suggests CLI plus Skills when token efficiency matters for coding agents.",
+      "upstream_version": "0.0.84",
+      "release_date": "2026-10-31",
+      "reviewed_at": "2026-11-09",
+      "maintenance_signal": "Signed GitHub release 0.0.84 on 2026-10-31; npm metadata reports Apache-2.0 and the same version.",
+      "runtime_compatibility": "Node.js >=18; requires Playwright and browser engines with OS libraries. Pin exact package version and validate paired Playwright/browser build.",
+      "dependency_footprint": "High disk/RAM relative to a lightweight MCP adapter because browser engines and native libraries are required; prefer a separate CI/browser worker.",
+      "permission_scope": "Browser navigation, clicking, typing, JavaScript evaluation, cookies, local/session storage and optional network/devtools. Can mutate authenticated websites and expose session data. Restrict hosts/origins, filesystem roots and tool capabilities; bind to loopback and isolate contexts.",
+      "latency_cost": "Browser startup and page/action round trips add latency; CPU/RAM and model tokens are workload-dependent. MCP has a broad schema; CLI plus Skills can be more token-efficient for coding-agent flows.",
+      "security_notes": "Not a security boundary. Do not use --no-sandbox or unrestricted file access for untrusted browsing. Default allowed-origin behavior is permissive; configure explicit origins/hosts, restrict egress, avoid public binding, isolate cookies/storage, and treat URL redaction as convenience only.",
+      "verification_state": {
+        "discovered": true,
+        "available_in_chat_session": false,
+        "online_verified": true,
+        "not_connected": true,
+        "not_integrated": true,
+        "runtime_verified": false
+      },
+      "evidence_urls": [
+        "https://github.com/microsoft/playwright-mcp",
+        "https://github.com/microsoft/playwright-mcp/releases",
+        "https://github.com/microsoft/playwright-mcp/blob/main/SECURITY.md",
+        "https://www.npmjs.com/package/@playwright/mcp"
+      ]
     }
   ]
 }
