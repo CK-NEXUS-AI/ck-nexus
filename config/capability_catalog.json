@@ -382,7 +382,7 @@
       "status": "discovery_only",
       "integration_point": "creator_app/agnes_skills.py + creator_app/skills/agnes/SKILL.md (format and metadata conformance review only)",
       "authority_scope": "NONE",
-      "license": "Apache-2.0 (specification code); CC-BY-4.0 (documentation)",
+      "license": "Apache-2.0",
       "source_url": "https://github.com/agentskills/agentskills",
       "capabilities": [
         "SKILL-md-open-format",
@@ -391,7 +391,7 @@
         "skill-frontmatter-validation",
         "compatibility-metadata"
       ],
-      "notes": "Open format donated to the Agentic AI Foundation on 2026-10-22. No GitHub Releases were published as checked on 2026-11-09; pin a reviewed commit SHA rather than relying on a version tag. Experimental allowed-tools is not a security boundary. Do not execute bundled scripts without source, license, checksum, permission and sandbox review.",
+      "notes": "Open format donated to the Agentic AI Foundation on 2026-10-22. Anthropic reports more than 70 agent platforms, including ChatGPT, have integrated the format. No GitHub Releases were published as checked on 2026-11-09; pin a reviewed commit SHA rather than relying on a version tag. Experimental allowed-tools is not a security boundary. Do not execute bundled scripts without source, license, checksum, permission and sandbox review.",
       "upstream_version": "living specification; no formal tagged release observed on 2026-11-09",
       "reviewed_at": "2026-11-09",
       "maintenance_signal": "Anthropic announced donation to the Linux Foundation AAIF on 2026-10-22; repository has no published Releases at review time.",
@@ -410,6 +410,7 @@
       },
       "evidence_urls": [
         "https://github.com/agentskills/agentskills",
+        "https://github.com/agentskills/agentskills/blob/main/LICENSE",
         "https://github.com/agentskills/agentskills/releases",
         "https://github.com/agentskills/agentskills/blob/main/docs/specification.mdx",
         "https://www.anthropic.com/news/donating-agent-skills-to-the-agentic-ai-foundation"
