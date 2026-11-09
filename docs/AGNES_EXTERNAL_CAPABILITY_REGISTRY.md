@@ -24,9 +24,9 @@ These flags are independent and must never be collapsed into a generic "availabl
 | not_integrated | No CK-NEXUS adapter/runtime wiring was demonstrated. | The external service is not connected; a live connection may exist independently. |
 | runtime_verified | Pinned candidate was exercised through CK-NEXUS runtime and evidence captured. | A future version or different deployment subject. |
 
-The existing status field remains the installation/inventory state (present, partial, discovery_only, not_installed or blocked). New candidates remain discovery_only. The additional verification_state object is research metadata. CapabilityCatalog validates the exact six boolean fields and exposes them as read-only metadata; it does not activate, authorize, connect or execute anything.
+The existing status field remains the installation/inventory state (present, partial, discovery_only, not_installed or blocked). New candidates remain discovery_only. Every non-core artifact must declare the exact six boolean verification_state fields; CK-NEXUS Core is the only exception. The loader rejects missing, extra or non-boolean fields and impossible runtime_verified combinations. These flags are read-only research metadata; they do not activate, authorize, connect or execute anything.
 
-The seven discovery-only candidates below have discovered=true, available_in_chat_session=false, online_verified=true, not_connected=true, not_integrated=true, runtime_verified=false and authority_scope=NONE. The OpenAI Agents SDK is recorded separately as an existing partial integration: source/dependency wiring is present, but no live external connection or CK-NEXUS runtime verification was performed.
+The nine discovery-only candidates below have discovered=true, available_in_chat_session=false, online_verified=true, not_connected=true, not_integrated=true, runtime_verified=false and authority_scope=NONE. The OpenAI Agents SDK is recorded separately as an existing partial integration: source/dependency wiring is present, but no live external connection or CK-NEXUS runtime verification was performed.
 
 ## 3. Candidates reviewed
 
@@ -34,11 +34,13 @@ The seven discovery-only candidates below have discovered=true, available_in_cha
 |---|---|---|---|---|
 | [Agent Skills specification](https://github.com/agentskills/agentskills) | Living spec; no GitHub Releases observed 2026-11-09 | Apache-2.0 | Format only; no runtime dependency. Skills may bundle scripts. | Use as metadata/conformance reference only; pin commits and validate; no auto-install. |
 | [AgentClash](https://github.com/agentclash/agentclash) | v2.3.0 (2026-11-08) | MIT | Go module declares 1.26.8; self-host guide lists Go 1.25+, Node 22, pnpm, Docker, PostgreSQL, Redis and Temporal. Full stack; footprint not measured. | Useful real-agent replay/regression candidate; compare on an isolated worker against Promptfoo/Inspect AI; no hosted account or VPS install. |
+| [Letta Code](https://github.com/letta-ai/letta-code) | v0.34.46 (2026-11-09) | Apache-2.0 | Node 22.23.4/24.22.1/26.12.1; Bun >=1.3.2; optional Python 3.9+; MCP SDK, node-pty, sharp, OpenAI/Letta SDKs. Package size not measured. | High-value memory/skills harness, but default permission mode is unrestricted and agents self-modify memory/skills/prompts; discovery-only, no VPS install or account link. |
 | [Promptfoo](https://github.com/promptfoo/promptfoo) | 0.125.1 (2026-10-25) | MIT | Node.js >=22.22.0; 74 direct runtime dependencies and 52 dev dependencies; VPS Node 24.22.1 meets engine. | Highest-priority candidate for isolated CI evals and LLM/agent red-team tests. |
 | [Inspect AI](https://github.com/UKGovernmentBEIS/inspect_ai) | 0.3.288 (2026-11-07; PyPI Trusted Publishing provenance observed) | MIT | Python >=3.11; broad dependency surface including cloud SDKs, FastAPI, numpy, fsspec/s3fs, textual and tiktoken. | Optional separate CI benchmark worker; not production dependency or VPS co-install. |
 | [Microsoft Playwright MCP](https://github.com/microsoft/playwright-mcp) | 0.0.84 (2026-10-31) | Apache-2.0 | Node.js >=18; release pins Playwright 1.65.0-alpha-2026-10-30 plus browser engines. | Evaluate only if existing CK-NEXUS browser adapter has a proven coverage gap. |
 | [Official MCP Registry](https://registry.modelcontextprotocol.io/) | v1.8.8 (2026-11-06) | MIT legacy contributions; Apache-2.0 new code/spec contributions; CC-BY-4.0 docs during transition | Hosted read-only REST API; no local dependency. Self-hosting requires Go, Docker/ko, PostgreSQL and operations. | Add as read-only discovery metadata source only; registry listing is not a security approval. |
 | [OpenSandbox](https://github.com/opensandbox-group/OpenSandbox) | 1.2.0 stable (2026-10-27); 1.2.1-rc.1 pre-release (2026-11-04) | Apache-2.0 | Python >=3.10; Docker or Kubernetes; 19 direct server dependencies plus controllers/ingress/runtime components. VPS has Docker but lacks Kubernetes and secure runtimes. | Strong future candidate for a separate sandbox worker; do not install on the current VPS. |
+| [Langfuse](https://github.com/langfuse/langfuse) | v4.76.0 (2026-11-05) | MIT core; EE paths use separate license | Node 24, pnpm 12.16.1, Docker; PostgreSQL, Redis/Valkey, ClickHouse, S3/MinIO, web+worker; heavy multi-service stack. | v4.76 adds read-access audit events and Topics API/MCP. Keep discovery-only; separate infrastructure only after data/security review. |
 | [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) | 0.24.0 stable (2026-10-15); 0.24.0-alpha.6 pre-release (2026-11-03) | MIT | Python >=3.10; CK-NEXUS requires >=3.11; current lock resolves 0.19.3. | Existing partial integration; review lockfile upgrade separately; no runtime promotion. |
 
 ### 3.1 Agent Skills specification
@@ -49,7 +51,7 @@ No GitHub Releases were published at review time. Pin a reviewed commit SHA and 
 
 ### 3.2 Promptfoo
 
-Promptfoo is a CLI/library for prompt, model, agent and RAG evaluation plus red-team testing. Official docs list 157 red-team plugins, including coding-agent probes for repository prompt injection, terminal-output injection, secret reads, sandbox escapes, verifier sabotage and delayed CI exfiltration. Some plugins are marked with a globe to indicate remote inference; the docs state these may send attack-generation context to Promptfoo's remote endpoint. Its upstream README says Promptfoo is now part of OpenAI and remains MIT-licensed.
+Promptfoo is a CLI/library for prompt, model, agent and RAG evaluation plus red-team testing. Official docs list 157 red-team plugins, including coding-agent probes for repository prompt injection, terminal-output injection, secret reads, sandbox escapes, verifier sabotage and delayed CI exfiltration. Some plugins are marked with a globe to indicate remote inference; the docs state these may send attack-generation context to Promptfoo's remote endpoint. OpenAI announced its planned acquisition of Promptfoo on 2026-03-09; the current upstream README says Promptfoo is now part of OpenAI and remains MIT-licensed.
 
 Upstream package.json declares 74 direct runtime dependencies and 52 dev dependencies. The inspected VPS runs Node.js 24.22.1, which satisfies the documented >=22.22.0 engine, but Promptfoo was not found on PATH or in the global npm package list; no runtime test was performed. The Community plan is free and lists up to 10,000 red-team probes/month; model/provider calls and remote inference remain variable-cost and latency sources.
 
@@ -116,6 +118,34 @@ Decision: keep discovery-only. Compare its replay, failure taxonomy and CI regre
 
 Verification state: discovered=true, available_in_chat_session=false, online_verified=true, not_connected=true, not_integrated=true, runtime_verified=false, authority_scope=NONE.
 
+### 3.9 Letta Code — stateful coding-agent harness
+
+Letta Code v0.34.46 was released on 2026-11-09 under Apache-2.0. It is the current CLI/agent-harness source; the older letta-ai/letta server repository remains a separate project (v0.16.8, 2026-05-14) and its README points current CLI, App Server, channels and runtime development to letta-code. The registry keeps those two artifacts separate.
+
+Letta Code provides a git-backed MemFS for agent memory, project/global/agent-scoped skills, subagents, hooks, MCP clients, schedules, messaging channels, remote computers and secrets. Its defining capability is also its main governance risk: agents can rewrite their own memory, skills, prompts and even the harness. The skill system supports executable scripts, not just static instructions.
+
+The npm package requires Node 22.23.4, 24.22.1 or 26.12.1 and Bun >=1.3.2; an alternative Python installation requires Python >=3.9 and ships Node. Linux wheels require glibc 2.28+ (x86-64/ARM64); Alpine/musl is unsupported. The VPS Node 24.22.1 meets the engine constraint, but the letta binary and npm package were not present and no runtime test was performed. Dependencies include the MCP SDK, node-pty, sharp, OpenAI and Letta SDKs, cron-parser and WebSocket support; package size was not measured.
+
+Permission modes include unrestricted, standard, acceptEdits and strict. Upstream docs state the interactive CLI defaults to unrestricted; strict must be selected explicitly to ask before every tool. Secrets are injected into shell commands and scrubbed from output, but remain available to the invoked process. Remote computers and cloud secrets require Letta sign-in. No root SECURITY.md or independent third-party audit evidence was found in the inspected repository.
+
+Decision: keep discovery-only. If later evaluated, use a separate sandbox, strict permission mode, reviewed/pinned skills, test-only credentials and no production secrets. All memory changes must be proposals reviewed by CK-NEXUS Core; Letta Code must never become a second memory authority.
+
+Verification state: discovered=true, available_in_chat_session=false, online_verified=true, not_connected=true, not_integrated=true, runtime_verified=false, authority_scope=NONE.
+
+### 3.10 Langfuse — observability and audit metadata update
+
+Langfuse v4.76.0 was released on 2026-11-05; the repository remained active with commits on 2026-11-08 and 2026-11-09. This release adds read-access audit events for trace, session and score reads, plus Topics summaries/assignments/rules through the public API, MCP and in-app agent. Langfuse has been part of ClickHouse since January 2026.
+
+The root LICENSE makes code outside enterprise paths MIT; ee/ and other explicitly excluded enterprise paths use ee/LICENSE, and third-party components retain their own licenses. The monorepo requires Node 24 and pnpm 12.16.1. Self-hosting runs web/API and worker containers plus PostgreSQL, Redis/Valkey, ClickHouse and S3-compatible object storage; the optional AI Gateway adds another service. This is a heavy multi-service deployment, not a lightweight SDK. Cloud pricing was not verified in this pass; self-hosting still incurs storage, database, worker and compute costs.
+
+Security distinction: Langfuse Cloud reports SOC 2 Type II, ISO 27001 and annual external penetration tests. Those Cloud attestations do not automatically apply to self-hosted deployments. The SECURITY.md recommends the latest release. The self-host compose file contains placeholder/default Postgres, ClickHouse, MinIO, SALT and ENCRYPTION_KEY values; replace them and restrict inbound ports. Most data services bind to localhost, while web, MinIO and optional AI Gateway ports need explicit firewall policy. The default telemetry setting is enabled, so review it against the data policy.
+
+Permission/data scope is broad: SDK/OTel instrumentation can ingest prompts, completions, tool inputs/outputs, traces, observations, sessions and scores. Project-scoped API keys and RBAC gate reads; Topics is also exposed through API/MCP. Masking, retention, deletion and audit-log controls should be reviewed before any export. Event volume, sampling, retention and ClickHouse queries drive latency/storage; no CK-NEXUS benchmark was performed.
+
+Decision: keep discovery-only. Compare its audit-log and data-minimization coverage with the existing OpenTelemetry and CK-NEXUS evidence pipeline before considering a separate deployment. Do not install it on the current constrained VPS and do not route policy, memory or authority through it.
+
+Verification state: discovered=true, available_in_chat_session=false, online_verified=true, not_connected=true, not_integrated=true, runtime_verified=false, authority_scope=NONE.
+
 ## 4. ChatGPT session tool inventory (session-only)
 
 These namespaces were exposed in the current ChatGPT tool catalog. This is a session-availability snapshot, not proof that each external account is authenticated or that CK-NEXUS can call these services.
@@ -136,17 +166,17 @@ The available Skills tool returned no installed skill bundles for this session; 
 
 ## 4.1 Read-only VPS compatibility snapshot
 
-Read-only check on 2026-11-09: Node.js v24.22.1, npm 11.19.1, Python 3.12.3 and Docker 29.1.3 (daemon responsive); RAM 1.9 GiB total with about 602 MiB available; root filesystem has 2.2 GiB free (95% used). kubectl, runsc, kata-runtime and firecracker are absent. Global npm packages and PATH entries include Codex CLI 0.162.1, Gemini CLI 0.63.0, OpenCode 1.18.35, n8n 2.45.5, AnyClaw 0.2.5, PaeanClaw 0.2.3 and Bailian CLI 2.5.1. Their package entries and binary paths were observed, but no CLI command, authentication, task execution or CK-NEXUS integration was tested; they remain discovered=true, available_in_chat_session=false, online_verified=false, not_connected=true, not_integrated=true, runtime_verified=false and authority_scope=NONE. Promptfoo, AgentClash, OpenSandbox server and Inspect AI were not found on PATH or in the global npm package list; pip show returned no package metadata for inspect-ai, opensandbox or promptfoo. This is an installation/path snapshot, not runtime verification. The low free disk/RAM and absence of secure runtimes make this VPS unsuitable for browser engines, large evaluation dependency trees or a multi-component sandbox platform; use separate CI/sandbox workers if later approved.
+Read-only check on 2026-11-09: Node.js v24.22.1, npm 11.19.1, Python 3.12.3 and Docker 29.1.3 (daemon responsive); RAM 1.9 GiB total with about 602 MiB available; root filesystem has 2.2 GiB free (95% used). kubectl, runsc, kata-runtime and firecracker are absent. Global npm packages and PATH entries include Codex CLI 0.162.1, Gemini CLI 0.63.0, OpenCode 1.18.35, n8n 2.45.5, AnyClaw 0.2.5, PaeanClaw 0.2.3 and Bailian CLI 2.5.1. Their package entries and binary paths were observed, but no CLI command, authentication, task execution or CK-NEXUS integration was tested; they remain discovered=true, available_in_chat_session=false, online_verified=false, not_connected=true, not_integrated=true, runtime_verified=false and authority_scope=NONE. Promptfoo, AgentClash, OpenSandbox server, Inspect AI and Letta Code were not found on PATH or in the global npm package list; pip show returned no package metadata for inspect-ai, opensandbox or promptfoo. This is an installation/path snapshot, not runtime verification. The low free disk/RAM and absence of secure runtimes make this VPS unsuitable for browser engines, large evaluation dependency trees or a multi-component sandbox platform; use separate CI/sandbox workers if later approved.
 
 ## 5. Existing CK-NEXUS baseline
 
 - config/capability_catalog.json is canonical; the legacy external-registry JSON path was absent from reviewed main.
 - The existing agnes-skills entry remains present; this review adds Agent Skills only as a discovery-only format reference. No community skill was installed.
-- Promptfoo and Inspect AI complement existing tests/security gates; AgentClash is an additional discovery-only candidate for full agent replay and regression gates. None replaces Q10–Q16 evidence or independent review.
+- Promptfoo and Inspect AI complement existing tests/security gates; AgentClash adds agent replay/regression research; Letta Code adds a self-modifying memory/skills harness for governance comparison; Langfuse adds audit/observability research. All remain discovery-only and none replaces Q10–Q16 evidence or independent review.
 - Playwright MCP is not considered installed because browser scaffolding exists or ChatGPT exposes TinyFish. Existing browser code must be assessed before another adapter is added.
 - OpenSandbox is a separate-worker candidate only; compare it with the existing Linux namespace/cgroup sandbox and sandbox_executor before any replacement or integration.
 - OpenAI Agents SDK is already a partial source/dependency integration; its lockfile is at 0.19.3 versus upstream stable 0.24.0. Review the upgrade separately; no live provider or runtime verification is claimed.
-- Existing LangGraph, Letta, Langfuse, AgentClash and workflow candidates remain discovery-only; no competing orchestration, memory, observability or workflow plane is proposed.
+- Existing LangGraph, Letta Server, Letta Code, Langfuse, AgentClash and workflow candidates remain discovery-only; no competing orchestration, memory, observability or workflow plane is proposed.
 - Official MCP Registry is a discovery metadata source, not a package scanner or trust authority; retain Open VSX/other aggregators as subregistries only after separate curation.
 
 ## 6. Next evaluation order
@@ -154,10 +184,12 @@ Read-only check on 2026-11-09: Node.js v24.22.1, npm 11.19.1, Python 3.12.3 and 
 1. Prototype Promptfoo in isolated, non-production CI with synthetic/redacted fixtures and a provider budget. Review telemetry, local UI/MCP exposure, output retention and untrusted-PR behavior.
 2. Compare Inspect AI with existing pytest/agent harnesses using a small fixed benchmark. Keep Docker sandbox and logs isolated; only evidence summaries enter CK-NEXUS.
 3. Compare AgentClash replay, failure taxonomy and CI regression gates with the existing CK-NEXUS harness and the Promptfoo/Inspect AI prototypes; use only a separate worker, with no hosted account or production credentials.
-4. Audit the existing browser adapter against a short Playwright conformance matrix. Add Playwright MCP only if it fills a measured gap and can be pinned, sandboxed and allowlisted.
-5. Align AGNES skill metadata and validator checks with Agent Skills; pin every accepted skill source and hash.
-6. Add a read-only MCP Registry discovery feed only after schema/version pinning, advisory checks, package provenance validation and a human approval queue.
-7. Compare OpenSandbox against the native sandbox on a separate worker; verify runtime isolation, API-key enforcement, host-mount restrictions, per-sandbox egress, image provenance, cleanup and resource limits before any integration.
-8. Review the OpenAI Agents SDK lock drift from 0.19.3 to 0.24.0 in an isolated dependency-upgrade change; run compatibility, privacy/tracing, sandbox and regression tests before changing the lockfile.
+4. Compare Letta Code memory/skills self-modification, hooks and permission modes with CK-NEXUS memory policy; do not install it or connect a Letta account, and require a separate sandbox plus strict mode before any later experiment.
+5. Compare Langfuse v4.76 audit-log and data-minimization coverage with the existing OpenTelemetry/evidence pipeline; any future deployment belongs on separate infrastructure, not the current VPS.
+6. Audit the existing browser adapter against a short Playwright conformance matrix. Add Playwright MCP only if it fills a measured gap and can be pinned, sandboxed and allowlisted.
+7. Align AGNES skill metadata and validator checks with Agent Skills; pin every accepted skill source and hash.
+8. Add a read-only MCP Registry discovery feed only after schema/version pinning, advisory checks, package provenance validation and a human approval queue.
+9. Compare OpenSandbox against the native sandbox on a separate worker; verify runtime isolation, API-key enforcement, host-mount restrictions, per-sandbox egress, image provenance, cleanup and resource limits before any integration.
+10. Review the OpenAI Agents SDK lock drift from 0.19.3 to 0.24.0 in an isolated dependency-upgrade change; run compatibility, privacy/tracing, sandbox and regression tests before changing the lockfile.
 
 No package was installed, no community skill was executed, no credential or permission changed, no new account was connected, no service was deployed, and no Q10–Q16 artifact or gate was modified by this review.
