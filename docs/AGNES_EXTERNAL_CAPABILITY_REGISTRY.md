@@ -24,7 +24,7 @@ These flags are independent and must never be collapsed into a generic "availabl
 | not_integrated | No CK-NEXUS adapter/runtime wiring was demonstrated. | No source code or documentation exists. |
 | runtime_verified | Pinned candidate was exercised through CK-NEXUS runtime and evidence captured. | A future version or different deployment subject. |
 
-The existing status field remains the installation/inventory state (present, partial, discovery_only, not_installed or blocked). New candidates remain discovery_only. The additional verification_state object is research metadata; the current CapabilityCatalog loader ignores unknown metadata fields, so it does not activate or authorize anything.
+The existing status field remains the installation/inventory state (present, partial, discovery_only, not_installed or blocked). New candidates remain discovery_only. The additional verification_state object is research metadata. CapabilityCatalog validates the exact six boolean fields and exposes them as read-only metadata; it does not activate, authorize, connect or execute anything.
 
 All four candidates below have discovered=true, available_in_chat_session=false, online_verified=true, not_connected=true, not_integrated=true, runtime_verified=false and authority_scope=NONE.
 
