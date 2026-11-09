@@ -76,7 +76,7 @@ These namespaces were exposed in the current ChatGPT tool catalog. This is a ses
 | Knowledge/data/workspaces | Notion, Slack, Hugging Face, Supabase, Neon, MongoDB Atlas, Soluvery, Granola, Airtable, Asana, Linear, monday.com | available_in_chat_session=true; no account data read or changed for this inventory. |
 | Remote operations | Remote Desktop Commander | available_in_chat_session=true; device inventory inspected only. |
 
-For these session tools, not_connected and not_integrated refer specifically to CK-NEXUS Connector Fabric/runtime. They remain true unless a CK-NEXUS-side connection and integration are demonstrated. Their authority scope is always NONE. A ChatGPT connector exposed in this session does not make it a CK-NEXUS Runtime plugin.
+All listed namespaces have discovered=true and available_in_chat_session=true. online_verified=true only for GitHub because repository read access was exercised in this review; online_verified=false for the other listed namespaces because no live service action was performed. For every listed namespace, not_connected=true and not_integrated=true relative to CK-NEXUS Connector Fabric/runtime, runtime_verified=false, and authority_scope=NONE. A ChatGPT connector exposed in this session does not make it a CK-NEXUS Runtime plugin.
 
 The ChatGPT Skills listing returned an empty list in this session. Plugin-management functions exposed dependency and permission operations but no marketplace-wide plugin discovery/list operation; therefore this review does not claim a complete marketplace inventory.
 
