@@ -13,6 +13,7 @@ from creator_app.ai_team.intelligence.smart_cache import SmartCache
 
 # ═══ SmartCache ═══
 
+
 class TestSmartCache:
     def test_exact_cache_hit(self):
         cache = SmartCache()
@@ -69,6 +70,7 @@ class TestSmartCache:
 
 # ═══ ParallelExecutor ═══
 
+
 class TestParallelExecutor:
     def test_run_batch(self):
         executor = ParallelExecutor(max_concurrency=3)
@@ -110,7 +112,9 @@ class TestParallelExecutor:
 
         async def _run():
             return await executor.run_batch(
-                "fb-test", [("fail", failing)], fallback=fallback,
+                "fb-test",
+                [("fail", failing)],
+                fallback=fallback,
             )
 
         results = asyncio.run(_run())
@@ -151,6 +155,7 @@ class TestParallelExecutor:
 
 # ═══ AutoModelRouter ═══
 
+
 class TestAutoModelRouter:
     def test_classify_trivial(self):
         router = AutoModelRouter()
@@ -183,13 +188,11 @@ class TestAutoModelRouter:
 
 # ═══ SelfCorrectionLoop ═══
 
+
 class TestSelfCorrectionLoop:
     def test_verify_confident_response(self):
         sc = SelfCorrectionLoop(min_confidence=0.5)
-        response = (
-            "create OAuth2 system with JWT authentication"
-            " and role-based access control"
-        )
+        response = "create OAuth2 system with JWT authentication and role-based access control"
         result = sc.verify("create system", response)
         assert result.passes
 
@@ -214,6 +217,7 @@ class TestSelfCorrectionLoop:
 
 
 # ═══ MultiPerspectiveThinker ═══
+
 
 class TestMultiPerspectiveThinker:
     def test_analyze(self):
@@ -243,6 +247,7 @@ class TestMultiPerspectiveThinker:
 
 
 # ═══ SemanticMemory ═══
+
 
 class TestSemanticMemory:
     def test_store_and_recall(self):
@@ -288,15 +293,18 @@ class TestSemanticMemory:
 
 # ═══ EnhancedUniversalSystem ═══
 
+
 class TestEnhancedUniversalSystem:
     def test_process(self):
         from creator_app.ai_team.universal_system import EnhancedUniversalSystem
+
         system = EnhancedUniversalSystem()
         result = system.process("create system")
         assert "Intelligence Stats" in result
 
     def test_process_cache_hit(self):
         from creator_app.ai_team.universal_system import EnhancedUniversalSystem
+
         system = EnhancedUniversalSystem()
         system.process("create system")
         result2 = system.process("create system")
@@ -304,6 +312,7 @@ class TestEnhancedUniversalSystem:
 
     def test_stats(self):
         from creator_app.ai_team.universal_system import EnhancedUniversalSystem
+
         system = EnhancedUniversalSystem()
         system.process("test")
         stats = system.stats()
@@ -312,10 +321,30 @@ class TestEnhancedUniversalSystem:
 
     def test_process_with_all_disabled(self):
         from creator_app.ai_team.universal_system import EnhancedUniversalSystem
+
         system = EnhancedUniversalSystem(
-            enable_cache=False, enable_parallel=False,
-            enable_auto_route=False, enable_self_correction=False,
-            enable_perspective=False, enable_memory=False,
+            enable_cache=False,
+            enable_parallel=False,
+            enable_auto_route=False,
+            enable_self_correction=False,
+            enable_perspective=False,
+            enable_memory=False,
         )
         result = system.process("create system")
         assert "Intelligence Stats" in result
+
+
+def test_parallel_executor_preserves_cooperative_cancellation_status():
+    from creator_app.ai_team.cancellation import CancellationRequested
+
+    executor = ParallelExecutor()
+
+    def cancelled():
+        raise CancellationRequested("cancelled by caller")
+
+    async def run():
+        return await executor.run_batch("cancelled", [("task-1", cancelled)])
+
+    result = asyncio.run(run())[0]
+    assert result.status == TaskStatus.CANCELLED
+    assert result.error == "cancelled by caller"

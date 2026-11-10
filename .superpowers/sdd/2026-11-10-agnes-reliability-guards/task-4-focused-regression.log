@@ -1,0 +1,25 @@
+........................................................................ [ 47%]
+.............................................F.......................... [ 95%]
+.......                                                                  [100%]
+=================================== FAILURES ===================================
+____________________ TestCrossPlatform.test_detect_platform ____________________
+
+self = <creator_app.ai_team.tests.test_universal.TestCrossPlatform object at 0x79c0d73b10>
+
+    def test_detect_platform(self):
+        cp = CrossPlatform()
+        platform = cp.detect_platform()
+>       assert platform in ("linux", "macos", "windows")
+E       AssertionError: assert 'android' in ('linux', 'macos', 'windows')
+
+creator_app/ai_team/tests/test_universal.py:128: AssertionError
+=============================== warnings summary ===============================
+../.local/lib/python3.13/site-packages/_pytest/config/__init__.py:1636
+  /data/data/com.termux/files/home/.local/lib/python3.13/site-packages/_pytest/config/__init__.py:1636: PytestConfigWarning: Unknown config option: asyncio_mode
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED creator_app/ai_team/tests/test_universal.py::TestCrossPlatform::test_detect_platform
+1 failed, 150 passed, 1 warning in 19.95s

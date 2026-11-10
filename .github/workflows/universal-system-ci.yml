@@ -32,18 +32,38 @@ jobs:
         run: |
           uv lock --check
           uv sync --all-extras --dev --frozen
-      - name: Verify original 48-test baseline
+      - name: Verify base-branch AI Team tests are preserved
         shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
+          base_ref="${BASE_REF:-main}"
+          git fetch --no-tags origin "$base_ref"
+          baseline_dir=$(mktemp -d /tmp/cknexus-universal-baseline.XXXXXX)
+          git worktree add --detach "$baseline_dir" FETCH_HEAD
+          trap 'git worktree remove --force "$baseline_dir" >/dev/null 2>&1 || true' EXIT
+          current_nodes=$(mktemp)
+          baseline_nodes=$(mktemp)
           .venv/bin/pytest --collect-only -q \
             creator_app/ai_team/tests/test_team.py \
             creator_app/ai_team/tests/test_universal.py \
-            | tee /tmp/universal-baseline-collect.txt
-          count=$(grep -c '::' /tmp/universal-baseline-collect.txt || true)
-          echo "baseline_test_nodes=$count"
-          test "$count" -eq 48
-      - name: Run original 48-test baseline
+            | grep '::' | sort -u > "$current_nodes"
+          (
+            cd "$baseline_dir"
+            PYTHONPATH="$baseline_dir" "$GITHUB_WORKSPACE/.venv/bin/python" -m pytest --collect-only -q \
+              creator_app/ai_team/tests/test_team.py \
+              creator_app/ai_team/tests/test_universal.py
+          ) | grep '::' | sort -u > "$baseline_nodes"
+          missing=$(comm -23 "$baseline_nodes" "$current_nodes" || true)
+          if [ -n "$missing" ]; then
+            echo 'Base-branch test nodes missing from this change:'
+            printf '%s\n' "$missing"
+            exit 1
+          fi
+          echo "preserved_base_test_nodes=$(wc -l < "$baseline_nodes")"
+          echo "current_test_nodes=$(wc -l < "$current_nodes")"
+      - name: Run preserved AI Team and Universal System tests
         run: >-
           .venv/bin/pytest -q
           creator_app/ai_team/tests/test_team.py

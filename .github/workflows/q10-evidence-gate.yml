@@ -165,7 +165,14 @@ jobs:
               'secret_scan_exit_code': secret_rc,
               'security_attack_regression_exit_code': attack_rc,
           }
-          passed = dependency_rc == '0' and vulnerabilities == 0 and high_findings == 0 and secret_rc == '0' and attack_rc == '0'
+          passed = (
+              dependency_rc == '0'
+              and vulnerabilities == 0
+              and high_findings == 0
+              and medium_findings == 0
+              and secret_rc == '0'
+              and attack_rc == '0'
+          )
           report = {
               'schema_version': 1,
               'gate': 'Q10_OPEN_SOURCE_LAYERED_SECURITY',

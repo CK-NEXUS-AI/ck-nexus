@@ -1,0 +1,86 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_ TestAgentBase.test_cancel_request_stops_cooperative_worker_and_skips_later_wave _
+
+self = <creator_app.ai_team.tests.test_team.TestAgentBase object at 0x6d26e8e9e0>
+
+    def test_cancel_request_stops_cooperative_worker_and_skips_later_wave(self):
+        steps = [
+            PlanStep("step-a", "Agent A", "a", "cancel while active"),
+            PlanStep("step-b", "Agent B", "b", "must not start", depends_on=("step-a",)),
+        ]
+        team, probe = _planned_team(steps)
+        started = threading.Event()
+
+        class CooperativeAgent(_ProbeAgent):
+            def process(self, request, context=None):
+                started.set()
+                while True:
+                    Agent.raise_if_cancelled(context)
+                    if context["cancellation_event"].wait(0.01):
+                        Agent.raise_if_cancelled(context)
+
+        team.agents["a"] = CooperativeAgent("Agent A", "a", probe)
+        team.agents["b"] = _ProbeAgent("Agent B", "b", probe)
+
+        async def run_and_cancel():
+            task = asyncio.create_task(
+                team.aprocess_request("cancel test", request_id="cancel-request-1")
+            )
+            assert await asyncio.to_thread(started.wait, 2)
+            assert team.cancel_request("cancel-request-1") is True
+            return await asyncio.wait_for(task, timeout=2)
+
+>       result = asyncio.run(run_and_cancel())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+creator_app/ai_team/tests/test_team.py:652:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+../../usr/lib/python3.13/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+../../usr/lib/python3.13/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../usr/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    async def run_and_cancel():
+        task = asyncio.create_task(
+>           team.aprocess_request("cancel test", request_id="cancel-request-1")
+        )
+E       TypeError: TeamDirector.aprocess_request() got an unexpected keyword argument 'request_id'
+
+creator_app/ai_team/tests/test_team.py:646: TypeError
+_ TestAgentBase.test_cancel_request_returns_false_for_unknown_or_finished_request _
+
+self = <creator_app.ai_team.tests.test_team.TestAgentBase object at 0x6d26f2af90>
+
+    def test_cancel_request_returns_false_for_unknown_or_finished_request(self):
+        team = TeamDirector()
+>       assert team.cancel_request("not-active") is False
+               ^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'TeamDirector' object has no attribute 'cancel_request'. Did you mean: 'process_request'?
+
+creator_app/ai_team/tests/test_team.py:661: AttributeError
+_______ test_parallel_executor_preserves_cooperative_cancellation_status _______
+
+    def test_parallel_executor_preserves_cooperative_cancellation_status():
+>       from creator_app.ai_team.cancellation import CancellationRequested
+E       ModuleNotFoundError: No module named 'creator_app.ai_team.cancellation'
+
+creator_app/ai_team/tests/test_intelligence.py:325: ModuleNotFoundError
+=============================== warnings summary ===============================
+../.local/lib/python3.13/site-packages/_pytest/config/__init__.py:1636
+  /data/data/com.termux/files/home/.local/lib/python3.13/site-packages/_pytest/config/__init__.py:1636: PytestConfigWarning: Unknown config option: asyncio_mode
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED creator_app/ai_team/tests/test_team.py::TestAgentBase::test_cancel_request_stops_cooperative_worker_and_skips_later_wave
+FAILED creator_app/ai_team/tests/test_team.py::TestAgentBase::test_cancel_request_returns_false_for_unknown_or_finished_request
+FAILED creator_app/ai_team/tests/test_intelligence.py::test_parallel_executor_preserves_cooperative_cancellation_status
+3 failed, 79 deselected, 1 warning in 4.06s

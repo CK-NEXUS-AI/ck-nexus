@@ -9,8 +9,12 @@
 
 from __future__ import annotations
 
+import asyncio
+import math
 import os
+import threading
 import time
+from copy import deepcopy
 from typing import Any
 
 from creator_app.ai_team.agent import Agent
@@ -32,11 +36,22 @@ from creator_app.ai_team.agents import (
     ResearcherAgent,
 )
 from creator_app.ai_team.auto_response import AgentMessage, AgentMessageBus
+from creator_app.ai_team.intelligence.parallel_executor import (
+    ParallelExecutor,
+)
+from creator_app.ai_team.intelligence.parallel_executor import (
+    TaskStatus as ParallelTaskStatus,
+)
 from creator_app.ai_team.shared_knowledge import SharedKnowledge
 from creator_app.development_control import (
     DevelopmentStatusStore,
     default_development_status_db_path,
 )
+
+# Shared by all TeamDirector instances in this Python process. Cross-process
+# coordination requires a durable lease/worker service and is intentionally not claimed.
+TEAM_DIRECTOR_GLOBAL_MAX_CONCURRENCY = 2
+_TEAM_DIRECTOR_GLOBAL_WORKERS = threading.BoundedSemaphore(TEAM_DIRECTOR_GLOBAL_MAX_CONCURRENCY)
 
 
 class TeamDirector:
@@ -52,7 +67,25 @@ class TeamDirector:
         self,
         knowledge_path: str | None = None,
         development_status_path: str | None = None,
+        *,
+        max_concurrency: int = 2,
+        step_timeout: float = 60.0,
     ) -> None:
+        if (
+            isinstance(max_concurrency, bool)
+            or not isinstance(max_concurrency, int)
+            or not 1 <= max_concurrency <= 5
+        ):
+            raise ValueError("max_concurrency must be an integer between 1 and 5")
+        if (
+            isinstance(step_timeout, bool)
+            or not isinstance(step_timeout, (int, float))
+            or not math.isfinite(step_timeout)
+            or step_timeout <= 0
+        ):
+            raise ValueError("step_timeout must be a positive finite number")
+        self.max_concurrency = max_concurrency
+        self.step_timeout = float(step_timeout)
         self.director = DirectorAgent()
         self.agents: dict[str, Agent] = {
             "engineer": EngineerAgent(),
@@ -71,6 +104,22 @@ class TeamDirector:
             str(default_development_status_db_path()),
         )
         self._request_history: list[TeamResult] = []
+        self._agent_locks_guard = threading.Lock()
+        self._agent_locks: dict[int, threading.Lock] = {
+            id(agent): threading.Lock() for agent in self.agents.values()
+        }
+        self._active_requests_lock = threading.Lock()
+        self._active_requests: dict[str, threading.Event] = {}
+
+    def _agent_lock_for(self, agent: Agent) -> threading.Lock:
+        """Return the TeamDirector-wide lock for a shared agent instance."""
+        agent_id = id(agent)
+        with self._agent_locks_guard:
+            lock = self._agent_locks.get(agent_id)
+            if lock is None:
+                lock = threading.Lock()
+                self._agent_locks[agent_id] = lock
+            return lock
 
     def process_request(
         self,
@@ -79,30 +128,99 @@ class TeamDirector:
         priority: int = 2,
         context: str = "",
         constraints: tuple[str, ...] = (),
+        request_id: str | None = None,
     ) -> TeamResult:
-        """สั่งงานทั้งทีม — ครั้งเดียวจบทั้งระบบ."""
+        """Synchronous compatibility entry point for non-async callers."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(
+                self.aprocess_request(
+                    description,
+                    priority=priority,
+                    context=context,
+                    constraints=constraints,
+                    request_id=request_id,
+                )
+            )
+        raise RuntimeError(
+            "process_request cannot run inside an active event loop; "
+            "use await aprocess_request(...) instead"
+        )
+
+    def cancel_request(self, request_id: str) -> bool:
+        """Signal cancellation to an active request; return false if it is not active."""
+        with self._active_requests_lock:
+            event = self._active_requests.get(request_id)
+            if event is None:
+                return False
+            event.set()
+            return True
+
+    async def aprocess_request(
+        self,
+        description: str,
+        *,
+        priority: int = 2,
+        context: str = "",
+        constraints: tuple[str, ...] = (),
+        request_id: str | None = None,
+    ) -> TeamResult:
+        """Asynchronous TeamDirector entry point with cooperative cancellation."""
+        selected_request_id = request_id or generate_id("req")
+        cancellation_event = threading.Event()
+        with self._active_requests_lock:
+            if selected_request_id in self._active_requests:
+                raise ValueError(f"request_id is already active: {selected_request_id}")
+            self._active_requests[selected_request_id] = cancellation_event
+        try:
+            return await self._run_request(
+                description,
+                priority=priority,
+                context=context,
+                constraints=constraints,
+                request_id=selected_request_id,
+                cancellation_event=cancellation_event,
+            )
+        except asyncio.CancelledError:
+            cancellation_event.set()
+            raise
+        finally:
+            with self._active_requests_lock:
+                if self._active_requests.get(selected_request_id) is cancellation_event:
+                    self._active_requests.pop(selected_request_id, None)
+
+    async def _run_request(
+        self,
+        description: str,
+        *,
+        priority: int,
+        context: str,
+        constraints: tuple[str, ...],
+        request_id: str,
+        cancellation_event: threading.Event,
+    ) -> TeamResult:
         start = time.time()
 
         from creator_app.ai_team.agent_models import RequestPriority
 
         request = TeamRequest(
-            request_id=generate_id("req"),
+            request_id=request_id,
             description=description,
             priority=RequestPriority(priority),
             context=context,
             constraints=constraints,
         )
 
-        # ค้นหาความรู้เดิม
         existing_knowledge = self.knowledge.search(description, max_results=3)
         knowledge_context = ""
         if existing_knowledge:
             knowledge_context = "\n".join(
-                f"ความรู้เดิม ({k.topic}): {k.content[:200]}" for k in existing_knowledge
+                f"ความรู้เดิม ({item.topic}): {item.content[:200]}" for item in existing_knowledge
             )
 
-        # Director วางแผน
-        plan_result = self.director.process(
+        plan_result = await asyncio.to_thread(
+            self.director.process,
             request,
             context={"agents": list(self.agents.values())},
         )
@@ -110,60 +228,264 @@ class TeamDirector:
         if plan is None:
             plan = TeamPlan(request_id=request.request_id)
 
-        # ทำงานตามแผน
-        step_results: list[TaskResult] = []
-        completed_steps: set[str] = set()
+        step_results = await self._execute_plan_waves(
+            request, plan, knowledge_context, cancellation_event
+        )
 
-        for step in plan.steps:
-            deps_met = all(d in completed_steps for d in step.depends_on)
-            if not deps_met:
-                continue
+        synthesis = await asyncio.to_thread(self.director.synthesize_results, step_results, request)
 
-            agent = self.agents.get(step.agent_role)
-            if agent is None:
-                continue
+        completed_count = sum(result.status is TaskStatus.COMPLETED for result in step_results)
+        if not plan.steps or any(result.status is TaskStatus.FAILED for result in step_results):
+            team_status = TaskStatus.FAILED
+        elif any(result.status is TaskStatus.CANCELLED for result in step_results):
+            team_status = TaskStatus.CANCELLED
+        elif any(
+            result.status is TaskStatus.BLOCKED for result in step_results
+        ) or completed_count != len(plan.steps):
+            team_status = TaskStatus.BLOCKED
+        else:
+            team_status = TaskStatus.COMPLETED
 
-            agent_context = {
-                "request": request,
-                "plan": plan,
-                "completed_steps": completed_steps,
-                "step_results": step_results,
-                "knowledge_context": knowledge_context,
-            }
-
-            result = agent.process(request, context=agent_context)
-            agent.record_result(result)
-            step_results.append(result)
-            completed_steps.add(step.step_id)
-
-            if result.status == TaskStatus.COMPLETED:
-                self.knowledge.add(
-                    topic=description[:100],
-                    agent_name=agent.name,
-                    content=result.output,
-                    keywords=tuple(description.lower().split()[:5]),
-                    confidence=result.confidence,
+        if team_status is TaskStatus.COMPLETED:
+            final_output = synthesis.output
+            confidence = synthesis.confidence
+        else:
+            details = (
+                "\n".join(
+                    f"- {result.agent_name} ({result.status.value}): {result.output}"
+                    for result in step_results
                 )
-
-        # Director รวมผล
-        synthesis = self.director.synthesize_results(step_results, request)
+                or "- No plan steps were generated."
+            )
+            final_output = (
+                f"Team execution {team_status.value.upper()}. "
+                "Not all planned steps completed.\n\n"
+                f"{details}"
+            )
+            confidence = 0.0
 
         team_result = TeamResult(
             request_id=request.request_id,
-            final_output=synthesis.output,
-            status=TaskStatus.COMPLETED,
-            steps_completed=len(step_results),
-            steps_total=plan.total_steps,
-            team_members_used=tuple(dict.fromkeys(r.agent_name for r in step_results)),
+            final_output=final_output,
+            status=team_status,
+            steps_completed=completed_count,
+            steps_total=len(plan.steps),
+            team_members_used=tuple(dict.fromkeys(result.agent_name for result in step_results)),
             duration_seconds=time.time() - start,
-            artifacts=tuple(a for r in step_results for a in r.artifacts),
-            confidence=synthesis.confidence,
+            artifacts=tuple(artifact for result in step_results for artifact in result.artifacts),
+            confidence=confidence,
             plan=plan,
             step_results=step_results,
         )
 
         self._request_history.append(team_result)
         return team_result
+
+    async def _execute_plan_waves(
+        self,
+        request: TeamRequest,
+        plan: TeamPlan,
+        knowledge_context: str,
+        cancellation_event: threading.Event,
+    ) -> list[TaskResult]:
+        """Run dependency-ready plan steps in bounded waves."""
+        steps = list(plan.steps)
+        step_ids = [step.step_id for step in steps]
+        if len(step_ids) != len(set(step_ids)):
+            raise ValueError("plan contains duplicate step IDs")
+
+        order = {step_id: index for index, step_id in enumerate(step_ids)}
+        pending = {step.step_id: step for step in steps}
+        completed_ids: set[str] = set()
+        failed_ids: set[str] = set()
+        blocked_ids: set[str] = set()
+        results_by_id: dict[str, TaskResult] = {}
+        executor = ParallelExecutor(max_concurrency=self.max_concurrency)
+        wave_number = 0
+
+        def record_cancelled(step: Any) -> None:
+            reason = "request cancellation requested before step completed"
+            result = TaskResult(
+                task_id=step.step_id,
+                agent_name=step.agent_name,
+                agent_role=step.agent_role,
+                status=TaskStatus.CANCELLED,
+                output=reason,
+                warnings=(reason,),
+            )
+            step.status = TaskStatus.CANCELLED
+            results_by_id[step.step_id] = result
+            pending.pop(step.step_id, None)
+
+        def record_blocked(step: Any, reason: str) -> None:
+            result = TaskResult(
+                task_id=step.step_id,
+                agent_name=step.agent_name,
+                agent_role=step.agent_role,
+                status=TaskStatus.BLOCKED,
+                output=reason,
+                warnings=(reason,),
+            )
+            step.status = TaskStatus.BLOCKED
+            blocked_ids.add(step.step_id)
+            results_by_id[step.step_id] = result
+            pending.pop(step.step_id, None)
+
+        while pending:
+            if cancellation_event.is_set():
+                for step in list(pending.values()):
+                    record_cancelled(step)
+                break
+            for step in list(pending.values()):
+                unknown_dependencies = set(step.depends_on) - set(order)
+                if unknown_dependencies:
+                    missing = ", ".join(sorted(unknown_dependencies))
+                    record_blocked(step, f"unknown dependencies: {missing}")
+                elif set(step.depends_on) & (failed_ids | blocked_ids):
+                    record_blocked(step, "blocked by a failed or blocked dependency")
+
+            ready = [
+                step for step in pending.values() if set(step.depends_on).issubset(completed_ids)
+            ]
+            if not ready:
+                for step in list(pending.values()):
+                    record_blocked(step, "dependency cycle or no runnable predecessor path")
+                break
+
+            executable: list[tuple[Any, Agent]] = []
+            for step in ready:
+                agent = self.agents.get(step.agent_role)
+                if agent is None:
+                    reason = f"no agent registered for role: {step.agent_role}"
+                    result = TaskResult(
+                        task_id=step.step_id,
+                        agent_name=step.agent_name,
+                        agent_role=step.agent_role,
+                        status=TaskStatus.FAILED,
+                        output=reason,
+                        warnings=(reason,),
+                    )
+                    step.status = TaskStatus.FAILED
+                    failed_ids.add(step.step_id)
+                    results_by_id[step.step_id] = result
+                    pending.pop(step.step_id, None)
+                else:
+                    executable.append((step, agent))
+
+            if not executable:
+                continue
+
+            wave_number += 1
+            prior_results = [
+                results_by_id[step.step_id] for step in steps if step.step_id in results_by_id
+            ]
+            completed_snapshot = frozenset(completed_ids)
+            tasks = []
+            agents_by_step: dict[str, Agent] = {}
+
+            for step, agent in executable:
+                agents_by_step[step.step_id] = agent
+                agent_lock = self._agent_lock_for(agent)
+
+                def invoke(
+                    selected_agent: Agent = agent,
+                    selected_lock: threading.Lock = agent_lock,
+                    completed_steps_snapshot: frozenset[str] = completed_snapshot,
+                    prior_step_results: list[TaskResult] = prior_results,
+                ) -> TaskResult:
+                    worker_request = deepcopy(request)
+                    worker_plan = deepcopy(plan)
+                    worker_context = {
+                        "request": worker_request,
+                        "plan": worker_plan,
+                        "completed_steps": completed_steps_snapshot,
+                        "step_results": deepcopy(prior_step_results),
+                        "knowledge_context": knowledge_context,
+                        "cancellation_event": cancellation_event,
+                    }
+                    Agent.raise_if_cancelled(worker_context)
+                    acquired = False
+                    try:
+                        while not acquired:
+                            Agent.raise_if_cancelled(worker_context)
+                            acquired = _TEAM_DIRECTOR_GLOBAL_WORKERS.acquire(timeout=0.05)
+                        with selected_lock:
+                            Agent.raise_if_cancelled(worker_context)
+                            worker_result = selected_agent.process(
+                                worker_request, context=worker_context
+                            )
+                            Agent.raise_if_cancelled(worker_context)
+                            return worker_result
+                    finally:
+                        if acquired:
+                            _TEAM_DIRECTOR_GLOBAL_WORKERS.release()
+
+                tasks.append((step.step_id, invoke))
+
+            batch_results = await executor.run_batch(
+                f"{request.request_id}-wave-{wave_number}",
+                tasks,
+                timeout=self.step_timeout,
+            )
+
+            for batch_result in batch_results:
+                step = pending[batch_result.task_id]
+                agent = agents_by_step[step.step_id]
+                result = batch_result.result
+                if batch_result.status is ParallelTaskStatus.CANCELLED:
+                    integrated_result = TaskResult(
+                        task_id=step.step_id,
+                        agent_name=agent.name,
+                        agent_role=step.agent_role,
+                        status=TaskStatus.CANCELLED,
+                        output=batch_result.error or "request cancellation requested",
+                        warnings=(batch_result.error or "request cancellation requested",),
+                    )
+                elif (
+                    batch_result.status is ParallelTaskStatus.COMPLETED
+                    and isinstance(result, TaskResult)
+                    and result.status
+                    in {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.BLOCKED}
+                ):
+                    integrated_result = result
+                else:
+                    error = batch_result.error or "agent returned an invalid or non-terminal result"
+                    integrated_result = TaskResult(
+                        task_id=step.step_id,
+                        agent_name=agent.name,
+                        agent_role=step.agent_role,
+                        status=TaskStatus.FAILED,
+                        output=f"agent execution failed: {error}",
+                        warnings=(error,),
+                    )
+
+                # The plan step is the durable identity; agents may return their own
+                # transient result IDs, which must not break dependency/evidence linkage.
+                integrated_result.task_id = step.step_id
+                step.status = integrated_result.status
+                if integrated_result.status is TaskStatus.COMPLETED:
+                    completed_ids.add(step.step_id)
+                    self.knowledge.add(
+                        topic=request.description[:100],
+                        agent_name=agent.name,
+                        content=integrated_result.output,
+                        keywords=tuple(request.description.lower().split()[:5]),
+                        confidence=integrated_result.confidence,
+                    )
+                elif integrated_result.status is TaskStatus.BLOCKED:
+                    blocked_ids.add(step.step_id)
+                elif integrated_result.status is TaskStatus.CANCELLED:
+                    # Cancellation is terminal but is not a failed execution.
+                    pass
+                else:
+                    failed_ids.add(step.step_id)
+
+                with self._agent_lock_for(agent):
+                    agent.record_result(integrated_result)
+                results_by_id[step.step_id] = integrated_result
+                pending.pop(step.step_id, None)
+
+        return [results_by_id[step.step_id] for step in steps if step.step_id in results_by_id]
 
     def list_team(self) -> dict[str, Any]:
         members = []

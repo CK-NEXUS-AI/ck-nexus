@@ -57,36 +57,43 @@ class ConnectorAgent(Agent):
     def process(self, request: TeamRequest, context: dict[str, Any] | None = None) -> TaskResult:
         start = time.time()
         context = context or {}
+        self.raise_if_cancelled(context)
 
         desc = request.description.lower()
         output_lines: list[str] = []
         artifacts: list[str] = []
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("gmail", "email", "mail")):
             output_lines.append("📧 กำลังเชื่อมต่อ Gmail...")
             output_lines.append(self._connect_gmail(request))
             artifacts.append("connector:gmail")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("telegram", "bot", "messaging")):
             output_lines.append("🤖 กำลังเชื่อมต่อ Telegram...")
             output_lines.append(self._connect_telegram(request))
             artifacts.append("connector:telegram")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("api", "rest", "graphql", "endpoint")):
             output_lines.append("🔗 กำลังเชื่อมต่อ API...")
             output_lines.append(self._connect_api(request))
             artifacts.append("connector:api")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("database", "sql", "postgres", "redis")):
             output_lines.append("🗄️ กำลังเชื่อมต่อ Database...")
             output_lines.append(self._connect_database(request))
             artifacts.append("connector:database")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("webhook", "event", "trigger")):
             output_lines.append("⚡ กำลังตั้งค่า Webhook...")
             output_lines.append(self._setup_webhook(request))
             artifacts.append("connector:webhook")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("docker", "deploy", "container")):
             output_lines.append("🐳 กำลังตั้งค่า Docker...")
             output_lines.append(self._setup_docker(request))
