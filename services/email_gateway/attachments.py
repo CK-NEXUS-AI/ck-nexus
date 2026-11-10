@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import codecs
 import hashlib
+import math
+import stat
 import unicodedata
 import zipfile
+import zlib
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 BLOCKED_EXTENSIONS = {
     ".exe",
@@ -26,6 +29,7 @@ ALLOWED_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".csv", ".txt", ".png", ".jpg", 
 
 _HEAD_BYTES = 512
 _ZIP_MAGIC = (b"PK\x03\x04", b"PK\x05\x06")
+_NESTED_ZIP_MAGIC = (*_ZIP_MAGIC, b"PK\x07\x08")
 _OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 _JPEG_MAGIC = b"\xff\xd8\xff"
@@ -140,24 +144,102 @@ def _sha256(path: Path) -> str:
 def _zip_policy(
     path: Path, *, max_entries: int, max_uncompressed_bytes: int, max_ratio: float
 ) -> tuple[bool, str]:
+    """Validate ZIP metadata and boundedly read every member without extracting it."""
+    if (
+        isinstance(max_entries, bool)
+        or not isinstance(max_entries, int)
+        or max_entries < 0
+        or isinstance(max_uncompressed_bytes, bool)
+        or not isinstance(max_uncompressed_bytes, int)
+        or max_uncompressed_bytes < 0
+        or isinstance(max_ratio, bool)
+        or not isinstance(max_ratio, (int, float))
+        or not math.isfinite(max_ratio)
+        or max_ratio <= 0
+    ):
+        return False, "invalid_zip_policy"
+
     try:
         with zipfile.ZipFile(path) as archive:
             infos = archive.infolist()
             if len(infos) > max_entries:
                 return False, "zip_too_many_entries"
+
             total_compressed = 0
             total_uncompressed = 0
+            seen_names: set[str] = set()
             for info in infos:
-                name = Path(info.filename)
-                if name.is_absolute() or ".." in name.parts:
+                # ZIP names are POSIX by specification, but normalize backslashes
+                # too because downstream tools on Windows may treat them as separators.
+                normalized = info.filename.replace("\\", "/")
+                posix_name = PurePosixPath(normalized)
+                windows_name = PureWindowsPath(info.filename)
+                if (
+                    not normalized
+                    or "\x00" in normalized
+                    or normalized.startswith("/")
+                    or windows_name.is_absolute()
+                    or bool(windows_name.drive)
+                    or ".." in posix_name.parts
+                ):
                     return False, "zip_path_traversal"
-                total_compressed += max(1, info.compress_size)
+
+                collision_key = normalized.casefold()
+                if collision_key in seen_names:
+                    return False, "zip_duplicate_entry"
+                seen_names.add(collision_key)
+
+                if info.flag_bits & 0x1:
+                    return False, "zip_encrypted_entry"
+                mode = info.external_attr >> 16
+                if stat.S_ISLNK(mode):
+                    return False, "zip_symlink_entry"
+                if info.is_dir() and info.file_size != 0:
+                    return False, "zip_invalid_directory_entry"
+
+                total_compressed += info.compress_size
                 total_uncompressed += info.file_size
                 if total_uncompressed > max_uncompressed_bytes:
                     return False, "zip_uncompressed_limit"
+                if info.file_size and info.compress_size == 0:
+                    return False, "invalid_zip"
+                if info.file_size / max(1, info.compress_size) > max_ratio:
+                    return False, "zip_compression_ratio"
+
             if total_uncompressed / max(1, total_compressed) > max_ratio:
                 return False, "zip_compression_ratio"
-    except zipfile.BadZipFile:
+
+            actual_total = 0
+            for info in infos:
+                if info.is_dir():
+                    continue
+                actual_entry = 0
+                with archive.open(info) as member:
+                    prefix = member.read(4)
+                    actual_entry += len(prefix)
+                    actual_total += len(prefix)
+                    if prefix.startswith(_NESTED_ZIP_MAGIC):
+                        return False, "zip_nested_archive"
+                    while chunk := member.read(1024 * 1024):
+                        actual_entry += len(chunk)
+                        actual_total += len(chunk)
+                        if (
+                            actual_entry > info.file_size
+                            or actual_total > max_uncompressed_bytes
+                        ):
+                            return False, "zip_uncompressed_limit"
+                # Reading through EOF also makes zipfile verify member CRCs.
+                if actual_entry != info.file_size:
+                    return False, "invalid_zip"
+    except (
+        zipfile.BadZipFile,
+        RuntimeError,
+        OSError,
+        EOFError,
+        NotImplementedError,
+        zlib.error,
+        ValueError,
+    ):
         return False, "invalid_zip"
     return True, "zip_safe"
 
@@ -201,7 +283,7 @@ def scan_attachment(
         return AttachmentScanResult(
             False, "QUARANTINE", "content_signature_mismatch", digest, size, extension, detected
         )
-    if extension == ".zip":
+    if extension in _ZIP_BASED:
         safe, reason = _zip_policy(
             path,
             max_entries=max_zip_entries,
