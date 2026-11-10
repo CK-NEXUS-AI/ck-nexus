@@ -135,7 +135,7 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
         run: |
           tree=$(git rev-parse HEAD^{tree})
-          manifest=$(git ls-tree -r HEAD -- creator_app services tests scripts main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          manifest=$(python scripts/release_subject.py --scope application --ref HEAD)
           .venv/bin/python - "$HEAD_SHA" "$tree" "$manifest" "$RUN_ID" <<'PY'
           import json, sys, xml.etree.ElementTree as ET
           source_sha, tree, manifest, run_id = sys.argv[1:]
