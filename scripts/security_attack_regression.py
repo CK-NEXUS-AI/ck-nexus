@@ -193,10 +193,31 @@ def main() -> int:
     executable = evaluate_attachment("invoice.exe", size_bytes=128)
     traversal = evaluate_attachment("../invoice.pdf", size_bytes=128)
     normal_pdf = evaluate_attachment("invoice.pdf", size_bytes=128)
+    valid_pdf_signature = evaluate_attachment(
+        "invoice.pdf", size_bytes=128, head=b"%PDF-1.7\n"
+    )
+    renamed_executable = evaluate_attachment(
+        "invoice.pdf", size_bytes=128, head=b"MZ\x90\x00"
+    )
     results.append(
         check(
             "attachment_executable_blocked",
             not executable.allowed_for_parser_sandbox,
+        )
+    )
+    results.append(
+        check(
+            "attachment_pdf_signature_matches",
+            valid_pdf_signature.allowed_for_parser_sandbox,
+            valid_pdf_signature.reason,
+        )
+    )
+    results.append(
+        check(
+            "attachment_renamed_executable_rejected",
+            not renamed_executable.allowed_for_parser_sandbox
+            and renamed_executable.reason == "content_signature_mismatch",
+            renamed_executable.reason,
         )
     )
     results.append(
@@ -214,17 +235,30 @@ def main() -> int:
         )
     )
 
-    known_open_findings = [
+    # Historical findings are reconciled against their actual GitHub closure
+    # records. Keep residual scope explicit: a closed issue is not a blanket
+    # assertion that every future hardening scenario is covered by this suite.
+    resolved_historical_findings = [
         {
             "issue": 65,
             "title": "DNS-rebinding/TOCTOU SSRF peer binding",
-            "status": "OPEN_REMEDIATION_REQUIRED",
+            "status": "CLOSED",
+            "resolution_pr": 70,
+            "resolution_commit": "980af3aeee69562bd26ca6af3aeaf6278aa8c139",
         },
         {
             "issue": 66,
             "title": "Attachment content/magic validation",
-            "status": "OPEN_HARDENING_REQUIRED",
+            "status": "CLOSED",
+            "resolution_commit": "ad2fac7aa0752117dde065c7ad9b0b8d41136aa2",
         },
+    ]
+    residual_hardening = [
+        {
+            "area": "Office archive structure and decompression limits",
+            "status": "NOT_VERIFIED_BY_THIS_SUITE",
+            "note": "Basic content signatures are checked; archive entry, nesting, and decompression-ratio limits require separate evidence.",
+        }
     ]
 
     passed = sum(1 for item in results if item["passed"])
@@ -237,7 +271,9 @@ def main() -> int:
         "tests_passed": passed,
         "tests_failed": failed,
         "results": results,
-        "known_open_findings": known_open_findings,
+        "known_open_findings": [],
+        "resolved_historical_findings": resolved_historical_findings,
+        "residual_hardening": residual_hardening,
         "release_evidence": False,
         "production_promotion": False,
     }
