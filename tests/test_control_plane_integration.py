@@ -1,6 +1,7 @@
 import asyncio
 from types import SimpleNamespace
 
+from creator_app.ai_team.agents.sentinel import SentinelAgent
 from creator_app.ai_team.intelligence.parallel_executor import ParallelExecutor
 from creator_app.control_plane.models import ExecutionState
 from creator_app.control_plane.orchestrator import ControlPlaneOrchestrator
@@ -180,6 +181,10 @@ def test_default_dispatch_does_not_require_evidence_for_ordinary_verification() 
 
     assert result.execution_state is ExecutionState.COMPLETED
     assert all(item["state"] == "completed" for item in result.results.values())
+    assert all(
+        "Sentinel" not in item["result"]["team_members_used"]
+        for item in result.results.values()
+    )
 
 
 def test_explicit_evidence_gate_without_bundle_fails_closed() -> None:
@@ -237,7 +242,7 @@ def test_dispatch_reads_status_from_non_dict_result_objects() -> None:
     assert result.results["task-04-security"]["state"] == "blocked_dependency"
 
 
-def test_control_plane_security_handler_routes_supplied_bundle_to_sentinel() -> None:
+def test_control_plane_security_handler_routes_supplied_bundle_to_sentinel(monkeypatch) -> None:
     subject_sha = "a" * 40
     bundle = {
         "subject_sha": subject_sha,
@@ -257,8 +262,25 @@ def test_control_plane_security_handler_routes_supplied_bundle_to_sentinel() -> 
     graph = orchestrator.plan("inspect artifact", evidence_bundle=bundle)
     security_node = next(node for node in graph.nodes if node.role == "security")
 
+    observed: dict[str, object] = {}
+    original_process = SentinelAgent.process
+
+    def capture_sentinel(self, request, context=None):
+        observed["bundle"] = context.get("evidence_bundle") if context else None
+        sentinel_result = original_process(self, request, context=context)
+        observed["metadata"] = dict(sentinel_result.metadata)
+        return sentinel_result
+
+    monkeypatch.setattr(SentinelAgent, "process", capture_sentinel)
     result = orchestrator.default_handlers()["security"](security_node)
 
     assert result["status"] == "blocked"
     assert "Sentinel" in result["team_members_used"]
     assert "Core/L3" in result["final_output"]
+    assert observed["bundle"]["subject_sha"] == subject_sha
+    assert len(observed["bundle"]["checks"]) == 1
+    assert observed["metadata"]["subject_sha"] == subject_sha
+    assert observed["metadata"]["checks_total"] == 1
+    assert observed["metadata"]["verification_scope"] == "STRUCTURE_ONLY"
+    assert observed["metadata"]["artifact_digest_verified"] is False
+    assert observed["metadata"]["authority_attestation_verified"] is False
