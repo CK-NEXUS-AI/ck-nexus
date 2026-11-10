@@ -14,7 +14,37 @@ function tabs(){ $$('.nav').forEach(b=>b.addEventListener('click',()=>{ $$('.nav
 
 async function loadStatus(){ try{ const s=await api('/api/status'); state.status=s; $('#kpi-app').textContent='LINKED'; $('#kpi-version').textContent=`VERSION ${s.version}`; $('#kpi-db').textContent=s.database_ready?'LINKED':'DEGRADED'; $('#kpi-ai').textContent=s.mode==='mock'?'DEMO':s.mode==='openai'?'LIVE':'BLOCKED'; $('#kpi-model').textContent=`MODEL ${s.model}`; $('#kpi-email').textContent='API READY'; $('#runtime-pill').textContent=`[ ${s.mode.toUpperCase()} / ${s.version} ]`; $('#hero-state').textContent='RUNTIME LINKED'; $('#hero-detail').textContent=`${s.name} · ${s.model}`; $('#sys-app').textContent='LINKED'; $('#sys-ai').textContent=s.mode.toUpperCase(); $('#sys-db').textContent=s.database_ready?'LINKED':'DEGRADED'; $('#sys-dev-team').textContent=s.dev_team_enabled?(s.dev_team_ready?'READY':'ENABLED / NOT READY'):'DISABLED'; setClass($('#runtime-pill'),s.mode==='blocked'?'warn':'ok'); return s;}catch(e){ $('#runtime-pill').textContent='[ DISCONNECTED ]'; $('#hero-state').textContent='SYSTEM OFFLINE'; $('#hero-detail').textContent=e.message; setClass($('#runtime-pill'),'bad'); return null; } }
 
-async function loadAgents(){ try{ const data=await api('/api/agents',{headers:accessHeaders()}); state.agents=data.agents||[]; $('#agent-count').textContent=String(state.agents.length).padStart(2,'0'); const list=$('#agent-list'); list.replaceChildren(); state.agents.forEach((a,i)=>{ const b=document.createElement('button'); b.type='button'; b.className='agent-card'; b.innerHTML=`<span class="agent-code">${a.icon||String(i+1).padStart(2,'0')}</span><span><strong>${a.name}</strong><small>${a.description}</small></span><span>SELECT</span>`; b.addEventListener('click',()=>selectAgent(a,b)); list.append(b); }); if(state.agents[0]) selectAgent(state.agents[0],list.firstElementChild); }catch(e){ toast(`Agents: ${e.message}`); } }
+async function loadAgents() {
+  try {
+    const data = await api('/api/agents', { headers: accessHeaders() });
+    state.agents = data.agents || [];
+    $('#agent-count').textContent = String(state.agents.length).padStart(2, '0');
+    const list = $('#agent-list');
+    list.replaceChildren();
+    state.agents.forEach((agent, index) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'agent-card';
+      const code = document.createElement('span');
+      code.className = 'agent-code';
+      code.textContent = String(agent.icon || String(index + 1).padStart(2, '0'));
+      const description = document.createElement('span');
+      const name = document.createElement('strong');
+      name.textContent = String(agent.name || '');
+      const detail = document.createElement('small');
+      detail.textContent = String(agent.description || '');
+      description.append(name, detail);
+      const action = document.createElement('span');
+      action.textContent = 'SELECT';
+      button.append(code, description, action);
+      button.addEventListener('click', () => selectAgent(agent, button));
+      list.append(button);
+    });
+    if (state.agents[0]) selectAgent(state.agents[0], list.firstElementChild);
+  } catch (error) {
+    toast('Agents: ' + error.message);
+  }
+}
 function selectAgent(a,button){ state.selectedAgent=a; $('#agent-id').value=a.id; if(a.example) $('#agent-prompt').placeholder=a.example; $$('.agent-card').forEach(x=>x.classList.remove('selected')); if(button) button.classList.add('selected'); }
 
 $('#agent-form').addEventListener('submit',async e=>{ e.preventDefault(); if(!state.selectedAgent)return toast('เลือก Agent ก่อน'); $('#agent-output').textContent='GENERATING...'; try{ const r=await jsonPost('/api/runs',{agent_id:$('#agent-id').value,prompt:$('#agent-prompt').value,session_id:$('#agent-session').value,audience:$('#agent-audience').value,platform:$('#agent-platform').value,tone:$('#agent-tone').value,language:$('#agent-language').value},accessHeaders()); $('#agent-output').textContent=`${r.agent_name} / ${r.mode} / ${r.duration_ms} ms\n\n${r.content}`; toast('Agent completed'); }catch(err){ $('#agent-output').textContent=`ERROR\n${err.message}`; } });
@@ -262,9 +292,68 @@ $('#mark-sent').addEventListener('click',async()=>{const id=state.lastClaimedOut
 $('#recover-leases').addEventListener('click',async()=>{try{const r=await api('/api/email/recover',{method:'POST',headers:emailHeaders()});$('#outbox-output').textContent=`LEASE RECOVERY\n${pretty(r)}`;}catch(err){$('#outbox-output').textContent=`ERROR: ${err.message}`;}});
 
 $('#audit-form').addEventListener('submit',async e=>{e.preventDefault();await loadAudit($('#audit-journal').value.trim());});
-async function loadAudit(id){if(!id)return toast('ใส่ Journal ID');const box=$('#audit-events');try{const r=await api(`/api/email/audit/${encodeURIComponent(id)}`,{headers:emailHeaders()});box.replaceChildren();(r.events||[]).forEach(ev=>{const d=document.createElement('div');d.className='timeline-item';d.innerHTML=`<strong>${ev.event_type||ev.action||'EVENT'} / ${ev.result||''}</strong><small>${ev.created_at||''} · ${ev.actor_type||''} ${ev.actor_id||''}</small><small>${escapeHtml(typeof ev.details==='string'?ev.details:JSON.stringify(ev.details||{}))}</small>`;box.append(d);});if(!r.events?.length)box.innerHTML='<p class="muted">NO AUDIT EVENTS</p>';return r;}catch(err){box.innerHTML=`<p class="bad">ERROR: ${escapeHtml(err.message)}</p>`;return null;}}
+async function loadAudit(id) {
+  if (!id) return toast('ใส่ Journal ID');
+  const box = $('#audit-events');
+  try {
+    const response = await api('/api/email/audit/' + encodeURIComponent(id), { headers: emailHeaders() });
+    box.replaceChildren();
+    (response.events || []).forEach(event => {
+      const item = document.createElement('div');
+      item.className = 'timeline-item';
+      const heading = document.createElement('strong');
+      heading.textContent = String(event.event_type || event.action || 'EVENT') + ' / ' + String(event.result || '');
+      const metadata = document.createElement('small');
+      metadata.textContent = String(event.created_at || '') + ' · ' + String(event.actor_type || '') + ' ' + String(event.actor_id || '');
+      const details = document.createElement('small');
+      details.textContent = typeof event.details === 'string' ? event.details : JSON.stringify(event.details || {});
+      item.append(heading, metadata, details);
+      box.append(item);
+    });
+    if (!response.events || !response.events.length) {
+      const empty = document.createElement('p');
+      empty.className = 'muted';
+      empty.textContent = 'NO AUDIT EVENTS';
+      box.append(empty);
+    }
+    return response;
+  } catch (error) {
+    const message = document.createElement('p');
+    message.className = 'bad';
+    message.textContent = 'ERROR: ' + error.message;
+    box.replaceChildren(message);
+    return null;
+  }
+}
 function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
-async function loadHistory(){try{const q=new URLSearchParams({session_id:$('#agent-session').value||'web-demo',limit:'20'});const runs=await api(`/api/runs?${q}`,{headers:accessHeaders()});const box=$('#history-list');box.replaceChildren();runs.forEach(r=>{const d=document.createElement('div');d.className='history-item';d.innerHTML=`<strong>${escapeHtml(r.agent_name)} / ${escapeHtml(r.platform)}</strong><small>${escapeHtml(r.prompt)}</small><small>${escapeHtml(r.created_at)} · ${r.duration_ms} ms · ${escapeHtml(r.mode)}</small>`;box.append(d);});if(!runs.length)box.innerHTML='<p class="muted">NO HISTORY</p>';}catch(err){toast(`History: ${err.message}`);}}
+async function loadHistory() {
+  try {
+    const query = new URLSearchParams({ session_id: $('#agent-session').value || 'web-demo', limit: '20' });
+    const runs = await api('/api/runs?' + query, { headers: accessHeaders() });
+    const box = $('#history-list');
+    box.replaceChildren();
+    runs.forEach(run => {
+      const item = document.createElement('div');
+      item.className = 'history-item';
+      const heading = document.createElement('strong');
+      heading.textContent = String(run.agent_name || '') + ' / ' + String(run.platform || '');
+      const prompt = document.createElement('small');
+      prompt.textContent = String(run.prompt || '');
+      const metadata = document.createElement('small');
+      metadata.textContent = String(run.created_at || '') + ' · ' + String(run.duration_ms || 0) + ' ms · ' + String(run.mode || '');
+      item.append(heading, prompt, metadata);
+      box.append(item);
+    });
+    if (!runs.length) {
+      const empty = document.createElement('p');
+      empty.className = 'muted';
+      empty.textContent = 'NO HISTORY';
+      box.append(empty);
+    }
+  } catch (error) {
+    toast('History: ' + error.message);
+  }
+}
 $('#refresh-history').addEventListener('click',loadHistory);
 
 async function loadMetrics(){try{const t=await api('/metrics',{headers:accessHeaders()});$('#metrics-output').textContent=t;}catch(err){$('#metrics-output').textContent=`ERROR: ${err.message}`;}}

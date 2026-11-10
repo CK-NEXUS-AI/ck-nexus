@@ -1,26 +1,12 @@
 name: Candidate runtime subject
 
 on:
-  push:
-    branches: [fix/connector-snapshot-serialization-v2]
-  pull_request:
-    branches: [release/q10-q16-closure]
-    paths:
-      - 'app/**'
-      - 'creator_app/**'
-      - 'services/**'
-      - 'gateway/**'
-      - 'orchestration/**'
-      - 'idea_engine/**'
-      - 'migrations/**'
-      - 'deploy/**'
-      - 'observability/**'
-      - 'Dockerfile'
-      - 'docker-compose.prod.yml'
-      - 'main.py'
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - '.github/workflows/runtime-subject-candidate.yml'
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Exact candidate commit SHA; defaults to this workflow's commit
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -33,6 +19,18 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
+      - name: Resolve exact candidate identity
+        id: resolve
+        shell: bash
+        env:
+          REQUESTED_TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          target_sha="${REQUESTED_TARGET_SHA:-$GITHUB_SHA}"
+          [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
+          if ! git cat-file -e "$target_sha^{commit}" 2>/dev/null; then git fetch --no-tags origin "$target_sha"; fi
+          git checkout --detach "$target_sha"
+          echo "target_sha=$target_sha" >> "$GITHUB_OUTPUT"
       - name: Compute runtime subject
         id: subject
         shell: bash
@@ -43,12 +41,12 @@ jobs:
           printf 'subject=%s\n' "$subject" >> "$GITHUB_OUTPUT"
           printf 'tree=%s\n' "$tree" >> "$GITHUB_OUTPUT"
           printf '%s\n' "$subject" > runtime-subject.txt
-          printf '{"schema_version":1,"head_sha":"%s","tree_sha":"%s","runtime_subject_sha256":"%s"}\n' "$GITHUB_SHA" "$tree" "$subject" > runtime-subject.json
+          printf '{"schema_version":1,"head_sha":"%s","tree_sha":"%s","runtime_subject_sha256":"%s"}\n' "${{ steps.resolve.outputs.target_sha }}" "$tree" "$subject" > runtime-subject.json
           cat runtime-subject.json
       - name: Upload subject evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: runtime-subject-${{ github.sha }}
+          name: runtime-subject-${{ steps.resolve.outputs.target_sha }}
           path: |
             runtime-subject.txt
             runtime-subject.json

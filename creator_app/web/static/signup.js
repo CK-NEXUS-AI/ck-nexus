@@ -8,7 +8,6 @@ async function init() {
     providers = await r.json();
   } catch { providers = []; }
   renderGrid();
-  populateSelect();
   checkSystem();
   autoScan();
 }
@@ -22,41 +21,88 @@ function checkSystem() {
   });
 }
 
-function renderGrid() {
-  const g = document.getElementById('providerGrid');
-  g.innerHTML = providers.map(p => `
-    <div class="provider-card" id="card-${p.slug}">
-      <div class="provider-head">
-        <span class="provider-icon">${p.icon}</span>
-        <div class="provider-info">
-          <div class="provider-name">${p.name}</div>
-          <span class="provider-tier tier-${p.tier}">${p.tier}</span>
-        </div>
-      </div>
-      <div class="provider-desc">${p.description}</div>
-      <div class="provider-models">
-        ${(p.free_models||[]).map(m => `<span class="model-chip">${m}</span>`).join('')}
-      </div>
-      <div class="provider-status">
-        <span class="dot" id="dot-${p.slug}"></span>
-        <span class="label" id="lbl-${p.slug}">Not scanned</span>
-      </div>
-      <div class="provider-actions">
-        <a href="${p.signup_url}" target="_blank" class="btn-action">🔑 Get Key</a>
-        <a href="${p.docs_url}" target="_blank" class="btn-action">📖 Docs</a>
-        <button class="btn-action" onclick="validateOne('${p.slug}')">✅ Validate</button>
-      </div>
-    </div>
-  `).join('');
+function safeProviderSlug(value) {
+  const slug = String(value || '');
+  return /^[a-z0-9_-]+$/i.test(slug) ? slug : '';
 }
 
-function populateSelect() {
-  const s = document.getElementById('provSelect');
-  providers.forEach(p => {
-    const o = document.createElement('option');
-    o.value = p.slug;
-    o.textContent = `${p.icon} ${p.name}`;
-    s.appendChild(o);
+function safeProviderUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    return url.protocol === 'https:' ? url.href : '#';
+  } catch {
+    return '#';
+  }
+}
+
+function renderGrid() {
+  const grid = document.getElementById('providerGrid');
+  grid.replaceChildren();
+  providers.forEach(provider => {
+    const slug = safeProviderSlug(provider.slug);
+    if (!slug) return;
+    const card = document.createElement('div');
+    card.className = 'provider-card';
+    card.id = 'card-' + slug;
+    const header = document.createElement('div');
+    header.className = 'provider-head';
+    const icon = document.createElement('span');
+    icon.className = 'provider-icon';
+    icon.textContent = String(provider.icon || '');
+    const identity = document.createElement('div');
+    identity.className = 'provider-info';
+    const name = document.createElement('div');
+    name.className = 'provider-name';
+    name.textContent = String(provider.name || slug);
+    const tier = document.createElement('span');
+    const tierName = String(provider.tier || 'unknown').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    tier.className = 'provider-tier tier-' + tierName;
+    tier.textContent = tierName;
+    identity.append(name, tier);
+    header.append(icon, identity);
+    const description = document.createElement('div');
+    description.className = 'provider-desc';
+    description.textContent = String(provider.description || '');
+    const models = document.createElement('div');
+    models.className = 'provider-models';
+    (Array.isArray(provider.free_models) ? provider.free_models : []).forEach(model => {
+      const tag = document.createElement('span');
+      tag.className = 'model-chip';
+      tag.textContent = String(model);
+      models.append(tag);
+    });
+    const status = document.createElement('div');
+    status.className = 'provider-status';
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    dot.id = 'dot-' + slug;
+    const label = document.createElement('span');
+    label.className = 'label';
+    label.id = 'lbl-' + slug;
+    label.textContent = 'Not scanned';
+    status.append(dot, label);
+    const actions = document.createElement('div');
+    actions.className = 'provider-actions';
+    const signup = document.createElement('a');
+    signup.href = safeProviderUrl(provider.signup_url);
+    signup.target = '_blank';
+    signup.rel = 'noopener noreferrer';
+    signup.className = 'btn-action';
+    signup.textContent = 'Get Key';
+    const docs = document.createElement('a');
+    docs.href = safeProviderUrl(provider.docs_url);
+    docs.target = '_blank';
+    docs.rel = 'noopener noreferrer';
+    docs.className = 'btn-action';
+    docs.textContent = 'Docs';
+    const validate = document.createElement('button');
+    validate.type = 'button';
+    validate.className = 'btn-action';
+    validate.textContent = 'Validate';
+    validate.addEventListener('click', () => validateOne(slug));
+    actions.append(signup, docs, validate);
+    card.append(header, description, models, status, actions);
+    grid.append(card);
   });
 }
 
@@ -132,41 +178,33 @@ async function validateOne(slug) {
   } catch { lbl.textContent = '❌ Connection error'; lbl.style.color = 'var(--hub-red)'; }
 }
 
-async function addKey() {
-  const slug = document.getElementById('provSelect').value;
-  const key = document.getElementById('keyInput').value;
-  const msg = document.getElementById('formMsg');
-  if (!slug || !key) { msg.innerHTML = '<span style="color:var(--hub-red)">⚠️ Select provider and enter key</span>'; return; }
-  try {
-    const r = await fetch(`${API}/${slug}/set-key`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({key}),
-    });
-    const d = await r.json();
-    if (d.success) {
-      msg.innerHTML = `<span style="color:var(--hub-green)">✅ Key set for ${slug}</span>`;
-      document.getElementById('keyInput').value = '';
-      runScan();
-    } else { msg.innerHTML = `<span style="color:var(--hub-red)">❌ ${d.error}</span>`; }
-  } catch { msg.innerHTML = '<span style="color:var(--hub-red)">❌ Backend not connected</span>'; }
-}
-
 async function validateAll() {
   const panel = document.getElementById('resultsPanel');
   const list = document.getElementById('resultsList');
   panel.style.display = 'block';
-  list.innerHTML = '<p style="color:var(--hub-dim)">⏳ Validating...</p>';
+  list.textContent = 'Validating...';
   try {
-    const r = await fetch(`${API}/validate-all`);
-    const results = await r.json();
-    list.innerHTML = results.map(r => `
-      <div class="result-row">
-        <span class="result-icon">${r.icon}</span>
-        <span class="result-name">${r.name}</span>
-        <span class="result-badge ${r.valid?'badge-ok':'badge-fail'}">${r.valid?'✅ VALID':'❌ '+(r.error||'Invalid')}</span>
-      </div>
-    `).join('');
-  } catch { list.innerHTML = '<p style="color:var(--hub-red)">❌ Backend not connected</p>'; }
+    const response = await fetch(API + '/validate-all');
+    const results = await response.json();
+    list.replaceChildren();
+    results.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'result-row';
+      const icon = document.createElement('span');
+      icon.className = 'result-icon';
+      icon.textContent = String(item.icon || '');
+      const name = document.createElement('span');
+      name.className = 'result-name';
+      name.textContent = String(item.name || item.slug || '');
+      const badge = document.createElement('span');
+      badge.className = 'result-badge ' + (item.valid ? 'badge-ok' : 'badge-fail');
+      badge.textContent = item.valid ? 'VALID' : 'INVALID: ' + String(item.error || 'Unknown error');
+      row.append(icon, name, badge);
+      list.append(row);
+    });
+  } catch {
+    list.textContent = 'Backend not connected';
+  }
 }
 
 function exportJSON() {

@@ -1,202 +1,86 @@
-# CK-NEXUS Q10-Q12 Production Closure Operator Runbook
+# CK-NEXUS Q10–Q16 Production Closure Runbook
 
-This runbook closes the three remaining P0 production gates without weakening the frozen release contract.
+**Current baseline date:** 2026-11-05 (Asia/Bangkok)
 
-## Frozen authorities
+**Decision:** `NO-GO FOR PRODUCTION CLAIMS` until all seven gates and approvals pass.
 
-- Repository: `spinlnw10-art/ck-nexus`
-- Production-closure head to security-scan: `ad2fac7aa0752117dde065c7ad9b0b8d41136aa2`
-- Production-closure tree: `eb2074176319072ca3f31d5c8c990752ba849b0a`
-- Frozen runtime source used by Q11/Q12 exact verifiers: `ad2fac7aa0752117dde065c7ad9b0b8d41136aa2`
-- Frozen runtime source tree: `eb2074176319072ca3f31d5c8c990752ba849b0a`
-- Frozen runtime/deployment subject: `772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200`
+## 1. Current immutable runtime baseline
 
-Do not replace any value above with `main`, a moving branch name, or a newer commit unless the entire subject-bound production evidence set is deliberately re-baselined.
+| Identity | Value |
+|---|---|
+| GitHub main source | `4d1366cef3cbdd18aa174bdf67308567635c750a` |
+| Git tree | `57adfe86cd6d9bdbca5c97d336cb733df2308ae5` |
+| Runtime subject manifest SHA-256 | `10113cb5874edbaeee2c444e0a8a002f3f68dd7ff6fbd1a72a5b6634a0415227` |
+| Closure candidate runtime subject SHA-256 | `5129fa855515a13484e9e0e1816eef219f061dd87cc0651eaffae87096741147` |
+| Canonical runtime | `creator_app.unified` |
+| Runtime-unification PR | #353 — MERGED |
 
-## Common fail-closed preflight
+These values identify the main baseline before the closure remediation branch. The closure branch may change documentation, workflows, scripts, and tests, but it must not change runtime-subject paths without creating a new subject and rerunning every affected gate. All gates must be run against one final release candidate SHA/tree/subject, not a moving `main` reference.
 
-From a clone with all objects fetched:
+The VPS production source and active service unit are older than this baseline. No deployment or production restart has been performed. Do not update the production source or service until release eligibility is established.
 
-```bash
-git fetch --all --tags --prune
+## 2. Q10 — Open-source layered security
 
-test "$(git show -s --format=%T ad2fac7aa0752117dde065c7ad9b0b8d41136aa2)" = \
-  "eb2074176319072ca3f31d5c8c990752ba849b0a"
+The Owner approved the non-Codex evidence direction on 2026-11-05. This is not an equivalence claim. The decision record is `docs/evidence/Q10_NATIVE_SCAN_RETIREMENT_DECISION.md`; independent security review remains mandatory.
 
-test "$(git show -s --format=%T ad2fac7aa0752117dde065c7ad9b0b8d41136aa2)" = \
-  "eb2074176319072ca3f31d5c8c990752ba849b0a"
+The canonical Q10 workflow is `.github/workflows/q10-evidence-gate.yml`. It must scan the exact release candidate and preserve:
 
-subject=$(git ls-tree -r ad2fac7aa0752117dde065c7ad9b0b8d41136aa2 -- \
-  app creator_app services gateway orchestration idea_engine migrations deploy observability \
-  Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+1. Semgrep static analysis with pinned tool version/ruleset.
+2. Bandit Python security analysis.
+3. Gitleaks repository-history and tracked-file scan with secret redaction.
+4. `pip-audit` against the frozen dependency environment.
+5. Trivy filesystem and configuration scan.
+6. CK-NEXUS security attack regression suite.
+7. Coverage/completeness evidence, tool versions, exit codes, raw report hashes, exact source SHA/tree, and runtime subject.
 
-test "$subject" = "772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200"
-echo "FROZEN SUBJECT PASS: $subject"
-```
+A successful workflow means scanner execution completed; it does **not** mean the whole Q10 gate is approved. The immutable automated report remains `READY_FOR_HUMAN_REVIEW` with `gate_result=NOT_VERIFIED` and `production_promotion_allowed=false`. The provenance verifier checks a real APPROVED PR review by a different repository collaborator and a later comment from the pinned repository Owner account (`spinlnw10-art`), both containing the exact candidate SHA and report SHA. The final release manifest may record an effective Q10 `PASS` only after those API-backed attestations are verified; the scanner evidence itself is never rewritten.
 
-Any failure is a hard stop.
+Blocking conditions include exposed credentials, dependency vulnerabilities, critical/high issues, medium/high Bandit findings, Semgrep ERROR findings, failed security regression, missing reports, and incomplete scanner execution. Medium findings require a documented reviewer disposition. Low/informational findings remain visible.
 
----
+The preliminary main-branch run `41912627988` is not final evidence: it used the earlier partial workflow, reported a Bandit MEDIUM B310 finding, and contained stale hard-coded issue-state metadata. Do not promote it.
 
-## Q10 — Open-source layered security gate
+## 3. Q11 — Live provider integration
 
-### Required checks
+Run `scripts/test_openai_live.py` against the exact release candidate using the GitHub Actions secret `OPENAI_API_KEY`. The secret name exists in repository settings; its value must never be read, printed, or placed in evidence.
 
-Q10 uses a reproducible, multi-tool open-source security gate. The exact frozen source and runtime subject must pass all of the following:
+PASS requires an actual live Responses API request, expected sentinel `CK-NEXUS-P0-SMOKE-PASS`, `credential_configured=true`, `credential_exposed=false`, and an evidence artifact bound to the final source SHA/tree/runtime subject. A mock or offline test is not Q11 evidence. The Q11 workflow is candidate-aware and accepts an exact source SHA; collection rejects any run whose evidence SHA does not equal the workflow run head SHA.
 
-1. Frozen dependency resolution: `uv lock --check` and `uv sync --all-extras --dev --frozen`.
-2. Dependency vulnerability audit: `pip-audit` with no unaccepted vulnerability.
-3. Static security analysis: Bandit over the applicable Python source.
-4. Secret scanning: `scripts/secret_scan.py`.
-5. Black-box security/policy regression: `scripts/security_attack_regression.py`.
-6. Preserve scanner outputs, aggregate a canonical report, and record its SHA-256 plus the successful workflow run ID and completion timestamp.
+## 4. Q12 — Delegated cgroup v2
 
-A single scanner, a partial run, or a missing report is not a PASS. Any reportable finding must be triaged and resolved according to release policy. Any source remediation changes the subject and requires regenerating all subject-bound release evidence.
+Q12 requires actual kernel-enforced CPU, memory, and PID limits under a non-root service identity. Merely detecting cgroup v2 is insufficient.
 
-### Q10 acceptance
+The registered `cknexus-q12` self-hosted runner was activated temporarily for this closure run; its systemd unit remains disabled at boot and must be stopped after Q12 evidence collection. A systemd drop-in has been prepared at `/etc/systemd/system/actions.runner.spinlnw10-art-ck-nexus.cknexus-q12.service.d/10-nonroot-delegated-cgroup.conf`: it runs `/opt/actions-runner/runsvc.sh` as the dedicated non-root `runner` identity with `Delegate=cpu memory pids` and `DelegateSubgroup=supervisor`. Repository variable `CKNEXUS_AGNES_CGROUP_ROOT` points to the service cgroup parent `/sys/fs/cgroup/system.slice/actions.runner.spinlnw10-art-ck-nexus.cknexus-q12.service`. The service is currently active only for this closure session; it remains disabled at boot and must be stopped after the Q12 run. The Q12 workflow verifies the runner is in the `supervisor` subgroup, enables only `cpu`, `memory`, and `pids` in the delegated parent, and requires its `cgroup.procs` to remain empty. Never make `/sys/fs/cgroup` globally writable or use `chmod 777`.
 
-Q10 remains `NOT_VERIFIED` until all checks pass against the exact closure target and frozen runtime subject; the aggregate report exists and is hashed; provenance verifies the successful run and artifact; and `production_promotion_allowed` is true only in the resulting verified evidence. Until then, Production remains NO-GO.
+PASS requires observed `cpu.max=20000 100000`, `memory.max=67108864`, `pids.max=16`, successful child-process attachment, and evidence bound to the final candidate. The runner may be started temporarily for Q12 and stopped after the run; do not enable it at boot without a separate operational need.
 
-## Q11 — Live OpenAI provider smoke
+## 5. Q13 — PostgreSQL disaster recovery
 
-The exact verifier already exists on branch `verify/q11-final-subject` and checks out frozen source `ad2fac7aa0752117dde065c7ad9b0b8d41136aa2`. The test script is `scripts/test_openai_live.py` and requires the sentinel `CK-NEXUS-P0-SMOKE-PASS`.
+Run `scripts/gate_postgres_dr.py` against an isolated staging restore target. Capture backup integrity, restore completion, sentinel round-trip, PostgreSQL tool versions, and artifact hashes. Never use the current seller working database as a destructive target.
 
-### Secure secret setup
+## 6. Q14 — Observability and operator alert delivery
 
-In GitHub repository settings, create an Actions repository secret named exactly:
+Use the production alert rules with controlled failure injection and an isolated staging webhook receiver. Verify the required `CKNexusEmailStaleLeases` alert reaches the receiver after its configured `for` duration, and separately verify CK-NEXUS health/metrics. Preserve the alert receipt hash, Prometheus/Alertmanager image identities, runtime logs, and exact-subject metadata. A static rule-file check is not sufficient.
 
-```text
-OPENAI_API_KEY
-```
+## 7. Q15 — Clean-machine deployment
 
-Never put the key in a commit, issue, PR comment, shell history pasted into chat, or evidence JSON. Optionally create an Actions variable:
+Install the exact candidate artifact on a genuinely fresh supported machine or isolated VM. Capture machine identity/class, install commands, dependency resolution, start logs, health checks, functional smoke tests, and elapsed time. Re-running on the existing VPS or Termux device is not clean-machine evidence.
 
-```text
-OPENAI_SMOKE_MODEL
-```
+## 8. Q16 — Production image, license inventory, and release convergence
 
-If unset, the verifier falls back to the model configured by the script.
+Build the image from the exact candidate, record its immutable digest, scan the image and runtime dependencies, and generate the third-party license inventory/notices from the built image. Unfixed HIGH/CRITICAL exceptions require a GitHub PR issue comment by spinlnw10-art containing CKNEXUS-Q16-RISK-APPROVED and exact source_sha, image_config_digest, full report_sha256, sorted vulnerability_ids, expires_at (no more than 30 days), and a rationale. The approval is rejected if any identity, finding, base-image, or expiry value differs. Unfixed MEDIUM findings require a separate authenticated PR issue comment from a repository collaborator/member other than the Owner, marked CKNEXUS-Q16-MEDIUM-REVIEW-APPROVED. Both Q16 attestations must bind exact source_sha, base_image, image_config_digest, full report_sha256, sorted vulnerability_ids, package-level finding_refs (CVE|package|installed-version), expires_at (no more than 30 days), and a rationale. Unfixed MEDIUM findings remain REVIEW_REQUIRED until that independent disposition exists; Owner approval does not substitute for it. Verify the clean source package and its SHA-256 from an independent location. Q16 cannot pass while any Q10–Q15 gate, independent review, Owner approval, or release provenance check remains unresolved.
 
-### Execute
+## 9. Evidence and release invariants
 
-After the secret exists, rerun the existing failed Q11 verifier run `31950795711` or trigger the verifier on `verify/q11-final-subject` without changing the frozen source SHA.
+- Every Q10–Q16 evidence file must reference the same final runtime subject and exact candidate source SHA/tree.
+- Every artifact must include the successful workflow run ID, artifact ID, server-side artifact digest, raw report SHA-256, and completion timestamp.
+- A historical PASS or PASS_CANDIDATE from another source SHA/tree/subject is not transferable.
+- No evidence is rewritten to manufacture PASS. New runs create new evidence; historical files are preserved in Git history.
+- `NO EVIDENCE → NO DONE`. The release is production-eligible only after all gates, independent review, Owner approval, provenance verification, and post-deployment verification pass.
 
-PASS requires:
+### Collect and normalize the eight immutable workflow artifacts
 
-- exit code `0` from `scripts/test_openai_live.py`;
-- `credential_configured: true`;
-- `credential_exposed: false`;
-- `sentinel_observed: true`;
-- `result: PASS`;
-- `production_promotion_allowed: true`.
+After all eight exact-subject gate workflows have completed successfully, record their actual GitHub Actions run IDs and invoke the collector. Do not guess or reuse run IDs from a different candidate.
 
-After a successful run, download/read the generated `Q11_OPENAI_LIVE.json`, obtain the GitHub artifact ID and server-side `sha256:` digest, then commit the normalized evidence to `evidence/Q11_OPENAI_LIVE.json` on the production-closure line. Never hand-edit a BLOCKED run into PASS.
+    python scripts/collect_release_evidence.py --repo CK-NEXUS-AI/ck-nexus --q10 "$Q10_RUN_ID" --q11 "$Q11_RUN_ID" --q12 "$Q12_RUN_ID" --q13 "$Q13_RUN_ID" --q14 "$Q14_RUN_ID" --q15 "$Q15_RUN_ID" --q16-image "$Q16_IMAGE_RUN_ID" --q16-licenses "$Q16_LICENSES_RUN_ID" --evidence-dir evidence
 
----
-
-## Q12 — delegated cgroup v2 on real Linux staging
-
-The GitHub-hosted verifier proved that seeing cgroup v2 controllers is not enough. Q12 requires a writable delegated subtree owned by the **non-root CK-NEXUS service identity** with `cpu`, `memory`, and `pids` available.
-
-### Recommended staging topology
-
-Use a Linux VPS or self-hosted runner registered with a dedicated service account. The runner/service account must not be root. A systemd service/scope should delegate the controllers:
-
-```ini
-[Service]
-User=cknexus
-Group=cknexus
-Delegate=cpu memory pids
-DelegateSubgroup=runner
-```
-
-The exact unit layout depends on the host. Do not make `/sys/fs/cgroup` globally writable and do not use `chmod 777` as a workaround.
-
-### Host preflight as the non-root service identity
-
-```bash
-id -u
-test "$(id -u)" -ne 0
-stat -fc %T /sys/fs/cgroup
-cat /sys/fs/cgroup/cgroup.controllers
-```
-
-Identify the actual delegated service subtree, for example:
-
-```bash
-cat /proc/self/cgroup
-```
-
-Set only the real delegated root returned by the service-manager layout:
-
-```bash
-export CKNEXUS_ENVIRONMENT=staging
-export CKNEXUS_AGNES_CGROUP_ROOT=/sys/fs/cgroup/<actual-delegated-subtree>
-```
-
-Verify non-root write access, required controllers, and a usable delegated subtree:
-
-```bash
-test -w "$CKNEXUS_AGNES_CGROUP_ROOT"
-for c in cpu memory pids; do
-  grep -qw "$c" "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.controllers" || exit 1
-done
-
-# The delegated root must be free of internal processes before domain
-# controllers can be enabled for child cgroups. DelegateSubgroup=runner
-# keeps the service/runner process in a child subgroup.
-test ! -s "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.procs"
-
-printf '+cpu +memory +pids\n' >   "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.subtree_control"
-
-for c in cpu memory pids; do
-  grep -qw "$c" "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.subtree_control" || exit 1
-done
-```
-
-A 2026-09-05 host-capability preflight on VPS `10616a96dd5c121bb`
-(kernel 6.8, systemd 255) reproduced the failure with plain `Delegate=yes`
-and then passed when `DelegateSubgroup=supervisor` was used and
-`+cpu +memory +pids` were enabled in `cgroup.subtree_control`.
-That preflight proves host capability only; it is not canonical Q12 evidence.
-
-Checkout the frozen runtime source and run the exact gate:
-
-```bash
-git checkout --detach ad2fac7aa0752117dde065c7ad9b0b8d41136aa2
-CKNEXUS_ENVIRONMENT=staging \
-CKNEXUS_AGNES_CGROUP_ROOT="$CKNEXUS_AGNES_CGROUP_ROOT" \
-python3 scripts/agnes_cgroup_v2_staging_gate.py | tee Q12_CGROUP_RAW.json
-```
-
-PASS must observe exactly:
-
-- `cpu.max = 20000 100000`
-- `memory.max = 67108864`
-- `pids.max = 16`
-- child PID attached in `cgroup.procs`
-- result `PASS`
-
-For GitHub provenance, run this through a self-hosted GitHub Actions runner on the allowed verifier branch `verify/q12-final-subject`. Before doing that, adapt its verifier workflow from `ubuntu-24.04` to the dedicated self-hosted runner label and remove the hosted-runner `sudo mkdir/chown` probe. The gate itself must run as the non-root delegated identity.
-
-After success, normalize the generated Q12 evidence with the workflow run ID, artifact ID, server-side artifact digest, exact release subject, environment class, and raw gate observations; then commit it to `evidence/Q12_CGROUP_V2.json`.
-
----
-
-## Final convergence after Q10 + Q11 + Q12 PASS
-
-On the production-closure branch, require all three evidence files to claim PASS legitimately, then run:
-
-```bash
-GITHUB_REPOSITORY=spinlnw10-art/ck-nexus \
-GITHUB_TOKEN="$GITHUB_TOKEN" \
-python .github/release-tools/verify_release_evidence_provenance.py \
-  --expected-subject 772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200 \
-  --output release-evidence-provenance.json
-```
-
-Only a provenance `PASS` authorizes rerunning `Final production package`. Production is still NO-GO until that workflow actually creates the checksummed production artifact and PR #14 is reviewed for merge.
-
-## Important development rule
-
-Bug fixes and new features can continue on separate branches. If any fix changes a frozen runtime path, it must not be silently merged into the current production-closure line because the subject hash changes. Treat it as a new candidate subject and rerun every affected subject-bound gate.
+The GitHub Actions artifacts are the immutable raw uploads. The collector downloads each raw artifact into a temporary directory, verifies its run ID, workflow path, branch, candidate SHA, GitHub commit-tree SHA, and release subject, then writes the metadata-enriched evidence JSON and ARTIFACT_PROVENANCE_MANIFEST.json into the selected evidence directory. Do not edit or replace the raw GitHub artifact; preserve the artifact ID and server-side digest alongside the normalized evidence.

@@ -50,7 +50,7 @@ function buildServer(): McpServer {
     { name: 'ck-nexus-anyclaw-control', version: '0.1.0' },
     {
       instructions:
-        'AnyClaw is a governed execution adapter under CK-NEXUS. Use read-only discovery first. Never request, print, persist, or expose raw credentials. Never use AnyClaw evidence to substitute for Q10 Native Codex Security evidence or to claim Production Ready.',
+        'AnyClaw is a read-only discovery adapter under CK-NEXUS. Execution and package mutation are disabled until CK-NEXUS Core approval, policy and evidence integration exists. Never request, print, persist, or expose raw credentials. Never use AnyClaw evidence to substitute for Q10 Native Codex Security evidence or to claim Production Ready.',
     },
   );
 
@@ -79,6 +79,7 @@ function buildServer(): McpServer {
       inputSchema: z.object({ keyword: z.string().min(1).max(200) }),
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true, idempotentHint: true },
     },
+    // nosemgrep: typescript.mcp.security.mcp-ssrf-typescript -- this helper invokes a fixed local executable through execFile; no HTTP URL is constructed.
     async ({ keyword }) => result(await runAnyClaw(['search', keyword])),
   );
 
@@ -91,51 +92,9 @@ function buildServer(): McpServer {
     async () => result(await runAnyClaw(['daemon', 'status'])),
   );
 
-  server.registerTool(
-    'anyclaw_run',
-    {
-      description: 'Use this when invoking one explicitly selected installed AnyClaw package command. Arguments are passed directly to AnyClaw; never include raw API keys, passwords, tokens, or credentials.',
-      inputSchema: z.object({
-        packageName: z.string().regex(/^[A-Za-z0-9_.-]+$/),
-        command: z.string().regex(/^[A-Za-z0-9_.-]+$/),
-        args: z.array(z.string().max(2000)).max(64).default([]),
-      }),
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true, idempotentHint: false },
-    },
-    async ({ packageName, command, args }) => {
-      for (const arg of args) {
-        if (/(?:sk-|ghp_|github_pat_|xox[baprs]-|AIza|bearer\s+|authorization:|api[_-]?key|password|token)/i.test(arg)) {
-          throw new Error('Refusing argument that appears to contain credential material');
-        }
-      }
-      return result(await runAnyClaw(['run', packageName, command, ...args], 120_000));
-    },
-  );
-
-  server.registerTool(
-    'anyclaw_install',
-    {
-      description: 'Use this only when installing a specifically selected AnyClaw package from the official registry or an explicitly trusted URL/path. Installation changes local tool capability and is not production evidence.',
-      inputSchema: z.object({ source: z.string().min(1).max(2000) }),
-      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true, idempotentHint: false },
-    },
-    async ({ source }) => {
-      if (/(?:token|password|api[_-]?key|authorization)/i.test(source)) {
-        throw new Error('Refusing install source that appears to contain credential material');
-      }
-      return result(await runAnyClaw(['install', source], 180_000));
-    },
-  );
-
-  server.registerTool(
-    'anyclaw_uninstall',
-    {
-      description: 'Use this only when explicitly removing an installed AnyClaw package is necessary.',
-      inputSchema: z.object({ packageName: z.string().regex(/^[A-Za-z0-9_.-]+$/) }),
-      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false, idempotentHint: true },
-    },
-    async ({ packageName }) => result(await runAnyClaw(['uninstall', packageName], 120_000)),
-  );
+  // Execution, install and uninstall are intentionally not exposed here.
+  // They must be routed through CK-NEXUS Core approval, policy and evidence
+  // controls before this bridge can mutate a workspace or install capability.
 
   return server;
 }

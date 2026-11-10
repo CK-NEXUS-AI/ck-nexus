@@ -1,14 +1,14 @@
-# Q10 Open-Source Security Gate — Proposal Only
+# Q10 Open-Source Security Gate — Owner-Approved Alternative Pending Review
 
-**Status:** `PROPOSED_NOT_APPROVED`
-**Authority:** advisory design; does not alter canonical Q10, Q11, Q12, or production status.
+**Status:** `OWNER_APPROVED_PENDING_INDEPENDENT_SECURITY_REVIEW`
+**Authority:** Owner direction recorded in `Q10_NATIVE_SCAN_RETIREMENT_DECISION.md` on 2026-11-05; the canonical Q10 result remains `NOT_VERIFIED` until independent review and final Owner approval.
 **Cost constraint:** designed to run with free, locally runnable/open-source tools and GitHub Actions; it must not require paid model/API credits.
 
 ## 1. Purpose and non-equivalence
 
-This proposal defines a reproducible, auditable alternative for consideration if the Owner formally retires the native Codex Security Deep Scan requirement. It is **not** a claim that open-source scanners are equivalent to Codex Security, and it does not satisfy the currently recorded native-scan requirement by itself.
+This proposal defines the Owner-approved direction for a reproducible, auditable alternative to the native Codex Security Deep Scan requirement, pending independent review and canonical contract adoption. It is **not** a claim that open-source scanners are equivalent to Codex Security.
 
-Until the governance change is explicitly reviewed, versioned, and approved, the existing Q10 contract remains authoritative. Existing Q10 evidence must stay `NOT_VERIFIED` when its required native scan evidence is absent. No script, workflow, PR, or test may silently convert that state to `PASS`.
+The Owner has approved the direction to retire the native Codex scan requirement for this closure line. The alternative is not yet fully adopted because independent security review is still required. Existing Q10 evidence must stay `NOT_VERIFIED`; no script, workflow, PR, or test may silently convert that state to `PASS`.
 
 ## 2. Required subject binding
 
@@ -26,7 +26,7 @@ A mismatch, missing field, unpinned tool/configuration, partial run, unavailable
 
 Run each applicable tool on the same immutable subject and retain raw outputs:
 
-1. **Semgrep** — configured static-analysis rules; record rule set/version and complete findings.
+1. **Semgrep** — CLI `1.183.0` with `semgrep/semgrep-rules` pinned to commit `16b9e6d45f10649f6a531ec4838ed9924372c3bc` (Python, JavaScript, TypeScript, generic, Dockerfile, YAML, Bash, and JSON rule directories); record complete findings.
 2. **Bandit** — Python security findings with a versioned, reviewed disposition for every medium/high finding. Never use a moving or undocumented allowlist.
 3. **Gitleaks** — tracked-file and repository-history secret scan as configured; any potential credential must be investigated. Never publish secret values in logs or reports.
 4. **pip-audit** (or another explicitly approved, pinned dependency auditor) — dependency inventory, vulnerability identifiers, and fix/disposition status.
@@ -59,12 +59,13 @@ The automation must never generate an Owner attestation or independent-review id
 
 1. Review this proposal and the candidate workflow/code in a dedicated PR.
 2. Compare coverage, false-positive handling, threat model, and failure modes against the existing native-scan contract; document known gaps and non-equivalence.
-3. Obtain independent security review and explicit Owner approval of a versioned governance change.
-4. Update the canonical Q10 contract and its tests in a separate, reviewed change; retain the previous contract and its evidence history.
-5. Run the new gate against the exact final release subject and verify commit/tree/manifest binding and artifact hashes.
-6. Obtain independent human attestation and Owner sign-off before any production promotion decision.
+3. Record the Owner decision (completed; see `Q10_NATIVE_SCAN_RETIREMENT_DECISION.md`).
+4. Obtain independent security review of the proposed non-equivalent replacement and its implementation.
+5. Update the canonical Q10 contract and its tests in a reviewed change; retain the previous contract and its evidence history.
+6. Run the new gate against the exact final release subject and verify commit/tree/manifest binding and artifact hashes.
+7. Obtain independent human attestation and final Owner sign-off before any production promotion decision.
 
-Until all six steps complete, the canonical Q10 result is unchanged and production remains `NO-GO` if any required gate is unresolved.
+Until all seven steps complete, the canonical Q10 result remains `NOT_VERIFIED` and production remains `NO-GO`.
 
 ## 7. Explicit exclusions
 
@@ -82,5 +83,6 @@ This proposal does not:
 - [ ] Security reviewer confirms the proposal does not silently redefine the current Q10 result.
 - [ ] Maintainer confirms proposed tools are pinned and runnable in the intended free CI/runtime environment.
 - [ ] Threat-model and coverage comparison against the current contract is documented.
-- [ ] Owner explicitly approves any later canonical contract change.
+- [x] Owner approved the non-Codex direction on 2026-11-05; see the decision record.
+- [ ] Independent security reviewer approves the non-equivalent replacement and implementation.
 - [ ] Exact-subject evidence, independent review, and Owner sign-off are completed before production promotion.

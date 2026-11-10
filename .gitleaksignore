@@ -1,0 +1,13 @@
+# Exact, triaged synthetic test fixtures and blank environment examples from repository history.
+# These are not active credentials; no broad rule or path-level exclusion is used.
+f63929315c0dbaf2dad53b1d2d7f0ea0ca01fd4b:tests/test_n8n_intelligence_analysis.py:generic-api-key:18
+5bb12cd6fb8c6d4d794af499f3ee7d66fbae856c:docs/roadmap/CK_NEXUS_18_CAPABILITIES_EXECUTION_PLAN_2026-09-05.md:generic-api-key:291
+3907bf34465163ebd486539bcff1542b7b0ef674:.env.example:generic-api-key:54
+9da213286ec5b2a196c8686980db6ad5d6add6bb:creator_app/credentials/tests/test_autoscale.py:generic-api-key:38
+9da213286ec5b2a196c8686980db6ad5d6add6bb:creator_app/credentials/tests/test_autoscale.py:generic-api-key:193
+9da213286ec5b2a196c8686980db6ad5d6add6bb:creator_app/credentials/tests/test_blind_vault.py:generic-api-key:25
+9da213286ec5b2a196c8686980db6ad5d6add6bb:creator_app/credentials/tests/test_blind_vault.py:generic-api-key:73
+9da213286ec5b2a196c8686980db6ad5d6add6bb:creator_app/credentials/tests/test_blind_vault.py:generic-api-key:80
+9da213286ec5b2a196c8686980db6ad5d6add6bb:creator_app/credentials/tests/test_blind_vault.py:generic-api-key:90
+cfe5ac0bb69f57815c578b0fe9c8bd253c85a0a9:.env.example:generic-api-key:49
+7a0070d761a4808795e3fc3788be5d39e9d33cca:.env.example:generic-api-key:18

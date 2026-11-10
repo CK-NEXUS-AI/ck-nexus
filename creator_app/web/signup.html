@@ -173,31 +173,6 @@
     .btn-action.primary { background: var(--hub-accent); color: #000; border-color: var(--hub-accent); font-weight: 600; }
     .btn-action.primary:hover { background: #00a8e0; }
 
-    /* ── Manual Add ── */
-    .manual-panel {
-      background: var(--hub-surface); border: 1px solid var(--hub-border);
-      border-radius: 12px; padding: 2rem; margin-bottom: 2rem;
-    }
-    .manual-panel h2 { font-size: 1.2rem; margin-bottom: 1.25rem; }
-    .form-grid { display: flex; gap: 0.75rem; flex-wrap: wrap; }
-    .form-grid select, .form-grid input {
-      padding: 0.7rem 1rem; background: var(--hub-surface2);
-      border: 1px solid var(--hub-border); border-radius: 8px;
-      color: var(--hub-text); font-size: 0.9rem; flex: 1; min-width: 200px;
-      transition: border-color 0.2s;
-    }
-    .form-grid select:focus, .form-grid input:focus {
-      outline: none; border-color: var(--hub-accent);
-    }
-    .form-grid select option { background: var(--hub-surface2); color: var(--hub-text); }
-    .btn-submit {
-      padding: 0.7rem 1.5rem; border: none; border-radius: 8px;
-      background: var(--hub-green); color: #000; font-weight: 600;
-      cursor: pointer; transition: all 0.2s;
-    }
-    .btn-submit:hover { background: #00cc6a; }
-    .form-msg { margin-top: 1rem; font-size: 0.85rem; }
-
     /* ── Bulk Actions ── */
     .bulk-panel { text-align: center; padding: 2rem 0; border-top: 1px solid var(--hub-border); }
     .bulk-panel h2 { font-size: 1.2rem; margin-bottom: 1rem; }
@@ -246,7 +221,6 @@
       .hub { padding: 0 1rem; }
       .stats-bar { grid-template-columns: repeat(2, 1fr); }
       .provider-grid { grid-template-columns: 1fr; }
-      .form-grid { flex-direction: column; }
     }
   </style>
 </head>
@@ -299,16 +273,6 @@
       <h2>AVAILABLE PROVIDERS</h2>
     </div>
     <div class="provider-grid" id="providerGrid"></div>
-
-    <section class="manual-panel">
-      <h2>➕ Add API Key Manually</h2>
-      <div class="form-grid">
-        <select id="provSelect"><option value="">Select provider...</option></select>
-        <input type="password" id="keyInput" placeholder="Paste your API key here..." autocomplete="off" />
-        <button class="btn-submit" onclick="addKey()">ADD KEY</button>
-      </div>
-      <div class="form-msg" id="formMsg"></div>
-    </section>
 
     <section class="bulk-panel">
       <h2>🚀 Bulk Actions</h2>

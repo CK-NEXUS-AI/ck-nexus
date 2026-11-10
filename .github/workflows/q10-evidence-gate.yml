@@ -2,19 +2,15 @@ name: Q10 Open-Source Layered Security Gate
 
 on:
   workflow_dispatch:
-    inputs:
-      target_sha:
-        description: Exact commit SHA to scan; defaults to this workflow's commit
-        required: false
-        type: string
 
 permissions:
   contents: read
+  issues: read
 
 jobs:
   evidence-gate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       CKNEXUS_ENVIRONMENT: development
       CKNEXUS_HOST: 127.0.0.1
@@ -25,6 +21,7 @@ jobs:
       CKNEXUS_GMAIL_OAUTH_ENABLED: 'false'
       CKNEXUS_GMAIL_SEND_ENABLED: 'false'
       CKNEXUS_CONNECTOR_FABRIC_ENABLED: 'false'
+      SEMGREP_SEND_METRICS: 'off'
     steps:
       - name: Checkout gate definition
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -34,70 +31,192 @@ jobs:
       - name: Resolve and verify exact scan subject
         id: subject
         shell: bash
-        env:
-          REQUESTED_TARGET_SHA: ${{ inputs.target_sha }}
         run: |
           set -euo pipefail
-          target_sha="${REQUESTED_TARGET_SHA:-$GITHUB_SHA}"
+          target_sha="$GITHUB_SHA"
           [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]
           if ! git cat-file -e "$target_sha^{commit}" 2>/dev/null; then
             git fetch --no-tags origin "$target_sha"
           fi
-          git worktree add q10-target "$target_sha"
-          actual_sha=$(git -C q10-target rev-parse HEAD)
-          actual_tree=$(git -C q10-target rev-parse 'HEAD^{tree}')
-          subject_manifest=$(git -C q10-target ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          git checkout --detach "$target_sha"
+          actual_sha=$(git rev-parse HEAD)
+          actual_tree=$(git rev-parse 'HEAD^{tree}')
+          subject_manifest=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
           test "$actual_sha" = "$target_sha"
           echo "target_sha=$actual_sha" >> "$GITHUB_OUTPUT"
           echo "target_tree=$actual_tree" >> "$GITHUB_OUTPUT"
           echo "subject_manifest=$subject_manifest" >> "$GITHUB_OUTPUT"
           echo "Q10 target: $actual_sha"
           echo "Q10 tree: $actual_tree"
+          echo "Q10 release subject: $subject_manifest"
+
+      - name: Initialize fail-closed evidence directory
+        if: always()
+        run: mkdir -p "$RUNNER_TEMP/q10-results"
 
       - name: Set up Python and frozen environment
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
-          cache: pip
 
       - name: Install uv and sync exact target
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --upgrade pip uv
-          cd q10-target
+          python3 -m pip install --disable-pip-version-check "uv==0.13.7"
           uv lock --check
           uv sync --all-extras --dev --frozen
 
-      - name: Run frozen dependency vulnerability audit
-        id: dependencies
+      - name: Audit the exact frozen CK-NEXUS dependency environment before installing scanner tools
         shell: bash
         run: |
           set +e
-          cd q10-target
-          .venv/bin/pip-audit --local --skip-editable --progress-spinner off --format json --output ../q10-pip-audit.json
-          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p "$RUNNER_TEMP/q10-results"
+          .venv/bin/pip-audit --local --skip-editable --progress-spinner off --format json --output "$RUNNER_TEMP/q10-results/q10-pip-audit.json"
+          echo "Q10_PIP_AUDIT_RC=$?" >> "$GITHUB_ENV"
           exit 0
 
+      - name: Install pinned Semgrep and Gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check "semgrep==1.183.0"
+          mkdir -p "$RUNNER_TEMP/q10-bin"
+          gitleaks_version=8.30.1
+          gitleaks_checksums="gitleaks_${gitleaks_version}_checksums.txt"
+          gitleaks_archive="gitleaks_${gitleaks_version}_linux_x64.tar.gz"
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${gitleaks_version}/${gitleaks_checksums}" -o "$RUNNER_TEMP/${gitleaks_checksums}"
+          echo "061476c21adaf5441516f96f185c1a4706a83cd6329b9b38762271b3d4a52fae  $RUNNER_TEMP/${gitleaks_checksums}" | sha256sum -c -
+          gitleaks_expected=$(awk -v name="$gitleaks_archive" '$2 == name {print $1}' "$RUNNER_TEMP/${gitleaks_checksums}")
+          test "$gitleaks_expected" = "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${gitleaks_version}/${gitleaks_archive}" -o "$RUNNER_TEMP/${gitleaks_archive}"
+          echo "$gitleaks_expected  $RUNNER_TEMP/${gitleaks_archive}" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/${gitleaks_archive}" -C "$RUNNER_TEMP/q10-bin" gitleaks
+          sudo install -m 0755 "$RUNNER_TEMP/q10-bin/gitleaks" /usr/local/bin/gitleaks
+          rules_commit=16b9e6d45f10649f6a531ec4838ed9924372c3bc
+          rules_dir="$RUNNER_TEMP/semgrep-rules"
+          git init "$rules_dir"
+          git -C "$rules_dir" remote add origin https://github.com/semgrep/semgrep-rules.git
+          git -C "$rules_dir" fetch --depth 1 origin "$rules_commit"
+          git -C "$rules_dir" checkout --detach FETCH_HEAD
+          test "$(git -C "$rules_dir" rev-parse HEAD)" = "$rules_commit"
+          echo "Q10_SEMGREP_RULES_COMMIT=$rules_commit" >> "$GITHUB_ENV"
+          printf '%s\n' '{"repository":"https://github.com/semgrep/semgrep-rules","commit":"'"$rules_commit"'","directories":["python","javascript","typescript","generic","dockerfile","yaml","bash","json"]}' > "$RUNNER_TEMP/q10-semgrep-ruleset.json"
+
+      - name: Install independently pinned Trivy binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=0.76.1
+          checksum_sha256=885debc41b570179e81af560e5f393a66be29b9ff8c52915674f3eb2304c535d
+          archive_sha256=c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0
+          work="$RUNNER_TEMP/cknexus-trivy-$version"
+          mkdir -p "$work"
+          curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v0.76.1/trivy_0.76.1_checksums.txt" -o "$work/checksums.txt"
+          printf '%s  %s\n' "$checksum_sha256" "$work/checksums.txt" | sha256sum -c -
+          grep -F "$archive_sha256  trivy_0.76.1_Linux-64bit.tar.gz" "$work/checksums.txt" >/dev/null
+          curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v0.76.1/trivy_0.76.1_Linux-64bit.tar.gz" -o "$work/trivy.tar.gz"
+          printf '%s  %s\n' "$archive_sha256" "$work/trivy.tar.gz" | sha256sum -c -
+          tar -xzf "$work/trivy.tar.gz" -C "$work" trivy
+          sudo install -m 0755 "$work/trivy" /usr/local/bin/trivy
+          test "$(trivy --version | head -n1)" = "Version: 0.76.1"
+          printf '%s\n' "$(sha256sum /usr/local/bin/trivy | awk '{print $1}')" > "$RUNNER_TEMP/trivy-binary.sha256"
+
+      - name: Record scanner tool versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/q10-results"
+          python3 - <<'PY'
+          import hashlib, json, shutil, subprocess
+          from pathlib import Path
+          commands = {
+              'python3': ['python3', '--version'],
+              'uv': ['uv', '--version'],
+              'semgrep': ['semgrep', '--version'],
+              'gitleaks': ['gitleaks', 'version'],
+              'trivy': ['trivy', '--version'],
+              'bandit': ['.venv/bin/bandit', '--version'],
+              'pip_audit': ['.venv/bin/pip-audit', '--version'],
+          }
+          versions = {}
+          for name, command in commands.items():
+              result = subprocess.run(command, text=True, capture_output=True, check=False)
+              versions[name] = (result.stdout or result.stderr).strip().splitlines()[0] if result.returncode == 0 and (result.stdout or result.stderr).strip() else f'UNAVAILABLE:{result.returncode}'
+          versions['semgrep_rules_repo']='https://github.com/semgrep/semgrep-rules'
+          versions['semgrep_rules_commit']=__import__('os').environ.get('Q10_SEMGREP_RULES_COMMIT','UNAVAILABLE')
+          versions['semgrep_rules_directories']=['python','javascript','typescript','generic','dockerfile','yaml','bash','json']
+          for name in ('gitleaks','trivy'):
+              executable=shutil.which(name)
+              versions[name+'_binary_sha256']=hashlib.sha256(Path(executable).read_bytes()).hexdigest() if executable else 'UNAVAILABLE'
+          with open(__import__('os').path.join(__import__('os').environ['RUNNER_TEMP'], 'q10-results/q10-tool-versions.json'), 'w', encoding='utf-8') as stream:
+              json.dump(versions, stream, indent=2, sort_keys=True)
+              stream.write('\n')
+          print(json.dumps(versions, indent=2, sort_keys=True))
+          PY
+          cp "$RUNNER_TEMP/q10-semgrep-ruleset.json" "$RUNNER_TEMP/q10-results/q10-semgrep-ruleset.json"
+
       - name: Run Bandit and repository secret scan
-        id: static
         shell: bash
         run: |
           set +e
-          cd q10-target
-          .venv/bin/bandit -q -r creator_app services scripts --format json --output ../q10-bandit.json
-          echo "bandit_exit_code=$?" >> "$GITHUB_OUTPUT"
-          python ../scripts/secret_scan.py > ../q10-secret-scan.txt 2>&1
-          echo "secret_exit_code=$?" >> "$GITHUB_OUTPUT"
+          cd "$GITHUB_WORKSPACE"
+          .venv/bin/bandit -q -r creator_app services scripts .github/release-tools main.py --format json --output $RUNNER_TEMP/q10-results/q10-bandit.json
+          echo "Q10_BANDIT_RC=$?" >> "$GITHUB_ENV"
+          .venv/bin/python3 scripts/secret_scan.py > $RUNNER_TEMP/q10-results/q10-secret-scan.txt 2>&1
+          echo "Q10_SECRET_SCAN_RC=$?" >> "$GITHUB_ENV"
+          exit 0
+
+      - name: Run Semgrep static analysis
+        shell: bash
+        run: |
+          set +e
+          cd "$GITHUB_WORKSPACE"
+          semgrep scan \
+            --config "$RUNNER_TEMP/semgrep-rules/python" \
+            --config "$RUNNER_TEMP/semgrep-rules/javascript" \
+            --config "$RUNNER_TEMP/semgrep-rules/typescript" \
+            --config "$RUNNER_TEMP/semgrep-rules/generic" \
+            --config "$RUNNER_TEMP/semgrep-rules/dockerfile" \
+            --config "$RUNNER_TEMP/semgrep-rules/yaml" \
+            --config "$RUNNER_TEMP/semgrep-rules/bash" \
+            --config "$RUNNER_TEMP/semgrep-rules/json" \
+            --json --output "$RUNNER_TEMP/q10-results/q10-semgrep.json" \
+            --exclude .git --exclude .venv .
+          echo "Q10_SEMGREP_RC=$?" >> "$GITHUB_ENV"
+          exit 0
+
+      - name: Run Gitleaks repository and history scan
+        shell: bash
+        run: |
+          set +e
+          cd "$GITHUB_WORKSPACE"
+          gitleaks detect --source . --no-banner --redact=100 --report-format json --report-path $RUNNER_TEMP/q10-results/q10-gitleaks.json
+          echo "Q10_GITLEAKS_RC=$?" >> "$GITHUB_ENV"
+          exit 0
+
+      - name: Run Trivy filesystem and configuration scan
+        shell: bash
+        run: |
+          set +e
+          cd "$GITHUB_WORKSPACE"
+          trivy fs --scanners vuln,misconfig --format json --output $RUNNER_TEMP/q10-results/q10-trivy.json --skip-dirs .git --skip-dirs .venv .
+          echo "Q10_TRIVY_RC=$?" >> "$GITHUB_ENV"
           exit 0
 
       - name: Run security attack regression on isolated runtime
-        id: attack
         shell: bash
+        env:
+          CKNEXUS_ENVIRONMENT: staging
+          CKNEXUS_HOST: 127.0.0.1
+          CKNEXUS_ACCESS_TOKEN: test-access-value
+          CKNEXUS_SECURITY_ACCESS_TOKEN: test-access-value
+          PORT: '8000'
         run: |
           set +e
-          cd q10-target
-          nohup .venv/bin/ck-nexus > ../q10-runtime.log 2>&1 &
+          cd "$GITHUB_WORKSPACE"
+          nohup .venv/bin/ck-nexus > $RUNNER_TEMP/q10-results/q10-runtime.log 2>&1 &
           runtime_pid=$!
           ready=0
           for _ in $(seq 1 60); do
@@ -108,16 +227,37 @@ jobs:
             sleep 0.5
           done
           if [ "$ready" -eq 1 ]; then
-            CKNEXUS_SECURITY_EVIDENCE=../security-attack-regression.json .venv/bin/python scripts/security_attack_regression.py
+            CKNEXUS_SECURITY_EVIDENCE="$RUNNER_TEMP/q10-results/security-attack-regression.json" .venv/bin/python3 scripts/security_attack_regression.py
             rc=$?
           else
-            cat ../q10-runtime.log || true
-            rc=1
+            rc=2
           fi
           kill "$runtime_pid" 2>/dev/null || true
           wait "$runtime_pid" 2>/dev/null || true
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          echo "Q10_ATTACK_RC=$rc" >> "$GITHUB_ENV"
           exit 0
+
+      - name: Capture live security issue state
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, subprocess
+          issues=[]
+          for number in (65,66):
+              result=subprocess.run(['gh','api',f"repos/{os.environ['GITHUB_REPOSITORY']}/issues/{number}"],text=True,capture_output=True,check=False)
+              if result.returncode:
+                  raise SystemExit(f'GitHub issue state lookup failed for #{number}')
+              item=json.loads(result.stdout)
+              issues.append({'issue':number,'title':item.get('title'),'state':item.get('state'),'url':item.get('html_url')})
+          with open(os.path.join(os.environ['RUNNER_TEMP'],'q10-results/q10-issue-state.json'),'w',encoding='utf-8') as stream:
+              json.dump({'issues':issues},stream,indent=2,sort_keys=True)
+              stream.write('\n')
+          PY
 
       - name: Build immutable Q10 scan report
         id: report
@@ -126,96 +266,43 @@ jobs:
           TARGET_SHA: ${{ steps.subject.outputs.target_sha }}
           TARGET_TREE: ${{ steps.subject.outputs.target_tree }}
           SUBJECT_MANIFEST: ${{ steps.subject.outputs.subject_manifest }}
-          DEPENDENCY_RC: ${{ steps.dependencies.outputs.exit_code }}
-          BANDIT_RC: ${{ steps.static.outputs.bandit_exit_code }}
-          SECRET_RC: ${{ steps.static.outputs.secret_exit_code }}
-          ATTACK_RC: ${{ steps.attack.outputs.exit_code }}
           RUN_ID: ${{ github.run_id }}
+        shell: bash
         run: |
-          python - <<'PY'
-          import hashlib, json, os
-          from datetime import UTC, datetime
-          from pathlib import Path
-
-          def load(path, default):
-              try:
-                  return json.loads(Path(path).read_text(encoding='utf-8'))
-              except Exception:
-                  return default
-
-          audit = load('q10-pip-audit.json', {'error': 'missing_or_invalid_report'})
-          bandit = load('q10-bandit.json', {'error': 'missing_or_invalid_report', 'results': []})
-          attack = load('security-attack-regression.json', {'error': 'missing_or_invalid_report'})
-          dependencies = audit.get('dependencies', []) if isinstance(audit, dict) else audit
-          vulnerabilities = sum(len(row.get('vulns', [])) for row in dependencies if isinstance(row, dict))
-          findings = bandit.get('results', []) if isinstance(bandit, dict) else []
-          high_findings = sum(row.get('issue_severity') == 'HIGH' for row in findings)
-          medium_findings = sum(row.get('issue_severity') == 'MEDIUM' for row in findings)
-          low_findings = sum(row.get('issue_severity') == 'LOW' for row in findings)
-          dependency_rc = os.getenv('DEPENDENCY_RC', '')
-          secret_rc = os.getenv('SECRET_RC', '')
-          attack_rc = os.getenv('ATTACK_RC', '')
-          completed = datetime.now(UTC).isoformat()
-          checks = {
-              'pip_audit_exit_code': dependency_rc,
-              'dependency_vulnerabilities': vulnerabilities,
-              'bandit_high_findings': high_findings,
-              'bandit_medium_findings': medium_findings,
-              'bandit_low_findings': low_findings,
-              'secret_scan_exit_code': secret_rc,
-              'security_attack_regression_exit_code': attack_rc,
-          }
-          passed = dependency_rc == '0' and vulnerabilities == 0 and high_findings == 0 and secret_rc == '0' and attack_rc == '0'
-          report = {
-              'schema_version': 1,
-              'gate': 'Q10_OPEN_SOURCE_LAYERED_SECURITY',
-              'source_sha': os.getenv('TARGET_SHA', ''),
-              'source_tree': os.getenv('TARGET_TREE', ''),
-              'release_subject_manifest_sha256': os.getenv('SUBJECT_MANIFEST', ''),
-              'github_run_id': int(os.getenv('RUN_ID', '0')),
-              'completed_at': completed,
-              'tools': ['pip-audit', 'Bandit', 'scripts/secret_scan.py', 'scripts/security_attack_regression.py'],
-              'checks': checks,
-              'bandit_report': bandit,
-              'dependency_report': audit,
-              'secret_scan_output': Path('q10-secret-scan.txt').read_text(encoding='utf-8') if Path('q10-secret-scan.txt').exists() else 'missing report',
-              'attack_regression_report': attack,
-              'open_source_security_scan': 'PASS' if passed else 'FAIL',
-              'security_review_status': 'REQUIRED',
-              'production_promotion_allowed': False,
-          }
-          Path('q10-open-source-security-report.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n', encoding='utf-8')
-          digest = hashlib.sha256(Path('q10-open-source-security-report.json').read_bytes()).hexdigest()
-          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
-              output.write(f"scan_status={'PASS' if passed else 'FAIL'}\n")
-              output.write(f"report_sha256={digest}\n")
-          print(json.dumps({'source_sha': report['source_sha'], 'source_tree': report['source_tree'], 'scan_status': report['open_source_security_scan'], 'report_sha256': digest, 'checks': checks}, indent=2))
-          PY
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          python3 scripts/q10_open_source_gate_report.py \
+            --output-dir "$RUNNER_TEMP/q10-results" \
+            --source-sha "$TARGET_SHA" \
+            --source-tree "$TARGET_TREE" \
+            --subject "$SUBJECT_MANIFEST" \
+            --run-id "$RUN_ID" | tee "$RUNNER_TEMP/q10-results/q10-summary.json"
+          report_sha=$(sha256sum "$RUNNER_TEMP/q10-results/q10-open-source-security-report.json" | awk '{print $1}')
+          echo "report_sha256=$report_sha" >> "$GITHUB_OUTPUT"
 
       - name: Upload immutable Q10 evidence
         if: always()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: q10-open-source-security-${{ steps.subject.outputs.target_sha || github.sha }}
-          path: |
-            q10-open-source-security-report.json
-            q10-pip-audit.json
-            q10-bandit.json
-            q10-secret-scan.txt
-            security-attack-regression.json
-            q10-runtime.log
+          path: ${{ runner.temp }}/q10-results/
           if-no-files-found: warn
           retention-days: 90
 
-      - name: Enforce scanner result without promoting Production
+      - name: Enforce scanner completion without self-approving Q10
         if: always()
         shell: bash
-        env:
-          SCAN_STATUS: ${{ steps.report.outputs.scan_status }}
-          REPORT_SHA256: ${{ steps.report.outputs.report_sha256 }}
         run: |
           set -euo pipefail
-          echo "Q10 scanner result: ${SCAN_STATUS:-FAIL}"
-          echo "Report SHA-256: ${REPORT_SHA256:-missing}"
-          echo 'Q10 remains NOT_VERIFIED until independent review and subject-bound evidence promotion.'
-          test "${SCAN_STATUS:-FAIL}" = PASS
+          python3 - "$RUNNER_TEMP/q10-results" <<'PY'
+          import json
+          from pathlib import Path
+          root=Path(__import__('sys').argv[1])
+          report=json.loads((root/'q10-open-source-security-report.json').read_text(encoding='utf-8'))
+          evidence=json.loads((root/'Q10_DEPENDENCY_AUDIT.json').read_text(encoding='utf-8'))
+          assert report['scanner_execution_status']=='PASS', report
+          assert report['security_assessment_status']=='READY_FOR_HUMAN_REVIEW', report
+          assert evidence['gate_result']=='NOT_VERIFIED'
+          assert evidence['production_promotion_allowed'] is False
+          print('Q10 scanner execution complete; independent security review and Owner approval remain required.')
+          PY

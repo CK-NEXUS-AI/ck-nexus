@@ -68,7 +68,7 @@ jobs:
           docker build \
             --pull=false \
             --build-arg "BASE_IMAGE=$BASE_IMAGE" \
-            --build-arg UV_VERSION=0.12.5 \
+            --build-arg UV_VERSION=0.13.7 \
             -f .github/verifier-image/Dockerfile \
             -t cknexus-verifier:test \
             .

@@ -21,6 +21,7 @@ def test_collector_command_success_json(monkeypatch) -> None:
 def test_collector_command_timeout_is_not_stale_success(monkeypatch) -> None:
     def timeout(*args, **kwargs):
         raise subprocess.TimeoutExpired(args[0], 20)
+
     monkeypatch.setattr(collector.subprocess, "run", timeout)
     try:
         collector.command(["gh", "pr", "list"])
@@ -42,8 +43,9 @@ def test_collector_command_failure_is_not_stale_success(monkeypatch) -> None:
 
 
 def test_collector_redacts_secrets() -> None:
-    value = collector.redact({"message": "Authorization: Bearer abc.def",
-                              "api_key": "token=secretvalue"})
+    value = collector.redact(
+        {"message": "Authorization: Bearer abc.def", "api_key": "token=secretvalue"}
+    )
     assert "abc.def" not in str(value)
     assert "secretvalue" not in str(value)
 
@@ -65,9 +67,16 @@ def test_collect_marks_failed_git_source_as_error(monkeypatch) -> None:
         return ""
 
     monkeypatch.setattr(collector, "command", fake_command)
-    monkeypatch.setattr(collector, "load_qwen_probe_state", lambda: {
-        "value": None, "source": "test", "collected_at": collector.now(), "status": "error"
-    })
+    monkeypatch.setattr(
+        collector,
+        "load_qwen_probe_state",
+        lambda: {
+            "value": None,
+            "source": "test",
+            "collected_at": collector.now(),
+            "status": "error",
+        },
+    )
     payload = collector.collect()
     assert payload["items"]["git"]["status"] == "error"
     assert payload["items"]["git"]["value"] is None
@@ -108,9 +117,11 @@ def test_cached_qwen_failure_is_not_reported_as_ok(tmp_path, monkeypatch) -> Non
     from datetime import UTC, datetime
 
     monkeypatch.setattr(collector, "OUTPUT", tmp_path / "dev_status.json")
-    state = {"date": datetime.now(UTC).date().isoformat(),
-             "collected_at": collector.now(),
-             "result": {"last_success": None, "last_failure": collector.now()}}
+    state = {
+        "date": datetime.now(UTC).date().isoformat(),
+        "collected_at": collector.now(),
+        "result": {"last_success": None, "last_failure": collector.now()},
+    }
     (tmp_path / "qwen_probe_state.json").write_text(json.dumps(state), encoding="utf-8")
     assert collector.load_qwen_probe_state()["status"] == "error"
 
@@ -137,9 +148,16 @@ def test_collect_does_not_use_non_readonly_github_credentials(monkeypatch) -> No
         raise AssertionError(f"unexpected command: {args}")
 
     monkeypatch.setattr(collector, "command", fake_command)
-    monkeypatch.setattr(collector, "load_qwen_probe_state", lambda: {
-        "value": None, "source": "test", "collected_at": collector.now(), "status": "error"
-    })
+    monkeypatch.setattr(
+        collector,
+        "load_qwen_probe_state",
+        lambda: {
+            "value": None,
+            "source": "test",
+            "collected_at": collector.now(),
+            "status": "error",
+        },
+    )
     payload = collector.collect()
     for key in ("open_prs", "open_issues", "main_ci"):
         assert payload["items"][key]["status"] == "error"
@@ -147,3 +165,42 @@ def test_collect_does_not_use_non_readonly_github_credentials(monkeypatch) -> No
     assert not any(args[:2] == ["gh", "pr"] for args in calls)
     assert not any(args[:2] == ["gh", "issue"] for args in calls)
     assert not any(args[:2] == ["gh", "run"] for args in calls)
+
+
+def test_qwen_probe_uses_peer_bound_transport_and_redacts_credential(tmp_path, monkeypatch) -> None:
+    import json
+
+    monkeypatch.setattr(collector, "OUTPUT", tmp_path / "dev_status.json")
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "test-secret-never-persist")
+    monkeypatch.setenv("QWEN_MODEL", "qwen-test")
+    monkeypatch.setenv(
+        "DASHSCOPE_BASE_URL",
+        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    )
+    calls = []
+
+    class Response:
+        status = 200
+        body = b'{"choices":[{"message":{"content":"OK"}}]}'
+
+    class FakeTransport:
+        def __init__(self, *, max_response_bytes):
+            assert max_response_bytes == 65536
+
+        def request(self, method, url, *, headers, body, timeout):
+            calls.append((method, url, headers, body, timeout))
+            return Response()
+
+    monkeypatch.setattr(collector, "UrllibHttpTransport", FakeTransport)
+    result = collector.probe_qwen_daily()
+
+    assert result["status"] == "ok"
+    assert len(calls) == 1
+    method, url, headers, body, timeout = calls[0]
+    assert method == "POST"
+    assert url == "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions"
+    assert headers["Authorization"] == "Bearer test-secret-never-persist"
+    assert json.loads(body)["model"] == "qwen-test"
+    assert timeout == 15
+    state = (tmp_path / "qwen_probe_state.json").read_text(encoding="utf-8")
+    assert "test-secret-never-persist" not in state

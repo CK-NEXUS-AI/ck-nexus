@@ -1,44 +1,44 @@
 name: Release evidence provenance
 
 on:
-  pull_request:
-    branches: [release/q10-q16-closure]
-    paths:
-      - 'evidence/**'
-      - '.github/release-tools/verify_release_evidence_provenance.py'
-      - '.github/workflows/release-evidence-provenance.yml'
-      - '.github/workflows/final-production-package.yml'
-  push:
-    branches: [release/q10-q16-closure, fix/release-evidence-provenance]
-    paths:
-      - 'evidence/**'
-      - '.github/release-tools/verify_release_evidence_provenance.py'
-      - '.github/workflows/release-evidence-provenance.yml'
-      - '.github/workflows/final-production-package.yml'
   workflow_dispatch:
 
 permissions:
   actions: read
   contents: read
-
-env:
-  EXPECTED_RELEASE_SUBJECT: 96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f
+  pull-requests: read
+  issues: read
 
 jobs:
   provenance:
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout exact candidate
+      - name: Checkout exact release line
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
-      - name: Verify GitHub Actions artifact provenance
+
+      - name: Load immutable candidate identity
+        id: subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          x=json.loads(Path('evidence/RELEASE_SUBJECT.json').read_text(encoding='utf-8'))
+          print('subject='+x['runtime_subject_manifest_sha256'])
+          PY
+
+      - name: Verify GitHub Actions artifact provenance and exact candidate identity
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          EXPECTED_SUBJECT: ${{ steps.subject.outputs.subject }}
         run: |
-          python .github/release-tools/verify_release_evidence_provenance.py \
-            --expected-subject "$EXPECTED_RELEASE_SUBJECT" \
+          python3 .github/release-tools/verify_release_evidence_provenance.py \
+            --expected-subject "$EXPECTED_SUBJECT" \
             --output release-evidence-provenance.json
+
       - name: Upload provenance report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
