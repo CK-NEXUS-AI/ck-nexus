@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   schedule:
     - cron: "0 */6 * * *"
   workflow_dispatch:
@@ -19,6 +22,7 @@ concurrency:
 jobs:
   render:
     name: Render report and propose documentation update
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     outputs:
       changed: ${{ steps.changes.outputs.changed }}
@@ -111,6 +115,32 @@ jobs:
               ].join("\n")
             });
             core.setOutput("pull_number", String(created.data.number));
+
+  lint-workflow:
+    name: Lint workflow on pull requests
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Install workflow validators
+        run: |
+          set -euo pipefail
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          python3 -m pip install --disable-pip-version-check yamllint
+
+      - name: Lint workflow syntax
+        run: |
+          set -euo pipefail
+          actionlint .github/workflows/auto-update.yml
+          yamllint -d relaxed .github/workflows/auto-update.yml
 
   verify-docs:
     name: Verify documentation generator (GitHub-hosted)
