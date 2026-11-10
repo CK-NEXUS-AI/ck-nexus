@@ -22,9 +22,21 @@ STATUS_FILES = {
     ),
 }
 RUNTIME_PATHS = (
-    "app", "creator_app", "services", "gateway", "orchestration",
-    "idea_engine", "migrations", "deploy", "observability", "Dockerfile",
-    "docker-compose.prod.yml", "main.py", "pyproject.toml", "uv.lock",
+    "app",
+    "creator_app",
+    "services",
+    "gateway",
+    "orchestration",
+    "idea_engine",
+    "config",
+    "migrations",
+    "deploy",
+    "observability",
+    "Dockerfile",
+    "docker-compose.prod.yml",
+    "main.py",
+    "pyproject.toml",
+    "uv.lock",
 )
 STATUS_KEYS = ("gate_result", "result", "status", "component_result")
 PASS_STATES = {"PASS", "VERIFIED"}
@@ -37,7 +49,7 @@ NOT_STARTED_STATES = {"NOT_STARTED", "MISSING", "NOT_RUN", "PENDING"}
 def _read_json(path: Path) -> dict[str, Any] | None:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, UnicodeError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None
 
@@ -98,6 +110,8 @@ def _combine_status(statuses: list[str]) -> str:
         return "BLOCKED"
     if any(status in NOT_VERIFIED_STATES for status in statuses):
         return "NOT_VERIFIED"
+    if any(status == "UNKNOWN" for status in statuses):
+        return "UNKNOWN"
     if any(status in NOT_STARTED_STATES for status in statuses):
         return "NOT_STARTED"
     if any(status in {"PASS_CANDIDATE", "CANDIDATE"} for status in statuses):
@@ -156,7 +170,12 @@ def group_states(gates: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
     groups: dict[str, dict[str, Any]] = {}
     for name, gate_names in members.items():
         status = _combine_status([gates[gate]["status"] for gate in gate_names])
-        progress = aggregate_progress([gates[gate]["progress"] for gate in gate_names])
+        if status == "NOT_STARTED":
+            progress = 0
+        elif status in PASS_STATES | {"PASS_CANDIDATE"}:
+            progress = aggregate_progress([gates[gate]["progress"] for gate in gate_names])
+        else:
+            progress = None
         groups[name] = {"status": status, "progress": progress, "gates": list(gate_names)}
     return groups
 
@@ -165,36 +184,28 @@ def group_progress(gates: dict[str, dict[str, Any]]) -> dict[str, int | None]:
     return {name: item["progress"] for name, item in group_states(gates).items()}
 
 
-def recent_commits(root: Path = ROOT, limit: int = 20) -> list[tuple[str, str, str]]:
-    process = subprocess.run(
-        [
-            "git", "-C", str(root), "log", f"-{limit}",
-            "--date=short", "--pretty=format:%h%x09%ad%x09%s",
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if process.returncode:
-        return []
-    commits = []
-    for line in process.stdout.splitlines():
-        fields = line.split("\t", 2)
-        if len(fields) == 3:
-            commits.append(tuple(part.replace("|", "\\|") for part in fields))
-    return commits
-
-
 def render_report(root: Path = ROOT) -> str:
     gates = load_gate_states(root)
     groups = group_states(gates)
-    tick = chr(96)
+    report_disclaimer = (
+        "> This report summarizes committed evidence; it is not "
+        + "production approval or certification."
+    )
+    status_mapping = (
+        "Status mapping: PASS = 100%; PASS_CANDIDATE = 75%; NOT_STARTED = 0%. "
+        + "FAIL, BLOCKED, NOT_VERIFIED, STALE, and UNKNOWN are shown as status labels, "
+        + "not percentages."
+    )
+    group_mapping = (
+        "Combined group status uses the most conservative member status. "
+        + "A group index is the rounded arithmetic mean of member indexes only when "
+        + "every member has a numeric index."
+    )
     lines = [
         "# CK-NEXUS Update Report",
         "",
-        "> Generated from the current committed repository snapshot.",
-        "> This report summarizes committed evidence; it is not "
-        "production approval or certification.",
+        "> Generated from the committed evidence snapshot.",
+        report_disclaimer,
         "> Current release decision remains **NO-GO for Production**.",
         "",
         "## Q10–Q16 Gate Status",
@@ -209,45 +220,32 @@ def render_report(root: Path = ROOT) -> str:
         source = ", ".join(item["sources"]) or "missing"
         lines.append(f"| {gate} | **{item['status']}** | {index} | {source} |")
 
-    lines.extend([
-        "",
-        "## Summary Badges",
-        "",
-        "| Security | Stability | Release | Delivery |",
-        "|---|---|---|---|",
-        "| "
-        + " | ".join(
-            f"**{name}: {item['status']}**"
-            + (f" ({item['progress']}%)" if item["progress"] is not None else "")
-            for name, item in groups.items()
-        )
-        + " |",
-        "",
-        "Status mapping: PASS = 100%; PASS_CANDIDATE = 75%; NOT_STARTED = 0%. "
-        "FAIL, BLOCKED, NOT_VERIFIED, STALE, and UNKNOWN are shown as status "
-        "labels, not percentages.",
-        "Combined groups are numeric only when every member has a defensible numeric index.",
-        "",
-        "## Recent Commits",
-        "",
-        "| Commit | Date | Subject |",
-        "|---|---|---|",
-    ])
-    commits = recent_commits(root)
-    if commits:
-        for sha, date, subject in commits:
-            lines.append(f"| {tick}{sha}{tick} | {date} | {subject} |")
-    else:
-        lines.append("| — | — | Git history unavailable |")
-    lines.extend([
-        "",
-        "## Authority Boundary",
-        "",
-        "These badges summarize the committed evidence files listed above. "
-        "They do not change evidence, expected release subjects, gate decisions, "
-        "Core Authority, or the NO-GO release decision.",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Summary Badges",
+            "",
+            "| Security | Stability | Release | Delivery |",
+            "|---|---|---|---|",
+            "| "
+            + " | ".join(
+                f"**{name}: {item['status']}**"
+                + (f" ({item['progress']}%)" if item["progress"] is not None else "")
+                for name, item in groups.items()
+            )
+            + " |",
+            "",
+            status_mapping,
+            group_mapping,
+            "",
+            "## Authority Boundary",
+            "",
+            "These badges summarize the committed evidence files listed above. "
+            + "They do not change evidence, expected release subjects, gate decisions, "
+            + "Core Authority, or the NO-GO release decision.",
+            "",
+        ]
+    )
     return "\n".join(lines)
 
 

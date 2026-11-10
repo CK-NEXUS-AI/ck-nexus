@@ -16,14 +16,14 @@ WIDTH = 240
 HEIGHT = 28
 DARK = "#24292f"
 COLORS = {
-    "PASS": "#2ea043",
-    "PASS_CANDIDATE": "#bf8700",
+    "PASS": "#1a7f37",
+    "PASS_CANDIDATE": "#9a6700",
     "FAIL": "#cf222e",
-    "BLOCKED": "#bf8700",
-    "NOT_VERIFIED": "#6e7781",
+    "BLOCKED": "#9a6700",
+    "NOT_VERIFIED": "#57606a",
     "STALE": "#8250df",
-    "NOT_STARTED": "#6e7781",
-    "UNKNOWN": "#6e7781",
+    "NOT_STARTED": "#57606a",
+    "UNKNOWN": "#57606a",
 }
 
 
