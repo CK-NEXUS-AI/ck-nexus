@@ -35,7 +35,7 @@ This checklist supersedes the previous checklist bound to runtime subject `96dcd
 
 - Q10: `NOT_VERIFIED`. The earlier partial run `41912627988` reported one Bandit MEDIUM B310 finding and stale hard-coded issue-state metadata. It is not final evidence. The non-Codex direction is Owner-approved but awaits independent security review.
 - Q11: no successful exact-subject live provider run has been verified. The `OPENAI_API_KEY` secret name exists; its value must never be read or exposed.
-- Q12: the self-hosted runner was offline. A non-root systemd delegated-cgroup configuration has been prepared but the runner has not yet been started and the kernel gate has not passed.
+- Q12: the GitHub self-hosted runner cknexus-q12 is registered and currently online (not busy). This is runner availability only; exact-candidate non-root cgroup v2 kernel-enforcement evidence is still pending and Q12 remains BLOCKED.
 - Q13–Q16: earlier evidence belongs to older source/tree/runtime subjects and must be rerun.
 - Production: no deployment, release tag, or Production Ready claim has been made for this candidate.
 

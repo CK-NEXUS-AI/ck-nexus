@@ -128,15 +128,11 @@ def test_q10_review_requires_substantive_assessment_fields():
 
     substantive = "\n".join(
         [
-            "scanner_configuration_review: Reviewed pinned Semgrep, Gitleaks, "
-            "Trivy and ruleset identities.",
-            "findings_review: Reviewed every high-risk finding and its documented disposition.",
-            "false_positive_handling_review: Reproduced and documented each "
-            "proposed false-positive exclusion.",
-            "unresolved_risks: Remaining medium findings and missing Codex "
-            "equivalence are documented.",
-            "non_equivalence_assessment: The pinned non-Codex tools are not "
-            "equivalent to Codex Security.",
+            "scanner_configuration_review: Reviewed pinned versions, ruleset identity, and scope.",
+            "findings_review: Reviewed all high-risk findings and documented their disposition.",
+            "false_positive_handling_review: Reproduced each proposed false-positive exclusion.",
+            "unresolved_risks: Remaining medium findings and non-Codex limits are documented.",
+            "non_equivalence_assessment: Non-Codex tools are not equivalent to Codex Security.",
         ]
     )
     assert provenance._review_body_has_substance(substantive)
