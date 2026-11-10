@@ -22,7 +22,7 @@
     "CVE-2026-78410",
     "CVE-2026-9538"
   ],
-  "approval_mechanism": "Authenticated GitHub PR issue comment by spinlnw10-art, bound to exact source SHA, image config digest, full Trivy report SHA-256, and exact unfixed HIGH/CRITICAL CVE set. A checked-in JSON status is never accepted as approval.",
+  "approval_mechanism": "Authenticated GitHub PR issue comment by spinlnw10-art, bound to exact source SHA, base_image, image config digest, full Trivy report SHA-256, exact unfixed HIGH/CRITICAL CVE set, and exact package-level finding_refs (CVE|package|installed-version). A checked-in JSON status is never accepted as approval.",
   "medium_review_required": true,
-  "medium_review_mechanism": "Authenticated GitHub PR issue comment by an independent repository collaborator/member (not spinlnw10-art), bound to exact source SHA, image config digest, full Trivy report SHA-256, and exact unfixed MEDIUM CVE set; rationale and expiry are mandatory."
+  "medium_review_mechanism": "Authenticated GitHub PR issue comment by an independent repository collaborator/member (not spinlnw10-art), bound to exact source SHA, base_image, image config digest, full Trivy report SHA-256, exact unfixed MEDIUM CVE set, and exact package-level finding_refs (CVE|package|installed-version); rationale and expiry are mandatory."
 }

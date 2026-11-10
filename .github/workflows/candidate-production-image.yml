@@ -259,6 +259,7 @@ jobs:
                 owner_approval=verify_owner_risk_approval(
                   comments,
                   source_sha=sha,
+                  base_image=risk_policy["base_image"],
                   image_config_digest=image_digest,
                   report_sha256=full_scan_sha,
                   vulnerability_ids=unfixed_high_critical,
@@ -270,6 +271,7 @@ jobs:
                 medium_review=verify_independent_medium_review(
                   comments,
                   source_sha=sha,
+                  base_image=risk_policy["base_image"],
                   image_config_digest=image_digest,
                   report_sha256=full_scan_sha,
                   vulnerability_ids=unfixed_medium,
