@@ -1,7 +1,7 @@
 ---
 snapshot_schema_version: 2
-snapshot_generated_at_utc: "2026-11-10T20:36:00Z"
-snapshot_generated_at_local: "2026-11-11 03:36:00 ICT"
+snapshot_generated_at_utc: "2026-11-10T20:44:22.143Z"
+snapshot_generated_at_local: "2026-11-11 03:44:22 ICT"
 source_repository: "CK-NEXUS-AI/ck-nexus"
 source_ref: "refs/heads/main"
 source_sha: "4d1366cef3cbdd18aa174bdf67308567635c750a"
@@ -43,7 +43,7 @@ All current evidence below binds to SHA `a31f82d1d45c3398ae14fb506d0893f67a55234
 |---|---|---|
 | Q10 | Scanner PASS; whole gate NOT_VERIFIED | [42896004171](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42896004171): 0 dependency vulnerabilities; Bandit 0 High / 0 Medium / 586 Low; secret scan 0; attack regression 31/31. Report SHA `3dd78c105f86d808c2c5df7feceb744630bc976f2b27d28ea23e5ffd865aceb3`; artifact `13799923797`, digest `sha256:ae40794d601d0f1e361192edb1cac59cee674d97cfbf301ef3e681a2ee98797f`. Independent review REQUIRED; production promotion false. |
 | Q11 | NOT RUN on current candidate | Prior [42879822080](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42879822080) returned HTTP 401 `expired_secret_key`; no sentinel. Requires valid `OPENAI_API_KEY` through approved secret handling. |
-| Q12 | NOT RUN on current candidate | Prior [42880827402](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42880827402) passed real delegated cgroup v2 enforcement but is bound to prior PR #365 SHA. Runner was stopped after evidence capture; current VPS state is NOT_OBSERVED. |
+| Q12 | PASS | [42897930381](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42897930381): exact current SHA; non-root runner `runner` UID 1001; actual kernel enforcement true; `cpu.max=20000 100000`, `memory.max=67108864`, `pids.max=16`. Artifact `13802425361`, digest `sha256:a0926c45f175247a8e98f7c8583ed370450d524ab550d0bde3f673d055d2cd6d`. Runner service stopped after capture.
 | Q13 | PASS_CANDIDATE | [42895951665](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42895951665): backup/restore and sentinel round-trip PASS; artifact `13798939709`, digest `sha256:90c1837cddd7c18f590bfe6c0b66beff445b6dfa4c1f56516386e8bd17b9466d`. |
 | Q14 | PASS | [42895964988](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42895964988): alert delivery and health metrics PASS; receipt SHA `b102c029876ba56e20d4f98466c3dda13c45b65f33e65e02bbecdecd21510eb7`; artifact `13799464352`, digest `sha256:15cd5f770a190ea24d89121b33308743653f58f9bf4622a1b5b74a96bd3fb2a5`. |
 | Q15 | PASS_CANDIDATE | [42895951665](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42895951665): fresh GitHub-hosted VM; portable, health and control smoke PASS; artifact `13801280321`, digest `sha256:b6a4c7b062f20285144e39788cf874a3ceebcb9910b281fc4d87a3c81e5caa26`. |
@@ -88,7 +88,7 @@ Other discovered checkouts reported no tracked or untracked changes at inventory
 
 ## 5. VPS and remote-service boundary
 
-No VPS filesystem, process, worktree, runner service or n8n inspection/modification was performed in this snapshot. Prior VPS facts are historical only. The last recorded Q12 runner state was stopped/disabled after earlier evidence capture; current state is NOT_OBSERVED because this session did not access the VPS. Q12 evidence from the earlier candidate cannot be reused for SHA `a31f82d`.
+Observed on VPS device `vps3680569` at 2026-11-10T20:41Z–20:43Z. The Q12 runner service was initially inactive/disabled. Its effective unit configuration is `User=runner`, `Group=runner`, `Delegate=cpu memory pids`, `DelegateSubgroup=supervisor`; the host uses cgroup v2 (`cgroup2fs`). The GitHub repository variable `CKNEXUS_AGNES_CGROUP_ROOT` points to `/sys/fs/cgroup/system.slice/actions.runner.spinlnw10-art-ck-nexus.cknexus-q12.service`. The service was started temporarily, the runner registered online, and exact-subject Q12 run [42897930381](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42897930381) passed on SHA `a31f82d`. After evidence capture, the service was stopped; final checks reported `is-active=inactive`, `is-enabled=disabled`, no runner process, and GitHub runner status `offline`. No runner credentials were read; only file metadata was inspected. No other VPS service was changed.
 
 OpenClaw CLI, Ubuntu proot, Gemini authentication and n8n runtime were not verified in this session. No duplicate installation was attempted.
 
@@ -113,7 +113,7 @@ Ordered actions:
 1. Preserve and consolidate the 27 checkouts only after complete mapping of dirty work.
 2. Obtain independent Q10 security review and separate Owner decision.
 3. Replace expired Q11 provider credential through approved secret handling; rerun on final combined candidate.
-4. Restore/verify non-root Q12 runner with delegated cgroup v2 within separately authorized VPS scope; rerun on final combined candidate.
+4. Q12 is PASS for current SHA `a31f82d`; keep the runner stopped/disabled after evidence capture and rerun only if the final combined candidate SHA changes.
 5. Integrate PR #365/#366 under their review policy; recompute final source identity and rerun SHA-bound gates.
 6. Implement durable Agnes memory with state classes, source-of-truth boundaries, permissions, retention, checkpoint/resume and failure tests.
 7. Admit MCP/tools incrementally through Core policy; add tracing, evaluations, approvals and rollback.
@@ -130,4 +130,5 @@ Ordered actions:
 - Keep feature work separate from release closure. Independent review and Owner release decision remain human-controlled.
 - Preserve dirty worktrees and protected processes; never use destructive Git cleanup as a shortcut.
 - Consumers must compare YAML source SHA/tree and candidate SHA/tree/manifest before using derived state. If a stale trigger occurs, set `snapshot_stale: true` until regenerated. A timestamp without source identity is insufficient.
+
 
