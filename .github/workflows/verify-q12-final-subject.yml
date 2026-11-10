@@ -51,6 +51,22 @@ jobs:
           for controller in cpu memory pids; do
             grep -qw "$controller" "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.controllers"
           done
+          # DelegateSubgroup keeps runner processes below this parent so the
+          # non-root runner can enable controllers without violating no-internal-processes.
+          test ! -s "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.procs"
+          enabled=$(cat "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.subtree_control")
+          to_enable=()
+          for controller in cpu memory pids; do
+            if ! grep -qw "$controller" <<< "$enabled"; then
+              to_enable+=("+$controller")
+            fi
+          done
+          if [ "${#to_enable[@]}" -gt 0 ]; then
+            printf '%s ' "${to_enable[@]}" > "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.subtree_control"
+          fi
+          for controller in cpu memory pids; do
+            grep -qw "$controller" "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.subtree_control"
+          done
           printf '%s\n' "$CKNEXUS_AGNES_CGROUP_ROOT" > q12-delegated-root.txt
           cat "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.controllers" > q12-controllers.txt
           printf '%s\n' "$(id -un)" > q12-runner-user.txt
