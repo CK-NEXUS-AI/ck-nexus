@@ -90,6 +90,19 @@ def _archive_bytes(
     return buffer.getvalue()
 
 
+def _archive_with_raw_filename(raw_name: bytes) -> bytes:
+    data = bytearray(_archive_bytes([("x" * len(raw_name), b"payload")]))
+    local_header = data.index(b"PK\x03\x04")
+    local_name_length = int.from_bytes(data[local_header + 26 : local_header + 28], "little")
+    data[local_header + 30 : local_header + 30 + local_name_length] = raw_name
+    central_header = data.index(b"PK\x01\x02")
+    central_name_length = int.from_bytes(
+        data[central_header + 28 : central_header + 30], "little"
+    )
+    data[central_header + 46 : central_header + 46 + central_name_length] = raw_name
+    return bytes(data)
+
+
 def _scan_archive_bytes(
     filename: str, payload: bytes, **policy: int | float
 ):
@@ -294,6 +307,9 @@ def main() -> int:
     malformed_archive = _scan_archive_bytes(
         "malformed.xlsx", b"PK\x03\x04not-a-valid-central-directory"
     )
+    null_byte_filename = _scan_archive_bytes(
+        "null-name.zip", _archive_with_raw_filename(b"safe.txt\x00../../evil")
+    )
     results.extend(
         [
             check("office_docx_archive_validated", valid_docx.safe, valid_docx.reason),
@@ -332,6 +348,12 @@ def main() -> int:
                 "office_malformed_zip_rejected",
                 not malformed_archive.safe and malformed_archive.reason == "invalid_zip",
                 malformed_archive.reason,
+            ),
+            check(
+                "office_archive_nul_filename_rejected",
+                not null_byte_filename.safe
+                and null_byte_filename.reason == "zip_path_traversal",
+                null_byte_filename.reason,
             ),
         ]
     )

@@ -140,6 +140,29 @@ def test_archive_path_traversal_is_quarantined(tmp_path, member):
     assert not result.safe and result.reason == "zip_path_traversal"
 
 
+def _archive_with_raw_filename(raw_name):
+    data = bytearray(_archive_bytes([("x" * len(raw_name), b"payload")]))
+    local_header = data.index(b"PK\x03\x04")
+    local_name_length = int.from_bytes(data[local_header + 26 : local_header + 28], "little")
+    assert local_name_length == len(raw_name)
+    data[local_header + 30 : local_header + 30 + local_name_length] = raw_name
+
+    central_header = data.index(b"PK\x01\x02")
+    central_name_length = int.from_bytes(
+        data[central_header + 28 : central_header + 30], "little"
+    )
+    assert central_name_length == len(raw_name)
+    data[central_header + 46 : central_header + 46 + central_name_length] = raw_name
+    return bytes(data)
+
+
+def test_archive_null_byte_filename_is_quarantined(tmp_path):
+    archive = tmp_path / "null-name.zip"
+    archive.write_bytes(_archive_with_raw_filename(b"safe.txt\x00../../evil"))
+    result = scan_attachment(archive)
+    assert not result.safe and result.reason == "zip_path_traversal"
+
+
 def test_archive_uncompressed_size_limit_is_enforced_for_office_files(tmp_path):
     archive = tmp_path / "oversized.docx"
     archive.write_bytes(_archive_bytes([("word/document.xml", b"x" * 32)]))

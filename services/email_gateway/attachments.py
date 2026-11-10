@@ -167,7 +167,10 @@ def _zip_policy(
             total_uncompressed = 0
             seen_names: set[str] = set()
             for info in infos:
-                filename = info.filename
+                # ZipInfo.filename is truncated at the first NUL by Python.
+                # Validate the original central-directory name to prevent
+                # path data after NUL from bypassing traversal checks.
+                filename = getattr(info, "orig_filename", info.filename)
                 normalized = filename.replace("\\", "/")
                 parts = normalized.split("/")
                 if (
