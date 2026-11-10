@@ -29,6 +29,9 @@ Combined groups are numeric only when every member has a defensible numeric inde
 
 | Commit | Date | Subject |
 |---|---|---|
+| `e08a057` | 2026-11-10 | fix: satisfy strict line length checks |
+| `7360835` | 2026-11-10 | ci: validate workflow syntax on pull requests |
+| `224c929` | 2026-11-10 | feat: add evidence-driven gate status badges |
 | `4d1366c` | 2026-11-05 | feat: unify CK-NEXUS application homepage (#358) |
 | `beb5abb` | 2026-11-05 | docs: unify CK-NEXUS homepage (#357) |
 | `ebb33a0` | 2026-11-04 | chore(repo): remove superseded docs and stale artifacts (#356) |
@@ -46,9 +49,6 @@ Combined groups are numeric only when every member has a defensible numeric inde
 | `2dc5a29` | 2026-10-31 | docs(release): record current main Q10-Q16 subject drift |
 | `22edd1f` | 2026-10-31 | docs(dashboard): refresh evidence-based system status (#333) |
 | `0fb3a14` | 2026-10-31 | fix(agnes): resolve trusted system Python for chroot (#334) |
-| `1355e52` | 2026-10-31 | fix(deps): refresh filelock for security audit (#317) (#331) |
-| `43cb6f0` | 2026-10-31 | fix(omni): retry concurrent SQLite WAL initialization lock (#332) |
-| `ebe3f92` | 2026-10-31 | Security: content-signature validation in scan_attachment (#66) (#330) |
 
 ## Authority Boundary
 
