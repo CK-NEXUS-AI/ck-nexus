@@ -16,9 +16,13 @@ Required evidence:
 
 No single scanner is sufficient. Q10 remains NOT_VERIFIED until every required scanner and regression succeeds, findings are resolved, and the aggregate evidence is bound to the exact release subject.
 
-## Q11 — Live AI/provider gate (P0-AI-001)
+## Q11 — Live AI/provider gate (P0-AI-001) — v2 (2026-11-11 amendment)
 
-Run `scripts/test_openai_live.py` against the exact release identity with seller/buyer-authorized project-scoped staging credentials. PASS requires a live Responses API request and the expected `CK-NEXUS-P0-SMOKE-PASS` sentinel. Missing credentials, SDK failure, account/model denial, or missing sentinel => BLOCKED/FAIL.
+Run `scripts/test_openai_live.py` against the exact frozen release identity with seller/buyer-authorized staging credentials. PASS requires a successful live provider API request and the expected `CK-NEXUS-P0-SMOKE-PASS` sentinel observed in the real provider response. Evidence must record the actual provider, model, base URL where applicable, response/run identity, and `credential_exposed: false`.
+
+OpenAI Responses API remains the preferred/reference provider. OpenAI-compatible providers using `/chat/completions` (including Groq, OpenRouter, and Cerebras where supported) are accepted under this explicitly disclosed amendment when the provider, base URL, and model are recorded and the live sentinel is observed. For a non-OpenAI provider, evidence must include `contract_amendment: "v2-allows-openai-compatible"` and amendment date `2026-11-11`.
+
+Missing credentials, unavailable SDK/runtime, API denial, network failure, mocked responses, or missing sentinel => BLOCKED/FAIL. A provider smoke PASS closes only Q11 for the exact evidence subject; it does not imply Q10 or overall production promotion.
 
 ## Q12 — Delegated cgroup v2 staging enforcement
 
@@ -50,3 +54,13 @@ Only after Q10-Q15 PASS:
 - merge through reviewed GitHub PR and create the final immutable release tag/artifact.
 
 Q16 is PASS only when all prior gates and final-tree checks are PASS. Until then the decision remains **NO-GO FOR PRODUCTION CLAIMS**.
+
+### Q11 Current Status (2026-11-11)
+
+**AMENDED but PENDING BUYER VERIFICATION.** The v2 contract accepts OpenAI-compatible providers, and `scripts/test_openai_live.py` implements OpenAI Responses plus Groq/OpenRouter chat-completions paths. The Termux Android ARM64 implementation and wrapper are prepared; the silent key loader is maintained outside the repository.
+
+The current environment's live attempts are **BLOCKED**, not PASS: Groq returned HTTP 403 from the current network; the selected OpenRouter free model returned HTTP 404 (retired/unavailable), and the alternative returned HTTP 402 (credit/quota required); OpenAI has no available credit. No sentinel was observed. No further free-provider retries are planned for this closeout.
+
+Resolution: the buyer performs Q11 verification with their own funded OpenAI API account (the proposed initial credit is approximately USD 5, subject to actual provider pricing) or reruns the accepted compatible-provider test from a network/provider account where access is available. Buyer execution must produce fresh evidence bound to the buyer's exact release subject. Q11 remains unverified until that evidence records a successful live response and the expected sentinel.
+
+Evidence: `evidence/Q11_OPENAI_LIVE.json` records the current pending buyer-verification state and observed blockers. `scripts/run_q11_groq.sh` invokes the Groq test wrapper; the silent credential loader is stored outside the repository. This pending state does not grant Q11 PASS or production promotion.

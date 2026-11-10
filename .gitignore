@@ -30,3 +30,8 @@ evidence/
 
 data/dev_status.json
 data/qwen_probe_state.json
+.env.local
+**/providers/*.env
+**/load_key.sh
+
+*.env
