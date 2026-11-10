@@ -73,10 +73,11 @@ def test_verify_dump_rejects_checksum_mismatch(tmp_path: Path):
         postgres_dr.verify_dump(tmp_path)
 
 
-
 def test_postgres_environment_uses_private_passfile_without_password_in_env(tmp_path, monkeypatch):
     monkeypatch.setenv("CKNEXUS_DATABASE_URL", "postgresql://source:secret@db.example.test/source")
-    monkeypatch.setenv("CKNEXUS_RESTORE_DATABASE_URL", "postgresql://target:secret@db.example.test/target_restore")
+    monkeypatch.setenv(
+        "CKNEXUS_RESTORE_DATABASE_URL", "postgresql://target:secret@db.example.test/target_restore"
+    )
     env = postgres_dr._postgres_environment(
         "postgresql://operator:secret%3Avalue@db.example.test:5433/cknexus_restore?sslmode=require",
         tmp_path,
@@ -119,7 +120,6 @@ def test_pgpass_escapes_delimiters():
     assert postgres_dr._pgpass_escape(r"user:name\value") == r"user\:name\\value"
 
 
-
 def test_postgres_environment_rejects_control_characters(tmp_path):
     with pytest.raises(postgres_dr.DRBlocked, match="control characters"):
         postgres_dr._postgres_environment(
@@ -130,20 +130,16 @@ def test_postgres_environment_rejects_control_characters(tmp_path):
 
 def test_restore_connects_pg_restore_to_isolated_target(tmp_path, monkeypatch):
     commands = []
+    passfile_contents = []
+    target_url = (
+        "postgresql://target_user:target-secret@target.example.test:5433/"
+        "cknexus_restore_dr?sslmode=require"
+    )
+    source_url = "postgresql://source_user:source-secret@source.example.test/cknexus"
     monkeypatch.setenv("CKNEXUS_ENVIRONMENT", "staging")
     monkeypatch.setenv("CKNEXUS_ALLOW_DESTRUCTIVE_RESTORE", "YES")
     monkeypatch.setenv("CKNEXUS_RESTORE_TARGET_CLASS", "isolated-dr")
     monkeypatch.setattr(postgres_dr, "_require_tool", lambda name: name)
-    target_env = {
-        "PGDATABASE": "cknexus_restore_dr",
-        "PGPASSFILE": str(tmp_path / "target-pgpass"),
-        "PGHOST": "target.example.test",
-    }
-    monkeypatch.setattr(
-        postgres_dr,
-        "_postgres_environment",
-        lambda url, credential_dir: dict(target_env),
-    )
     monkeypatch.setattr(
         postgres_dr,
         "verify_dump",
@@ -151,7 +147,10 @@ def test_restore_connects_pg_restore_to_isolated_target(tmp_path, monkeypatch):
     )
 
     def fake_run(command, *, env=None, stdin=None):
-        commands.append((command, dict(env or {})))
+        captured_env = dict(env or {})
+        commands.append((command, captured_env))
+        passfile = Path(captured_env["PGPASSFILE"])
+        passfile_contents.append(passfile.read_text(encoding="utf-8"))
         if command[0] == "pg_restore":
             return postgres_dr.subprocess.CompletedProcess(command, 0, "", "")
         return postgres_dr.subprocess.CompletedProcess(
@@ -167,16 +166,16 @@ def test_restore_connects_pg_restore_to_isolated_target(tmp_path, monkeypatch):
     (backup_dir / "postgres.dump").write_bytes(b"fixture")
     (backup_dir / "SHA256SUMS").write_text("a" * 64 + "  postgres.dump\n")
 
-    result = postgres_dr.restore(
-        "postgresql://source:secret@db.example.test/cknexus",
-        "postgresql://target:secret@db.example.test/cknexus_restore_dr",
-        backup_dir,
-        900,
-    )
+    result = postgres_dr.restore(source_url, target_url, backup_dir, 900)
 
     assert result["status"] == "PASS"
     assert commands[0][0][:3] == ["pg_restore", "--dbname", "cknexus_restore_dr"]
-    assert commands[0][1] == target_env
-    assert commands[1][0][0] == "psql"
-    assert commands[1][1] == target_env
-    assert "PGPASSWORD" not in commands[0][1]
+    assert commands[0][1]["PGHOST"] == "target.example.test"
+    assert commands[0][1]["PGPORT"] == "5433"
+    assert commands[0][1]["PGDATABASE"] == "cknexus_restore_dr"
+    assert commands[0][1]["PGUSER"] == "target_user"
+    assert commands[0][1]["PGSSLMODE"] == "require"
+    assert commands[0][1] == commands[1][1]
+    assert all("target-secret" in content for content in passfile_contents)
+    assert all("source-secret" not in content for content in passfile_contents)
+    assert all("PGPASSWORD" not in env for _, env in commands)
