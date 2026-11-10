@@ -224,7 +224,8 @@ def render_report(root: Path = ROOT) -> str:
         + " |",
         "",
         "Status mapping: PASS = 100%; PASS_CANDIDATE = 75%; NOT_STARTED = 0%. "
-        "FAIL, BLOCKED, NOT_VERIFIED, STALE, and UNKNOWN are shown as status labels, not percentages.",
+        "FAIL, BLOCKED, NOT_VERIFIED, STALE, and UNKNOWN are shown as status "
+        "labels, not percentages.",
         "Combined groups are numeric only when every member has a defensible numeric index.",
         "",
         "## Recent Commits",
