@@ -169,18 +169,46 @@ class TeamDirector:
             self.director.synthesize_results, step_results, request
         )
 
+        completed_count = sum(
+            result.status is TaskStatus.COMPLETED for result in step_results
+        )
+        if not plan.steps or any(result.status is TaskStatus.FAILED for result in step_results):
+            team_status = TaskStatus.FAILED
+        elif (
+            any(result.status is TaskStatus.BLOCKED for result in step_results)
+            or completed_count != len(plan.steps)
+        ):
+            team_status = TaskStatus.BLOCKED
+        else:
+            team_status = TaskStatus.COMPLETED
+
+        if team_status is TaskStatus.COMPLETED:
+            final_output = synthesis.output
+            confidence = synthesis.confidence
+        else:
+            details = "\n".join(
+                f"- {result.agent_name} ({result.status.value}): {result.output}"
+                for result in step_results
+            ) or "- No plan steps were generated."
+            final_output = (
+                f"Team execution {team_status.value.upper()}. "
+                "Not all planned steps completed.\n\n"
+                f"{details}"
+            )
+            confidence = 0.0
+
         team_result = TeamResult(
             request_id=request.request_id,
-            final_output=synthesis.output,
-            status=TaskStatus.COMPLETED,
-            steps_completed=len(step_results),
-            steps_total=plan.total_steps,
+            final_output=final_output,
+            status=team_status,
+            steps_completed=completed_count,
+            steps_total=len(plan.steps),
             team_members_used=tuple(dict.fromkeys(result.agent_name for result in step_results)),
             duration_seconds=time.time() - start,
             artifacts=tuple(
                 artifact for result in step_results for artifact in result.artifacts
             ),
-            confidence=synthesis.confidence,
+            confidence=confidence,
             plan=plan,
             step_results=step_results,
         )

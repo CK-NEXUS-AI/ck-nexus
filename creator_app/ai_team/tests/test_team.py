@@ -78,10 +78,12 @@ class _ProbeAgent(Agent):
         )
 
 
-def _planned_team(steps: list[PlanStep], *, max_concurrency: int = 2):
+def _planned_team(
+    steps: list[PlanStep], *, max_concurrency: int = 2, step_timeout: float = 60.0
+):
     probe = _ConcurrencyProbe()
     plan = TeamPlan(request_id="planned-request", steps=steps, total_steps=len(steps))
-    team = TeamDirector(max_concurrency=max_concurrency)
+    team = TeamDirector(max_concurrency=max_concurrency, step_timeout=step_timeout)
     team.director = _PlannedDirector(plan)
     team.agents = {
         step.agent_role: _ProbeAgent(step.agent_name, step.agent_role, probe)
@@ -282,6 +284,141 @@ class TestTeamDirector:
         assert observed["plan"] == "mutates its private context"
         assert observed["results"] == []
         assert observed["completed"] == frozenset()
+
+    def test_empty_plan_is_not_completed(self):
+        team, _probe = _planned_team([])
+
+        result = asyncio.run(team.aprocess_request("no planned steps"))
+
+        assert result.status == TaskStatus.FAILED
+        assert result.steps_completed == 0
+        assert result.steps_total == 0
+
+    def test_missing_agent_is_explicit_failure(self):
+        steps = [PlanStep("step-missing", "Missing Agent", "missing", "missing executor")]
+        team, _probe = _planned_team(steps)
+        team.agents = {}
+
+        result = asyncio.run(team.aprocess_request("missing agent"))
+
+        assert result.status == TaskStatus.FAILED
+        assert result.steps_completed == 0
+        assert result.steps_total == 1
+        assert result.step_results[0].status == TaskStatus.FAILED
+        assert "no agent registered" in result.step_results[0].output
+
+    def test_unknown_dependency_blocks_plan(self):
+        steps = [
+            PlanStep("step-a", "Agent A", "a", "depends on missing", depends_on=("missing-step",))
+        ]
+        team, _probe = _planned_team(steps)
+
+        result = asyncio.run(team.aprocess_request("unknown dependency"))
+
+        assert result.status == TaskStatus.BLOCKED
+        assert result.steps_completed == 0
+        assert result.step_results[0].status == TaskStatus.BLOCKED
+        assert "unknown dependencies" in result.step_results[0].output
+
+    def test_failed_dependency_blocks_descendants(self):
+        steps = [
+            PlanStep("step-a", "Agent A", "a", "failing prerequisite"),
+            PlanStep("step-b", "Agent B", "b", "blocked descendant", depends_on=("step-a",)),
+        ]
+        team, probe = _planned_team(steps)
+
+        class FailedAgent(_ProbeAgent):
+            def process(self, request, context=None):
+                return TaskResult(
+                    task_id="result-a",
+                    agent_name=self.name,
+                    agent_role=self.role_name,
+                    status=TaskStatus.FAILED,
+                    output="simulated prerequisite failure",
+                )
+
+        team.agents["a"] = FailedAgent("Agent A", "a", probe)
+
+        result = asyncio.run(team.aprocess_request("failure propagation"))
+
+        by_task = {item.task_id: item for item in result.step_results}
+        assert result.status == TaskStatus.FAILED
+        assert result.steps_completed == 0
+        assert by_task["result-a"].status == TaskStatus.FAILED
+        assert by_task["step-b"].status == TaskStatus.BLOCKED
+
+    def test_dependency_cycle_blocks_every_unrunnable_step(self):
+        steps = [
+            PlanStep("step-a", "Agent A", "a", "depends on B", depends_on=("step-b",)),
+            PlanStep("step-b", "Agent B", "b", "depends on A", depends_on=("step-a",)),
+        ]
+        team, _probe = _planned_team(steps)
+
+        result = asyncio.run(team.aprocess_request("dependency cycle"))
+
+        assert result.status == TaskStatus.BLOCKED
+        assert result.steps_completed == 0
+        assert all(item.status == TaskStatus.BLOCKED for item in result.step_results)
+
+    def test_partial_success_count_does_not_hide_failed_team_status(self):
+        steps = [
+            PlanStep("step-a", "Agent A", "a", "failing task"),
+            PlanStep("step-b", "Agent B", "b", "successful independent task"),
+        ]
+        team, probe = _planned_team(steps)
+
+        class FailedAgent(_ProbeAgent):
+            def process(self, request, context=None):
+                return TaskResult(
+                    task_id="result-a",
+                    agent_name=self.name,
+                    agent_role=self.role_name,
+                    status=TaskStatus.FAILED,
+                    output="simulated failure",
+                )
+
+        team.agents["a"] = FailedAgent("Agent A", "a", probe)
+
+        result = asyncio.run(team.aprocess_request("partial success"))
+
+        assert result.status == TaskStatus.FAILED
+        assert result.steps_completed == 1
+        assert result.steps_total == 2
+
+    def test_failed_team_output_does_not_present_successful_synthesis(self):
+        steps = [PlanStep("step-a", "Agent A", "a", "failing task")]
+        team, probe = _planned_team(steps)
+
+        class FailedAgent(_ProbeAgent):
+            def process(self, request, context=None):
+                return TaskResult(
+                    task_id="result-a",
+                    agent_name=self.name,
+                    agent_role=self.role_name,
+                    status=TaskStatus.FAILED,
+                    output="simulated failure detail",
+                )
+
+        team.agents["a"] = FailedAgent("Agent A", "a", probe)
+
+        result = asyncio.run(team.aprocess_request("failed synthesis"))
+
+        assert result.status == TaskStatus.FAILED
+        assert "Team execution FAILED" in result.final_output
+        assert "simulated failure detail" in result.final_output
+        assert "synthesized" not in result.final_output
+        assert result.confidence == 0.0
+
+    def test_timeout_marks_step_failed_and_team_failed(self):
+        steps = [PlanStep("step-a", "Agent A", "a", "slow task")]
+        team, _probe = _planned_team(steps, step_timeout=0.01)
+
+        result = asyncio.run(team.aprocess_request("timeout task"))
+
+        assert result.status == TaskStatus.FAILED
+        assert result.steps_completed == 0
+        assert result.step_results[0].status == TaskStatus.FAILED
+        assert "Timeout after 0.01s" in result.step_results[0].output
 
     def test_process_request_code(self):
         """สั่งงานเขียนโค้ด → Engineer รับงาน."""
