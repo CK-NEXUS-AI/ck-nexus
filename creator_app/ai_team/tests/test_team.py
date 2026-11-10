@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from copy import deepcopy
 
 import pytest
 
@@ -180,6 +181,31 @@ class TestTeamDirector:
         result = asyncio.run(team.aprocess_request("shared agent safety"))
 
         assert result.steps_completed == 2
+        assert probe.max_active == 1
+
+    def test_shared_agent_instance_is_serialized_across_requests(self):
+        steps = [PlanStep("step-a", "Agent A", "a", "shared agent task")]
+        team, probe = _planned_team(steps)
+        plan = team.director.plan
+
+        class FreshPlanDirector(_PlannedDirector):
+            def process(self, request, context=None):
+                result = super().process(request, context)
+                result.metadata["plan"] = deepcopy(plan)
+                return result
+
+        team.director = FreshPlanDirector(plan)
+
+        async def run_requests():
+            return await asyncio.gather(
+                team.aprocess_request("request one"),
+                team.aprocess_request("request two"),
+            )
+
+        results = asyncio.run(run_requests())
+
+        assert len(results) == 2
+        assert all(result.status == TaskStatus.COMPLETED for result in results)
         assert probe.max_active == 1
 
     def test_dependent_steps_wait_for_successful_dependencies(self):

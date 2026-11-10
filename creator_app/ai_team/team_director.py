@@ -99,6 +99,20 @@ class TeamDirector:
             str(default_development_status_db_path()),
         )
         self._request_history: list[TeamResult] = []
+        self._agent_locks_guard = threading.Lock()
+        self._agent_locks: dict[int, threading.Lock] = {
+            id(agent): threading.Lock() for agent in self.agents.values()
+        }
+
+    def _agent_lock_for(self, agent: Agent) -> threading.Lock:
+        """Return the TeamDirector-wide lock for a shared agent instance."""
+        agent_id = id(agent)
+        with self._agent_locks_guard:
+            lock = self._agent_locks.get(agent_id)
+            if lock is None:
+                lock = threading.Lock()
+                self._agent_locks[agent_id] = lock
+            return lock
 
     def process_request(
         self,
@@ -235,7 +249,6 @@ class TeamDirector:
         blocked_ids: set[str] = set()
         results_by_id: dict[str, TaskResult] = {}
         executor = ParallelExecutor(max_concurrency=self.max_concurrency)
-        agent_locks: dict[int, threading.Lock] = {}
         wave_number = 0
 
         def record_blocked(step: Any, reason: str) -> None:
@@ -306,7 +319,7 @@ class TeamDirector:
 
             for step, agent in executable:
                 agents_by_step[step.step_id] = agent
-                agent_lock = agent_locks.setdefault(id(agent), threading.Lock())
+                agent_lock = self._agent_lock_for(agent)
 
                 def invoke(
                     selected_agent: Agent = agent,
@@ -371,7 +384,8 @@ class TeamDirector:
                 else:
                     failed_ids.add(step.step_id)
 
-                agent.record_result(integrated_result)
+                with self._agent_lock_for(agent):
+                    agent.record_result(integrated_result)
                 results_by_id[step.step_id] = integrated_result
                 pending.pop(step.step_id, None)
 
