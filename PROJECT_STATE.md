@@ -1,7 +1,7 @@
 ---
 snapshot_schema_version: 2
-snapshot_generated_at_utc: "2026-11-10T20:44:22.143Z"
-snapshot_generated_at_local: "2026-11-11 03:44:22 ICT"
+snapshot_generated_at_utc: "2026-11-10T20:47:35.960Z"
+snapshot_generated_at_local: "2026-11-11 03:47:35 ICT"
 source_repository: "CK-NEXUS-AI/ck-nexus"
 source_ref: "refs/heads/main"
 source_sha: "4d1366cef3cbdd18aa174bdf67308567635c750a"
@@ -17,6 +17,11 @@ candidate:
   source_tree: "686746bb33fe91cfb1134cabfea178646c73519c"
   release_subject_manifest_sha256: "5f1e0971d6a48a489dd3007009da729fa227d6a086cb25b55bf5181707964313"
   manifest_producer_run_id: 42896004171
+q11_secret_policy:
+  authorization: "OpenAI organization/project owner (account holder) must authorize use"
+  project_scope: "dedicated staging OpenAI Project key only"
+  forbidden_scope: ["organization-wide key", "production project key"]
+  github_secret_name: "OPENAI_API_KEY"
   manifest_scope: [app, creator_app, services, gateway, orchestration, idea_engine, migrations, deploy, observability, Dockerfile, docker-compose.prod.yml, main.py, pyproject.toml, uv.lock]
 ---
 
@@ -42,7 +47,7 @@ All current evidence below binds to SHA `a31f82d1d45c3398ae14fb506d0893f67a55234
 | Gate | Result | Evidence |
 |---|---|---|
 | Q10 | Scanner PASS; whole gate NOT_VERIFIED | [42896004171](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42896004171): 0 dependency vulnerabilities; Bandit 0 High / 0 Medium / 586 Low; secret scan 0; attack regression 31/31. Report SHA `3dd78c105f86d808c2c5df7feceb744630bc976f2b27d28ea23e5ffd865aceb3`; artifact `13799923797`, digest `sha256:ae40794d601d0f1e361192edb1cac59cee674d97cfbf301ef3e681a2ee98797f`. Independent review REQUIRED; production promotion false. |
-| Q11 | NOT RUN on current candidate | Prior [42879822080](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42879822080) returned HTTP 401 `expired_secret_key`; no sentinel. Requires valid `OPENAI_API_KEY` through approved secret handling. |
+| Q11 | NOT RUN on current candidate | Prior [42879822080](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42879822080) returned HTTP 401 `expired_secret_key`; no sentinel. Before replacement, the OpenAI organization/project owner must authorize a dedicated staging OpenAI Project key; never use an organization-wide or production key. The current workflow reads GitHub secret `OPENAI_API_KEY`; use approved secret handling and keep the value out of logs/chat. |
 | Q12 | PASS | [42897930381](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42897930381): exact current SHA; non-root runner `runner` UID 1001; actual kernel enforcement true; `cpu.max=20000 100000`, `memory.max=67108864`, `pids.max=16`. Artifact `13802425361`, digest `sha256:a0926c45f175247a8e98f7c8583ed370450d524ab550d0bde3f673d055d2cd6d`. Runner service stopped after capture.
 | Q13 | PASS_CANDIDATE | [42895951665](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42895951665): backup/restore and sentinel round-trip PASS; artifact `13798939709`, digest `sha256:90c1837cddd7c18f590bfe6c0b66beff445b6dfa4c1f56516386e8bd17b9466d`. |
 | Q14 | PASS | [42895964988](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42895964988): alert delivery and health metrics PASS; receipt SHA `b102c029876ba56e20d4f98466c3dda13c45b65f33e65e02bbecdecd21510eb7`; artifact `13799464352`, digest `sha256:15cd5f770a190ea24d89121b33308743653f58f9bf4622a1b5b74a96bd3fb2a5`. |
@@ -130,5 +135,6 @@ Ordered actions:
 - Keep feature work separate from release closure. Independent review and Owner release decision remain human-controlled.
 - Preserve dirty worktrees and protected processes; never use destructive Git cleanup as a shortcut.
 - Consumers must compare YAML source SHA/tree and candidate SHA/tree/manifest before using derived state. If a stale trigger occurs, set `snapshot_stale: true` until regenerated. A timestamp without source identity is insufficient.
+
 
 
