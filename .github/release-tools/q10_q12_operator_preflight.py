@@ -11,23 +11,6 @@ CLOSURE_TREE = "19038af4121b61667789bc7e83705e9dbf4cd141"
 RUNTIME_SOURCE_SHA = "ad2fac7aa0752117dde065c7ad9b0b8d41136aa2"
 RUNTIME_SOURCE_TREE = "eb2074176319072ca3f31d5c8c990752ba849b0a"
 RUNTIME_SUBJECT = "772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200"
-RUNTIME_PATHS = (
-    "app",
-    "creator_app",
-    "services",
-    "gateway",
-    "orchestration",
-    "idea_engine",
-    "migrations",
-    "deploy",
-    "observability",
-    "Dockerfile",
-    "docker-compose.prod.yml",
-    "main.py",
-    "pyproject.toml",
-    "uv.lock",
-)
-
 
 def git(*args: str) -> str:
     return subprocess.check_output(["git", *args], text=True).strip()
@@ -61,10 +44,20 @@ def main() -> int:
         failures.append(f"runtime_source_unavailable:{type(exc).__name__}")
 
     try:
-        tree_listing = git("ls-tree", "-r", RUNTIME_SOURCE_SHA, "--", *RUNTIME_PATHS)
-        import hashlib
-
-        subject = hashlib.sha256((tree_listing + "\n").encode()).hexdigest()
+        repository_root = Path(__file__).resolve().parents[2]
+        calculator = repository_root / "scripts" / "release_subject.py"
+        subject = subprocess.check_output(
+            [
+                sys.executable,
+                str(calculator),
+                "--scope",
+                "runtime",
+                "--ref",
+                RUNTIME_SOURCE_SHA,
+            ],
+            cwd=repository_root,
+            text=True,
+        ).strip()
         checks["runtime_subject"] = subject
         if subject != RUNTIME_SUBJECT:
             failures.append("runtime_subject_mismatch")
