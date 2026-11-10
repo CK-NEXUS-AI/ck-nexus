@@ -335,3 +335,30 @@ def test_worker_blocks_control_plane_task_until_dependency_has_verified_evidence
     implementation = mcp_server.cknexus_task_worker_once("plan-deps-task-02-implementation")
     assert implementation["ok"] is True
     assert implementation["analysis"] == "Research findings"
+
+
+def test_task_enqueue_idempotency_key_replays_existing_job(monkeypatch, tmp_path):
+    monkeypatch.setenv("CKNEXUS_TASK_DB", str(tmp_path / "tasks.sqlite3"))
+    first = mcp_server.cknexus_task_enqueue(
+        "job-first", "same request", idempotency_key="mcp-request-1"
+    )
+    replay = mcp_server.cknexus_task_enqueue(
+        "job-retry", "same request", idempotency_key="mcp-request-1"
+    )
+    assert first["ok"] is True
+    assert replay["ok"] is True
+    assert replay["job_id"] == "job-first"
+    assert mcp_server.cknexus_task_status("job-retry")["error_code"] == "TASK_NOT_FOUND"
+
+
+def test_control_plane_enqueue_idempotency_replays_batch(monkeypatch, tmp_path):
+    monkeypatch.setenv("CKNEXUS_TASK_DB", str(tmp_path / "tasks.sqlite3"))
+    first = mcp_server.cknexus_control_plane_enqueue(
+        "plan-first", "same request", idempotency_key="batch-request-1"
+    )
+    replay = mcp_server.cknexus_control_plane_enqueue(
+        "plan-first", "same request", idempotency_key="batch-request-1"
+    )
+    assert first["ok"] is True
+    assert replay["ok"] is True
+    assert [item["job_id"] for item in replay["jobs"]] == [item["job_id"] for item in first["jobs"]]

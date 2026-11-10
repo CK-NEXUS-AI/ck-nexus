@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from creator_app.ai_team.cancellation import CancellationRequested
+
 
 class TaskStatus(Enum):
     PENDING = "pending"
@@ -116,6 +118,9 @@ class ParallelExecutor:
 
                 result.status = TaskStatus.COMPLETED
                 result.result = value
+            except CancellationRequested as exc:
+                result.status = TaskStatus.CANCELLED
+                result.error = str(exc)
             except TimeoutError:
                 result.status = TaskStatus.FAILED
                 result.error = f"Timeout after {timeout}s"

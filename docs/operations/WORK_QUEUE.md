@@ -27,11 +27,12 @@
 - Acceptance: a new session can resume from SESSION_HANDOFF without needing the entire chat transcript; all state claims point to repository evidence or are explicitly labeled as observations.
 
 ### WQ-005: Make TeamDirector parallel execution deliberate
-- State: PARTIAL / IMPLEMENTED LOCALLY on feat/agnes-persistent-ops-memory-20261110; implementation commits 6fd0b39690ff92bfeb26789bcd145578cbb0b727 and 501f170be424c0352b5b76b12fb37b49b3a51bb4. Dependency-wave execution, default concurrency 2 (bounded 1–5), 60-second step timeout, immutable per-worker context snapshots, deterministic result ordering, explicit FAILED/BLOCKED outcomes, and TeamDirector-wide per-agent locking are implemented.
-- Verification: focused regression suite 127 passed; Ruff, compileall and git diff --check passed. Pytest emits one existing PytestConfigWarning because asyncio_mode is unknown in the installed pytest environment.
-- Remaining: duplicate-task prevention/idempotency keys, cooperative cancellation semantics, and a measured global concurrency budget across simultaneous requests. ParallelExecutor uses worker threads for synchronous agents; timeout/cancellation of the awaiting coroutine does not forcibly terminate a running Python thread.
+- State: PARTIAL / IMPLEMENTED LOCALLY on feat/agnes-persistent-ops-memory-20261110. Existing implementation commits: 6fd0b39690ff92bfeb26789bcd145578cbb0b727 and 501f170be424c0352b5b76b12fb37b49b3a51bb4; reliability-guard changes are currently uncommitted local work.
+- Implemented: dependency-wave execution, default per-request concurrency 2 (bounded 1–5), 60-second step timeout, immutable worker snapshots, deterministic result ordering, explicit FAILED/BLOCKED outcomes, shared Agent locks, durable TaskStore idempotency keys with atomic replay/conflict checks, cooperative request cancellation for built-in agents, and a process-wide worker semaphore capped at 2.
+- Verification: focused regression 151 passed, 1 existing pytest configuration warning; Ruff, compileall and git diff --check passed. TDD RED→GREEN evidence is recorded under `.superpowers/sdd/2026-11-10-agnes-reliability-guards/`.
+- Remaining: MCP adapter integration tests are unverified because the Termux environment lacks the declared `mcp>=1.13,<2` dependency; independent review is pending. Cooperative cancellation cannot forcibly terminate a non-cooperative synchronous Python thread. Global concurrency is per Python process only, not across processes/hosts.
 - Scope: continue using existing TeamDirector, ParallelExecutor and ControlPlane; preserve dependency edges and ensure workers do not receive new shell, arbitrary filesystem, network or production authority.
-- Acceptance: deterministic dependency-wave tests; concurrency ceiling tests; duplicate-task prevention; cancellation behavior with bounded worker lifecycle; fail-closed behavior when a dependency fails; no production side effects.
+- Acceptance: deterministic dependency-wave tests; concurrency ceiling tests; duplicate-task prevention; cooperative cancellation tests; fail-closed behavior when a dependency fails; MCP adapter verification in a provisioned environment; no production side effects.
 
 ### WQ-006: Durable memory adapter
 - State: OPEN.

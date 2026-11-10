@@ -63,6 +63,7 @@ class GuardianAgent(Agent):
         """ประมวลผล — ตรวจสอบความปลอดภัย."""
         start = time.time()
         context = context or {}
+        self.raise_if_cancelled(context)
 
         desc = request.description.lower()
         output_lines: list[str] = []
@@ -70,12 +71,14 @@ class GuardianAgent(Agent):
         warnings: list[str] = []
 
         # ตรวจสอบช่องโหว่
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("security", "vulnerability", "scan", "audit")):
             output_lines.append("🛡️ กำลังตรวจสอบความปลอดภัย...")
             output_lines.append(self._security_audit(request))
             artifacts.append("security:audit")
 
         # จัดการคีย์/ความลับ
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("credential", "secret", "key", "token", "password")):
             output_lines.append("🔐 กำลังจัดการข้อมูลลับ...")
             output_lines.append(self._secret_management(request))
@@ -83,18 +86,21 @@ class GuardianAgent(Agent):
             warnings.append("⚠️ ห้ามเปิดเผย raw API key ใน logs/ไฟล์")
 
         # ตรวจสอบสิทธิ์
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("auth", "permission", "access", "role", "rbac")):
             output_lines.append("🔑 กำลังตรวจสอบสิทธิ์...")
             output_lines.append(self._access_control(request))
             artifacts.append("security:access_control")
 
         # ตรวจสอบ compliance
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("compliance", "gdpr", "audit", "policy")):
             output_lines.append("📋 กำลังตรวจสอบการปฏิบัติตามมาตรฐาน...")
             output_lines.append(self._compliance_check(request))
             artifacts.append("security:compliance")
 
         # Fail-closed check
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("fail", "safe", "closed", "fallback")):
             output_lines.append("🔒 ตรวจสอบ Fail-Closed...")
             output_lines.append(self._fail_closed_check(request))

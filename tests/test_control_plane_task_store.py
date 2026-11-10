@@ -225,3 +225,112 @@ def test_has_open_tasks_tracks_queued_and_running_states(tmp_path: Path):
         lease_token=claimed["lease_token"],
     )
     assert store.has_open_tasks() is False
+
+
+def test_idempotency_key_replays_original_job_for_identical_payload(tmp_path) -> None:
+    store = TaskStore(tmp_path / "idempotent.sqlite3")
+    first_id = store.enqueue("job-first", {"task": "same"}, idempotency_key="request-1")
+    replay_id = store.enqueue("job-retry", {"task": "same"}, idempotency_key="request-1")
+
+    assert first_id == "job-first"
+    assert replay_id == first_id
+    assert store.get("job-retry") is None
+    assert store.get("job-first") is not None
+    with sqlite3.connect(store.database) as connection:
+        stored_key = connection.execute(
+            "SELECT idempotency_key FROM control_plane_tasks WHERE job_id='job-first'"
+        ).fetchone()[0]
+    assert stored_key != "request-1"
+    assert len(stored_key) == 64
+
+
+def test_idempotency_key_rejects_payload_conflict(tmp_path) -> None:
+    store = TaskStore(tmp_path / "idempotent.sqlite3")
+    store.enqueue("job-first", {"task": "one"}, idempotency_key="request-1")
+
+    with pytest.raises(ValueError, match="idempotency_key payload conflict"):
+        store.enqueue("job-second", {"task": "two"}, idempotency_key="request-1")
+
+    assert store.get("job-second") is None
+
+
+def test_enqueue_many_replays_idempotent_batch_atomically(tmp_path) -> None:
+    store = TaskStore(tmp_path / "idempotent.sqlite3")
+    first = store.enqueue_many(
+        [
+            ("job-a", {"task": "a"}, "batch-1:a"),
+            ("job-b", {"task": "b"}, "batch-1:b"),
+        ]
+    )
+    replay = store.enqueue_many(
+        [
+            ("retry-a", {"task": "a"}, "batch-1:a"),
+            ("retry-b", {"task": "b"}, "batch-1:b"),
+        ]
+    )
+
+    assert first == ["job-a", "job-b"]
+    assert replay == first
+    assert store.get("retry-a") is None
+    assert store.get("retry-b") is None
+
+
+def test_idempotency_key_migrates_legacy_database(tmp_path) -> None:
+    db_path = tmp_path / "legacy-idempotency.sqlite3"
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE control_plane_tasks (
+                job_id TEXT PRIMARY KEY,
+                payload_json TEXT NOT NULL,
+                state TEXT NOT NULL CHECK (state IN ('queued','running','completed','failed')),
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL,
+                worker_id TEXT,
+                lease_until REAL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                checkpoint_json TEXT,
+                result_json TEXT,
+                error_text TEXT
+            )
+            """
+        )
+
+    store = TaskStore(db_path)
+    assert store.enqueue("legacy", {"task": "migrated"}, idempotency_key="legacy-key") == "legacy"
+    assert (
+        store.enqueue("legacy-retry", {"task": "migrated"}, idempotency_key="legacy-key")
+        == "legacy"
+    )
+
+
+def test_concurrent_idempotent_enqueue_creates_one_job(tmp_path) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    store = TaskStore(tmp_path / "concurrent-idempotency.sqlite3")
+
+    def enqueue(index: int) -> str:
+        return store.enqueue(f"job-{index}", {"task": "same"}, idempotency_key="same-request")
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        effective_ids = list(pool.map(enqueue, range(8)))
+
+    assert len(set(effective_ids)) == 1
+    assert store.get(effective_ids[0]) is not None
+
+
+def test_enqueue_many_rolls_back_new_rows_when_later_idempotency_conflicts(tmp_path) -> None:
+    store = TaskStore(tmp_path / "idempotent-batch-conflict.sqlite3")
+    store.enqueue("existing", {"task": "original"}, idempotency_key="key-existing")
+
+    with pytest.raises(ValueError, match="idempotency_key payload conflict"):
+        store.enqueue_many(
+            [
+                ("new-first", {"task": "new"}, "key-new"),
+                ("new-conflict", {"task": "changed"}, "key-existing"),
+            ]
+        )
+
+    assert store.get("new-first") is None
+    assert store.get("new-conflict") is None
+    assert store.get("existing") is not None

@@ -48,6 +48,11 @@ from creator_app.development_control import (
     default_development_status_db_path,
 )
 
+# Shared by all TeamDirector instances in this Python process. Cross-process
+# coordination requires a durable lease/worker service and is intentionally not claimed.
+TEAM_DIRECTOR_GLOBAL_MAX_CONCURRENCY = 2
+_TEAM_DIRECTOR_GLOBAL_WORKERS = threading.BoundedSemaphore(TEAM_DIRECTOR_GLOBAL_MAX_CONCURRENCY)
+
 
 class TeamDirector:
     """หัวหน้าทีม — สร้างทีม วางแผน แบ่งงาน ประสานงาน รวมผล.
@@ -103,6 +108,8 @@ class TeamDirector:
         self._agent_locks: dict[int, threading.Lock] = {
             id(agent): threading.Lock() for agent in self.agents.values()
         }
+        self._active_requests_lock = threading.Lock()
+        self._active_requests: dict[str, threading.Event] = {}
 
     def _agent_lock_for(self, agent: Agent) -> threading.Lock:
         """Return the TeamDirector-wide lock for a shared agent instance."""
@@ -121,6 +128,7 @@ class TeamDirector:
         priority: int = 2,
         context: str = "",
         constraints: tuple[str, ...] = (),
+        request_id: str | None = None,
     ) -> TeamResult:
         """Synchronous compatibility entry point for non-async callers."""
         try:
@@ -132,12 +140,22 @@ class TeamDirector:
                     priority=priority,
                     context=context,
                     constraints=constraints,
+                    request_id=request_id,
                 )
             )
         raise RuntimeError(
             "process_request cannot run inside an active event loop; "
             "use await aprocess_request(...) instead"
         )
+
+    def cancel_request(self, request_id: str) -> bool:
+        """Signal cancellation to an active request; return false if it is not active."""
+        with self._active_requests_lock:
+            event = self._active_requests.get(request_id)
+            if event is None:
+                return False
+            event.set()
+            return True
 
     async def aprocess_request(
         self,
@@ -146,14 +164,48 @@ class TeamDirector:
         priority: int = 2,
         context: str = "",
         constraints: tuple[str, ...] = (),
+        request_id: str | None = None,
     ) -> TeamResult:
-        """Asynchronous TeamDirector entry point."""
+        """Asynchronous TeamDirector entry point with cooperative cancellation."""
+        selected_request_id = request_id or generate_id("req")
+        cancellation_event = threading.Event()
+        with self._active_requests_lock:
+            if selected_request_id in self._active_requests:
+                raise ValueError(f"request_id is already active: {selected_request_id}")
+            self._active_requests[selected_request_id] = cancellation_event
+        try:
+            return await self._run_request(
+                description,
+                priority=priority,
+                context=context,
+                constraints=constraints,
+                request_id=selected_request_id,
+                cancellation_event=cancellation_event,
+            )
+        except asyncio.CancelledError:
+            cancellation_event.set()
+            raise
+        finally:
+            with self._active_requests_lock:
+                if self._active_requests.get(selected_request_id) is cancellation_event:
+                    self._active_requests.pop(selected_request_id, None)
+
+    async def _run_request(
+        self,
+        description: str,
+        *,
+        priority: int,
+        context: str,
+        constraints: tuple[str, ...],
+        request_id: str,
+        cancellation_event: threading.Event,
+    ) -> TeamResult:
         start = time.time()
 
         from creator_app.ai_team.agent_models import RequestPriority
 
         request = TeamRequest(
-            request_id=generate_id("req"),
+            request_id=request_id,
             description=description,
             priority=RequestPriority(priority),
             context=context,
@@ -164,8 +216,7 @@ class TeamDirector:
         knowledge_context = ""
         if existing_knowledge:
             knowledge_context = "\n".join(
-                f"ความรู้เดิม ({item.topic}): {item.content[:200]}"
-                for item in existing_knowledge
+                f"ความรู้เดิม ({item.topic}): {item.content[:200]}" for item in existing_knowledge
             )
 
         plan_result = await asyncio.to_thread(
@@ -177,21 +228,20 @@ class TeamDirector:
         if plan is None:
             plan = TeamPlan(request_id=request.request_id)
 
-        step_results = await self._execute_plan_waves(request, plan, knowledge_context)
-
-        synthesis = await asyncio.to_thread(
-            self.director.synthesize_results, step_results, request
+        step_results = await self._execute_plan_waves(
+            request, plan, knowledge_context, cancellation_event
         )
 
-        completed_count = sum(
-            result.status is TaskStatus.COMPLETED for result in step_results
-        )
+        synthesis = await asyncio.to_thread(self.director.synthesize_results, step_results, request)
+
+        completed_count = sum(result.status is TaskStatus.COMPLETED for result in step_results)
         if not plan.steps or any(result.status is TaskStatus.FAILED for result in step_results):
             team_status = TaskStatus.FAILED
-        elif (
-            any(result.status is TaskStatus.BLOCKED for result in step_results)
-            or completed_count != len(plan.steps)
-        ):
+        elif any(result.status is TaskStatus.CANCELLED for result in step_results):
+            team_status = TaskStatus.CANCELLED
+        elif any(
+            result.status is TaskStatus.BLOCKED for result in step_results
+        ) or completed_count != len(plan.steps):
             team_status = TaskStatus.BLOCKED
         else:
             team_status = TaskStatus.COMPLETED
@@ -200,10 +250,13 @@ class TeamDirector:
             final_output = synthesis.output
             confidence = synthesis.confidence
         else:
-            details = "\n".join(
-                f"- {result.agent_name} ({result.status.value}): {result.output}"
-                for result in step_results
-            ) or "- No plan steps were generated."
+            details = (
+                "\n".join(
+                    f"- {result.agent_name} ({result.status.value}): {result.output}"
+                    for result in step_results
+                )
+                or "- No plan steps were generated."
+            )
             final_output = (
                 f"Team execution {team_status.value.upper()}. "
                 "Not all planned steps completed.\n\n"
@@ -219,9 +272,7 @@ class TeamDirector:
             steps_total=len(plan.steps),
             team_members_used=tuple(dict.fromkeys(result.agent_name for result in step_results)),
             duration_seconds=time.time() - start,
-            artifacts=tuple(
-                artifact for result in step_results for artifact in result.artifacts
-            ),
+            artifacts=tuple(artifact for result in step_results for artifact in result.artifacts),
             confidence=confidence,
             plan=plan,
             step_results=step_results,
@@ -235,6 +286,7 @@ class TeamDirector:
         request: TeamRequest,
         plan: TeamPlan,
         knowledge_context: str,
+        cancellation_event: threading.Event,
     ) -> list[TaskResult]:
         """Run dependency-ready plan steps in bounded waves."""
         steps = list(plan.steps)
@@ -251,6 +303,20 @@ class TeamDirector:
         executor = ParallelExecutor(max_concurrency=self.max_concurrency)
         wave_number = 0
 
+        def record_cancelled(step: Any) -> None:
+            reason = "request cancellation requested before step completed"
+            result = TaskResult(
+                task_id=step.step_id,
+                agent_name=step.agent_name,
+                agent_role=step.agent_role,
+                status=TaskStatus.CANCELLED,
+                output=reason,
+                warnings=(reason,),
+            )
+            step.status = TaskStatus.CANCELLED
+            results_by_id[step.step_id] = result
+            pending.pop(step.step_id, None)
+
         def record_blocked(step: Any, reason: str) -> None:
             result = TaskResult(
                 task_id=step.step_id,
@@ -266,6 +332,10 @@ class TeamDirector:
             pending.pop(step.step_id, None)
 
         while pending:
+            if cancellation_event.is_set():
+                for step in list(pending.values()):
+                    record_cancelled(step)
+                break
             for step in list(pending.values()):
                 unknown_dependencies = set(step.depends_on) - set(order)
                 if unknown_dependencies:
@@ -275,9 +345,7 @@ class TeamDirector:
                     record_blocked(step, "blocked by a failed or blocked dependency")
 
             ready = [
-                step
-                for step in pending.values()
-                if set(step.depends_on).issubset(completed_ids)
+                step for step in pending.values() if set(step.depends_on).issubset(completed_ids)
             ]
             if not ready:
                 for step in list(pending.values()):
@@ -309,9 +377,7 @@ class TeamDirector:
 
             wave_number += 1
             prior_results = [
-                results_by_id[step.step_id]
-                for step in steps
-                if step.step_id in results_by_id
+                results_by_id[step.step_id] for step in steps if step.step_id in results_by_id
             ]
             completed_snapshot = frozenset(completed_ids)
             tasks = []
@@ -335,9 +401,24 @@ class TeamDirector:
                         "completed_steps": completed_steps_snapshot,
                         "step_results": deepcopy(prior_step_results),
                         "knowledge_context": knowledge_context,
+                        "cancellation_event": cancellation_event,
                     }
-                    with selected_lock:
-                        return selected_agent.process(worker_request, context=worker_context)
+                    Agent.raise_if_cancelled(worker_context)
+                    acquired = False
+                    try:
+                        while not acquired:
+                            Agent.raise_if_cancelled(worker_context)
+                            acquired = _TEAM_DIRECTOR_GLOBAL_WORKERS.acquire(timeout=0.05)
+                        with selected_lock:
+                            Agent.raise_if_cancelled(worker_context)
+                            worker_result = selected_agent.process(
+                                worker_request, context=worker_context
+                            )
+                            Agent.raise_if_cancelled(worker_context)
+                            return worker_result
+                    finally:
+                        if acquired:
+                            _TEAM_DIRECTOR_GLOBAL_WORKERS.release()
 
                 tasks.append((step.step_id, invoke))
 
@@ -351,7 +432,16 @@ class TeamDirector:
                 step = pending[batch_result.task_id]
                 agent = agents_by_step[step.step_id]
                 result = batch_result.result
-                if (
+                if batch_result.status is ParallelTaskStatus.CANCELLED:
+                    integrated_result = TaskResult(
+                        task_id=step.step_id,
+                        agent_name=agent.name,
+                        agent_role=step.agent_role,
+                        status=TaskStatus.CANCELLED,
+                        output=batch_result.error or "request cancellation requested",
+                        warnings=(batch_result.error or "request cancellation requested",),
+                    )
+                elif (
                     batch_result.status is ParallelTaskStatus.COMPLETED
                     and isinstance(result, TaskResult)
                     and result.status
@@ -384,6 +474,9 @@ class TeamDirector:
                     )
                 elif integrated_result.status is TaskStatus.BLOCKED:
                     blocked_ids.add(step.step_id)
+                elif integrated_result.status is TaskStatus.CANCELLED:
+                    # Cancellation is terminal but is not a failed execution.
+                    pass
                 else:
                     failed_ids.add(step.step_id)
 

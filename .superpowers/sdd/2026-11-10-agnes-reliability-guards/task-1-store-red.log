@@ -1,0 +1,66 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_______ test_idempotency_key_replays_original_job_for_identical_payload ________
+
+tmp_path = PosixPath('/data/data/com.termux/files/usr/tmp/pytest-of-u0_a543/pytest-85/test_idempotency_key_replays_o0')
+
+    def test_idempotency_key_replays_original_job_for_identical_payload(tmp_path) -> None:
+        store = TaskStore(tmp_path / "idempotent.sqlite3")
+>       first_id = store.enqueue("job-first", {"task": "same"}, idempotency_key="request-1")
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: TaskStore.enqueue() got an unexpected keyword argument 'idempotency_key'
+
+tests/test_control_plane_task_store.py:232: TypeError
+________________ test_idempotency_key_rejects_payload_conflict _________________
+
+tmp_path = PosixPath('/data/data/com.termux/files/usr/tmp/pytest-of-u0_a543/pytest-85/test_idempotency_key_rejects_p0')
+
+    def test_idempotency_key_rejects_payload_conflict(tmp_path) -> None:
+        store = TaskStore(tmp_path / "idempotent.sqlite3")
+>       store.enqueue("job-first", {"task": "one"}, idempotency_key="request-1")
+E       TypeError: TaskStore.enqueue() got an unexpected keyword argument 'idempotency_key'
+
+tests/test_control_plane_task_store.py:243: TypeError
+________________ test_idempotency_key_migrates_legacy_database _________________
+
+tmp_path = PosixPath('/data/data/com.termux/files/usr/tmp/pytest-of-u0_a543/pytest-85/test_idempotency_key_migrates_0')
+
+    def test_idempotency_key_migrates_legacy_database(tmp_path) -> None:
+        db_path = tmp_path / "legacy-idempotency.sqlite3"
+        with sqlite3.connect(db_path) as connection:
+            connection.execute(
+                """
+                CREATE TABLE control_plane_tasks (
+                    job_id TEXT PRIMARY KEY,
+                    payload_json TEXT NOT NULL,
+                    state TEXT NOT NULL CHECK (state IN ('queued','running','completed','failed')),
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL,
+                    worker_id TEXT,
+                    lease_until REAL,
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    checkpoint_json TEXT,
+                    result_json TEXT,
+                    error_text TEXT
+                )
+                """
+            )
+
+        store = TaskStore(db_path)
+>       assert store.enqueue("legacy", {"task": "migrated"}, idempotency_key="legacy-key") == "legacy"
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: TaskStore.enqueue() got an unexpected keyword argument 'idempotency_key'
+
+tests/test_control_plane_task_store.py:290: TypeError
+=============================== warnings summary ===============================
+../.local/lib/python3.13/site-packages/_pytest/config/__init__.py:1636
+  /data/data/com.termux/files/home/.local/lib/python3.13/site-packages/_pytest/config/__init__.py:1636: PytestConfigWarning: Unknown config option: asyncio_mode
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_control_plane_task_store.py::test_idempotency_key_replays_original_job_for_identical_payload
+FAILED tests/test_control_plane_task_store.py::test_idempotency_key_rejects_payload_conflict
+FAILED tests/test_control_plane_task_store.py::test_idempotency_key_migrates_legacy_database
+3 failed, 17 deselected, 1 warning in 2.25s

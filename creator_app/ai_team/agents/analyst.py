@@ -56,31 +56,37 @@ class AnalystAgent(Agent):
         """ประมวลผล — วิเคราะห์และสรุปข้อมูล."""
         start = time.time()
         context = context or {}
+        self.raise_if_cancelled(context)
 
         desc = request.description.lower()
         output_lines: list[str] = []
         artifacts: list[str] = []
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("data", "analyze", "analytics")):
             output_lines.append("📊 กำลังวิเคราะห์ข้อมูล...")
             output_lines.append(self._analyze_data(request))
             artifacts.append("analysis:data")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("report", "summary", "summarize")):
             output_lines.append("📋 กำลังสร้างรายงาน...")
             output_lines.append(self._generate_report(request))
             artifacts.append("analysis:report")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("statistics", "stats", "metrics", "kpi")):
             output_lines.append("📈 กำลังคำนวณสถิติ...")
             output_lines.append(self._compute_statistics(request))
             artifacts.append("analysis:statistics")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("validate", "verify", "check", "correct")):
             output_lines.append("✅ กำลังตรวจสอบความถูกต้อง...")
             output_lines.append(self._validate_data(request))
             artifacts.append("analysis:validation")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("cost", "price", "budget", "expense")):
             output_lines.append("💰 กำลังวิเคราะห์ค่าใช้จ่าย...")
             output_lines.append(self._cost_analysis(request))

@@ -125,7 +125,7 @@ class TestCrossPlatform:
     def test_detect_platform(self):
         cp = CrossPlatform()
         platform = cp.detect_platform()
-        assert platform in ("linux", "macos", "windows")
+        assert platform in ("linux", "macos", "windows", "android")
 
     def test_get_capabilities(self):
         cp = CrossPlatform()

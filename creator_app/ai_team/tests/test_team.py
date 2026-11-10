@@ -79,16 +79,13 @@ class _ProbeAgent(Agent):
         )
 
 
-def _planned_team(
-    steps: list[PlanStep], *, max_concurrency: int = 2, step_timeout: float = 60.0
-):
+def _planned_team(steps: list[PlanStep], *, max_concurrency: int = 2, step_timeout: float = 60.0):
     probe = _ConcurrencyProbe()
     plan = TeamPlan(request_id="planned-request", steps=steps, total_steps=len(steps))
     team = TeamDirector(max_concurrency=max_concurrency, step_timeout=step_timeout)
     team.director = _PlannedDirector(plan)
     team.agents = {
-        step.agent_role: _ProbeAgent(step.agent_name, step.agent_role, probe)
-        for step in steps
+        step.agent_role: _ProbeAgent(step.agent_name, step.agent_role, probe) for step in steps
     }
     return team, probe
 
@@ -211,7 +208,10 @@ class TestTeamDirector:
     def test_dependent_steps_wait_for_successful_dependencies(self):
         steps = [
             PlanStep(
-                "step-final", "Final Agent", "final", "combine results",
+                "step-final",
+                "Final Agent",
+                "final",
+                "combine results",
                 depends_on=("step-a", "step-b"),
             ),
             PlanStep("step-a", "Agent A", "a", "independent A"),
@@ -226,11 +226,10 @@ class TestTeamDirector:
             "step-b",
             "step-final",
         }
-        end_times = {
-            name: timestamp for name, event, timestamp in probe.events if event == "end"
-        }
+        end_times = {name: timestamp for name, event, timestamp in probe.events if event == "end"}
         final_start = next(
-            timestamp for name, event, timestamp in probe.events
+            timestamp
+            for name, event, timestamp in probe.events
             if name == "final" and event == "start"
         )
         assert end_times["a"] < final_start
@@ -256,16 +255,13 @@ class TestTeamDirector:
                 )
 
         team.agents = {
-            step.agent_role: TimedAgent(step.agent_name, step.agent_role, probe)
-            for step in steps
+            step.agent_role: TimedAgent(step.agent_name, step.agent_role, probe) for step in steps
         }
 
         result = asyncio.run(team.aprocess_request("ordered results"))
 
         assert [item.task_id for item in result.step_results] == ["step-b", "step-a"]
-        end_times = {
-            name: timestamp for name, event, timestamp in probe.events if event == "end"
-        }
+        end_times = {name: timestamp for name, event, timestamp in probe.events if event == "end"}
         assert end_times["a"] < end_times["b"]
 
     def test_parallel_workers_receive_isolated_context_snapshots(self):
@@ -300,8 +296,7 @@ class TestTeamDirector:
                 )
 
         team.agents = {
-            step.agent_role: ContextAgent(step.agent_name, step.agent_role, probe)
-            for step in steps
+            step.agent_role: ContextAgent(step.agent_name, step.agent_role, probe) for step in steps
         }
         result = asyncio.run(team.aprocess_request("original request"))
 
@@ -621,3 +616,78 @@ class TestAgentBase:
         assert status["name"] == "Guardian"
         assert status["role"] == "guardian"
         assert len(status["expertise"]) > 0
+
+    def test_cancel_request_stops_cooperative_worker_and_skips_later_wave(self):
+        steps = [
+            PlanStep("step-a", "Agent A", "a", "cancel while active"),
+            PlanStep("step-b", "Agent B", "b", "must not start", depends_on=("step-a",)),
+        ]
+        team, probe = _planned_team(steps)
+        started = threading.Event()
+
+        class CooperativeAgent(_ProbeAgent):
+            def process(self, request, context=None):
+                started.set()
+                while True:
+                    Agent.raise_if_cancelled(context)
+                    if context["cancellation_event"].wait(0.01):
+                        Agent.raise_if_cancelled(context)
+
+        team.agents["a"] = CooperativeAgent("Agent A", "a", probe)
+        team.agents["b"] = _ProbeAgent("Agent B", "b", probe)
+
+        async def run_and_cancel():
+            task = asyncio.create_task(
+                team.aprocess_request("cancel test", request_id="cancel-request-1")
+            )
+            assert await asyncio.to_thread(started.wait, 2)
+            assert team.cancel_request("cancel-request-1") is True
+            return await asyncio.wait_for(task, timeout=2)
+
+        result = asyncio.run(run_and_cancel())
+        by_id = {item.task_id: item for item in result.step_results}
+        assert result.status == TaskStatus.CANCELLED
+        assert by_id["step-a"].status == TaskStatus.CANCELLED
+        assert by_id["step-b"].status == TaskStatus.CANCELLED
+        assert not any(name == "b" and event == "start" for name, event, _ in probe.events)
+
+    def test_cancel_request_returns_false_for_unknown_or_finished_request(self):
+        team = TeamDirector()
+        assert team.cancel_request("not-active") is False
+
+    def test_global_concurrency_is_shared_across_team_director_instances(self):
+        from creator_app.ai_team.team_director import TEAM_DIRECTOR_GLOBAL_MAX_CONCURRENCY
+
+        probe = _ConcurrencyProbe()
+        steps_a = [
+            PlanStep("a-1", "Agent A1", "a1", "parallel A1"),
+            PlanStep("a-2", "Agent A2", "a2", "parallel A2"),
+        ]
+        steps_b = [
+            PlanStep("b-1", "Agent B1", "b1", "parallel B1"),
+            PlanStep("b-2", "Agent B2", "b2", "parallel B2"),
+        ]
+        team_a, _ = _planned_team(steps_a)
+        team_b, _ = _planned_team(steps_b)
+        team_a.agents.update(
+            {
+                "a1": _ProbeAgent("Agent A1", "a1", probe),
+                "a2": _ProbeAgent("Agent A2", "a2", probe),
+            }
+        )
+        team_b.agents.update(
+            {
+                "b1": _ProbeAgent("Agent B1", "b1", probe),
+                "b2": _ProbeAgent("Agent B2", "b2", probe),
+            }
+        )
+
+        async def run_both():
+            return await asyncio.gather(
+                team_a.aprocess_request("global cap A"),
+                team_b.aprocess_request("global cap B"),
+            )
+
+        results = asyncio.run(run_both())
+        assert all(result.status is TaskStatus.COMPLETED for result in results)
+        assert probe.max_active <= TEAM_DIRECTOR_GLOBAL_MAX_CONCURRENCY

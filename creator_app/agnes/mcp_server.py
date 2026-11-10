@@ -17,6 +17,7 @@ Defaults:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -275,6 +276,7 @@ def cknexus_task_enqueue(
     priority: int = 2,
     context: Any = "",
     handler: str | None = None,
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     """Persist a bounded task request; never execute it."""
     try:
@@ -289,14 +291,18 @@ def cknexus_task_enqueue(
                 "UNAPPROVED_HANDLER",
                 "handler is not in the bounded allowlist",
             )
+        if idempotency_key is not None:
+            idempotency_key = _task_text(idempotency_key, "idempotency_key", max_chars=200)
         payload = _task_payload(description, context, handler=handler, job_id=job_id)
         payload["priority"] = priority
-        get_task_store().enqueue(job_id, payload)
+        job_id = get_task_store().enqueue(job_id, payload, idempotency_key=idempotency_key)
     except OverflowError as exc:
         return _task_result_error("PAYLOAD_TOO_LARGE", str(exc))
     except ValueError as exc:
         code = (
-            "DUPLICATE_JOB"
+            "IDEMPOTENCY_CONFLICT"
+            if "idempotency_key payload conflict" in str(exc)
+            else "DUPLICATE_JOB"
             if "already exists" in str(exc)
             else "SENSITIVE_INPUT"
             if "sensitive" in str(exc)
@@ -315,7 +321,11 @@ def cknexus_task_enqueue(
 
 @mcp.tool()
 def cknexus_control_plane_enqueue(
-    job_prefix: str, request: str, priority: int = 2, context: Any = ""
+    job_prefix: str,
+    request: str,
+    priority: int = 2,
+    context: Any = "",
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     """Queue a deterministic four-role plan atomically without executing any role."""
     try:
@@ -323,6 +333,8 @@ def cknexus_control_plane_enqueue(
         request = _task_text(request, "request", max_chars=20_000)
         if priority not in {1, 2, 3}:
             return _task_result_error("INVALID_PRIORITY", "priority must be 1, 2, or 3")
+        if idempotency_key is not None:
+            idempotency_key = _task_text(idempotency_key, "idempotency_key", max_chars=200)
         context_payload = _task_payload("context", context)
         graph = ControlPlaneOrchestrator().plan(
             request,
@@ -330,8 +342,8 @@ def cknexus_control_plane_enqueue(
             context=str(context_payload.get("context", "")),
         )
         queue_payloads = ControlPlaneOrchestrator.queue_payloads(graph)
-        batch: list[tuple[str, dict[str, Any]]] = []
-        jobs: list[dict[str, str]] = []
+        batch: list[tuple[str, dict[str, Any]] | tuple[str, dict[str, Any], str]] = []
+        job_nodes: list[tuple[str, str]] = []
         for payload in queue_payloads:
             node_id = payload["node_id"]
             job_id = f"{job_prefix}-{node_id}"
@@ -350,13 +362,30 @@ def cknexus_control_plane_enqueue(
                 )
             if len(TaskStore._json(payload).encode("utf-8")) > _TASK_MAX_BYTES:
                 return _task_result_error("PAYLOAD_TOO_LARGE", "plan task exceeds the maximum size")
-            batch.append((job_id, payload))
-            jobs.append({"job_id": job_id, "node_id": node_id, "state": "queued"})
-        get_task_store().enqueue_many(batch)
+            if idempotency_key is None:
+                batch.append((job_id, payload))
+            else:
+                child_key = hashlib.sha256(
+                    f"{idempotency_key}:{node_id}".encode()
+                ).hexdigest()
+                batch.append((job_id, payload, child_key))
+            job_nodes.append((job_id, node_id))
+        effective_job_ids = get_task_store().enqueue_many(batch)
+        jobs = []
+        for effective_id, (_requested_id, node_id) in zip(
+            effective_job_ids, job_nodes, strict=True
+        ):
+            jobs.append({"job_id": effective_id, "node_id": node_id, "state": "queued"})
     except OverflowError as exc:
         return _task_result_error("PAYLOAD_TOO_LARGE", str(exc))
     except ValueError as exc:
-        code = "DUPLICATE_JOB" if "already exists" in str(exc) else "INVALID_INPUT"
+        code = (
+            "IDEMPOTENCY_CONFLICT"
+            if "idempotency_key payload conflict" in str(exc)
+            else "DUPLICATE_JOB"
+            if "already exists" in str(exc)
+            else "INVALID_INPUT"
+        )
         return _task_result_error(code, str(exc))
     return {
         "ok": True,

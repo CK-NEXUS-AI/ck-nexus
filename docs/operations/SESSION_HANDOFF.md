@@ -8,7 +8,9 @@
 - Main tree: `57adfe86cd6d9bdbca5c97d336cb733df2308ae5`
 - Current operations branch: feat/agnes-persistent-ops-memory-20261110 (local-only; not pushed or merged).
 - Agnes bounded parallel implementation commits: 6fd0b39690ff92bfeb26789bcd145578cbb0b727 and 501f170be424c0352b5b76b12fb37b49b3a51bb4; base 4d1366cef3cbdd18aa174bdf67308567635c750a.
-- Verification: focused regression 127 passed, 1 known pytest configuration warning; Ruff, compileall and diff checks passed.
+- Local reliability-guard changes are currently uncommitted: durable TaskStore idempotency, cooperative request cancellation, and process-wide worker cap 2. Focused regression 151 passed, 1 known pytest configuration warning; Ruff, compileall and diff checks passed.
+- MCP adapter tests are blocked at collection because the Termux Python environment lacks declared dependency `mcp>=1.13,<2`; do not claim MCP adapter integration verified.
+- Cancellation is cooperative; non-cooperative running threads cannot be forcibly stopped. Global concurrency is per process, not cross-process.
 - Separate PR #364 branch head: `954c5e6c64b1f0f678fa1192476c63c7349e85d2`; PR OPEN / REVIEW_REQUIRED / BLOCKED; latest inspected required checks passed; Cubic review pending; do not merge.
 
 ## Non-negotiable constraints
@@ -33,7 +35,7 @@
 - RELEASE_STATUS.md contains an older main SHA and needs controlled reconciliation.
 
 ## Next actions
-1. Complete WQ-005 remaining idempotency, cancellation/worker-lifecycle and global concurrency controls; retain the current local implementation as unpushed until an explicit push decision.
+1. Provision the declared MCP dependency in an isolated test environment and run the new MCP idempotency adapter tests; independently review WQ-005 reliability changes. Keep this local branch unpushed until an explicit push decision.
 2. Finish PR #364 Cubic review; keep it unmerged.
 3. Recalculate the exact current candidate runtime subject and rebaseline Q10–Q16.
 4. Reconcile stale RELEASE_STATUS and closure documentation using verified evidence only.

@@ -31,12 +31,14 @@ CK-NEXUS already contains substantial agent and governance components. Extend th
 ## Agnes Bounded Parallel Execution — Local Verification
 
 - Work branch: feat/agnes-persistent-ops-memory-20261110; base: origin/main 4d1366cef3cbdd18aa174bdf67308567635c750a.
-- Implementation commits: c2e7038 (async entry/settings), 8808f12 (dependency waves), 4238633 (fail-closed outcomes), 6fd0b39690ff92bfeb26789bcd145578cbb0b727 (serialize shared Agent instances across concurrent requests), 501f170be424c0352b5b76b12fb37b49b3a51bb4 (preserve plan-step identity in results).
-- Final focused regression: 127 passed, 1 warning across TeamDirector, AI team intelligence, control-plane, task-store, worker and development-control tests.
-- Static checks: Ruff PASS; python -m compileall -q creator_app/ai_team PASS; git diff --check PASS.
-- The warning is PytestConfigWarning: Unknown config option: asyncio_mode from the installed pytest environment; it is not counted as a test failure.
-- The branch is local-only and has not been pushed or merged. No VPS, production or external mutation was performed.
-- Remaining engineering limits: no duplicate-task/idempotency contract in TeamDirector; cancellation does not forcibly stop synchronous Python worker threads; concurrency is bounded per request, not globally across simultaneous requests. These remain WQ-005 work and are not Production evidence.
+- Existing implementation commits: c2e7038 (async entry/settings), 8808f12 (dependency waves), 4238633 (fail-closed outcomes), 6fd0b39690ff92bfeb26789bcd145578cbb0b727 (serialize shared Agent instances across concurrent requests), 501f170be424c0352b5b76b12fb37b49b3a51bb4 (preserve plan-step identity in results).
+- Reliability-guard implementation is currently uncommitted local work: TaskStore durable idempotency, MCP optional idempotency-key plumbing, cooperative request cancellation, and process-wide TeamDirector worker budget (2).
+- Focused regression: 151 passed, 1 warning across `creator_app/ai_team/tests` and `tests/test_control_plane_task_store.py`.
+- Static checks: Ruff PASS; compileall PASS for `creator_app/ai_team`, `creator_app/control_plane`, `creator_app/agnes`; git diff --check PASS.
+- Warning: PytestConfigWarning: Unknown config option: asyncio_mode from the installed pytest environment; it is not counted as a test failure.
+- MCP adapter integration tests are UNVERIFIED because the Termux Python environment lacks the declared `mcp>=1.13,<2` dependency. They must run in a correctly provisioned environment before claiming adapter verification.
+- Cancellation is cooperative: Python cannot forcibly terminate an already-running non-cooperative synchronous thread. Process-wide concurrency is limited to one Python process; there is no cross-process/host budget.
+- The branch is local-only and has not been pushed or merged. No VPS, production or external mutation was performed. WQ-005 remains PARTIAL and Production remains NO-GO.
 
 ## Release Snapshot
 
