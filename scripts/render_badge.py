@@ -41,13 +41,23 @@ def render_svg(label: str, status: str, progress: int | None = None) -> str:
     safe_display = html.escape(display, quote=True)
     label_width = 88
     status_width = WIDTH - label_width
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" viewBox="0 0 {WIDTH} {HEIGHT}" role="img" aria-label="{safe_label}: {safe_display}">
+    return f'''<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="{WIDTH}" height="{HEIGHT}"
+  viewBox="0 0 {WIDTH} {HEIGHT}"
+  role="img" aria-label="{safe_label}: {safe_display}">
   <title>{safe_label}: {safe_display}</title>
   <rect width="{WIDTH}" height="{HEIGHT}" rx="5" fill="{DARK}"/>
-  <path d="M5 0h{label_width - 5}v28H5a5 5 0 0 1-5-5V5a5 5 0 0 1 5-5z" fill="{DARK}"/>
-  <text x="{label_width / 2}" y="18" fill="#ffffff" font-family="Verdana,DejaVu Sans,sans-serif" font-size="10" text-anchor="middle">{safe_label}</text>
-  <rect x="{label_width}" y="0" width="{status_width}" height="{HEIGHT}" rx="0" fill="{color}"/>
-  <text x="{label_width + status_width / 2}" y="18" fill="#ffffff" font-family="Verdana,DejaVu Sans,sans-serif" font-size="11" font-weight="bold" text-anchor="middle">{safe_display}</text>
+  <path d="M5 0h{label_width - 5}v28H5a5 5 0 0 1-5-5V5a5 5 0 0 1 5-5z"
+        fill="{DARK}"/>
+  <text x="{label_width / 2}" y="18" fill="#ffffff"
+        font-family="Verdana,DejaVu Sans,sans-serif" font-size="10"
+        text-anchor="middle">{safe_label}</text>
+  <rect x="{label_width}" y="0" width="{status_width}"
+        height="{HEIGHT}" rx="0" fill="{color}"/>
+  <text x="{label_width + status_width / 2}" y="18" fill="#ffffff"
+        font-family="Verdana,DejaVu Sans,sans-serif" font-size="11"
+        font-weight="bold" text-anchor="middle">{safe_display}</text>
 </svg>
 '''
 

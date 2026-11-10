@@ -151,7 +151,8 @@ def render_report(root: Path = ROOT) -> str:
         "# CK-NEXUS Update Report",
         "",
         "> Generated from the current committed repository snapshot.",
-        "> This report summarizes committed evidence; it is not production approval or certification.",
+        "> This report summarizes committed evidence; it is not "
+        "production approval or certification.",
         "> Current release decision remains **NO-GO for Production**.",
         "",
         "## Q10–Q16 Gate Status",
