@@ -1,16 +1,93 @@
 from __future__ import annotations
 
 import asyncio
+import threading
+import time
 
 import pytest
 
 from creator_app.ai_team.agent import Agent
 from creator_app.ai_team.agent_models import (
     AgentRole,
+    PlanStep,
+    TaskResult,
     TaskStatus,
+    TeamPlan,
 )
 from creator_app.ai_team.shared_knowledge import SharedKnowledge
 from creator_app.ai_team.team_director import TeamDirector
+
+
+class _ConcurrencyProbe:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.active = 0
+        self.max_active = 0
+        self.events = []
+
+    def run(self, name: str, delay: float = 0.08) -> None:
+        with self.lock:
+            self.active += 1
+            self.max_active = max(self.max_active, self.active)
+            self.events.append((name, "start", time.monotonic()))
+        time.sleep(delay)
+        with self.lock:
+            self.events.append((name, "end", time.monotonic()))
+            self.active -= 1
+
+
+class _PlannedDirector:
+    def __init__(self, plan: TeamPlan):
+        self.plan = plan
+
+    def process(self, request, context=None):
+        return TaskResult(
+            task_id="director-plan",
+            agent_name="Director",
+            agent_role="director",
+            status=TaskStatus.COMPLETED,
+            output="plan created",
+            metadata={"plan": self.plan},
+        )
+
+    def synthesize_results(self, step_results, request):
+        return TaskResult(
+            task_id="director-synthesis",
+            agent_name="Director",
+            agent_role="director",
+            status=TaskStatus.COMPLETED,
+            output="synthesized",
+            confidence=0.9,
+        )
+
+
+class _ProbeAgent(Agent):
+    def __init__(self, name: str, role: str, probe: _ConcurrencyProbe):
+        super().__init__(name=name, role=AgentRole.RESEARCHER, expertise=(role,))
+        self.role_name = role
+        self.probe = probe
+
+    def process(self, request, context=None):
+        self.probe.run(self.role_name)
+        return TaskResult(
+            task_id=f"result-{self.role_name}",
+            agent_name=self.name,
+            agent_role=self.role_name,
+            status=TaskStatus.COMPLETED,
+            output=self.role_name,
+        )
+
+
+def _planned_team(steps: list[PlanStep], *, max_concurrency: int = 2):
+    probe = _ConcurrencyProbe()
+    plan = TeamPlan(request_id="planned-request", steps=steps, total_steps=len(steps))
+    team = TeamDirector(max_concurrency=max_concurrency)
+    team.director = _PlannedDirector(plan)
+    team.agents = {
+        step.agent_role: _ProbeAgent(step.agent_name, step.agent_role, probe)
+        for step in steps
+    }
+    return team, probe
 
 
 class TestTeamDirector:
@@ -63,6 +140,148 @@ class TestTeamDirector:
                 team.process_request("สร้างระบบเขียนโค้ด API")
 
         asyncio.run(run())
+
+    def test_parallel_execution_overlaps_independent_steps(self):
+        steps = [
+            PlanStep("step-a", "Agent A", "a", "independent A"),
+            PlanStep("step-b", "Agent B", "b", "independent B"),
+        ]
+        team, probe = _planned_team(steps)
+
+        result = asyncio.run(team.aprocess_request("parallel work"))
+
+        assert result.steps_completed == 2
+        assert probe.max_active == 2
+
+    def test_parallel_execution_respects_concurrency_limit(self):
+        steps = [
+            PlanStep(f"step-{name}", f"Agent {name}", name, f"independent {name}")
+            for name in ("a", "b", "c", "d", "e")
+        ]
+        team, probe = _planned_team(steps, max_concurrency=2)
+
+        result = asyncio.run(team.aprocess_request("bounded parallel work"))
+
+        assert result.steps_completed == 5
+        assert probe.max_active == 2
+        assert probe.max_active <= team.max_concurrency
+
+    def test_shared_agent_instance_is_serialized(self):
+        steps = [
+            PlanStep("step-a", "Shared Agent", "a", "first task"),
+            PlanStep("step-b", "Shared Agent", "b", "second task"),
+        ]
+        team, probe = _planned_team(steps)
+        shared_agent = _ProbeAgent("Shared Agent", "shared", probe)
+        team.agents = {"a": shared_agent, "b": shared_agent}
+
+        result = asyncio.run(team.aprocess_request("shared agent safety"))
+
+        assert result.steps_completed == 2
+        assert probe.max_active == 1
+
+    def test_dependent_steps_wait_for_successful_dependencies(self):
+        steps = [
+            PlanStep(
+                "step-final", "Final Agent", "final", "combine results",
+                depends_on=("step-a", "step-b"),
+            ),
+            PlanStep("step-a", "Agent A", "a", "independent A"),
+            PlanStep("step-b", "Agent B", "b", "independent B"),
+        ]
+        team, probe = _planned_team(steps)
+
+        result = asyncio.run(team.aprocess_request("dependency wave work"))
+
+        assert {item.task_id for item in result.step_results} == {
+            "result-a",
+            "result-b",
+            "result-final",
+        }
+        end_times = {
+            name: timestamp for name, event, timestamp in probe.events if event == "end"
+        }
+        final_start = next(
+            timestamp for name, event, timestamp in probe.events
+            if name == "final" and event == "start"
+        )
+        assert end_times["a"] < final_start
+        assert end_times["b"] < final_start
+
+    def test_parallel_results_follow_plan_order(self):
+        steps = [
+            PlanStep("step-b", "Agent B", "b", "slower B"),
+            PlanStep("step-a", "Agent A", "a", "faster A"),
+        ]
+        team, probe = _planned_team(steps)
+
+        class TimedAgent(_ProbeAgent):
+            def process(self, request, context=None):
+                delay = 0.15 if self.role_name == "b" else 0.02
+                self.probe.run(self.role_name, delay=delay)
+                return TaskResult(
+                    task_id=f"result-{self.role_name}",
+                    agent_name=self.name,
+                    agent_role=self.role_name,
+                    status=TaskStatus.COMPLETED,
+                    output=self.role_name,
+                )
+
+        team.agents = {
+            step.agent_role: TimedAgent(step.agent_name, step.agent_role, probe)
+            for step in steps
+        }
+
+        result = asyncio.run(team.aprocess_request("ordered results"))
+
+        assert [item.task_id for item in result.step_results] == ["result-b", "result-a"]
+        end_times = {
+            name: timestamp for name, event, timestamp in probe.events if event == "end"
+        }
+        assert end_times["a"] < end_times["b"]
+
+    def test_parallel_workers_receive_isolated_context_snapshots(self):
+        steps = [
+            PlanStep("step-a", "Agent A", "a", "mutates its private context"),
+            PlanStep("step-b", "Agent B", "b", "observes its private context"),
+        ]
+        team, probe = _planned_team(steps)
+        barrier = threading.Barrier(2)
+        observed = {}
+
+        class ContextAgent(_ProbeAgent):
+            def process(self, request, context=None):
+                barrier.wait(timeout=1)
+                if self.role_name == "a":
+                    context["step_results"].append("private mutation")
+                    context["plan"].steps[0].description = "private plan mutation"
+                    context["request"].description = "private request mutation"
+                    output = "mutated private copy"
+                else:
+                    observed["request"] = request.description
+                    observed["plan"] = context["plan"].steps[0].description
+                    observed["results"] = list(context["step_results"])
+                    observed["completed"] = context["completed_steps"]
+                    output = "observed isolated copy"
+                return TaskResult(
+                    task_id=f"result-{self.role_name}",
+                    agent_name=self.name,
+                    agent_role=self.role_name,
+                    status=TaskStatus.COMPLETED,
+                    output=output,
+                )
+
+        team.agents = {
+            step.agent_role: ContextAgent(step.agent_name, step.agent_role, probe)
+            for step in steps
+        }
+        result = asyncio.run(team.aprocess_request("original request"))
+
+        assert result.steps_completed == 2
+        assert observed["request"] == "original request"
+        assert observed["plan"] == "mutates its private context"
+        assert observed["results"] == []
+        assert observed["completed"] == frozenset()
 
     def test_process_request_code(self):
         """สั่งงานเขียนโค้ด → Engineer รับงาน."""
