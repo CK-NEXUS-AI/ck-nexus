@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import tempfile
 from datetime import UTC, datetime
@@ -58,6 +59,19 @@ def run_json(command: list[str]) -> dict[str, Any]:
     return data
 
 
+def resolve_source_tree(repository: str, source_sha: str) -> str:
+    if not re.fullmatch(r"[0-9a-f]{40}", source_sha):
+        raise SystemExit("workflow source SHA is missing or invalid")
+    endpoint = "repos/" + repository + "/git/commits/" + source_sha
+    commit = run_json(["gh", "api", endpoint])
+    if commit.get("sha") != source_sha:
+        raise SystemExit("GitHub commit object SHA does not match workflow head SHA")
+    tree_sha = (commit.get("tree") or {}).get("sha")
+    if not isinstance(tree_sha, str) or not re.fullmatch(r"[0-9a-f]{40}", tree_sha):
+        raise SystemExit("GitHub commit object tree SHA is missing or invalid")
+    return tree_sha
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Collect exact-subject CK-NEXUS Q10-Q16 workflow evidence."
@@ -106,6 +120,8 @@ def main() -> int:
                 raise SystemExit(
                     f"{gate}: workflow run path/event/status/branch/conclusion mismatch"
                 )
+            run_head_sha = str(run.get("head_sha") or "")
+            actual_source_tree = resolve_source_tree(args.repo, run_head_sha)
             artifacts_response = run_json(
                 ["gh", "api", f"repos/{args.repo}/actions/runs/{run_id}/artifacts?per_page=100"]
             )
@@ -150,9 +166,13 @@ def main() -> int:
             if not downloaded.is_file():
                 raise SystemExit(f"{gate}: artifact missing {evidence_name}")
             evidence = json.loads(downloaded.read_text(encoding="utf-8"))
-            if evidence.get("source_sha") != run.get("head_sha"):
+            if evidence.get("source_sha") != run_head_sha:
                 raise SystemExit(
                     f"{gate}: evidence source SHA does not match workflow run head SHA"
+                )
+            if evidence.get("source_tree") != actual_source_tree:
+                raise SystemExit(
+                    f"{gate}: evidence source tree does not match GitHub workflow commit tree"
                 )
             if evidence.get("release_subject_manifest_sha256") != expected_subject:
                 raise SystemExit(f"{gate}: evidence runtime subject mismatch")
@@ -165,7 +185,8 @@ def main() -> int:
                     "artifact_name": artifact_name,
                     "artifact_created_at": artifact.get("created_at"),
                     "artifact_expires_at": artifact.get("expires_at"),
-                    "github_run_head_sha": run.get("head_sha"),
+                    "github_run_head_sha": run_head_sha,
+                    "github_run_source_tree": actual_source_tree,
                     "github_run_head_branch": run.get("head_branch"),
                     "github_run_conclusion": run.get("conclusion"),
                     "github_run_event": run.get("event"),
@@ -181,7 +202,8 @@ def main() -> int:
             )
             collected[gate] = {
                 "run_id": run_id,
-                "head_sha": run.get("head_sha"),
+                "head_sha": run_head_sha,
+                "source_tree": actual_source_tree,
                 "artifact_id": artifact["id"],
                 "artifact_name": artifact_name,
                 "artifact_digest": digest,
@@ -194,6 +216,8 @@ def main() -> int:
     candidate_tree = candidate.get("source_tree")
     if not candidate_sha or not candidate_tree:
         raise SystemExit("Q10 evidence does not provide candidate source SHA/tree")
+    if candidate_tree != collected["Q10"]["source_tree"]:
+        raise SystemExit("Q10 candidate source tree does not match the GitHub commit object")
     for gate, item in collected.items():
         evidence = json.loads((evidence_dir / item["evidence_file"]).read_text(encoding="utf-8"))
         if (

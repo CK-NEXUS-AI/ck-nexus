@@ -139,7 +139,7 @@ def _github_pr_attestations(
         )
         if payload.get("errors"):
             raise RuntimeError("GitHub GraphQL attestation lookup returned errors")
-        pr = (((payload.get("data") or {}).get("repository") or {}).get("pullRequest") or {})
+        pr = ((payload.get("data") or {}).get("repository") or {}).get("pullRequest") or {}
         review_connection = pr.get("reviews") or {}
         comment_connection = pr.get("comments") or {}
         for node in review_connection.get("nodes") or []:
@@ -175,6 +175,25 @@ def _github_pr_attestations(
     raise RuntimeError("GitHub PR attestation pagination exceeded the safety limit")
 
 
+REQUIRED_Q10_REVIEW_FIELDS = {
+    "scanner_configuration_review",
+    "findings_review",
+    "false_positive_handling_review",
+    "unresolved_risks",
+    "non_equivalence_assessment",
+}
+
+
+def _review_body_has_substance(body: str) -> bool:
+    fields: dict[str, str] = {}
+    for line in body.splitlines():
+        key, separator, value = line.partition(":")
+        key = key.strip().lower()
+        if separator and key in REQUIRED_Q10_REVIEW_FIELDS:
+            fields[key] = value.strip()
+    return all(len(fields.get(key, "")) >= 20 for key in REQUIRED_Q10_REVIEW_FIELDS)
+
+
 def _time(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
@@ -199,20 +218,29 @@ def verify(
         release_subject = _load(evidence_dir / "RELEASE_SUBJECT.json")
     except Exception as exc:
         release_subject = {}
-        failures.append(f"RELEASE_SUBJECT.json: cannot load candidate identity ({type(exc).__name__})")
+        failures.append(
+            f"RELEASE_SUBJECT.json: cannot load candidate identity ({type(exc).__name__})"
+        )
     if release_subject.get("runtime_subject_manifest_sha256") != expected_subject:
         failures.append("RELEASE_SUBJECT.json: runtime subject mismatch")
     if release_subject.get("candidate_branch") != EXPECTED_BRANCH:
         failures.append("RELEASE_SUBJECT.json: candidate branch mismatch")
     if release_subject.get("owner_github_login") != OWNER_GITHUB_LOGIN:
-        failures.append("RELEASE_SUBJECT.json: owner identity does not match pinned repository owner")
-    if not isinstance(release_subject.get("release_pr_number"), int) or release_subject.get("release_pr_number", 0) < 1:
+        failures.append(
+            "RELEASE_SUBJECT.json: owner identity does not match pinned repository owner"
+        )
+    if (
+        not isinstance(release_subject.get("release_pr_number"), int)
+        or release_subject.get("release_pr_number", 0) < 1
+    ):
         failures.append("RELEASE_SUBJECT.json: release PR number missing or invalid")
     try:
         q10_identity = _load(evidence_dir / "Q10_DEPENDENCY_AUDIT.json")
     except Exception as exc:
         q10_identity = {}
-        failures.append(f"Q10_DEPENDENCY_AUDIT.json: cannot load candidate identity ({type(exc).__name__})")
+        failures.append(
+            f"Q10_DEPENDENCY_AUDIT.json: cannot load candidate identity ({type(exc).__name__})"
+        )
     candidate_sha = q10_identity.get("source_sha")
     candidate_tree = q10_identity.get("source_tree")
     if not isinstance(candidate_sha, str) or len(candidate_sha) != 40:
@@ -229,9 +257,20 @@ def verify(
             )
             actual_candidate_tree = (commit.get("tree") or {}).get("sha")
             if actual_candidate_tree != candidate_tree:
-                failures.append("Q10_DEPENDENCY_AUDIT.json: candidate tree does not match GitHub commit object")
-        except (urllib.error.URLError, TimeoutError, ValueError, TypeError, RuntimeError, OSError) as exc:
-            failures.append(f"Q10_DEPENDENCY_AUDIT.json: candidate tree lookup failed ({type(exc).__name__})")
+                failures.append(
+                    "Q10_DEPENDENCY_AUDIT.json: candidate tree does not match GitHub commit object"
+                )
+        except (
+            urllib.error.URLError,
+            TimeoutError,
+            ValueError,
+            TypeError,
+            RuntimeError,
+            OSError,
+        ) as exc:
+            failures.append(
+                f"Q10_DEPENDENCY_AUDIT.json: candidate tree lookup failed ({type(exc).__name__})"
+            )
 
     for filename in EVIDENCE_FILES:
         path = evidence_dir / filename
@@ -256,14 +295,19 @@ def verify(
         }
 
         if gate != expected_gate:
-            failures.append(f"{filename}: gate identity does not match its canonical evidence filename")
+            failures.append(
+                f"{filename}: gate identity does not match its canonical evidence filename"
+            )
             rows.append(row)
             continue
         if subject != expected_subject:
             failures.append(f"{filename}: stale release subject")
             rows.append(row)
             continue
-        if evidence.get("source_sha") != candidate_sha or evidence.get("source_tree") != candidate_tree:
+        if (
+            evidence.get("source_sha") != candidate_sha
+            or evidence.get("source_tree") != candidate_tree
+        ):
             failures.append(f"{filename}: source SHA/tree does not match RELEASE_SUBJECT.json")
             rows.append(row)
             continue
@@ -302,7 +346,8 @@ def verify(
             "branch_allowed": allowed_branches is None or actual_branch in allowed_branches,
             "artifact_head_sha_match": workflow_run.get("head_sha") == candidate_sha,
             "run_head_sha_match": run.get("head_sha") == candidate_sha,
-            "artifact_name_match": artifact.get("name") == f"{EXPECTED_ARTIFACT_PREFIXES.get(gate, '')}{candidate_sha}",
+            "artifact_name_match": artifact.get("name")
+            == f"{EXPECTED_ARTIFACT_PREFIXES.get(gate, '')}{candidate_sha}",
         }
         for check, passed in checks.items():
             if not passed:
@@ -343,6 +388,7 @@ def verify(
                     subject_ref = str(expected_subject)
                     report_sha = str(evidence["security_report_sha256"])
                     run_ref = str(run_id)
+
                     def attests(body: str, marker: str) -> bool:
                         lines = set(body.splitlines())
                         required = {
@@ -354,14 +400,17 @@ def verify(
                             f"workflow_run_id: {run_ref}",
                         }
                         return required.issubset(lines)
+
                     matching_reviews = [
-                        item for item in reviews
+                        item
+                        for item in reviews
                         if item.get("state") == "APPROVED"
                         and item.get("commit_id") == current_head
                         and attests(item.get("body") or "", "CKNEXUS-Q10-REVIEW-APPROVED")
                         and "COVERAGE-REVIEWED" in (item.get("body") or "")
                         and "FINDINGS-REVIEWED" in (item.get("body") or "")
                         and "NON-EQUIVALENCE-ACKNOWLEDGED" in (item.get("body") or "")
+                        and _review_body_has_substance(item.get("body") or "")
                     ]
                     matching_reviews.sort(key=lambda item: item.get("submitted_at", ""))
                     expected_owner = OWNER_GITHUB_LOGIN
@@ -384,7 +433,8 @@ def verify(
                         review_time = _time(review["submitted_at"])
                         break
                     matching_comments = [
-                        item for item in comments
+                        item
+                        for item in comments
                         if (item.get("user") or {}).get("login") == expected_owner
                         and str(item.get("author_association", "")).upper() in {"MEMBER", "OWNER"}
                         and attests(item.get("body") or "", "CKNEXUS-Q10-OWNER-APPROVED")
@@ -395,7 +445,9 @@ def verify(
                             if _time(comment["created_at"]) >= review_time:
                                 owner_login = expected_owner
                                 owner_url = comment.get("html_url")
-                                owner_association = str(comment.get("author_association", "")).upper()
+                                owner_association = str(
+                                    comment.get("author_association", "")
+                                ).upper()
                                 owner_time = _time(comment["created_at"])
                                 break
                     scan_time = _time(str(evidence["security_scan_completed_at"]))
@@ -407,35 +459,51 @@ def verify(
                         and current_head == candidate_ref
                     )
                     api_review_ok = bool(
-                        pr_ok and reviewer_login and owner_login
+                        pr_ok
+                        and reviewer_login
+                        and owner_login
                         and reviewer_association in {"COLLABORATOR", "MEMBER"}
                         and owner_association in {"MEMBER", "OWNER"}
                         and reviewer_login != owner_login
                         and review_time >= scan_time
                         and owner_time >= review_time
                     )
-                    approval_checks.update({
-                        "release_pr_merged_to_main": pr_ok,
-                        "reviewed_pr_head_matches_candidate_sha": current_head == candidate_ref,
-                        "independent_approved_review_exists": bool(reviewer_login),
-                        "reviewer_author_association": reviewer_association,
-                        "reviewer_is_repository_collaborator_or_member": reviewer_association in {"COLLABORATOR", "MEMBER"},
-                        "owner_identity_matches_release_manifest": owner_login == release_subject.get("owner_github_login"),
-                        "owner_approval_comment_exists": bool(owner_login and owner_url),
-                        "owner_author_association": owner_association,
-                        "owner_identity_is_pinned": owner_login == OWNER_GITHUB_LOGIN,
-                        "review_after_scan_and_owner_after_review": api_review_ok,
-                        "independent_reviewer": reviewer_login,
-                        "independent_review_reference": review_url,
-                        "owner_approval_actor": owner_login,
-                        "owner_approval_reference": owner_url,
-                        "reviewed_source_sha": candidate_sha,
-                        "reviewed_source_tree": candidate_tree,
-                        "reviewed_release_subject_manifest_sha256": expected_subject,
-                        "reviewed_report_sha256": report_sha,
-                    })
-                except (urllib.error.URLError, TimeoutError, ValueError, KeyError, TypeError, RuntimeError, OSError) as exc:
-                    approval_checks["github_review_attestation_lookup"] = f"ERROR:{type(exc).__name__}"
+                    approval_checks.update(
+                        {
+                            "release_pr_merged_to_main": pr_ok,
+                            "reviewed_pr_head_matches_candidate_sha": current_head == candidate_ref,
+                            "independent_approved_review_exists": bool(reviewer_login),
+                            "reviewer_author_association": reviewer_association,
+                            "reviewer_is_repository_collaborator_or_member": reviewer_association
+                            in {"COLLABORATOR", "MEMBER"},
+                            "owner_identity_matches_release_manifest": owner_login
+                            == release_subject.get("owner_github_login"),
+                            "owner_approval_comment_exists": bool(owner_login and owner_url),
+                            "owner_author_association": owner_association,
+                            "owner_identity_is_pinned": owner_login == OWNER_GITHUB_LOGIN,
+                            "review_after_scan_and_owner_after_review": api_review_ok,
+                            "independent_reviewer": reviewer_login,
+                            "independent_review_reference": review_url,
+                            "owner_approval_actor": owner_login,
+                            "owner_approval_reference": owner_url,
+                            "reviewed_source_sha": candidate_sha,
+                            "reviewed_source_tree": candidate_tree,
+                            "reviewed_release_subject_manifest_sha256": expected_subject,
+                            "reviewed_report_sha256": report_sha,
+                        }
+                    )
+                except (
+                    urllib.error.URLError,
+                    TimeoutError,
+                    ValueError,
+                    KeyError,
+                    TypeError,
+                    RuntimeError,
+                    OSError,
+                ) as exc:
+                    approval_checks["github_review_attestation_lookup"] = (
+                        f"ERROR:{type(exc).__name__}"
+                    )
             if not scanner_ok or not api_review_ok:
                 failures.append(
                     "Q10: scanner evidence, independent APPROVED PR review, or final repository Owner approval is missing/invalid"

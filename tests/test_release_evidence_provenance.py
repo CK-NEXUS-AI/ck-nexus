@@ -103,11 +103,40 @@ def test_pr_attestation_lookup_uses_graphql_post_and_paginates_both_connections(
 
 
 def test_evidence_filename_gate_mapping_is_fixed_and_not_self_asserted():
-    assert provenance.EXPECTED_GATES_BY_FILENAME["Q10_DEPENDENCY_AUDIT.json"] == "Q10"
-    assert (
-        provenance.EXPECTED_GATES_BY_FILENAME["Q16_PRODUCTION_IMAGE.json"] == "Q16_PRODUCTION_IMAGE"
+    assert provenance.EXPECTED_GATES_BY_FILENAME == {
+        "Q10_DEPENDENCY_AUDIT.json": "Q10",
+        "Q11_OPENAI_LIVE.json": "Q11",
+        "Q12_CGROUP_V2.json": "Q12",
+        "Q13_POSTGRES_DR.json": "Q13",
+        "Q14_OBSERVABILITY_ALERT.json": "Q14",
+        "Q15_CLEAN_MACHINE.json": "Q15",
+        "Q16_PRODUCTION_IMAGE.json": "Q16_PRODUCTION_IMAGE",
+        "Q16_RUNTIME_LICENSE_SUMMARY.json": "Q16_RUNTIME_LICENSES",
+    }
+
+
+def test_q10_review_requires_substantive_assessment_fields():
+    marker_only = "\n".join(
+        [
+            "CKNEXUS-Q10-REVIEW-APPROVED",
+            "COVERAGE-REVIEWED",
+            "FINDINGS-REVIEWED",
+            "NON-EQUIVALENCE-ACKNOWLEDGED",
+        ]
     )
-    assert (
-        provenance.EXPECTED_GATES_BY_FILENAME["Q16_RUNTIME_LICENSE_SUMMARY.json"]
-        == "Q16_RUNTIME_LICENSES"
+    assert not provenance._review_body_has_substance(marker_only)
+
+    substantive = "\n".join(
+        [
+            "scanner_configuration_review: Reviewed pinned Semgrep, Gitleaks, "
+            "Trivy and ruleset identities.",
+            "findings_review: Reviewed every high-risk finding and its documented disposition.",
+            "false_positive_handling_review: Reproduced and documented each "
+            "proposed false-positive exclusion.",
+            "unresolved_risks: Remaining medium findings and missing Codex "
+            "equivalence are documented.",
+            "non_equivalence_assessment: The pinned non-Codex tools are not "
+            "equivalent to Codex Security.",
+        ]
     )
+    assert provenance._review_body_has_substance(substantive)
