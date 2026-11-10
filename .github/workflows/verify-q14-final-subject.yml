@@ -190,7 +190,7 @@ jobs:
           Q14_HEALTH_RC: ${{ steps.health.outputs.rc }}
         run: |
           .venv/bin/python3 - "$Q14_SOURCE_SHA" "$Q14_SOURCE_TREE" "$Q14_RELEASE_SUBJECT" "$RUN_ID" <<'PY'
-          import hashlib,json,os,sys
+          import hashlib,json,math,os,sys
           from pathlib import Path
           sha,tree,subject,run_id=sys.argv[1:]
           receipt_path=Path('alert-receipt.json')
@@ -205,7 +205,25 @@ jobs:
           am_ref=os.getenv('Q14_ALERTMANAGER_IMAGE_REF','')
           prom_digest=prom_ref.rsplit('@',1)[-1] if '@sha256:' in prom_ref else None
           am_digest=am_ref.rsplit('@',1)[-1] if '@sha256:' in am_ref else None
-          metrics_passed=b'ckn_email_stale_processing_leases 1' in metrics_data
+          def exact_metric_sample(data, name, expected):
+              try:
+                  lines=data.decode('utf-8').splitlines()
+              except UnicodeDecodeError:
+                  return False
+              for line in lines:
+                  fields=line.split()
+                  if fields and fields[0]==name:
+                      if len(fields)!=2:
+                          return False
+                      try:
+                          value=float(fields[1])
+                      except ValueError:
+                          return False
+                      return math.isfinite(value) and value==expected
+              return False
+          metrics_passed=exact_metric_sample(
+              metrics_data, 'ckn_email_stale_processing_leases', 1.0
+          )
           passed=bool(matched and health_passed and metrics_passed and prom_digest and am_digest and data)
           evidence={
               'schema_version':5,'gate':'Q14','source_sha':sha,'source_tree':tree,
