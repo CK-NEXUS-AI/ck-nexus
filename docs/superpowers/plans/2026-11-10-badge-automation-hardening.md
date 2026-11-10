@@ -78,8 +78,8 @@
 
 ### Task 4: Final verification and review response
 
-- [x] Run 28 focused unit tests, compileall, Ruff, yamllint, YAML parse, and git diff --check.
+- [x] Run 29 focused unit tests, compileall, Ruff, yamllint, YAML parse, and git diff --check.
 - [x] Confirm actionlint in GitHub-hosted CI (PR lint-workflow check passed).
-- [ ] Inspect the complete diff and generated artifacts.
-- [ ] Commit and push the branch; do not merge.
-- [ ] Reply to and resolve only review threads whose findings are demonstrably addressed.
+- [x] Inspect the complete diff and generated artifacts; confirmed the generated report correctly labels all seven evidence gates STALE.
+- [x] Commit and push the branch; do not merge.
+- [x] Reply to and resolve the outdated group-progress review thread after verifying the fix.
