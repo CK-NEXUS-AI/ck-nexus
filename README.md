@@ -6,6 +6,16 @@ CK-NEXUS is one platform with one canonical application runtime. **Agnes** is it
 
 > **Release decision: NO-GO for Production.** Do not treat a passing test subset, CI run, implemented feature, or running service as Production approval. The current release decision and gate evidence are maintained in [Release Status](RELEASE_STATUS.md) and the [Q10–Q16 Closure Contract](docs/Q10_Q16_CLOSURE_CONTRACT.md).
 
+### Gate Progress (auto-refreshed)
+
+| Security | Stability | Release | Delivery |
+|---|---|---|---|
+| ![Q10](docs/badges/security.svg) | ![Q11+Q12](docs/badges/stability.svg) | ![Q13+Q14](docs/badges/release.svg) | ![Q15+Q16](docs/badges/delivery.svg) |
+
+**Source of truth:** the committed gate evidence JSON files under `evidence/`: `Q10_DEPENDENCY_AUDIT.json`, `Q11_OPENAI_LIVE.json`, `Q12_CGROUP_V2.json`, `Q13_POSTGRES_DR.json`, `Q14_OBSERVABILITY_ALERT.json`, `Q15_CLEAN_MACHINE.json`, and both `Q16_PRODUCTION_IMAGE.json` plus `Q16_RUNTIME_LICENSE_SUMMARY.json`. Badge semantics are fail-closed and status-aware: `PASS` = 100%, `PASS_CANDIDATE` = 75%, `NOT_STARTED` = 0%; `FAIL`, `BLOCKED`, `NOT_VERIFIED`, and `UNKNOWN` are shown as explicit labels, never disguised as percentages. Combined badges show a percentage only when every member gate has a defensible numeric index. The release decision remains **NO-GO** until the mandatory gates are independently verified.
+
+
+
 ## Start here
 
 | Need | Open |

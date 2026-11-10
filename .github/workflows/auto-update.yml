@@ -1,0 +1,153 @@
+name: CK-NEXUS auto-update gate progress
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: auto-update-gate-progress
+  cancel-in-progress: false
+
+jobs:
+  render:
+    name: Render report and propose documentation update
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.changes.outputs.changed }}
+      pull_number: ${{ steps.pr.outputs.pull_number }}
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Prepare automation branch without overwriting remote history
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          if git ls-remote --exit-code --heads origin automation/gate-progress >/dev/null 2>&1; then
+            git fetch origin automation/gate-progress
+            git checkout -B automation/gate-progress FETCH_HEAD
+            git merge --no-edit origin/main
+          else
+            git checkout -b automation/gate-progress origin/main
+          fi
+
+      - name: Generate update report
+        run: python3 scripts/generate_update_report.py
+
+      - name: Render SVG badges
+        run: python3 scripts/render_badge.py
+
+      - name: Commit and push documentation-only branch
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/UPDATE_REPORT.md docs/badges/security.svg docs/badges/stability.svg docs/badges/release.svg docs/badges/delivery.svg
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No report or badge changes; no push, PR creation, or verification."
+            exit 0
+          fi
+          git commit -m "docs: refresh gate status [skip ci]"
+          git push origin HEAD:refs/heads/automation/gate-progress
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Create or locate documentation PR
+        id: pr
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
+        env:
+          CHANGED: ${{ steps.changes.outputs.changed }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const head = owner + ":automation/gate-progress";
+            const existing = await github.rest.pulls.list({
+              owner, repo, state: "open", head, base: "main"
+            });
+            if (existing.data.length > 0) {
+              core.setOutput("pull_number", String(existing.data[0].number));
+              return;
+            }
+            if (process.env.CHANGED !== "true") {
+              core.setOutput("pull_number", "0");
+              return;
+            }
+            const created = await github.rest.pulls.create({
+              owner,
+              repo,
+              head: "automation/gate-progress",
+              base: "main",
+              title: "docs: refresh evidence-derived gate status",
+              body: [
+                "## Automated documentation update",
+                "",
+                "- Refreshes the Q10–Q16 status report from committed evidence JSON.",
+                "- Regenerates four status-aware SVG badges.",
+                "- Does not edit evidence, release subjects, Core Authority, or secrets.",
+                "- Does not merge or deploy; normal review and branch protection remain in force.",
+                "",
+                "FAIL, BLOCKED, NOT_VERIFIED, and UNKNOWN are labels, not fabricated percentages.",
+                "The release decision remains NO-GO unless independently changed through the release process."
+              ].join("\n")
+            });
+            core.setOutput("pull_number", String(created.data.number));
+
+  verify-docs:
+    name: Verify documentation generator (GitHub-hosted)
+    needs: render
+    if: ${{ needs.render.outputs.changed == 'true' && needs.render.outputs.pull_number != '0' && needs.render.outputs.pull_number != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout automation branch
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: automation/gate-progress
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Install workflow validators
+        run: |
+          set -euo pipefail
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          python3 -m pip install --disable-pip-version-check yamllint
+
+      - name: Lint workflow syntax
+        run: |
+          set -euo pipefail
+          actionlint .github/workflows/auto-update.yml
+          yamllint -d relaxed .github/workflows/auto-update.yml
+
+      - name: Run focused tests
+        run: python3 -m unittest discover -s tests -p 'test_update_report_badges.py' -v
+
+      - name: Verify generated artifacts are deterministic
+        run: |
+          set -euo pipefail
+          python3 scripts/generate_update_report.py
+          python3 scripts/render_badge.py
+          git diff --exit-code -- docs/UPDATE_REPORT.md docs/badges/

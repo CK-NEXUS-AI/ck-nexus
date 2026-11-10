@@ -1,0 +1,55 @@
+# CK-NEXUS Update Report
+
+> Generated from the current committed repository snapshot.
+> This report summarizes committed evidence; it is not production approval or certification.
+> Current release decision remains **NO-GO for Production**.
+
+## Q10–Q16 Gate Status
+
+| Gate | Evidence status | Status index | Evidence source |
+|---|---|---:|---|
+| Q10 | **NOT_VERIFIED** | NOT VERIFIED | evidence/Q10_DEPENDENCY_AUDIT.json |
+| Q11 | **BLOCKED** | BLOCKED | evidence/Q11_OPENAI_LIVE.json |
+| Q12 | **PASS** | 100% | evidence/Q12_CGROUP_V2.json |
+| Q13 | **PASS_CANDIDATE** | 75% | evidence/Q13_POSTGRES_DR.json |
+| Q14 | **PASS** | 100% | evidence/Q14_OBSERVABILITY_ALERT.json |
+| Q15 | **PASS_CANDIDATE** | 75% | evidence/Q15_CLEAN_MACHINE.json |
+| Q16 | **PASS_CANDIDATE** | 75% | evidence/Q16_PRODUCTION_IMAGE.json, evidence/Q16_RUNTIME_LICENSE_SUMMARY.json |
+
+## Summary Badges
+
+| Security | Stability | Release | Delivery |
+|---|---|---|---|
+| **Security: NOT_VERIFIED** | **Stability: BLOCKED** | **Release: PASS_CANDIDATE** (88%) | **Delivery: PASS_CANDIDATE** (75%) |
+
+Status mapping: PASS = 100%; PASS_CANDIDATE = 75%; NOT_STARTED = 0%. FAIL, BLOCKED, NOT_VERIFIED, and UNKNOWN are shown as status labels, not percentages.
+Combined groups are numeric only when every member has a defensible numeric index.
+
+## Recent Commits
+
+| Commit | Date | Subject |
+|---|---|---|
+| `4d1366c` | 2026-11-05 | feat: unify CK-NEXUS application homepage (#358) |
+| `beb5abb` | 2026-11-05 | docs: unify CK-NEXUS homepage (#357) |
+| `ebb33a0` | 2026-11-04 | chore(repo): remove superseded docs and stale artifacts (#356) |
+| `34d7df4` | 2026-11-04 | fix(runtime): unify all application entrypoints (#353) |
+| `6a27e22` | 2026-11-04 | docs(q10): propose auditable open-source security gate (#314) |
+| `942ef54` | 2026-11-04 | fix(ci): take published digest from docker push output (#351) |
+| `ecfc96b` | 2026-11-04 | chore: pin actions to SHA and record evidence subject (#348) |
+| `f4c4447` | 2026-11-01 | feat(channels): add fail-closed multi-channel brain ingress contract (#346) |
+| `687d97c` | 2026-11-01 | fix(q16): secure non-root development state storage |
+| `b7b6346` | 2026-11-01 | docs: finalize CK-NEXUS GitHub reconciliation report |
+| `fa4c029` | 2026-11-01 | feat(brain): add bounded unified cognitive fabric |
+| `5805553` | 2026-11-01 | fix(collector): enforce read-only GitHub token |
+| `6c093d8` | 2026-10-31 | fix(collector): isolate git config from root system includes (#338) |
+| `4a0617e` | 2026-10-31 | feat(dashboard): live read-only development status (#335) |
+| `2dc5a29` | 2026-10-31 | docs(release): record current main Q10-Q16 subject drift |
+| `22edd1f` | 2026-10-31 | docs(dashboard): refresh evidence-based system status (#333) |
+| `0fb3a14` | 2026-10-31 | fix(agnes): resolve trusted system Python for chroot (#334) |
+| `1355e52` | 2026-10-31 | fix(deps): refresh filelock for security audit (#317) (#331) |
+| `43cb6f0` | 2026-10-31 | fix(omni): retry concurrent SQLite WAL initialization lock (#332) |
+| `ebe3f92` | 2026-10-31 | Security: content-signature validation in scan_attachment (#66) (#330) |
+
+## Authority Boundary
+
+These badges summarize the committed evidence files listed above. They do not change evidence, expected release subjects, gate decisions, Core Authority, or the NO-GO release decision.
