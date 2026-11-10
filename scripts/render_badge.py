@@ -21,6 +21,7 @@ COLORS = {
     "FAIL": "#cf222e",
     "BLOCKED": "#bf8700",
     "NOT_VERIFIED": "#6e7781",
+    "STALE": "#8250df",
     "NOT_STARTED": "#6e7781",
     "UNKNOWN": "#6e7781",
 }

@@ -21,6 +21,11 @@ STATUS_FILES = {
         "evidence/Q16_RUNTIME_LICENSE_SUMMARY.json",
     ),
 }
+RUNTIME_PATHS = (
+    "app", "creator_app", "services", "gateway", "orchestration",
+    "idea_engine", "migrations", "deploy", "observability", "Dockerfile",
+    "docker-compose.prod.yml", "main.py", "pyproject.toml", "uv.lock",
+)
 STATUS_KEYS = ("gate_result", "result", "status", "component_result")
 PASS_STATES = {"PASS", "VERIFIED"}
 FAIL_STATES = {"FAIL", "FAILED", "ERROR"}
@@ -47,9 +52,46 @@ def _status(payload: dict[str, Any] | None) -> str:
     return "UNKNOWN"
 
 
+def _evidence_status(payload: dict[str, Any] | None, root: Path) -> str:
+    """Reject evidence whose source commit/tree no longer matches runtime files."""
+    if not payload:
+        return "UNKNOWN"
+    source_sha = payload.get("source_sha")
+    recorded_tree = payload.get("source_tree")
+    if not isinstance(source_sha, str) or not source_sha.strip():
+        return "UNKNOWN"
+    commit = subprocess.run(
+        ["git", "-C", str(root), "cat-file", "-e", f"{source_sha}^{{commit}}"],
+        capture_output=True,
+        check=False,
+    )
+    if commit.returncode:
+        return "STALE"
+    tree = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", f"{source_sha}^{{tree}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if tree.returncode or not isinstance(recorded_tree, str):
+        return "STALE"
+    if tree.stdout.strip() != recorded_tree:
+        return "STALE"
+    changed = subprocess.run(
+        ["git", "-C", str(root), "diff", "--quiet", source_sha, "HEAD", "--", *RUNTIME_PATHS],
+        capture_output=True,
+        check=False,
+    )
+    if changed.returncode == 0:
+        return _status(payload)
+    return "STALE" if changed.returncode == 1 else "UNKNOWN"
+
+
 def _combine_status(statuses: list[str]) -> str:
     if not statuses:
         return "UNKNOWN"
+    if any(status == "STALE" for status in statuses):
+        return "STALE"
     if any(status in FAIL_STATES for status in statuses):
         return "FAIL"
     if any(status in BLOCKED_STATES for status in statuses):
@@ -92,7 +134,7 @@ def load_gate_states(root: Path = ROOT) -> dict[str, dict[str, Any]]:
         for relative_path in relative_paths:
             path = root / relative_path
             payload = _read_json(path)
-            statuses.append(_status(payload))
+            statuses.append(_evidence_status(payload, root))
             if payload is not None:
                 sources.append(relative_path)
         status = _combine_status(statuses)

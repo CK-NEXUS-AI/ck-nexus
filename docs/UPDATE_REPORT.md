@@ -8,19 +8,19 @@
 
 | Gate | Evidence status | Status index | Evidence source |
 |---|---|---:|---|
-| Q10 | **NOT_VERIFIED** | NOT VERIFIED | evidence/Q10_DEPENDENCY_AUDIT.json |
-| Q11 | **BLOCKED** | BLOCKED | evidence/Q11_OPENAI_LIVE.json |
-| Q12 | **PASS** | 100% | evidence/Q12_CGROUP_V2.json |
-| Q13 | **PASS_CANDIDATE** | 75% | evidence/Q13_POSTGRES_DR.json |
-| Q14 | **PASS** | 100% | evidence/Q14_OBSERVABILITY_ALERT.json |
-| Q15 | **PASS_CANDIDATE** | 75% | evidence/Q15_CLEAN_MACHINE.json |
-| Q16 | **PASS_CANDIDATE** | 75% | evidence/Q16_PRODUCTION_IMAGE.json, evidence/Q16_RUNTIME_LICENSE_SUMMARY.json |
+| Q10 | **STALE** | STALE | evidence/Q10_DEPENDENCY_AUDIT.json |
+| Q11 | **STALE** | STALE | evidence/Q11_OPENAI_LIVE.json |
+| Q12 | **STALE** | STALE | evidence/Q12_CGROUP_V2.json |
+| Q13 | **STALE** | STALE | evidence/Q13_POSTGRES_DR.json |
+| Q14 | **STALE** | STALE | evidence/Q14_OBSERVABILITY_ALERT.json |
+| Q15 | **STALE** | STALE | evidence/Q15_CLEAN_MACHINE.json |
+| Q16 | **STALE** | STALE | evidence/Q16_PRODUCTION_IMAGE.json, evidence/Q16_RUNTIME_LICENSE_SUMMARY.json |
 
 ## Summary Badges
 
 | Security | Stability | Release | Delivery |
 |---|---|---|---|
-| **Security: NOT_VERIFIED** | **Stability: BLOCKED** | **Release: PASS_CANDIDATE** (88%) | **Delivery: PASS_CANDIDATE** (75%) |
+| **Security: STALE** | **Stability: STALE** | **Release: STALE** | **Delivery: STALE** |
 
 Status mapping: PASS = 100%; PASS_CANDIDATE = 75%; NOT_STARTED = 0%. FAIL, BLOCKED, NOT_VERIFIED, and UNKNOWN are shown as status labels, not percentages.
 Combined groups are numeric only when every member has a defensible numeric index.
@@ -29,6 +29,7 @@ Combined groups are numeric only when every member has a defensible numeric inde
 
 | Commit | Date | Subject |
 |---|---|---|
+| `d23c37f` | 2026-11-10 | docs: regenerate status artifacts |
 | `e08a057` | 2026-11-10 | fix: satisfy strict line length checks |
 | `7360835` | 2026-11-10 | ci: validate workflow syntax on pull requests |
 | `224c929` | 2026-11-10 | feat: add evidence-driven gate status badges |
@@ -48,7 +49,6 @@ Combined groups are numeric only when every member has a defensible numeric inde
 | `4a0617e` | 2026-10-31 | feat(dashboard): live read-only development status (#335) |
 | `2dc5a29` | 2026-10-31 | docs(release): record current main Q10-Q16 subject drift |
 | `22edd1f` | 2026-10-31 | docs(dashboard): refresh evidence-based system status (#333) |
-| `0fb3a14` | 2026-10-31 | fix(agnes): resolve trusted system Python for chroot (#334) |
 
 ## Authority Boundary
 
