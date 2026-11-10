@@ -16,8 +16,8 @@ import json
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 ALGORITHM_VERSION = "git-ls-tree-sha256-v1"
 
@@ -75,8 +75,7 @@ class ReleaseSubject:
 def _git(root: Path, args: Sequence[str]) -> bytes:
     process = subprocess.run(
         ["git", "-C", str(root), *args],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         check=False,
     )
     if process.returncode:
