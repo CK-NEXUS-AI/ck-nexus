@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import math
 import os
 import time
 from typing import Any
@@ -52,7 +54,25 @@ class TeamDirector:
         self,
         knowledge_path: str | None = None,
         development_status_path: str | None = None,
+        *,
+        max_concurrency: int = 2,
+        step_timeout: float = 60.0,
     ) -> None:
+        if (
+            isinstance(max_concurrency, bool)
+            or not isinstance(max_concurrency, int)
+            or not 1 <= max_concurrency <= 5
+        ):
+            raise ValueError("max_concurrency must be an integer between 1 and 5")
+        if (
+            isinstance(step_timeout, bool)
+            or not isinstance(step_timeout, (int, float))
+            or not math.isfinite(step_timeout)
+            or step_timeout <= 0
+        ):
+            raise ValueError("step_timeout must be a positive finite number")
+        self.max_concurrency = max_concurrency
+        self.step_timeout = float(step_timeout)
         self.director = DirectorAgent()
         self.agents: dict[str, Agent] = {
             "engineer": EngineerAgent(),
@@ -80,7 +100,32 @@ class TeamDirector:
         context: str = "",
         constraints: tuple[str, ...] = (),
     ) -> TeamResult:
-        """สั่งงานทั้งทีม — ครั้งเดียวจบทั้งระบบ."""
+        """Synchronous compatibility entry point for non-async callers."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(
+                self.aprocess_request(
+                    description,
+                    priority=priority,
+                    context=context,
+                    constraints=constraints,
+                )
+            )
+        raise RuntimeError(
+            "process_request cannot run inside an active event loop; "
+            "use await aprocess_request(...) instead"
+        )
+
+    async def aprocess_request(
+        self,
+        description: str,
+        *,
+        priority: int = 2,
+        context: str = "",
+        constraints: tuple[str, ...] = (),
+    ) -> TeamResult:
+        """Asynchronous TeamDirector entry point."""
         start = time.time()
 
         from creator_app.ai_team.agent_models import RequestPriority
@@ -93,16 +138,16 @@ class TeamDirector:
             constraints=constraints,
         )
 
-        # ค้นหาความรู้เดิม
         existing_knowledge = self.knowledge.search(description, max_results=3)
         knowledge_context = ""
         if existing_knowledge:
             knowledge_context = "\n".join(
-                f"ความรู้เดิม ({k.topic}): {k.content[:200]}" for k in existing_knowledge
+                f"ความรู้เดิม ({item.topic}): {item.content[:200]}"
+                for item in existing_knowledge
             )
 
-        # Director วางแผน
-        plan_result = self.director.process(
+        plan_result = await asyncio.to_thread(
+            self.director.process,
             request,
             context={"agents": list(self.agents.values())},
         )
@@ -110,15 +155,12 @@ class TeamDirector:
         if plan is None:
             plan = TeamPlan(request_id=request.request_id)
 
-        # ทำงานตามแผน
         step_results: list[TaskResult] = []
         completed_steps: set[str] = set()
 
         for step in plan.steps:
-            deps_met = all(d in completed_steps for d in step.depends_on)
-            if not deps_met:
+            if not all(dependency in completed_steps for dependency in step.depends_on):
                 continue
-
             agent = self.agents.get(step.agent_role)
             if agent is None:
                 continue
@@ -126,12 +168,11 @@ class TeamDirector:
             agent_context = {
                 "request": request,
                 "plan": plan,
-                "completed_steps": completed_steps,
-                "step_results": step_results,
+                "completed_steps": set(completed_steps),
+                "step_results": list(step_results),
                 "knowledge_context": knowledge_context,
             }
-
-            result = agent.process(request, context=agent_context)
+            result = await asyncio.to_thread(agent.process, request, context=agent_context)
             agent.record_result(result)
             step_results.append(result)
             completed_steps.add(step.step_id)
@@ -145,8 +186,9 @@ class TeamDirector:
                     confidence=result.confidence,
                 )
 
-        # Director รวมผล
-        synthesis = self.director.synthesize_results(step_results, request)
+        synthesis = await asyncio.to_thread(
+            self.director.synthesize_results, step_results, request
+        )
 
         team_result = TeamResult(
             request_id=request.request_id,
@@ -154,9 +196,11 @@ class TeamDirector:
             status=TaskStatus.COMPLETED,
             steps_completed=len(step_results),
             steps_total=plan.total_steps,
-            team_members_used=tuple(dict.fromkeys(r.agent_name for r in step_results)),
+            team_members_used=tuple(dict.fromkeys(result.agent_name for result in step_results)),
             duration_seconds=time.time() - start,
-            artifacts=tuple(a for r in step_results for a in r.artifacts),
+            artifacts=tuple(
+                artifact for result in step_results for artifact in result.artifacts
+            ),
             confidence=synthesis.confidence,
             plan=plan,
             step_results=step_results,

@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+
+import pytest
+
 from creator_app.ai_team.agent import Agent
 from creator_app.ai_team.agent_models import (
     AgentRole,
@@ -11,6 +15,21 @@ from creator_app.ai_team.team_director import TeamDirector
 
 class TestTeamDirector:
     """ทดสอบ TeamDirector — หัวหน้าทีม."""
+
+    @pytest.mark.parametrize("max_concurrency", [0, 6])
+    def test_rejects_out_of_range_concurrency(self, max_concurrency):
+        with pytest.raises(ValueError, match="max_concurrency"):
+            TeamDirector(max_concurrency=max_concurrency)
+
+    @pytest.mark.parametrize("max_concurrency", [1, 2])
+    def test_accepts_bounded_concurrency(self, max_concurrency):
+        team = TeamDirector(max_concurrency=max_concurrency)
+        assert team.max_concurrency == max_concurrency
+
+    @pytest.mark.parametrize("step_timeout", [0, -1])
+    def test_rejects_non_positive_step_timeout(self, step_timeout):
+        with pytest.raises(ValueError, match="step_timeout"):
+            TeamDirector(step_timeout=step_timeout)
 
     def test_create_team(self):
         """สร้างทีมได้ 7 คน."""
@@ -25,6 +44,25 @@ class TestTeamDirector:
         assert "Researcher" in names
         assert "Designer" in names
         assert "Connector" in names
+
+    def test_async_process_request(self):
+        team = TeamDirector()
+
+        async def run():
+            return await team.aprocess_request("สร้างระบบเขียนโค้ด API")
+
+        result = asyncio.run(run())
+        assert result.status == TaskStatus.COMPLETED
+        assert result.steps_completed > 0
+
+    def test_sync_process_request_rejects_running_event_loop(self):
+        team = TeamDirector()
+
+        async def run():
+            with pytest.raises(RuntimeError, match="aprocess_request"):
+                team.process_request("สร้างระบบเขียนโค้ด API")
+
+        asyncio.run(run())
 
     def test_process_request_code(self):
         """สั่งงานเขียนโค้ด → Engineer รับงาน."""
