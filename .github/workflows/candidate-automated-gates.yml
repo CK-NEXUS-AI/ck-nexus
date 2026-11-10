@@ -148,12 +148,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/q16-image"
-          run_meta=$(gh run view "$Q16_RUN_ID" --json headSha,conclusion,name)
+          run_meta=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$Q16_RUN_ID")
           python3 - "$run_meta" "$TARGET_SHA" <<'PY'
           import json,sys
           run=json.loads(sys.argv[1])
-          assert run['headSha']==sys.argv[2], 'Q16 run head does not match candidate SHA'
+          assert run['head_sha']==sys.argv[2], 'Q16 run head does not match candidate SHA'
           assert run['conclusion']=='success', 'Q16 image workflow did not succeed'
+          assert run['event']=='workflow_dispatch', 'Q16 image must be an explicit candidate run'
+          assert run['path']=='.github/workflows/candidate-production-image.yml', 'Q16 run came from an unexpected workflow path'
           assert run['name']=='Candidate production image'
           PY
           gh run download "$Q16_RUN_ID" --name "q16-production-image-$TARGET_SHA" --dir "$RUNNER_TEMP/q16-image"
