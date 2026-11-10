@@ -20,3 +20,5 @@ def test_signup_validate_all_uses_text_nodes_for_dynamic_values() -> None:
         assert "badge.textContent = result.valid ?" in body
         assert "list.append(item)" in body
         assert re.search(r"\$\{[^}]*\.(error|name|icon)", body) is None
+        if filename == "creator_app/web/static/signup.js":
+            assert "list.style.color = '';" in body

@@ -174,6 +174,7 @@ async function validateAll() {
     if (!Array.isArray(results)) throw new TypeError('Invalid provider validation response');
 
     list.textContent = '';
+    list.style.color = '';
     for (const row of results) {
       const result = row && typeof row === 'object' ? row : {};
       const item = document.createElement('div');
