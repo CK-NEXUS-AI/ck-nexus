@@ -222,9 +222,9 @@ class TestTeamDirector:
         result = asyncio.run(team.aprocess_request("dependency wave work"))
 
         assert {item.task_id for item in result.step_results} == {
-            "result-a",
-            "result-b",
-            "result-final",
+            "step-a",
+            "step-b",
+            "step-final",
         }
         end_times = {
             name: timestamp for name, event, timestamp in probe.events if event == "end"
@@ -236,7 +236,7 @@ class TestTeamDirector:
         assert end_times["a"] < final_start
         assert end_times["b"] < final_start
 
-    def test_parallel_results_follow_plan_order(self):
+    def test_parallel_results_follow_plan_order_and_keep_step_ids(self):
         steps = [
             PlanStep("step-b", "Agent B", "b", "slower B"),
             PlanStep("step-a", "Agent A", "a", "faster A"),
@@ -262,7 +262,7 @@ class TestTeamDirector:
 
         result = asyncio.run(team.aprocess_request("ordered results"))
 
-        assert [item.task_id for item in result.step_results] == ["result-b", "result-a"]
+        assert [item.task_id for item in result.step_results] == ["step-b", "step-a"]
         end_times = {
             name: timestamp for name, event, timestamp in probe.events if event == "end"
         }
@@ -370,7 +370,7 @@ class TestTeamDirector:
         by_task = {item.task_id: item for item in result.step_results}
         assert result.status == TaskStatus.FAILED
         assert result.steps_completed == 0
-        assert by_task["result-a"].status == TaskStatus.FAILED
+        assert by_task["step-a"].status == TaskStatus.FAILED
         assert by_task["step-b"].status == TaskStatus.BLOCKED
 
     def test_dependency_cycle_blocks_every_unrunnable_step(self):

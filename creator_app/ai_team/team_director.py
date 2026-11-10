@@ -369,6 +369,9 @@ class TeamDirector:
                         warnings=(error,),
                     )
 
+                # The plan step is the durable identity; agents may return their own
+                # transient result IDs, which must not break dependency/evidence linkage.
+                integrated_result.task_id = step.step_id
                 step.status = integrated_result.status
                 if integrated_result.status is TaskStatus.COMPLETED:
                     completed_ids.add(step.step_id)
