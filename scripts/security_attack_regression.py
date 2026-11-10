@@ -257,7 +257,10 @@ def main() -> int:
         {
             "area": "Office archive structure and decompression limits",
             "status": "NOT_VERIFIED_BY_THIS_SUITE",
-            "note": "Basic content signatures are checked; archive entry, nesting, and decompression-ratio limits require separate evidence.",
+            "note": (
+                "Basic content signatures are checked; archive entry, nesting, "
+                "and decompression-ratio limits require separate evidence."
+            ),
         }
     ]
 
