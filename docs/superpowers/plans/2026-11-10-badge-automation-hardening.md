@@ -74,12 +74,12 @@
 - [x] Create or locate a PR whenever the automation branch is ahead of main, independent of whether the current run changed files.
 - [x] Verify artifacts using trusted main scripts and compare them with the automation branch.
 - [x] Run yamllint locally.
-- [ ] Run actionlint in GitHub-hosted CI (no compatible Termux binary available).
+- [x] Run actionlint in GitHub-hosted CI (PR lint-workflow check passed).
 
 ### Task 4: Final verification and review response
 
 - [x] Run 28 focused unit tests, compileall, Ruff, yamllint, YAML parse, and git diff --check.
-- [ ] Confirm actionlint in GitHub-hosted CI.
+- [x] Confirm actionlint in GitHub-hosted CI (PR lint-workflow check passed).
 - [ ] Inspect the complete diff and generated artifacts.
 - [ ] Commit and push the branch; do not merge.
 - [ ] Reply to and resolve only review threads whose findings are demonstrably addressed.

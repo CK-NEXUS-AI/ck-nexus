@@ -7,6 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 from scripts.generate_update_report import (
     RUNTIME_PATHS,
     _combine_status,
@@ -339,13 +341,18 @@ class UpdateReportBadgeTests(unittest.TestCase):
         self.assertIn("trusted main", workflow.lower())
 
     def test_workflow_scopes_write_permissions_by_job(self) -> None:
-        workflow = Path(".github/workflows/auto-update.yml").read_text(encoding="utf-8")
-        self.assertIn("permissions:\n  contents: read", workflow)
-        self.assertIn("  render:\n", workflow)
-        self.assertIn("      contents: write", workflow)
-        self.assertIn("  create-pr:\n", workflow)
-        self.assertIn("      pull-requests: write", workflow)
-        self.assertNotIn("permissions:\n  contents: write\n  pull-requests: write", workflow)
+        workflow = yaml.safe_load(
+            Path(".github/workflows/auto-update.yml").read_text(encoding="utf-8")
+        )
+        self.assertEqual(workflow["permissions"], {"contents": "read"})
+        jobs = workflow["jobs"]
+        self.assertEqual(jobs["render"]["permissions"], {"contents": "write"})
+        self.assertEqual(
+            jobs["create-pr"]["permissions"],
+            {"contents": "read", "pull-requests": "write"},
+        )
+        self.assertEqual(jobs["lint-workflow"]["permissions"], {"contents": "read"})
+        self.assertEqual(jobs["verify-docs"]["permissions"], {"contents": "read"})
 
     def test_workflow_uses_separate_concurrency_groups(self) -> None:
         workflow = Path(".github/workflows/auto-update.yml").read_text(encoding="utf-8")
