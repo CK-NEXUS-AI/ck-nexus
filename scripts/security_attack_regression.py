@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import io
 import json
 import os
 import sys
+import tempfile
 import time
+import zipfile
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
@@ -21,6 +24,7 @@ from creator_app.credential_broker import (
 )
 from creator_app.gmail_governance.attachments import evaluate_attachment
 from creator_app.gmail_oauth import GmailOAuthError, OAuthStateStore
+from services.email_gateway.attachments import scan_attachment
 
 BASE_URL = os.getenv("CKNEXUS_SECURITY_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 ACCESS_TOKEN = os.getenv("CKNEXUS_SECURITY_ACCESS_TOKEN", "test-access-value")
@@ -74,6 +78,25 @@ def wait_ready() -> None:
             pass
         time.sleep(0.5)
     raise RuntimeError("CK-NEXUS local runtime did not become ready")
+
+
+def _archive_bytes(
+    entries: list[tuple[str, bytes]], *, compression: int = zipfile.ZIP_DEFLATED
+) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=compression) as archive:
+        for name, payload in entries:
+            archive.writestr(name, payload)
+    return buffer.getvalue()
+
+
+def _scan_archive_bytes(
+    filename: str, payload: bytes, **policy: int | float
+):
+    with tempfile.TemporaryDirectory(prefix="cknexus-q10-archive-") as directory:
+        path = Path(directory) / filename
+        path.write_bytes(payload)
+        return scan_attachment(path, **policy)
 
 
 def main() -> int:
@@ -235,6 +258,84 @@ def main() -> int:
         )
     )
 
+    valid_docx = _scan_archive_bytes(
+        "document.docx", _archive_bytes([("word/document.xml", b"<doc/>")])
+    )
+    valid_xlsx = _scan_archive_bytes(
+        "workbook.xlsx", _archive_bytes([("xl/workbook.xml", b"<workbook/>")])
+    )
+    too_many_entries = _scan_archive_bytes(
+        "many.docx", _archive_bytes([("one.xml", b"1"), ("two.xml", b"2")]),
+        max_zip_entries=1,
+    )
+    traversal_archive = _scan_archive_bytes(
+        "traversal.docx", _archive_bytes([("../escape.xml", b"bad")])
+    )
+    ratio_archive = _scan_archive_bytes(
+        "ratio.xlsx", _archive_bytes([("xl/sharedStrings.xml", b"A" * 4096)]),
+        max_zip_ratio=10.0,
+    )
+    size_archive = _scan_archive_bytes(
+        "oversized.docx", _archive_bytes([("word/document.xml", b"x" * 32)]),
+        max_zip_uncompressed_bytes=31,
+    )
+    corrupt_crc = bytearray(
+        _archive_bytes(
+            [("payload.txt", b"payload")], compression=zipfile.ZIP_STORED
+        )
+    )
+    corrupt_crc[30 + len(b"payload.txt")] ^= 0x01
+    crc_archive = _scan_archive_bytes("corrupt.zip", bytes(corrupt_crc))
+    nested_zip = _archive_bytes([("payload.txt", b"inner")])
+    nested_archive = _scan_archive_bytes(
+        "nested.docx",
+        _archive_bytes([("word/embeddings/embedded.zip", nested_zip)]),
+    )
+    malformed_archive = _scan_archive_bytes(
+        "malformed.xlsx", b"PK\x03\x04not-a-valid-central-directory"
+    )
+    results.extend(
+        [
+            check("office_docx_archive_validated", valid_docx.safe, valid_docx.reason),
+            check("office_xlsx_archive_validated", valid_xlsx.safe, valid_xlsx.reason),
+            check(
+                "office_archive_entry_limit_enforced",
+                not too_many_entries.safe and too_many_entries.reason == "zip_too_many_entries",
+                too_many_entries.reason,
+            ),
+            check(
+                "office_archive_path_traversal_rejected",
+                not traversal_archive.safe and traversal_archive.reason == "zip_path_traversal",
+                traversal_archive.reason,
+            ),
+            check(
+                "office_archive_compression_ratio_enforced",
+                not ratio_archive.safe and ratio_archive.reason == "zip_compression_ratio",
+                ratio_archive.reason,
+            ),
+            check(
+                "office_archive_uncompressed_size_enforced",
+                not size_archive.safe and size_archive.reason == "zip_uncompressed_limit",
+                size_archive.reason,
+            ),
+            check(
+                "office_archive_crc_validated",
+                not crc_archive.safe and crc_archive.reason == "invalid_zip",
+                crc_archive.reason,
+            ),
+            check(
+                "office_nested_zip_rejected",
+                not nested_archive.safe and nested_archive.reason == "zip_nested_archive",
+                nested_archive.reason,
+            ),
+            check(
+                "office_malformed_zip_rejected",
+                not malformed_archive.safe and malformed_archive.reason == "invalid_zip",
+                malformed_archive.reason,
+            ),
+        ]
+    )
+
     # Historical findings are reconciled against their actual GitHub closure
     # records. Keep residual scope explicit: a closed issue is not a blanket
     # assertion that every future hardening scenario is covered by this suite.
@@ -253,16 +354,22 @@ def main() -> int:
             "resolution_commit": "ad2fac7aa0752117dde065c7ad9b0b8d41136aa2",
         },
     ]
-    residual_hardening = [
-        {
-            "area": "Office archive structure and decompression limits",
-            "status": "NOT_VERIFIED_BY_THIS_SUITE",
-            "note": (
-                "Basic content signatures are checked; archive entry, nesting, "
-                "and decompression-ratio limits require separate evidence."
-            ),
-        }
+    archive_failures = [
+        item["name"]
+        for item in results
+        if item["name"].startswith("office_") and not item["passed"]
     ]
+    residual_hardening: list[dict[str, str]] = (
+        []
+        if not archive_failures
+        else [
+            {
+                "area": "Office archive structure and decompression limits",
+                "status": "FAILED_OR_UNVERIFIED",
+                "note": "Failed archive checks: " + ", ".join(archive_failures),
+            }
+        ]
+    )
 
     passed = sum(1 for item in results if item["passed"])
     failed = len(results) - passed
