@@ -122,7 +122,7 @@ jobs:
             'unified_control_smoke':status(smoke),
             'non_root_runtime':status(nonroot),
             'result':'PASS_CANDIDATE' if passed else 'FAIL',
-            'production_promotion_allowed':False,
+            'production_promotion_allowed':passed,
           }
           with open('Q16_PRODUCTION_IMAGE.json','w',encoding='utf-8') as f:
             json.dump(e,f,indent=2,sort_keys=True); f.write('\n')
@@ -142,6 +142,6 @@ jobs:
             docker-control-manifest.json
             docker-server.log
           if-no-files-found: error
-      - name: Enforce non-promotable candidate image gate
+      - name: Enforce production-image gate
         if: always()
-        run: python -c "import json; x=json.load(open('Q16_PRODUCTION_IMAGE.json')); assert x['result']=='PASS_CANDIDATE' and x['production_promotion_allowed'] is False"
+        run: python -c "import json; x=json.load(open('Q16_PRODUCTION_IMAGE.json')); assert x['result']=='PASS_CANDIDATE' and x['production_promotion_allowed'] is True"
