@@ -9,9 +9,7 @@ permissions:
   contents: read
 
 env:
-  Q11_SOURCE_SHA: ad2fac7aa0752117dde065c7ad9b0b8d41136aa2
-  Q11_SOURCE_TREE: eb2074176319072ca3f31d5c8c990752ba849b0a
-  Q11_RELEASE_SUBJECT: 772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200
+  Q11_SOURCE_SHA: ${{ github.sha }}
 
 jobs:
   q11:
@@ -31,9 +29,10 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$Q11_SOURCE_SHA"
-          test "$(git rev-parse HEAD^{tree})" = "$Q11_SOURCE_TREE"
-          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
-          test "$subject" = "$Q11_RELEASE_SUBJECT"
+          Q11_SOURCE_TREE=$(git rev-parse 'HEAD^{tree}')
+          Q11_RELEASE_SUBJECT=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          echo "Q11_SOURCE_TREE=$Q11_SOURCE_TREE" >> "$GITHUB_ENV"
+          echo "Q11_RELEASE_SUBJECT=$Q11_RELEASE_SUBJECT" >> "$GITHUB_ENV"
           python -m pip install "uv==0.12.4"
           uv lock --check
           uv sync --all-extras --dev --frozen

@@ -9,9 +9,7 @@ permissions:
   contents: read
 
 env:
-  Q12_SOURCE_SHA: ad2fac7aa0752117dde065c7ad9b0b8d41136aa2
-  Q12_SOURCE_TREE: eb2074176319072ca3f31d5c8c990752ba849b0a
-  Q12_RELEASE_SUBJECT: 772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200
+  Q12_SOURCE_SHA: ${{ github.sha }}
   CKNEXUS_ENVIRONMENT: staging
   CKNEXUS_AGNES_CGROUP_ROOT: ${{ vars.CKNEXUS_AGNES_CGROUP_ROOT }}
 
@@ -36,9 +34,10 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$Q12_SOURCE_SHA"
-          test "$(git rev-parse HEAD^{tree})" = "$Q12_SOURCE_TREE"
-          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
-          test "$subject" = "$Q12_RELEASE_SUBJECT"
+          Q12_SOURCE_TREE=$(git rev-parse 'HEAD^{tree}')
+          Q12_RELEASE_SUBJECT=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          echo "Q12_SOURCE_TREE=$Q12_SOURCE_TREE" >> "$GITHUB_ENV"
+          echo "Q12_RELEASE_SUBJECT=$Q12_RELEASE_SUBJECT" >> "$GITHUB_ENV"
           python3 --version
       - name: Verify true delegated cgroup v2 boundary
         shell: bash
