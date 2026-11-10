@@ -22,13 +22,14 @@
 |---|---|---|---|
 | **Security: STALE** | **Stability: STALE** | **Release: STALE** | **Delivery: STALE** |
 
-Status mapping: PASS = 100%; PASS_CANDIDATE = 75%; NOT_STARTED = 0%. FAIL, BLOCKED, NOT_VERIFIED, and UNKNOWN are shown as status labels, not percentages.
+Status mapping: PASS = 100%; PASS_CANDIDATE = 75%; NOT_STARTED = 0%. FAIL, BLOCKED, NOT_VERIFIED, STALE, and UNKNOWN are shown as status labels, not percentages.
 Combined groups are numeric only when every member has a defensible numeric index.
 
 ## Recent Commits
 
 | Commit | Date | Subject |
 |---|---|---|
+| `502f961` | 2026-11-10 | fix: reject stale gate evidence in status badges |
 | `d23c37f` | 2026-11-10 | docs: regenerate status artifacts |
 | `e08a057` | 2026-11-10 | fix: satisfy strict line length checks |
 | `7360835` | 2026-11-10 | ci: validate workflow syntax on pull requests |
@@ -48,7 +49,6 @@ Combined groups are numeric only when every member has a defensible numeric inde
 | `6c093d8` | 2026-10-31 | fix(collector): isolate git config from root system includes (#338) |
 | `4a0617e` | 2026-10-31 | feat(dashboard): live read-only development status (#335) |
 | `2dc5a29` | 2026-10-31 | docs(release): record current main Q10-Q16 subject drift |
-| `22edd1f` | 2026-10-31 | docs(dashboard): refresh evidence-based system status (#333) |
 
 ## Authority Boundary
 
