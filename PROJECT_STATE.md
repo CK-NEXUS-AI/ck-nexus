@@ -1,7 +1,7 @@
 ---
 snapshot_schema_version: 2
-snapshot_generated_at_utc: "2026-11-10T20:47:35.960Z"
-snapshot_generated_at_local: "2026-11-11 03:47:35 ICT"
+snapshot_generated_at_utc: "2026-11-10T20:55:04Z"
+snapshot_generated_at_local: "2026-11-11 03:55:04 ICT"
 source_repository: "CK-NEXUS-AI/ck-nexus"
 source_ref: "refs/heads/main"
 source_sha: "4d1366cef3cbdd18aa174bdf67308567635c750a"
@@ -47,7 +47,7 @@ All current evidence below binds to SHA `a31f82d1d45c3398ae14fb506d0893f67a55234
 | Gate | Result | Evidence |
 |---|---|---|
 | Q10 | Scanner PASS; whole gate NOT_VERIFIED | [42896004171](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42896004171): 0 dependency vulnerabilities; Bandit 0 High / 0 Medium / 586 Low; secret scan 0; attack regression 31/31. Report SHA `3dd78c105f86d808c2c5df7feceb744630bc976f2b27d28ea23e5ffd865aceb3`; artifact `13799923797`, digest `sha256:ae40794d601d0f1e361192edb1cac59cee674d97cfbf301ef3e681a2ee98797f`. Independent review REQUIRED; production promotion false. |
-| Q11 | NOT RUN on current candidate | Prior [42879822080](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42879822080) returned HTTP 401 `expired_secret_key`; no sentinel. Before replacement, the OpenAI organization/project owner must authorize a dedicated staging OpenAI Project key; never use an organization-wide or production key. The current workflow reads GitHub secret `OPENAI_API_KEY`; use approved secret handling and keep the value out of logs/chat. |
+| Q11 | FAIL — provider quota exhausted; credential configured | [42899856747](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42899856747) ran on exact candidate SHA `a31f82d1d45c3398ae14fb506d0893f67a55234d`, tree `686746bb33fe91cfb1134cabfea178646c73519c`, manifest `5f1e0971d6a48a489dd3007009da729fa227d6a086cb25b55bf5181707964313`. `credential_configured=true`, `credential_exposed=false`, P0-AI-001 exit 1, sentinel false, promotion false. Diagnostic: HTTP 429 `insufficient_quota` / `credit_balance_exhausted` (“You have no credits remaining”); this is a provider billing/credit constraint, not an invalid-key 401. Artifact `13802955672`, digest `sha256:76ffc07027a3c5263a057cd587e2054c9664afee64bfbf6d4bb2afca6ca160b2`. GitHub Actions secret `OPENAI_API_KEY` was updated via secure stdin on 2026-11-10T20:54:01Z; the secret value is not recorded or exposed. Rerun only after the OpenAI project has available API credits. |
 | Q12 | PASS | [42897930381](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42897930381): exact current SHA; non-root runner `runner` UID 1001; actual kernel enforcement true; `cpu.max=20000 100000`, `memory.max=67108864`, `pids.max=16`. Artifact `13802425361`, digest `sha256:a0926c45f175247a8e98f7c8583ed370450d524ab550d0bde3f673d055d2cd6d`. Runner service stopped after capture.
 | Q13 | PASS_CANDIDATE | [42895951665](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42895951665): backup/restore and sentinel round-trip PASS; artifact `13798939709`, digest `sha256:90c1837cddd7c18f590bfe6c0b66beff445b6dfa4c1f56516386e8bd17b9466d`. |
 | Q14 | PASS | [42895964988](https://github.com/CK-NEXUS-AI/ck-nexus/actions/runs/42895964988): alert delivery and health metrics PASS; receipt SHA `b102c029876ba56e20d4f98466c3dda13c45b65f33e65e02bbecdecd21510eb7`; artifact `13799464352`, digest `sha256:15cd5f770a190ea24d89121b33308743653f58f9bf4622a1b5b74a96bd3fb2a5`. |
@@ -117,7 +117,7 @@ PR #365 contains bounded parallel execution and reliability-guard work; PR #366 
 Ordered actions:
 1. Preserve and consolidate the 27 checkouts only after complete mapping of dirty work.
 2. Obtain independent Q10 security review and separate Owner decision.
-3. Replace expired Q11 provider credential through approved secret handling; rerun on final combined candidate.
+3. Q11 ran on the exact candidate after `OPENAI_API_KEY` was updated; it failed with provider HTTP 429 `credit_balance_exhausted`. Restore API credit/billing for the intended OpenAI project, then rerun Q11 on the same SHA if the source subject is unchanged. Do not classify this as credential-authentication failure.
 4. Q12 is PASS for current SHA `a31f82d`; keep the runner stopped/disabled after evidence capture and rerun only if the final combined candidate SHA changes.
 5. Integrate PR #365/#366 under their review policy; recompute final source identity and rerun SHA-bound gates.
 6. Implement durable Agnes memory with state classes, source-of-truth boundaries, permissions, retention, checkpoint/resume and failure tests.
