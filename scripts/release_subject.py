@@ -15,8 +15,8 @@ import hashlib
 import json
 import subprocess
 import sys
-from dataclasses import asdict, dataclass
 from collections.abc import Sequence
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 ALGORITHM_VERSION = "git-ls-tree-sha256-v1"
