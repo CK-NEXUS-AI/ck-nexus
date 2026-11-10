@@ -4,7 +4,12 @@ import importlib.util
 import json
 from pathlib import Path
 
-MODULE_PATH = Path(__file__).resolve().parents[1] / ".github" / "release-tools" / "verify_release_evidence_provenance.py"
+MODULE_PATH = (
+    Path(__file__).resolve().parents[1]
+    / ".github"
+    / "release-tools"
+    / "verify_release_evidence_provenance.py"
+)
 SPEC = importlib.util.spec_from_file_location("release_evidence_provenance", MODULE_PATH)
 assert SPEC and SPEC.loader
 provenance = importlib.util.module_from_spec(SPEC)
@@ -99,5 +104,10 @@ def test_pr_attestation_lookup_uses_graphql_post_and_paginates_both_connections(
 
 def test_evidence_filename_gate_mapping_is_fixed_and_not_self_asserted():
     assert provenance.EXPECTED_GATES_BY_FILENAME["Q10_DEPENDENCY_AUDIT.json"] == "Q10"
-    assert provenance.EXPECTED_GATES_BY_FILENAME["Q16_PRODUCTION_IMAGE.json"] == "Q16_PRODUCTION_IMAGE"
-    assert provenance.EXPECTED_GATES_BY_FILENAME["Q16_RUNTIME_LICENSE_SUMMARY.json"] == "Q16_RUNTIME_LICENSES"
+    assert (
+        provenance.EXPECTED_GATES_BY_FILENAME["Q16_PRODUCTION_IMAGE.json"] == "Q16_PRODUCTION_IMAGE"
+    )
+    assert (
+        provenance.EXPECTED_GATES_BY_FILENAME["Q16_RUNTIME_LICENSE_SUMMARY.json"]
+        == "Q16_RUNTIME_LICENSES"
+    )

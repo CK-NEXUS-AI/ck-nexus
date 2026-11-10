@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import json
 import sys
 
@@ -51,6 +50,10 @@ def test_q14_rejects_missing_or_uninjected_candidate_metric(monkeypatch, tmp_pat
         ]
     )
     monkeypatch.setattr(check, "safe_urlopen", lambda *_args, **_kwargs: next(responses))
-    monkeypatch.setattr(sys, "argv", ["q14_candidate_metrics_check.py", "--output", str(tmp_path / "metrics.txt")])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["q14_candidate_metrics_check.py", "--output", str(tmp_path / "metrics.txt")],
+    )
     with pytest.raises(SystemExit, match="required candidate metric is missing"):
         check.main()

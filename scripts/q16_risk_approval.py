@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 MARKER = "CKNEXUS-Q16-RISK-APPROVED"
@@ -13,7 +13,15 @@ def _fields(body: str) -> dict[str, str]:
         key, separator, value = line.partition(":")
         if separator:
             key = key.strip().lower()
-            if key in {"source_sha", "image_config_digest", "report_sha256", "vulnerability_ids", "finding_refs", "expires_at", "rationale"}:
+            if key in {
+                "source_sha",
+                "image_config_digest",
+                "report_sha256",
+                "vulnerability_ids",
+                "finding_refs",
+                "expires_at",
+                "rationale",
+            }:
                 if key in result:
                     return {}
                 result[key] = value.strip()
@@ -33,7 +41,7 @@ def verify_owner_risk_approval(
     """Accept only a pinned repository Owner's authenticated, exact-image attestation."""
     if not vulnerability_ids:
         return None
-    current_date = today or datetime.now(timezone.utc).date()
+    current_date = today or datetime.now(UTC).date()
     expected = {
         "source_sha": source_sha,
         "image_config_digest": image_config_digest,
@@ -74,7 +82,7 @@ def verify_owner_risk_approval(
             {
                 "actor": OWNER_LOGIN,
                 "reference": url,
-                "created_at": created.astimezone(timezone.utc).isoformat(),
+                "created_at": created.astimezone(UTC).isoformat(),
                 "expires_at": expiry.isoformat(),
             }
         )
@@ -96,7 +104,7 @@ def verify_independent_medium_review(
     """Accept a time-limited medium-finding disposition from a non-Owner collaborator."""
     if not vulnerability_ids:
         return None
-    current_date = today or datetime.now(timezone.utc).date()
+    current_date = today or datetime.now(UTC).date()
     expected = {
         "source_sha": source_sha,
         "image_config_digest": image_config_digest,
@@ -139,7 +147,7 @@ def verify_independent_medium_review(
             {
                 "actor": login,
                 "reference": url,
-                "created_at": created.astimezone(timezone.utc).isoformat(),
+                "created_at": created.astimezone(UTC).isoformat(),
                 "expires_at": expiry.isoformat(),
             }
         )
