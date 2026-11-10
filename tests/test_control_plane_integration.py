@@ -182,8 +182,7 @@ def test_default_dispatch_does_not_require_evidence_for_ordinary_verification() 
     assert result.execution_state is ExecutionState.COMPLETED
     assert all(item["state"] == "completed" for item in result.results.values())
     assert all(
-        "Sentinel" not in item["result"]["team_members_used"]
-        for item in result.results.values()
+        "Sentinel" not in item["result"]["team_members_used"] for item in result.results.values()
     )
 
 
@@ -225,9 +224,7 @@ def test_dispatch_reads_status_from_non_dict_result_objects() -> None:
         return await ControlPlaneOrchestrator().dispatch(
             graph,
             handlers={
-                "research": lambda _node: SimpleNamespace(
-                    status=SimpleNamespace(value="blocked")
-                ),
+                "research": lambda _node: SimpleNamespace(status=SimpleNamespace(value="blocked")),
                 "implementation": lambda _node: "must-not-run",
                 "verification": lambda _node: "must-not-run",
                 "security": lambda _node: "must-not-run",
@@ -260,6 +257,7 @@ def test_control_plane_security_handler_routes_supplied_bundle_to_sentinel(monke
     }
     orchestrator = ControlPlaneOrchestrator()
     graph = orchestrator.plan("inspect artifact", evidence_bundle=bundle)
+    research_node = next(node for node in graph.nodes if node.role == "research")
     security_node = next(node for node in graph.nodes if node.role == "security")
 
     observed: dict[str, object] = {}
@@ -272,7 +270,10 @@ def test_control_plane_security_handler_routes_supplied_bundle_to_sentinel(monke
         return sentinel_result
 
     monkeypatch.setattr(SentinelAgent, "process", capture_sentinel)
-    result = orchestrator.default_handlers()["security"](security_node)
+    handlers = orchestrator.default_handlers()
+    handlers["research"](research_node)
+    assert observed == {}
+    result = handlers["security"](security_node)
 
     assert result["status"] == "blocked"
     assert "Sentinel" in result["team_members_used"]
