@@ -8,7 +8,6 @@ async function init() {
     providers = await r.json();
   } catch { providers = []; }
   renderGrid();
-  populateSelect();
   checkSystem();
   autoScan();
 }
@@ -107,16 +106,6 @@ function renderGrid() {
   });
 }
 
-function populateSelect() {
-  const s = document.getElementById('provSelect');
-  providers.forEach(p => {
-    const o = document.createElement('option');
-    o.value = p.slug;
-    o.textContent = `${p.icon} ${p.name}`;
-    s.appendChild(o);
-  });
-}
-
 async function autoScan() {
   try {
     const r = await fetch(`${API}/scan`);
@@ -187,33 +176,6 @@ async function validateOne(slug) {
       dot.classList.remove('active');
     }
   } catch { lbl.textContent = '❌ Connection error'; lbl.style.color = 'var(--hub-red)'; }
-}
-
-async function addKey() {
-  const slug = safeProviderSlug(document.getElementById('provSelect').value);
-  const key = document.getElementById('keyInput').value;
-  const message = document.getElementById('formMsg');
-  if (!slug || !key) {
-    message.textContent = 'Select provider and enter key';
-    return;
-  }
-  try {
-    const response = await fetch(API + '/' + encodeURIComponent(slug) + '/set-key', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key }),
-    });
-    const data = await response.json();
-    if (data.success) {
-      message.textContent = 'Key set for ' + slug;
-      document.getElementById('keyInput').value = '';
-      runScan();
-    } else {
-      message.textContent = 'Error: ' + String(data.error || 'Provider key was rejected');
-    }
-  } catch {
-    message.textContent = 'Backend not connected';
-  }
 }
 
 async function validateAll() {
