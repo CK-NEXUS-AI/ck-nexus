@@ -93,16 +93,21 @@ class DirectorAgent(Agent):
         total_confidence = 0.0
         members_used: list[str] = []
 
+        completed_count = 0
         for result in step_results:
+            outputs.append(f"[{result.status.value.upper()}] [{result.agent_name}] {result.output}")
             if result.status == TaskStatus.COMPLETED:
-                outputs.append(f"[{result.agent_name}] {result.output}")
                 all_artifacts.extend(result.artifacts)
                 total_confidence += result.confidence
-                if result.agent_name not in members_used:
-                    members_used.append(result.agent_name)
+                completed_count += 1
+            if result.agent_name not in members_used:
+                members_used.append(result.agent_name)
 
-        avg_confidence = total_confidence / len(step_results) if step_results else 0.0
-        final_output = f"✅ ผลลัพธ์จากทีม: {request.description[:100]}\n\n" + "\n\n".join(outputs)
+        avg_confidence = total_confidence / completed_count if completed_count else 0.0
+        final_output = (
+            f"ผลการประมวลผลจากทีม: {request.description[:100]}\n\n"
+            + "\n\n".join(outputs)
+        )
 
         return TaskResult(
             task_id=generate_id("dir-synth"),
@@ -134,6 +139,14 @@ class DirectorAgent(Agent):
             (["secret", "ลับ", "ความลับ"], "guardian", "ตรวจสอบข้อมูลลับ"),
             (["auth", "permission", "สิทธิ์", "ยืนยัน"], "guardian", "ตรวจสอบสิทธิ์"),
             (["audit", "ตรวจ"], "guardian", "ตรวจสอบ"),
+            (
+                [
+                    "verify", "verification", "evidence", "release", "production",
+                    "closure", "go/no-go", "หลักฐาน", "ยืนยันผล", "ปิดงาน", "ปล่อยระบบ",
+                ],
+                "sentinel",
+                "ตรวจหลักฐานและสถานะ release gate",
+            ),
             (["data", "ข้อมูล"], "analyst", "วิเคราะห์ข้อมูล"),
             (["report", "รายงาน"], "analyst", "สร้างรายงาน"),
             (["summary", "summarize", "สรุป", "สรุปผล"], "analyst", "สรุปผล"),
