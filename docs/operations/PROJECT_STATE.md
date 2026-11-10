@@ -32,7 +32,7 @@ CK-NEXUS already contains substantial agent and governance components. Extend th
 
 - Work branch: feat/agnes-persistent-ops-memory-20261110; base: origin/main 4d1366cef3cbdd18aa174bdf67308567635c750a.
 - Existing implementation commits: c2e7038 (async entry/settings), 8808f12 (dependency waves), 4238633 (fail-closed outcomes), 6fd0b39690ff92bfeb26789bcd145578cbb0b727 (serialize shared Agent instances across concurrent requests), 501f170be424c0352b5b76b12fb37b49b3a51bb4 (preserve plan-step identity in results).
-- Reliability-guard implementation is currently uncommitted local work: TaskStore durable idempotency, MCP optional idempotency-key plumbing, cooperative request cancellation, and process-wide TeamDirector worker budget (2).
+- Reliability-guard implementation commit: `873af83ba55a97075ba00c0a9f34a1ff30865a6d` (local-only, unpushed): TaskStore durable idempotency, MCP optional idempotency-key plumbing, cooperative request cancellation, and process-wide TeamDirector worker budget (2).
 - Focused regression: 151 passed, 1 warning across `creator_app/ai_team/tests` and `tests/test_control_plane_task_store.py`.
 - Static checks: Ruff PASS; compileall PASS for `creator_app/ai_team`, `creator_app/control_plane`, `creator_app/agnes`; git diff --check PASS.
 - Warning: PytestConfigWarning: Unknown config option: asyncio_mode from the installed pytest environment; it is not counted as a test failure.
