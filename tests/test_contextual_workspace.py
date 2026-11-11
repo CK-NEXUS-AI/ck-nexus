@@ -92,6 +92,32 @@ def test_agnes_plan_selects_skills_for_thai_intents(tmp_path: Path):
         assert {"hands.test", "immune.policy_check"}.issubset(coding_ids)
 
 
+def test_agnes_plan_selects_approval_gated_skills_for_thai_intents(tmp_path: Path):
+    with make_client(tmp_path) as client:
+        workspace = client.post(
+            "/api/agnes/plan",
+            json={"goal": "ช่วยเปิดพื้นที่ทำงานแยกสำหรับทดสอบ"},
+        ).json()
+        workspace_ids = {skill["id"] for skill in workspace["skills"]}
+        assert "legs.workspace_open" in workspace_ids
+        assert workspace["requires_approval"] is True
+
+        upgrade = client.post(
+            "/api/agnes/plan",
+            json={"goal": "ช่วยพัฒนาความสามารถตัวเองและตรวจสอบผลลัพธ์"},
+        ).json()
+        upgrade_ids = {skill["id"] for skill in upgrade["skills"]}
+        assert "upgrade.self_improve" in upgrade_ids
+        assert upgrade["requires_approval"] is True
+
+        summary = client.post(
+            "/api/agnes/plan",
+            json={"goal": "สรุปข้อมูลการทำงานของระบบ"},
+        ).json()
+        summary_ids = {skill["id"] for skill in summary["skills"]}
+        assert "eyes.web_research" not in summary_ids
+
+
 def test_agnes_plan_rejects_empty_and_oversized_goals(tmp_path: Path):
     with make_client(tmp_path) as client:
         assert client.post(
