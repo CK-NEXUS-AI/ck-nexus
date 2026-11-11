@@ -63,6 +63,7 @@ from creator_app.schemas import (
     AgnesExecuteRequest,
     AgnesPipelineDiscardRequest,
     AgnesPipelineStartRequest,
+    AgnesPlanRequest,
     ConnectorActivateRequest,
     ConnectorRegisterRequest,
     DevTeamRequest,
@@ -1155,12 +1156,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def agnes_skills(_: None = Depends(require_access_token)) -> dict[str, object]:
         return {"agent": "AGNES", "skills": agnes.skills()}
 
-    @app.get("/api/agnes/plan")
+    @app.post("/api/agnes/plan")
     async def agnes_plan(
-        goal: str = Query(min_length=1, max_length=4000),
+        payload: AgnesPlanRequest,
         _: None = Depends(require_access_token),
     ) -> dict[str, object]:
-        return agnes.plan(goal)
+        return agnes.plan(payload.goal)
 
     @app.get("/api/agnes/discovery-sources")
     async def agnes_discovery_sources(

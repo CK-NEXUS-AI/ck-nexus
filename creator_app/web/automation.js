@@ -86,11 +86,13 @@
     creatorLabel.textContent = "Creator Workspace";
     creator.append(creatorIcon, creatorLabel);
     creator.addEventListener("click", () => {
+      switchView("workspace-view");
       const disclosure = document.querySelector("#creator-disclosure");
+      if (!disclosure) return;
       disclosure.open = true;
       disclosure.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
     });
-    navShell.append(creator);
+    nav.append(creator);
     const empty = document.createElement("p");
     empty.className = "sidebar-empty";
     empty.hidden = true;
@@ -141,12 +143,12 @@
 
   const privacyNote = document.createElement("p");
   privacyNote.className = "privacy-note";
-  privacyNote.textContent = "เพื่อความเป็นส่วนตัว โปรดอย่าใส่ข้อมูลลับในเป้าหมาย ขณะนี้ Plan API ส่งเป้าหมายผ่าน query string; การเปลี่ยนเป็น POST ยังต้องพัฒนาใน Backend";
+  privacyNote.textContent = "เพื่อความเป็นส่วนตัว โปรดอย่าส่งข้อมูลส่วนตัวหรือข้อมูลลับในเป้าหมาย คำขอวางแผนส่งผ่าน POST body และไม่ใส่เป้าหมายใน URL";
   form.append(privacyNote);
 
   const agentHints = [
     { terms: ["คอนเทนต์", "สคริปต์", "วิดีโอ", "บทความ", "โพสต์", "content", "script"], id: "content" },
-    { terms: ["ค้นคว้า", "วิจัย", "สรุป", "แหล่งที่มา", "research", "summar"], id: "research" },
+    { terms: ["ค้นคว้า", "วิจัย", "สรุป", "แหล่งที่มา", "research", "summary", "summarize", "summarized", "summarizing"], id: "research" },
     { terms: ["โค้ด", "code", "repository", "repo", "ทดสอบ", "test"], id: "code" },
     { terms: ["เว็บไซต์", "เว็บ", "design", "ออกแบบ", "ลูกค้า", "crm"], id: "connected-tool" },
   ];
@@ -156,12 +158,16 @@
     if (className) item.className = className;
     return item;
   };
+  function matchesHintTerm(text, term) {
+    if (!/^[\x00-\x7F]+$/.test(term)) return text.includes(term);
+    return new RegExp("\\b" + term + "\\b", "i").test(text);
+  }
   function contextualHint(text) {
     const normalized = text.toLowerCase();
-    const match = agentHints.find((item) => item.terms.some((term) => normalized.includes(term)));
+    const match = agentHints.find((item) => item.terms.some((term) => matchesHintTerm(normalized, term)));
     if (!match) return "แสดงทักษะที่ตรงกับคำขอจาก catalog เท่านั้น";
     if (match.id === "content") return "พบคำขอด้านคอนเทนต์ · Creator Workspace รองรับการสร้างร่างข้อความ";
-    if (match.id === "research") return "พบคำขอด้านค้นคว้า · ตรวจสอบทักษะและสถานะผู้ให้บริการก่อน���ช้งานจริง";
+    if (match.id === "research") return "พบคำขอด้านค้นคว้า · ตรวจสอบทักษะและสถานะผู้ให้บริการก่อนใช้งานจริง";
     if (match.id === "code") return "พบคำขอด้านโค้ด · แผนไม่แก้ไฟล์หรือรันทดสอบแทนผู้ใช้";
     return "อาจเกี่ยวข้องกับเครื่องมือภายนอก · แสดงเฉพาะ connector ที่ตรวจพบจาก runtime";
   }
@@ -184,11 +190,11 @@
     const capabilities = [...new Set(skills.flatMap((skill) => Array.isArray(skill.capabilities) ? skill.capabilities : []))];
     const risks = [...new Set(skills.map((skill) => skill.risk || "unknown"))];
     const approval = plan.requires_approval ? "แผนระบุว่าต้องมีการอนุมัติ · ยังไม่มีการอนุมัติ" : "ไม่พบข้อกำหนดอนุมัติในแผนนี้ · ไม่ใช่สิทธิ์ให้ดำเนินการ";
-    const rows = [["ข้อมูลที่จะเข้าถึง", "เป้าหมายที่พิมพ์และ metadata ของ Skill Catalog เท่านั้น"], ["ความสามารถที่ระบุ", capabilities.length ? capabilities.join(", ") : "ไม่มี capability ระบุไว้"], ["ความเสี่ยงที่ระบุ", risks.length ? risks.join(", ") : "ยังไม่ประเ��ิน"], ["ขอบเขตเปลี่ยนแปลง", "ไม่มี · Dry Run ไม่เรียก executor หรือเปลี่ยนข้อมูล"], ["การอนุมัติ", approval]];
+    const rows = [["ข้อมูลที่จะเข้าถึง", "เป้าหมายที่พิมพ์และ metadata ของ Skill Catalog เท่านั้น"], ["ความสามารถที่ระบุ", capabilities.length ? capabilities.join(", ") : "ไม่มี capability ระบุไว้"], ["ความเสี่ยงที่ระบุ", risks.length ? risks.join(", ") : "ยังไม่ประเมิน"], ["ขอบเขตเปลี่ยนแปลง", "ไม่มี · Dry Run ไม่เรียก executor หรือเปลี่ยนข้อมูล"], ["การอนุมัติ", approval]];
     elements.permissions.replaceChildren();
     rows.forEach(([label, value]) => { const row = node("div"); row.append(node("dt", label), node("dd", value)); elements.permissions.append(row); });
   }
-  function suggestCreator(text) { actions.hidden = !agentHints[0].terms.some((term) => text.toLowerCase().includes(term)); }
+  function suggestCreator(text) { actions.hidden = !agentHints[0].terms.some((term) => matchesHintTerm(text.toLowerCase(), term)); }
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const objective = goal.value.trim();
@@ -197,27 +203,50 @@
     button.firstElementChild.textContent = "กำลังสร้างแผน…";
     status.textContent = "กำลังเรียก Agnes Plan API · ยังไม่มีการดำเนินการจริง";
     panel.hidden = false;
+    elements.permissions.replaceChildren();
+    elements.evidencePlan.textContent = "ยังไม่มี";
+    actions.hidden = true;
     elements.state.textContent = "กำลังวางแผน";
     elements.summary.textContent = contextualHint(objective);
     skillsNode.replaceChildren(node("p", "กำลังอ่าน Skill Catalog…", "muted"));
     try {
-      const params = new URLSearchParams({ goal: objective });
       const tokenInput = document.querySelector("#access-token");
       let token = "";
-      try { token = tokenInput?.value.trim() || sessionStorage.getItem("cknexus_access_token") || ""; } catch { token = tokenInput?.value.trim() || ""; }
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const response = await fetch(`/api/agnes/plan?${params}`, { headers, cache: "no-store" });
+      try {
+        token = tokenInput?.value.trim() || sessionStorage.getItem("cknexus_access_token") || "";
+      } catch {
+        token = tokenInput?.value.trim() || "";
+      }
+      const headers = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: "Bearer " + token } : {}),
+      };
+      const response = await fetch("/api/agnes/plan", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ goal: objective }),
+        cache: "no-store",
+      });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) { const detail = payload.detail || payload; throw new Error(detail.message || detail.error || `HTTP ${response.status}`); }
+      if (!response.ok) {
+        const detail = payload.detail || payload;
+        const error = new Error(detail.message || detail.error || "HTTP " + response.status);
+        error.status = response.status;
+        error.code = detail.error || "REQUEST_FAILED";
+        throw error;
+      }
       renderSkills(payload);
       renderPermissions(payload);
       elements.state.textContent = payload.requires_approval ? "รออนุมัติก่อน execution" : "Dry Run · ไม่ได้ดำเนินการ";
       elements.summary.textContent = `${contextualHint(objective)} · Plan ID: ${payload.plan_id || "ไม่ระบุ"}`;
       elements.evidencePlan.textContent = `สร้างแล้ว · ${payload.plan_id || "plan"}`;
-      status.textContent = "สร้างแผนสำเร็จ · ยังไม่มี���ารเรียกใช้เครื่องมือหรือเปลี่ยนข้อมูลจริง";
+      status.textContent = "สร้างแผนสำเร็จ · ยังไม่มีการเรียกใช้เครื่องมือหรือเปลี่ยนข้อมูลจริง";
       suggestCreator(objective);
       panel.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
     } catch (error) {
+      if (error.status === 401 && typeof showAccessGate === "function") showAccessGate();
+      elements.permissions.replaceChildren();
+      elements.evidencePlan.textContent = "ยังไม่มี";
       elements.state.textContent = "สร้างแผนไม่สำเร็จ";
       elements.summary.textContent = "ไม่สามารถอ่านแผนจาก Agnes ได้ จึงไม่แสดงการอนุญาตหรือความสามารถที่คาดเดาเอง";
       skillsNode.replaceChildren(node("p", error.message, "muted"));

@@ -220,6 +220,8 @@ function renderResult(run, { reveal = true } = {}) {
   });
 
   if (reveal) {
+    const disclosure = document.querySelector("#creator-disclosure");
+    if (disclosure) disclosure.open = true;
     switchView("workspace-view");
     window.setTimeout(() => {
       document.querySelector("#result-panel").scrollIntoView({
@@ -404,6 +406,8 @@ const commands = [
     keywords: "brief prompt type create",
     hint: "ACTION",
     run: () => {
+      const disclosure = document.querySelector("#creator-disclosure");
+      if (disclosure) disclosure.open = true;
       switchView("workspace-view");
       window.setTimeout(() => elements.prompt.focus(), 120);
     },

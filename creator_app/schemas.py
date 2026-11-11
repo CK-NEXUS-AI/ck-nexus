@@ -64,6 +64,12 @@ class StatusResponse(BaseModel):
     dev_team_ready: bool
 
 
+class AgnesPlanRequest(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    goal: str = Field(min_length=1, max_length=4000)
+
+
 class DevAdvisorCard(BaseModel):
     id: str
     name: str
