@@ -4,7 +4,15 @@
 
 CK-NEXUS is one platform with one canonical application runtime. **Agnes** is its AI orchestration and execution layer; the Creator Workspace is a user-facing workspace; and **/development** is an internal evidence dashboard. These are parts and interfaces of CK-NEXUS, not separate products or competing system identities.
 
-> **Release decision: NO-GO for Production.** Do not treat a passing test subset, CI run, implemented feature, or running service as Production approval. The current release decision and gate evidence are maintained in [Release Status](RELEASE_STATUS.md) and the [Q10–Q16 Closure Contract](docs/Q10_Q16_CLOSURE_CONTRACT.md).
+> **Release status: Release Candidate with Disclosure (2026-11-11).** This artifact is an RC for technical evaluation and due diligence; it is not a production certification.
+>
+> - **Q10:** Owner attestation is signed for prior subject `a31f82d1d45c3398ae14fb506d0893f67a55234d`; independent review remains outstanding. The attestation is not bound to this RC subject.
+> - **Q11:** PENDING / BLOCKED. Live-provider verification is incomplete; the recorded Q11 evidence also references prior subject `a31f82d1d45c3398ae14fb506d0893f67a55234d`.
+> - **Q12–Q16:** Prior-candidate evidence is preserved and references `a31f82d1d45c3398ae14fb506d0893f67a55234d`; it is not exact-subject verification for this RC commit.
+> - **CI:** `test`, `preflight`, and `attack-regression` passed on candidate `f8c8b08` (runs 42926259903, 42926259796, and 42926259778).
+> - **Certification:** NOT Production Ready. NOT Certified 100%. Buyer verification is required before production deployment.
+>
+> Evidence provenance: [Q10 attestation](evidence/Q10_REVIEW_ATTESTATION.md), [Q11 live evidence](evidence/Q11_OPENAI_LIVE.json), and [Q10–Q16 Closure Contract](docs/Q10_Q16_CLOSURE_CONTRACT.md).
 
 ## Start here
 
@@ -138,4 +146,6 @@ Useful references:
 **Product identity:** CK-NEXUS.
 **AI orchestration and execution layer:** Agnes.
 **Canonical application runtime:** creator_app.unified.
-**Current release decision:** NO-GO until the exact candidate passes all mandatory gates.
+**Current release status:** Release Candidate with Disclosure.
+**Certification:** NOT Production Ready. NOT Certified 100%. Buyer verification required.
+**Release subject:** see `RC_DELIVERY_REPORT.md` for the base subject, evidence bindings, and instructions to resolve the final commit/tree.
