@@ -3,355 +3,89 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta
-      name="description"
-      content="CK-NEXUS — Governed autonomous AI platform with Agnes orchestration and a unified creator workspace"
-    />
-    <title>CK-NEXUS — Governed AI Platform</title>
+    <meta name="description" content="CK-NEXUS — พื้นที่สั่งงาน AI อัตโนมัติที่มีนโยบายและหลักฐานกำกับ" />
+    <meta name="color-scheme" content="dark light" />
+    <title>CK-NEXUS — พื้นที่ทำงานอัตโนมัติ</title>
     <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/automation.css" />
+    <script src="/static/app.js" defer></script>
+    <script src="/static/automation.js" defer></script>
   </head>
-  <body>
-    <div class="mesh" aria-hidden="true">
-      <span class="mesh-field mesh-a"></span>
-      <span class="mesh-field mesh-b"></span>
-      <span class="mesh-field mesh-c"></span>
-    </div>
-
+  <body class="workspace-v2">
+    <div class="mesh" aria-hidden="true"><span class="mesh-field mesh-a"></span><span class="mesh-field mesh-b"></span></div>
     <header class="topbar">
-      <button class="brand magnetic" type="button" data-view-target="workspace-view">
-        <span class="brand-code">CK/NX</span>
-        <span>
-          <strong>CK-NEXUS</strong>
-          <small>GOVERNED AI PLATFORM / AGNES</small>
-        </span>
-      </button>
-
-      <nav class="text-nav" aria-label="หน้าหลัก">
-        <button class="nav-link active" type="button" data-view-target="workspace-view">
-          WORKSPACE
-        </button>
-        <button class="nav-link" type="button" data-view-target="stream-view">STREAM</button>
-        <button class="nav-link" type="button" data-view-target="system-view">SYSTEM</button>
+      <button class="brand" type="button" data-view-target="workspace-view" aria-label="CK-NEXUS หน้าหลัก"><span class="brand-code">CK/NX</span><span><strong>CK-NEXUS</strong><small>AGNES · GOVERNED WORKSPACE</small></span></button>
+      <nav class="text-nav" aria-label="เมนูหลัก">
+        <button class="nav-link active" type="button" data-view-target="workspace-view">WORKSPACE</button>
+        <button class="nav-link" type="button" data-view-target="stream-view">ประวัติงาน</button>
+        <button class="nav-link" type="button" data-view-target="system-view">ระบบ</button>
       </nav>
-
-      <div class="top-actions">
-        <button class="command-hint magnetic" id="command-open" type="button">
-          COMMAND <kbd>CTRL K</kbd>
-        </button>
-        <span class="status-text checking" id="system-status" role="status" aria-live="polite">
-          [ CHECKING ]
-        </span>
-      </div>
+      <div class="top-actions"><button class="command-hint" id="command-open" type="button">ค้นหา <kbd>CTRL K</kbd></button><span class="status-text checking" id="system-status" role="status" aria-live="polite">[ CHECKING ]</span></div>
     </header>
 
     <main>
       <section class="view-panel active" id="workspace-view" aria-labelledby="workspace-title">
-        <header class="hero">
-          <div>
-            <p class="eyebrow reveal-item">UNIVERSAL COGNITIVE OPERATING SYSTEM</p>
-            <h1 id="workspace-title" aria-label="ระบบ AI ที่คิดเป็นระบบและลงมือทำอย่างมีหลักฐาน">
-              <span class="reveal-line"><span>AI ที่คิดเป็นระบบ</span></span>
-              <span class="reveal-line"><span>และลงมือทำอย่างมีหลักฐาน</span></span>
-            </h1>
-            <p class="hero-copy reveal-item">
-              CK-NEXUS รวม Core Authority, Agnes orchestration และเครื่องมือทำงานไว้ในแพลตฟอร์มเดียว
-              เริ่มจาก Creative Workspace แล้วขยายสู่การทำงานอัตโนมัติที่มีนโยบายและหลักฐานกำกับ
-            </p>
-          </div>
-          <div class="hero-index reveal-item" aria-label="ผลิตภัณฑ์รุ่นหนึ่ง">
-            <span>01</span>
-            <p>ONE PLATFORM<br />ONE AUTHORITY</p>
-          </div>
+        <header class="automation-hero">
+          <div><p class="eyebrow">ONE REQUEST · GOVERNED AUTOMATION</p><h1 id="workspace-title">บอกเป้าหมาย<br /><em>ที่เหลือ Agnes ช่วยจัดการ</em></h1><p>อธิบายสิ่งที่ต้องการ Agnes จะจัดทำแผนจากความสามารถที่มีให้ตรวจสอบก่อน ยังไม่มีการเปลี่ยนแปลงระบบจริงในขั้นตอนนี้</p></div>
+          <a class="evidence-link" href="/development">สถานะและหลักฐานระบบ <span aria-hidden="true">↗</span></a>
         </header>
 
-        <section class="architecture-strip reveal-item" aria-label="โครงสร้างแพลตฟอร์ม CK-NEXUS">
-          <div class="architecture-heading">
-            <span class="eyebrow">ONE PLATFORM / CLEAR AUTHORITY</span>
-            <a href="/development" class="evidence-link">OPEN EVIDENCE DASHBOARD <span aria-hidden="true">↗</span></a>
-          </div>
-          <div class="architecture-grid">
-            <article class="architecture-card authority-card">
-              <span class="architecture-index">01 / AUTHORITY</span>
-              <h2>CK-NEXUS CORE</h2>
-              <p>กำกับ state, memory, permissions, policy และ evidence เป็นแหล่งอำนาจหลักเพียงแห่งเดียว</p>
-            </article>
-            <article class="architecture-card agnes-card">
-              <span class="architecture-index">02 / ORCHESTRATION</span>
-              <h2>AGNES</h2>
-              <p>วางแผน ประสาน specialist และดำเนินงานภายใต้ขอบเขตที่ Core อนุญาต</p>
-            </article>
-            <article class="architecture-card workspace-card">
-              <span class="architecture-index">03 / WORKSPACE</span>
-              <h2>CREATOR WORKSPACE</h2>
-              <p>พื้นที่ทำงานสำหรับสร้างเนื้อหา เรียกใช้ความสามารถ และตรวจผลลัพธ์</p>
-            </article>
-            <article class="architecture-card integration-card">
-              <span class="architecture-index">04 / ADAPTERS</span>
-              <h2>INTEGRATIONS</h2>
-              <p>เชื่อมต่อบริการภายนอกในฐานะ adapter โดยไม่รับอำนาจด้าน policy หรือ release</p>
-            </article>
-          </div>
-          <p class="architecture-note"><span class="note-mark">●</span> NO EVIDENCE → NO DONE <span>สถานะ Release และ Production ยึดหลักฐานจากระบบกลางเท่านั้น</span></p>
-        </section>
-
-        <div class="workspace-grid reveal-item">
-          <aside class="agent-panel" aria-labelledby="agent-heading">
-            <div class="section-heading">
-              <div>
-                <span class="step">01</span>
-                <h2 id="agent-heading">SELECT SPECIALIST</h2>
-              </div>
-              <span class="count" id="agent-count">00</span>
-            </div>
-            <div class="agent-list" id="agent-list" aria-live="polite"></div>
-          </aside>
-
-          <section class="brief-panel" aria-labelledby="brief-heading">
-            <div class="section-heading">
-              <div>
-                <span class="step">02</span>
-                <h2 id="brief-heading">CREATIVE BRIEF</h2>
-              </div>
-              <button class="text-button magnetic" id="clear-form" type="button">CLEAR</button>
-            </div>
-
-            <form id="brief-form">
-              <input id="agent-id" name="agent_id" type="hidden" />
-              <label class="field field-large">
-                <span>OBJECTIVE / SOURCE MATERIAL</span>
-                <textarea
-                  id="prompt"
-                  name="prompt"
-                  rows="8"
-                  maxlength="8000"
-                  required
-                  placeholder="เขียนสคริปต์วิดีโอ 60 วินาที อธิบายวิธีเริ่มใช้ AI สำหรับเจ้าของร้านเล็ก ๆ"
-                ></textarea>
-                <small><span id="char-count">0</span>/8,000</small>
-              </label>
-
-              <div class="field-row">
-                <label class="field">
-                  <span>AUDIENCE</span>
-                  <input id="audience" name="audience" value="ครีเอเตอร์มือใหม่" maxlength="160" />
-                </label>
-                <label class="field">
-                  <span>PLATFORM</span>
-                  <select id="platform" name="platform">
-                    <option>YouTube Shorts</option>
-                    <option>TikTok</option>
-                    <option>Facebook</option>
-                    <option>Instagram</option>
-                    <option>LinkedIn</option>
-                    <option>บทความ / Blog</option>
-                    <option>ไม่ระบุ</option>
-                  </select>
-                </label>
-              </div>
-
-              <div class="field-row">
-                <label class="field">
-                  <span>TONE</span>
-                  <select id="tone" name="tone">
-                    <option>เป็นธรรมชาติ</option>
-                    <option>มืออาชีพ</option>
-                    <option>เป็นกันเอง</option>
-                    <option>กระชับและทรงพลัง</option>
-                    <option>ให้ความรู้</option>
-                  </select>
-                </label>
-                <label class="field">
-                  <span>LANGUAGE</span>
-                  <select id="language" name="language">
-                    <option>ไทย</option>
-                    <option>English</option>
-                    <option>ไทย + English</option>
-                  </select>
-                </label>
-              </div>
-
-              <details class="advanced">
-                <summary>ADVANCED CONNECTION</summary>
-                <div class="field-row advanced-fields">
-                  <label class="field">
-                    <span>SESSION ID</span>
-                    <input id="session-id" name="session_id" value="creator-default" maxlength="96" />
-                  </label>
-                  <label class="field">
-                    <span>ACCESS TOKEN</span>
-                    <input id="access-token" type="password" autocomplete="off" />
-                  </label>
-                </div>
-              </details>
-
-              <div class="form-footer">
-                <p id="selected-agent-copy">SELECT A SPECIALIST</p>
-                <button class="primary-button magnetic" id="run-button" type="submit" disabled>
-                  <span>GENERATE</span>
-                  <span>ENTER</span>
-                </button>
-              </div>
-            </form>
-          </section>
-        </div>
-
-        <section class="result-panel reveal-item" id="result-panel" aria-labelledby="result-heading">
-          <div class="section-heading">
-            <div>
-              <span class="step">03</span>
-              <h2 id="result-heading">OUTPUT</h2>
-            </div>
-            <div class="section-actions">
-              <button class="text-button magnetic" id="download-result" type="button" disabled>
-                DOWNLOAD TXT
-              </button>
-              <button class="text-button magnetic" id="copy-result" type="button" disabled>
-                COPY
-              </button>
-            </div>
-          </div>
-          <div class="empty-state" id="empty-result">
-            <span>OUTPUT CHANNEL / IDLE</span>
-            <p>ผลงานจาก Specialist จะปรากฏตรงนี้</p>
-          </div>
-          <article class="result-content hidden" id="result-content">
-            <div class="result-meta" id="result-meta"></div>
-            <pre id="result-text"></pre>
-          </article>
-        </section>
-      </section>
-
-      <section class="view-panel" id="stream-view" aria-labelledby="stream-title">
-        <header class="page-intro">
-          <p class="eyebrow">LIVE DATA STREAM / LOCAL DATABASE</p>
-          <h1 id="stream-title">Operational<br /><em>overview.</em></h1>
-        </header>
-
-        <div class="metrics-grid">
-          <article class="metric-card">
-            <span class="metric-label">COMPLETED RUNS</span>
-            <strong class="metric-value" id="metric-runs">00</strong>
-            <small>LOCAL HISTORY</small>
-          </article>
-          <article class="metric-card">
-            <span class="metric-label">ACTIVE SPECIALISTS</span>
-            <strong class="metric-value" id="metric-agents">00</strong>
-            <small>DIRECT SELECTION</small>
-          </article>
-          <article class="metric-card metric-wide">
-            <span class="metric-label">RUNTIME STATE</span>
-            <strong class="metric-state" id="metric-mode">[ CHECKING ]</strong>
-            <small id="metric-model">MODEL / UNKNOWN</small>
-          </article>
-        </div>
-
-        <section class="history-panel" aria-labelledby="history-heading">
-          <div class="section-heading">
-            <div>
-              <span class="step">04</span>
-              <h2 id="history-heading">RECENT OUTPUT STREAM</h2>
-            </div>
-            <button class="text-button magnetic" id="refresh-history" type="button">REFRESH</button>
-          </div>
-          <div class="history-list" id="history-list">
-            <p class="muted">NO RECORDS</p>
+        <section class="intent-card" aria-labelledby="intent-heading">
+          <div class="intent-heading"><div><span class="eyebrow">01 / YOUR INTENT</span><h2 id="intent-heading">วันนี้ต้องการให้ CK-NEXUS ช่วยอะไร?</h2></div><span class="intent-agent"><i aria-hidden="true"></i> AGNES · PLAN ONLY</span></div>
+          <form id="intent-form">
+            <label class="field" for="intent-goal"><span>เป้าหมายหรือสิ่งที่ต้องการทำ</span><textarea id="intent-goal" maxlength="4000" rows="3" required placeholder="ตัวอย่าง: ช่วยวางแผนตรวจสอบโค้ดและสรุปความเสี่ยงก่อนส่งรีวิว"></textarea></label>
+            <div class="intent-footer"><span id="intent-status" role="status" aria-live="polite">ระบบจะจำลองแผนเท่านั้น ยังไม่เรียกใช้เครื่องมือเพื่อเปลี่ยนแปลงข้อมูล</span><button class="primary-button" id="plan-button" type="submit"><span>สร้างแผนให้ตรวจสอบ</span><span aria-hidden="true">→</span></button></div>
+          </form>
+          <div class="suggestions" role="group" aria-label="ตัวอย่างเป้าหมาย">
+            <span>เริ่มจากตัวอย่าง</span>
+            <button type="button" data-intent="ช่วยวางแผนสร้างคอนเทนต์สำหรับผู้เริ่มต้น และร่างสคริปต์วิดีโอสั้น">สร้างคอนเทนต์</button>
+            <button type="button" data-intent="ช่วยค้นคว้าข้อมูลและตรวจสอบแหล่งที่มา ก่อนสรุปเป็นรายงาน">ค้นคว้าและสรุป</button>
+            <button type="button" data-intent="ช่วยตรวจสอบโค้ด วางแผนทดสอบ และสรุปความเสี่ยง โดยยังไม่แก้ไขไฟล์">ตรวจสอบโค้ด</button>
           </div>
         </section>
+
+        <section class="plan-panel" id="plan-panel" aria-labelledby="plan-heading" hidden>
+          <div class="section-heading plan-title"><div><span class="step">02</span><div><h2 id="plan-heading">แผนและขอบเขตสิทธิ์</h2><p id="plan-summary">แผนนี้ยังไม่เริ่มดำเนินการ</p></div></div><span id="plan-state" class="state-pill">ยังไม่มีแผน</span></div>
+          <div class="plan-grid">
+            <section class="plan-block"><h3>ความสามารถที่ Agnes เลือก</h3><div id="plan-skills" class="skill-list" aria-live="polite"><p class="muted">ส่งเป้าหมายเพื่อดูรายการจาก Skill Catalog</p></div></section>
+            <section class="plan-block permission-block"><h3>Permission Preview</h3><p>ข้อมูลนี้เป็นการแสดงขอบเขตจาก Skill Catalog ไม่ใช่การอนุมัติหรือสิทธิ์ที่ได้รับจริง</p><dl id="permission-preview" class="permission-list"><div><dt>ข้อมูลที่จะเข้าถึง</dt><dd>ยังไม่มีแผน</dd></div><div><dt>สิทธิ์เปลี่ยนแปลง</dt><dd>ยังไม่ได้ร้องขอ</dd></div><div><dt>การอนุมัติ</dt><dd>ยังไม่มีการประเมิน</dd></div></dl></section>
+          </div>
+          <section class="evidence-panel" aria-labelledby="evidence-heading"><div class="evidence-heading"><div><span class="eyebrow">EVIDENCE PANEL</span><h3 id="evidence-heading">สถานะงาน แยกตามหลักฐาน</h3></div><span class="evidence-note">NO EVIDENCE → NO DONE</span></div>
+            <div class="evidence-grid">
+              <article><span>01 · แผน</span><strong id="evidence-plan">ยังไม่มี</strong><small>ข้อเสนอจาก Agnes</small></article>
+              <article><span>02 · ผลการทำงาน</span><strong id="evidence-execution">ยังไม่ดำเนินการ</strong><small>Dry Run ไม่เปลี่ยนข้อมูลจริง</small></article>
+              <article><span>03 · การตรวจสอบ</span><strong id="evidence-verification">ยังไม่มีผลตรวจ</strong><small>ต้องมี execution จึงตรวจผลได้</small></article>
+              <article><span>04 · สิ่งส่งมอบ</span><strong id="evidence-deliverable">ยังไม่มี</strong><small>ผลจากงานที่ดำเนินการจริงเท่านั้น</small></article>
+            </div>
+          </section>
+          <p class="recovery-note"><strong>Recovery / Undo:</strong> แผนนี้ไม่เปลี่ยนข้อมูล จึงไม่มีสิ่งที่ต้องย้อนกลับ การ Undo จะแสดงเฉพาะเมื่อ connector ต้นทางรองรับและมีหลักฐานยืนยัน</p>
+          <div class="context-actions" id="context-actions" hidden><p>ต้องการทำงานต่อใน Workspace ที่รองรับอยู่หรือไม่?</p><button class="outline-button" id="open-creator" type="button">เปิด Creator Workspace</button></div>
+        </section>
+
+        <details class="creator-disclosure" id="creator-disclosure"><summary><span><strong>Creator Workspace</strong><small>สร้างคอนเทนต์ด้วย specialist ที่มีอยู่ในระบบ</small></span><span class="disclosure-action">เปิดเครื่องมือ <span aria-hidden="true">＋</span></span></summary>
+          <div class="workspace-grid">
+            <aside class="agent-panel" aria-labelledby="agent-heading"><div class="section-heading"><div><span class="step">A</span><h2 id="agent-heading">เลือก Specialist</h2></div><span class="count" id="agent-count">00</span></div><div class="agent-list" id="agent-list" aria-live="polite"></div></aside>
+            <section class="brief-panel" aria-labelledby="brief-heading"><div class="section-heading"><div><span class="step">B</span><h2 id="brief-heading">Creative Brief</h2></div><button class="text-button" id="clear-form" type="button">ล้าง</button></div>
+              <form id="brief-form"><input id="agent-id" name="agent_id" type="hidden" /><label class="field field-large"><span>รายละเอียดงาน</span><textarea id="prompt" name="prompt" rows="5" maxlength="8000" required placeholder="อธิบายงานสร้างคอนเทนต์"></textarea><small><span id="char-count">0</span>/8,000</small></label>
+                <div class="field-row"><label class="field"><span>กลุ่มเป้าหมาย</span><input id="audience" name="audience" value="ครีเอเตอร์มือใหม่" maxlength="160" /></label><label class="field"><span>แพลตฟอร์ม</span><select id="platform" name="platform"><option>YouTube Shorts</option><option>TikTok</option><option>Facebook</option><option>Instagram</option><option>LinkedIn</option><option>บทความ / Blog</option><option>ไม่ระบุ</option></select></label></div>
+                <div class="field-row"><label class="field"><span>โทนภาษา</span><select id="tone" name="tone"><option>เป็นธรรมชาติ</option><option>มืออาชีพ</option><option>เป็นกันเอง</option><option>กระชับและทรงพลัง</option><option>ให้ความรู้</option></select></label><label class="field"><span>ภาษา</span><select id="language" name="language"><option>ไทย</option><option>English</option><option>ไทย + English</option></select></label></div>
+                <details class="advanced"><summary>การเชื่อมต่อขั้นสูง</summary><div class="field-row advanced-fields"><label class="field"><span>SESSION ID</span><input id="session-id" name="session_id" value="creator-default" maxlength="96" /></label><label class="field"><span>ACCESS TOKEN</span><input id="access-token" type="password" autocomplete="off" /></label></div></details>
+                <div class="form-footer"><p id="selected-agent-copy">เลือก Specialist ก่อนเริ่ม</p><button class="primary-button" id="run-button" type="submit" disabled><span>สร้างผลงาน</span><span aria-hidden="true">→</span></button></div>
+              </form>
+            </section>
+          </div>
+          <section class="result-panel" id="result-panel" aria-labelledby="result-heading"><div class="section-heading"><div><span class="step">C</span><h2 id="result-heading">ผลลัพธ์จาก Creator Workspace</h2></div><div class="section-actions"><button class="text-button" id="download-result" type="button" disabled>ดาวน์โหลด TXT</button><button class="text-button" id="copy-result" type="button" disabled>คัดลอก</button></div></div><div class="empty-state" id="empty-result"><span>ยังไม่มีผลลัพธ์</span><p>ผลงานที่สร้างจะแสดงตรงนี้</p></div><article class="result-content hidden" id="result-content"><div class="result-meta" id="result-meta"></div><pre id="result-text"></pre></article></section>
+        </details>
       </section>
 
-      <section class="view-panel" id="system-view" aria-labelledby="system-title">
-        <header class="page-intro">
-          <p class="eyebrow">CONTROL HUB / ENVIRONMENT</p>
-          <h1 id="system-title">System<br /><em>matrix.</em></h1>
-        </header>
+      <section class="view-panel" id="stream-view" aria-labelledby="stream-title"><header class="page-intro"><p class="eyebrow">LOCAL RUN HISTORY</p><h1 id="stream-title">ประวัติ<br /><em>การทำงาน</em></h1></header><div class="metrics-grid"><article class="metric-card"><span class="metric-label">COMPLETED RUNS</span><strong class="metric-value" id="metric-runs">00</strong><small>ประวัติใน session นี้</small></article><article class="metric-card"><span class="metric-label">ACTIVE SPECIALISTS</span><strong class="metric-value" id="metric-agents">00</strong><small>จาก Agent Catalog</small></article><article class="metric-card metric-wide"><span class="metric-label">RUNTIME STATE</span><strong class="metric-state" id="metric-mode">[ CHECKING ]</strong><small id="metric-model">MODEL / UNKNOWN</small></article></div><section class="history-panel"><div class="section-heading"><div><span class="step">03</span><h2>ผลงานล่าสุด</h2></div><button class="text-button" id="refresh-history" type="button">รีเฟรช</button></div><div class="history-list" id="history-list"><p class="muted">ยังไม่มีรายการ</p></div></section></section>
 
-        <div class="system-grid">
-          <section class="control-card">
-            <div class="section-heading">
-              <div><span class="step">A</span><h2>ENVIRONMENT THEME</h2></div>
-            </div>
-            <div class="theme-options" role="group" aria-label="เลือกธีม">
-              <button class="theme-button magnetic" type="button" data-theme-value="midnight">
-                <strong>DEEP MIDNIGHT</strong><small>#0F172A / #311042</small>
-              </button>
-              <button class="theme-button magnetic" type="button" data-theme-value="alabaster">
-                <strong>CLEAN ALABASTER</strong><small>#F8FAFC / #F1F5F9</small>
-              </button>
-              <button class="theme-button magnetic" type="button" data-theme-value="aurora">
-                <strong>CYBER AURORA</strong><small>EMERALD / CYAN</small>
-              </button>
-            </div>
-          </section>
-
-          <section class="control-card">
-            <div class="section-heading">
-              <div><span class="step">B</span><h2>CONNECTION MATRIX</h2></div>
-            </div>
-            <dl class="status-list">
-              <div><dt>APPLICATION</dt><dd id="system-app-state">[ CHECKING ]</dd></div>
-              <div><dt>OPENAI RUNTIME</dt><dd id="system-ai-state">[ CHECKING ]</dd></div>
-              <div><dt>LOCAL MEMORY</dt><dd id="system-db-state">[ CHECKING ]</dd></div>
-              <div><dt>ACCESS GATE</dt><dd id="system-gate-state">[ CHECKING ]</dd></div>
-            </dl>
-            <button class="outline-button magnetic" id="clear-session-token" type="button">
-              CLEAR SESSION TOKEN
-            </button>
-            <button class="outline-button danger-button magnetic" id="delete-local-session" type="button">
-              DELETE LOCAL SESSION
-            </button>
-          </section>
-
-          <section class="control-card control-wide">
-            <div class="section-heading">
-              <div><span class="step">C</span><h2>FUNCTIONAL BLUEPRINT</h2></div>
-            </div>
-            <div class="blueprint" aria-label="แผนผังฟังก์ชัน">
-              <p><strong>TYPOGRAPHY CONTROL HUB</strong><span>[ LINKED ]</span></p>
-              <p class="branch"><strong>CREATOR WORKSPACE</strong><span>[ ACTIVE ]</span></p>
-              <p class="branch"><strong>DATA STREAM</strong><span>[ ACTIVE ]</span></p>
-              <p class="branch"><strong>LOCAL SESSION MEMORY</strong><span>[ ACTIVE ]</span></p>
-              <p class="branch"><strong>TEXT FILE EXPORT</strong><span>[ ACTIVE ]</span></p>
-              <p class="branch unavailable"><strong>FILE DEPOT</strong><span>[ ROADMAP ]</span></p>
-              <p class="branch unavailable"><strong>EXTERNAL PUBLISHING</strong><span>[ DISCONNECTED ]</span></p>
-            </div>
-          </section>
-        </div>
-      </section>
+      <section class="view-panel" id="system-view" aria-labelledby="system-title"><header class="page-intro"><p class="eyebrow">CONTROL HUB</p><h1 id="system-title">สถานะ<br /><em>ระบบ</em></h1></header><div class="system-grid"><section class="control-card"><div class="section-heading"><div><span class="step">A</span><h2>ธีมหน้าจอ</h2></div></div><div class="theme-options" role="group" aria-label="เลือกธีม"><button class="theme-button" type="button" data-theme-value="midnight"><strong>DEEP MIDNIGHT</strong><small>โหมดมืด</small></button><button class="theme-button" type="button" data-theme-value="alabaster"><strong>CLEAN ALABASTER</strong><small>โหมดสว่าง</small></button><button class="theme-button" type="button" data-theme-value="aurora"><strong>CYBER AURORA</strong><small>โหมดเขียว</small></button></div></section><section class="control-card"><div class="section-heading"><div><span class="step">B</span><h2>สถานะการเชื่อมต่อ</h2></div></div><dl class="status-list"><div><dt>แอปพลิเคชัน</dt><dd id="system-app-state">[ CHECKING ]</dd></div><div><dt>AI Runtime</dt><dd id="system-ai-state">[ CHECKING ]</dd></div><div><dt>ฐานข้อมูล</dt><dd id="system-db-state">[ CHECKING ]</dd></div><div><dt>Access Gate</dt><dd id="system-gate-state">[ CHECKING ]</dd></div></dl><button class="outline-button" id="clear-session-token" type="button">ล้าง Access Token ใน session</button><button class="outline-button danger-button" id="delete-local-session" type="button">ลบประวัติ session นี้</button></section><section class="control-card control-wide"><div class="section-heading"><div><span class="step">C</span><h2>ขอบเขตระบบ</h2></div></div><p class="system-boundary">การวางแผนไม่ใช่การอนุมัติหรือการดำเนินการ ระบบจะไม่อ้างว่าบริการภายนอกเชื่อมต่อแล้ว หากไม่มี connector และสถานะจาก runtime ที่ยืนยันได้</p></section></div></section>
     </main>
+    <footer><span>CK-NEXUS / GOVERNED AI WORKSPACE</span><span>ตรวจสิทธิ์ · อนุมัติตามนโยบาย · เก็บหลักฐาน</span></footer>
 
-    <footer>
-      <span>CK-NEXUS / GOVERNED AI PLATFORM / 2026</span>
-      <span>AGNES ORCHESTRATION / EVIDENCE-LED EXECUTION</span>
-    </footer>
-
-    <dialog class="system-dialog" id="access-gate">
-      <form id="gate-form">
-        <span class="dialog-index">GATE / AUTHORIZATION</span>
-        <h2>Establish<br /><em>connection.</em></h2>
-        <p>ระบบนี้ตั้งค่า Access Token ไว้ กรุณาใส่ token สำหรับ session นี้</p>
-        <label class="field">
-          <span>ACCESS TOKEN</span>
-          <input id="gate-token" type="password" autocomplete="off" required />
-        </label>
-        <button class="primary-button magnetic" type="submit">
-          <span>CONNECT</span><span>ENTER</span>
-        </button>
-        <small>Token ถูกเก็บใน session ของเบราว์เซอร์นี้เท่านั้น</small>
-      </form>
-    </dialog>
-
-    <dialog class="command-dialog" id="command-palette">
-      <div class="command-shell">
-        <label>
-          <span>COMMAND PALETTE</span>
-          <input id="command-input" autocomplete="off" placeholder="พิมพ์ workspace, stream, theme..." />
-        </label>
-        <div class="command-list" id="command-list"></div>
-        <small>ESC TO CLOSE / ENTER TO RUN</small>
-      </div>
-    </dialog>
-
+    <dialog class="system-dialog" id="access-gate"><form id="gate-form"><span class="dialog-index">GATE / AUTHORIZATION</span><h2>ยืนยัน<br /><em>การเชื่อมต่อ</em></h2><p>ใส่ Access Token สำหรับ session นี้</p><label class="field"><span>ACCESS TOKEN</span><input id="gate-token" type="password" autocomplete="off" required /></label><button class="primary-button" type="submit"><span>เชื่อมต่อ</span><span>→</span></button><small>Token เก็บใน session ของเบราว์เซอร์นี้เท่านั้น</small></form></dialog>
+    <dialog class="command-dialog" id="command-palette"><div class="command-shell"><label><span>COMMAND PALETTE</span><input id="command-input" autocomplete="off" placeholder="พิมพ์ workspace, stream, system..." /></label><div class="command-list" id="command-list"></div><small>ESC เพื่อปิด / ENTER เพื่อเลือก</small></div></dialog>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script src="/static/app.js" defer></script>
   </body>
 </html>
