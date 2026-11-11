@@ -4,15 +4,32 @@
 
 CK-NEXUS is one platform with one canonical application runtime. **Agnes** is its AI orchestration and execution layer; the Creator Workspace is a user-facing workspace; and **/development** is an internal evidence dashboard. These are parts and interfaces of CK-NEXUS, not separate products or competing system identities.
 
-> **Release status: Release Candidate with Disclosure (2026-11-11).** This artifact is an RC for technical evaluation and due diligence; it is not a production certification.
+> **Release status: Release Candidate with SHA-bound Disclosure (2026-11-11).**
 >
-> - **Q10:** Owner attestation is signed for prior subject `a31f82d1d45c3398ae14fb506d0893f67a55234d`; independent review remains outstanding. The attestation is not bound to this RC subject.
-> - **Q11:** PENDING / BLOCKED. Live-provider verification is incomplete; the recorded Q11 evidence also references prior subject `a31f82d1d45c3398ae14fb506d0893f67a55234d`.
-> - **Q12–Q16:** Prior-candidate evidence is preserved and references `a31f82d1d45c3398ae14fb506d0893f67a55234d`; it is not exact-subject verification for this RC commit.
-> - **CI:** `test`, `preflight`, and `attack-regression` passed on candidate `f8c8b08` (runs 42926259903, 42926259796, and 42926259778).
-> - **Certification:** NOT Production Ready. NOT Certified 100%. Buyer verification is required before production deployment.
+> **RC artifact baseline:** 8ac1ca7f9cb649ff230767dbf26167dc5bc7812c
 >
-> Evidence provenance: [Q10 attestation](evidence/Q10_REVIEW_ATTESTATION.md), [Q11 live evidence](evidence/Q11_OPENAI_LIVE.json), and [Q10–Q16 Closure Contract](docs/Q10_Q16_CLOSURE_CONTRACT.md).
+> **Critical disclosure:** No Q10–Q16 gate evidence is bound to the RC artifact baseline. The evidence below is preserved from prior candidate subjects only.
+>
+> | Gate | Evidence file | Actual source subject | Status / limitation |
+> |---|---|---|---|
+> | Q10 Security Review | evidence/Q10_REVIEW_ATTESTATION.md | a31f82d1d45c3398ae14fb506d0893f67a55234d | Owner attestation only; scanner report NOT_VERIFIED; independent review outstanding |
+> | Q11 Live Provider | evidence/Q11_OPENAI_LIVE.json | a31f82d1d45c3398ae14fb506d0893f67a55234d | PENDING / BLOCKED; live-provider verification incomplete |
+> | Q12 Delegated cgroup v2 | evidence/Q12_CGROUP_V2.json | 512837c8b1a3e6e8e844252a1b0781d8de011b07 | Prior-candidate evidence; re-verify on purchased commit |
+> | Q13 PostgreSQL DR | evidence/Q13_POSTGRES_DR.json | 4cf17cd3befaafeaf64cd4c149739133aa220f73 | Prior-candidate evidence; re-verify on purchased commit |
+> | Q14 Observability | evidence/Q14_OBSERVABILITY_ALERT.json | 4cf17cd3befaafeaf64cd4c149739133aa220f73 | Prior-candidate evidence; re-verify on purchased commit |
+> | Q15 Clean Machine | evidence/Q15_CLEAN_MACHINE.json | 4cf17cd3befaafeaf64cd4c149739133aa220f73 | Prior-candidate evidence; re-verify on purchased commit |
+> | Q16 Production Image | evidence/Q16_PRODUCTION_IMAGE.json | 4cf17cd3befaafeaf64cd4c149739133aa220f73 | Prior-candidate evidence; re-verify on purchased commit |
+> | Q16 Runtime Licenses | evidence/Q16_RUNTIME_LICENSE_SUMMARY.json | 4cf17cd3befaafeaf64cd4c149739133aa220f73 | Prior-candidate evidence; re-verify on purchased commit |
+>
+> **Provenance method:** Q10 source subject was read from its Release subject field; Q11–Q16 source subjects were read directly from each JSON source_sha field.
+>
+> **CI on RC artifact baseline 8ac1ca7f:** test SUCCESS (run 42928860524); attack-regression SUCCESS (run 42928860527); preflight SUCCESS (run 42928860601). These results apply to 8ac1ca7f, not automatically to any later documentation commit.
+>
+> **CI pass is not gate closure.** CI does not convert prior-subject Q10–Q16 evidence into evidence for this RC or any subsequent commit.
+>
+> **Release boundary:** NOT Production Ready; NOT Certified 100%; NOT Q10–Q16 gate-verified for this RC; independent Q10 review outstanding.
+>
+> See RC_DELIVERY_REPORT.md for buyer obligations and the full provenance record.
 
 ## Start here
 
