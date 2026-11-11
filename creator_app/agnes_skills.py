@@ -110,10 +110,15 @@ class AgnesSkillRegistry:
         return self.manifest.skills
 
     def select(self, goal: str, *, limit: int = 6) -> tuple[SkillDefinition, ...]:
-        tokens = {token.lower() for token in re.findall(r"[A-Za-z0-9_-]+", goal)}
+        normalized_goal = goal.casefold()
+        tokens = {token.casefold() for token in re.findall(r"[A-Za-z0-9_-]+", goal)}
         scored: list[tuple[int, int, SkillDefinition]] = []
         for index, skill in enumerate(self.manifest.skills):
-            score = len(tokens.intersection(skill.tags))
+            english_tags = {tag for tag in skill.tags if tag.isascii()}
+            phrase_tags = (tag for tag in skill.tags if not tag.isascii())
+            score = len(tokens.intersection(english_tags)) + sum(
+                tag in normalized_goal for tag in phrase_tags
+            )
             if score:
                 scored.append((-score, index, skill))
         selected = [item[2] for item in sorted(scored)[: max(1, limit)]]
