@@ -23,8 +23,8 @@ def _zip_bytes():
     "name,data",
     [
         ("a.pdf", b"%PDF-1.7\n"),
-        ("a.docx", b"PK\x03\x04rest"),
-        ("a.xlsx", b"PK\x03\x04rest"),
+        ("a.docx", _zip_bytes()),
+        ("a.xlsx", _zip_bytes()),
         ("a.zip", _zip_bytes()),
         ("a.png", b"\x89PNG\r\n\x1a\nxx"),
         ("a.jpg", b"\xff\xd8\xff\xe0xx"),
@@ -93,3 +93,110 @@ def test_cp874_text_is_quarantined(tmp_path):
 def test_utf16_text_is_quarantined(tmp_path):
     r = _scan(tmp_path, "a.txt", "hello\n".encode("utf-16"))
     assert not r.safe and r.reason == "content_signature_mismatch"
+
+
+def _archive_bytes(entries, *, compression=zipfile.ZIP_DEFLATED):
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=compression) as archive:
+        for name, payload in entries:
+            archive.writestr(name, payload)
+    return buf.getvalue()
+
+
+@pytest.mark.parametrize("name", ["archive.zip", "document.docx", "workbook.xlsx"])
+def test_all_zip_container_extensions_apply_archive_policy(tmp_path, name):
+    archive = tmp_path / name
+    archive.write_bytes(_archive_bytes([("one.txt", b"ok"), ("two.txt", b"ok")]))
+    result = scan_attachment(archive, max_zip_entries=1)
+    assert not result.safe and result.reason == "zip_too_many_entries"
+
+
+@pytest.mark.parametrize("name", ["archive.zip", "document.docx", "workbook.xlsx"])
+def test_archive_entry_count_boundary_is_inclusive(tmp_path, name):
+    archive = tmp_path / name
+    archive.write_bytes(
+        _archive_bytes([("one.txt", b"ok")], compression=zipfile.ZIP_STORED)
+    )
+    result = scan_attachment(
+        archive, max_zip_entries=1, max_zip_uncompressed_bytes=2, max_zip_ratio=1.0
+    )
+    assert result.safe, result.reason
+
+
+@pytest.mark.parametrize(
+    "member",
+    [
+        "../escape.txt",
+        "folder/../../escape.txt",
+        "..\\escape.txt",
+        "/absolute.txt",
+        "C:\\absolute.txt",
+    ],
+)
+def test_archive_path_traversal_is_quarantined(tmp_path, member):
+    archive = tmp_path / "unsafe.zip"
+    archive.write_bytes(_archive_bytes([(member, b"bad")]))
+    result = scan_attachment(archive)
+    assert not result.safe and result.reason == "zip_path_traversal"
+
+
+def _archive_with_raw_filename(raw_name):
+    data = bytearray(_archive_bytes([("x" * len(raw_name), b"payload")]))
+    local_header = data.index(b"PK\x03\x04")
+    local_name_length = int.from_bytes(data[local_header + 26 : local_header + 28], "little")
+    assert local_name_length == len(raw_name)
+    data[local_header + 30 : local_header + 30 + local_name_length] = raw_name
+
+    central_header = data.index(b"PK\x01\x02")
+    central_name_length = int.from_bytes(
+        data[central_header + 28 : central_header + 30], "little"
+    )
+    assert central_name_length == len(raw_name)
+    data[central_header + 46 : central_header + 46 + central_name_length] = raw_name
+    return bytes(data)
+
+
+def test_archive_null_byte_filename_is_quarantined(tmp_path):
+    archive = tmp_path / "null-name.zip"
+    archive.write_bytes(_archive_with_raw_filename(b"safe.txt\x00../../evil"))
+    result = scan_attachment(archive)
+    assert not result.safe and result.reason == "zip_path_traversal"
+
+
+def test_archive_uncompressed_size_limit_is_enforced_for_office_files(tmp_path):
+    archive = tmp_path / "oversized.docx"
+    archive.write_bytes(_archive_bytes([("word/document.xml", b"x" * 32)]))
+    result = scan_attachment(archive, max_zip_uncompressed_bytes=31)
+    assert not result.safe and result.reason == "zip_uncompressed_limit"
+
+
+def test_archive_compression_ratio_limit_is_enforced_for_office_files(tmp_path):
+    archive = tmp_path / "ratio.xlsx"
+    archive.write_bytes(_archive_bytes([("xl/sharedStrings.xml", b"A" * 4096)]))
+    result = scan_attachment(archive, max_zip_ratio=2.0)
+    assert not result.safe and result.reason == "zip_compression_ratio"
+
+
+def test_nested_zip_member_is_quarantined(tmp_path):
+    nested = _archive_bytes([("payload.txt", b"inner")])
+    archive = tmp_path / "nested.docx"
+    archive.write_bytes(_archive_bytes([("word/embeddings/embedded.zip", nested)]))
+    result = scan_attachment(archive)
+    assert not result.safe and result.reason == "zip_nested_archive"
+
+
+def test_malformed_zip_container_is_quarantined_for_office_files(tmp_path):
+    archive = tmp_path / "malformed.xlsx"
+    archive.write_bytes(b"PK\x03\x04not-a-valid-central-directory")
+    result = scan_attachment(archive)
+    assert not result.safe and result.reason == "invalid_zip"
+
+
+def test_corrupt_member_crc_is_quarantined(tmp_path):
+    data = bytearray(_archive_bytes([("payload.txt", b"payload")], compression=zipfile.ZIP_STORED))
+    local_header_size = 30 + len(b"payload.txt")
+    data[local_header_size] ^= 0x01
+    archive = tmp_path / "corrupt.zip"
+    archive.write_bytes(data)
+    result = scan_attachment(archive)
+    assert not result.safe and result.reason == "invalid_zip"
