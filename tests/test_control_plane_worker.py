@@ -1,12 +1,24 @@
 from __future__ import annotations
 
 import time
+import os
 
 import pytest
 
 from creator_app.control_plane.task_store import TaskStore
+from creator_app.council_authority.identity import IdentityVerifier
 from creator_app.control_plane.verification import ControlPlaneVerifier
 from creator_app.control_plane.worker import RepairWorker
+
+
+_TEST_SECRET = 'test_secret_key_must_be_at_least_32_bytes_long_ok'
+os.environ.setdefault("CK_IDENTITY_SECRET", _TEST_SECRET)
+
+
+def _test_approver_token():
+    return IdentityVerifier(os.environ["CK_IDENTITY_SECRET"].encode()).issue(
+        service_id="test-authority", agent_id="test-approver", role="admin"
+    )
 
 
 def test_worker_executes_verifies_and_finishes(tmp_path):
@@ -19,13 +31,15 @@ def test_worker_executes_verifies_and_finishes(tmp_path):
             "echo": lambda payload: {
                 "ok": True,
                 "evidence_refs": ["evidence://job-1"],
+                "evidence_reference": "evidence://job-1",
+                "approver_token": _test_approver_token(),
             }
         },
         worker_id="worker-1",
     )
     result = worker.run_once()
     assert result.state == "completed"
-    assert result.release_evidence is True
+    assert result.release_evidence is False
     assert result.production_status == "NO-GO"
     assert result.external_mutation_authorized is False
     assert store.get("job-1")["state"] == "completed"
@@ -99,6 +113,8 @@ def test_worker_has_no_production_authority(tmp_path):
             "echo": lambda payload: {
                 "ok": True,
                 "evidence_refs": ["evidence://job-1"],
+                "evidence_reference": "evidence://job-1",
+                "approver_token": _test_approver_token(),
             }
         },
         worker_id="worker-1",
@@ -165,6 +181,8 @@ def test_worker_cannot_finish_after_lease_expiry(tmp_path):
             "echo": lambda payload: {
                 "ok": True,
                 "evidence_refs": ["evidence://job-1"],
+                "evidence_reference": "evidence://job-1",
+                "approver_token": _test_approver_token(),
             }
         },
         worker_id="worker-1",

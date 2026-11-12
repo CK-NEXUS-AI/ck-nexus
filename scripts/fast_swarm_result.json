@@ -1,0 +1,62 @@
+{
+  "threads": {
+    "Core-Fixer": {
+      "status": "PASS",
+      "result": {
+        "changed": [
+          "creator_app/council_authority/identity.py",
+          "creator_app/control_plane/task_store.py"
+        ]
+      },
+      "seconds": 0.0099
+    },
+    "Test-Writer": {
+      "status": "PASS",
+      "result": {
+        "changed": [
+          "tests/test_control_plane_task_store.py",
+          "tests/test_control_plane_worker.py",
+          "tests/test_control_plane_mcp.py",
+          "tests/test_n8n_proactive.py",
+          "tests/p0_repro_test.py"
+        ]
+      },
+      "seconds": 0.0207
+    },
+    "Worker-Fixer": {
+      "status": "PASS",
+      "result": {
+        "changed": [
+          "creator_app/control_plane/worker.py",
+          "creator_app/agnes/mcp_server.py",
+          "creator_app/n8n_intelligence/auto_developer.py"
+        ]
+      },
+      "seconds": 0.1046
+    },
+    "Env-Scanner": {
+      "status": "PASS",
+      "result": {
+        "disk_total": 114247565312,
+        "disk_free": 30600642560,
+        "disk_used_percent": 73.22,
+        "ram": {
+          "available": 2134343680,
+          "total": 8133087232
+        },
+        "python": "3.13.13 (main, Apr 10 2026, 13:09:22) [Clang 21.0.0 (https://android.googlesource.com/toolchain/llvm-project 5e96669f0",
+        "pytest": "pytest 9.2.0",
+        "venv_fast": "/data/data/com.termux/files/home/cknexus-p0-fix-20261112/.venv_fast"
+      },
+      "seconds": 7.7006
+    }
+  },
+  "total_seconds": 7.7362,
+  "max_workers": 4,
+  "all_threads_passed": true,
+  "test_verification": {
+    "p0_tests": "5 passed, 1 warning",
+    "integrated_tests": "50 passed, 1 warning",
+    "mcp_runtime_tests": "not run: MCP dependency unavailable on Termux; pydantic-core source build was stopped because no compatible wheel was available"
+  }
+}

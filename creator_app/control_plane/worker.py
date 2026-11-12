@@ -160,7 +160,7 @@ class RepairWorker:
         if verification.release_evidence:
             # A verified task may intentionally produce non-release evidence (for
             # example, AI analysis). Keep task completion separate from release authority.
-            release_evidence = bool(output.get("release_evidence", True))
+            release_evidence = bool(output.get("release_evidence", False))
             try:
                 self.store.save_checkpoint(
                     job_id,
@@ -181,12 +181,18 @@ class RepairWorker:
                         "production_status": "NO-GO",
                         "external_mutation_authorized": False,
                     },
+                    evidence_reference=output.get("evidence_reference"),
+                    approver_token=output.get("approver_token"),
                     worker_id=self.worker_id,
                     lease_token=lease_token,
                 )
-            except ValueError as exc:
-                return self._result(
-                    "failed", attempts=attempts, error=str(exc), evidence_refs=evidence_refs
+            except (ValueError, PermissionError) as exc:
+                return self._fail(
+                    job_id,
+                    lease_token,
+                    str(exc),
+                    attempts=attempts,
+                    evidence_refs=evidence_refs,
                 )
             return self._result(
                 "completed",

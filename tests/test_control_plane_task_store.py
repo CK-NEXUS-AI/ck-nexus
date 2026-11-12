@@ -1,12 +1,24 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 
 import pytest
 
 from creator_app.control_plane.task_store import TaskStore
+from creator_app.council_authority.identity import IdentityVerifier
+
+
+_TEST_SECRET = 'test_secret_key_must_be_at_least_32_bytes_long_ok'
+os.environ.setdefault("CK_IDENTITY_SECRET", _TEST_SECRET)
+
+
+def _test_approver_token():
+    return IdentityVerifier(os.environ["CK_IDENTITY_SECRET"].encode()).issue(
+        service_id="test-authority", agent_id="test-approver", role="admin"
+    )
 
 
 def test_task_store_persists_checkpoint_and_result(tmp_path) -> None:
@@ -29,7 +41,9 @@ def test_task_store_persists_checkpoint_and_result(tmp_path) -> None:
         lease_token=token,
     )
     store.finish(
-        "job-1", success=True, result={"passed": 8}, worker_id="worker-a", lease_token=token
+        "job-1", success=True, result={"passed": 8},
+        evidence_reference="evidence://job-1", approver_token=_test_approver_token(),
+        worker_id="worker-a", lease_token=token
     )
 
     reopened = TaskStore(db_path)
@@ -37,7 +51,13 @@ def test_task_store_persists_checkpoint_and_result(tmp_path) -> None:
     assert item is not None
     assert item["state"] == "completed"
     assert json.loads(item["checkpoint_json"]) == {"stage": "tests", "completed": ["unit"]}
-    assert json.loads(item["result_json"]) == {"passed": 8}
+    assert json.loads(item["result_json"]) == {
+        "passed": 8,
+        "evidence_reference": "evidence://job-1",
+        "approver_id": "test-approver",
+        "approver_service_id": "test-authority",
+        "approver_role": "admin",
+    }
 
 
 def test_expired_running_job_returns_to_queue(tmp_path) -> None:
@@ -110,6 +130,8 @@ def test_expired_lease_cannot_write_checkpoint_or_finish(tmp_path) -> None:
             "job-expired",
             success=True,
             result={"late": True},
+            evidence_reference="evidence://job-expired",
+            approver_token=_test_approver_token(),
             worker_id="worker-a",
             lease_token=claimed["lease_token"],
         )
@@ -139,7 +161,8 @@ def test_stale_worker_cannot_write_after_job_is_reclaimed(tmp_path) -> None:
         )
     with pytest.raises(ValueError, match="valid lease"):
         store.finish(
-            "job-fenced", success=True, worker_id="worker-a", lease_token=first["lease_token"]
+            "job-fenced", success=True, evidence_reference="evidence://job-fenced",
+            approver_token=_test_approver_token(), worker_id="worker-a", lease_token=first["lease_token"]
         )
 
 
@@ -162,7 +185,10 @@ def test_lease_token_fences_stale_worker_even_when_worker_id_is_reused(tmp_path)
             "job-lease-token", {"stage": "stale"}, worker_id="worker-a", lease_token=old_token
         )
     with pytest.raises(ValueError, match="valid lease"):
-        store.finish("job-lease-token", success=True, worker_id="worker-a", lease_token=old_token)
+        store.finish(
+            "job-lease-token", success=True, evidence_reference="evidence://job-lease-token",
+            approver_token=_test_approver_token(), worker_id="worker-a", lease_token=old_token
+        )
 
 
 def test_legacy_database_migrates_lease_token_and_status_hides_token(tmp_path) -> None:
@@ -221,6 +247,8 @@ def test_has_open_tasks_tracks_queued_and_running_states(tmp_path: Path):
         "open-task",
         success=True,
         result={},
+        evidence_reference="evidence://open-task",
+        approver_token=_test_approver_token(),
         worker_id="test-worker",
         lease_token=claimed["lease_token"],
     )

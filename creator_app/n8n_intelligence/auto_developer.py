@@ -213,10 +213,25 @@ class AutoDeveloper:
                 worker_id="n8n-auto-developer",
                 lease_token=str(task["lease_token"]),
             )
-        except ValueError:
+        except (ValueError, PermissionError):
+            # Verification evidence is not approval. Keep the task out of completed
+            # until an authorized approver is supplied through the Core/L3 path.
+            self.store.finish(
+                job_id,
+                success=False,
+                error="approval_required",
+                result={
+                    "evidence_refs": [f"file://{evidence}"],
+                    "release_evidence": False,
+                    "production_status": "NO-GO",
+                    "external_mutation_authorized": False,
+                },
+                worker_id="n8n-auto-developer",
+                lease_token=str(task["lease_token"]),
+            )
             return DevelopmentRun(
-                "failed",
-                "task_finish_failed",
+                "blocked",
+                "approval_required",
                 result.returncode,
                 tests_ok,
                 tuple(changed),

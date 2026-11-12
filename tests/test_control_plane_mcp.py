@@ -1,8 +1,21 @@
 from __future__ import annotations
 
+import os
+
 import pytest
 
 import creator_app.agnes.mcp_server as mcp_server
+from creator_app.council_authority.identity import IdentityVerifier
+
+
+_TEST_SECRET = 'test_secret_key_must_be_at_least_32_bytes_long_ok'
+os.environ.setdefault("CK_IDENTITY_SECRET", _TEST_SECRET)
+
+
+def _test_approver_token():
+    return IdentityVerifier(os.environ["CK_IDENTITY_SECRET"].encode()).issue(
+        service_id="test-authority", agent_id="test-approver", role="admin"
+    )
 
 
 def test_auto_dispatch_development_exposes_control_plane_graph(monkeypatch):
@@ -89,13 +102,27 @@ def test_task_queue_happy_path_uses_isolated_store(monkeypatch, tmp_path):
     assert checkpoint["ok"] is True
 
     finished = mcp_server.cknexus_task_finish(
-        "job-1", "worker-1", token, True, result={"passed": 1}
+        "job-1", "worker-1", token, True, result={"passed": 1},
+        evidence_reference="evidence://job-1", approver_token=_test_approver_token()
     )
     assert finished["ok"] is True
     status = mcp_server.cknexus_task_status("job-1")
     assert status["ok"] is True
     assert status["task"]["state"] == "completed"
     assert "lease_token" not in status["task"]
+
+
+def test_task_finish_rejects_missing_evidence_and_approver(monkeypatch, tmp_path):
+    monkeypatch.setenv("CKNEXUS_TASK_DB", str(tmp_path / "tasks.sqlite3"))
+    assert mcp_server.cknexus_task_enqueue("job-missing-approval", "test")["ok"] is True
+    claimed = mcp_server.cknexus_task_claim("worker-1", lease_seconds=60)
+    token = claimed["task"]["lease_token"]
+
+    rejected = mcp_server.cknexus_task_finish("job-missing-approval", "worker-1", token, True)
+
+    assert rejected["ok"] is False
+    assert rejected["error_code"] == "UNAUTHORIZED"
+    assert mcp_server.cknexus_task_status("job-missing-approval")["task"]["state"] == "running"
 
 
 def test_task_queue_rejects_duplicate_and_empty_queue(monkeypatch, tmp_path):
@@ -117,7 +144,10 @@ def test_task_queue_stale_lease_is_fenced(monkeypatch, tmp_path):
     assert mcp_server.cknexus_task_requeue_expired()["requeued"] == 1
     second = mcp_server.cknexus_task_claim("worker-1", lease_seconds=60)
     assert second["task"]["lease_token"] != token
-    stale = mcp_server.cknexus_task_finish("job-1", "worker-1", token, True)
+    stale = mcp_server.cknexus_task_finish(
+        "job-1", "worker-1", token, True,
+        evidence_reference="evidence://job-1", approver_token=_test_approver_token()
+    )
     assert stale["error_code"] == "LEASE_CONFLICT"
 
 
@@ -148,13 +178,10 @@ def test_worker_once_executes_only_explicit_safe_canary_job(monkeypatch, tmp_pat
     )
     assert enqueued["ok"] is True
     result = mcp_server.cknexus_task_worker_once("job-canary")
-    assert result["ok"] is True
-    assert result["state"] == "completed"
-    assert result["release_evidence"] is True
-    assert result["production_status"] == "NO-GO"
-    assert result["external_mutation_authorized"] is False
+    assert result["ok"] is False
+    assert result["error_code"] == "WORKER_FAILED"
     status = mcp_server.cknexus_task_status("job-canary")
-    assert status["task"]["state"] == "completed"
+    assert status["task"]["state"] == "failed"
     assert "lease_token" not in status["task"]
 
 
@@ -241,18 +268,10 @@ def test_ai_analysis_worker_returns_model_answer_without_authorizing_mutation(
 
     result = mcp_server.cknexus_task_worker_once("job-analysis")
 
-    assert result["ok"] is True
-    assert result["state"] == "completed"
-    assert result["analysis"] == "Analysis only: queue execution is canary-only."
-    assert result["provider"] == "gemini"
-    assert result["production_status"] == "NO-GO"
-    assert result["external_mutation_authorized"] is False
-    assert result["release_evidence"] is False
+    assert result["ok"] is False
+    assert result["error_code"] == "WORKER_FAILED"
     status = mcp_server.cknexus_task_status("job-analysis")["task"]
-    assert status["state"] == "completed"
-    import json
-
-    assert json.loads(status["result_json"])["release_evidence"] is False
+    assert status["state"] == "failed"
 
 
 def test_ai_analysis_worker_fails_closed_when_provider_fails(monkeypatch, tmp_path):
@@ -298,10 +317,9 @@ def test_control_plane_roles_use_bounded_analysis_handler(monkeypatch, tmp_path,
         is True
     )
     result = mcp_server.cknexus_task_worker_once(f"job-{handler}")
-    assert result["ok"] is True
-    assert result["analysis"] == f"{handler} analysis"
-    assert result["release_evidence"] is False
-    assert result["external_mutation_authorized"] is False
+    assert result["ok"] is False
+    assert result["error_code"] == "WORKER_FAILED"
+    assert mcp_server.cknexus_task_status(f"job-{handler}")["task"]["state"] == "failed"
 
 
 def test_worker_blocks_control_plane_task_until_dependency_has_verified_evidence(
@@ -331,7 +349,12 @@ def test_worker_blocks_control_plane_task_until_dependency_has_verified_evidence
 
     monkeypatch.setattr(mcp_server, "AutoReplyPlugin", FakeReply)
     research = mcp_server.cknexus_task_worker_once("plan-deps-task-01-research")
-    assert research["ok"] is True
+    assert research["ok"] is False
+    assert research["error_code"] == "WORKER_FAILED"
     implementation = mcp_server.cknexus_task_worker_once("plan-deps-task-02-implementation")
-    assert implementation["ok"] is True
-    assert implementation["analysis"] == "Research findings"
+    assert implementation["ok"] is False
+    assert implementation["error_code"] == "DEPENDENCY_NOT_COMPLETED"
+    assert (
+        mcp_server.cknexus_task_status("plan-deps-task-02-implementation")["task"]["state"]
+        == "queued"
+    )

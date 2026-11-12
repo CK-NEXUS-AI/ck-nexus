@@ -552,6 +552,8 @@ def cknexus_task_finish(
     success: bool,
     result: dict[str, Any] | None = None,
     error: str | None = None,
+    evidence_reference: str | None = None,
+    approver_token: str | None = None,
 ) -> dict[str, Any]:
     """Finish a task only while its lease is valid; never certify a release."""
     try:
@@ -572,9 +574,13 @@ def cknexus_task_finish(
             success=bool(success),
             result=result,
             error=error,
+            evidence_reference=evidence_reference,
+            approver_token=approver_token,
             worker_id=worker_id,
             lease_token=lease_token,
         )
+    except PermissionError:
+        return _task_result_error("UNAUTHORIZED", "a valid Core/L3 approver token is required")
     except ValueError as exc:
         code = "LEASE_CONFLICT" if "valid lease" in str(exc) else "INVALID_INPUT"
         return _task_result_error(code, str(exc))

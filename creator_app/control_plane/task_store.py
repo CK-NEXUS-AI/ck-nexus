@@ -11,6 +11,8 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any
 
+from creator_app.council_authority.identity import verify_token
+
 
 class TaskStore:
     """Small local queue; it stores task data, never provider credentials."""
@@ -191,12 +193,27 @@ class TaskStore:
         success: bool,
         result: dict[str, Any] | None = None,
         error: str | None = None,
+        evidence_reference: str | None = None,
+        approver_token: str | None = None,
         worker_id: str,
         lease_token: str,
     ) -> None:
         if not worker_id.strip() or not lease_token.strip():
             raise ValueError("worker_id and lease_token must not be empty")
+        approver = None
+        if success:
+            if not isinstance(approver_token, str) or not approver_token.strip():
+                raise PermissionError("successful finish requires a valid approver token")
+            approver = verify_token(approver_token.strip())
+            if not isinstance(evidence_reference, str) or not evidence_reference.strip():
+                raise ValueError("successful finish requires evidence_reference")
         state = "completed" if success else "failed"
+        stored_result = dict(result or {})
+        if success:
+            stored_result["evidence_reference"] = evidence_reference.strip()
+            stored_result["approver_id"] = approver.agent_id
+            stored_result["approver_service_id"] = approver.service_id
+            stored_result["approver_role"] = approver.role
         now = time.time()
         with closing(self._connect()) as connection:
             cursor = connection.execute(
@@ -206,7 +223,7 @@ class TaskStore:
                 "AND worker_id=? AND lease_token=?",
                 (
                     state,
-                    self._json(result) if result is not None else None,
+                    self._json(stored_result) if result is not None or success else None,
                     error,
                     now,
                     job_id,
