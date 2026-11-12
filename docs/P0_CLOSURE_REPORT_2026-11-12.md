@@ -78,3 +78,23 @@ Required closure: Core/L3 alone holds the private signing key; Worker/MCP receiv
 ## 7. Evidence integrity
 
 This report deliberately distinguishes executed tests, blocked tests, source-inspection findings, and external blockers. A test not run is not PASS. A CI job that never started is not PASS. A code patch or report is not proof that the remaining authorization paths are secure.
+
+## 8. Post-push CI annotations and automated review findings
+
+### Exact GitHub runner failure
+
+For the post-push CodeQL runs on commit `25b907606c25a5a60f3455161ea12c7410902628`, check-run annotations for Python, JavaScript/TypeScript, and Actions all returned the exact failure:
+
+`The job was not started because your account is locked due to a billing issue.`
+
+The jobs had empty step lists and failed-job logs were unavailable (`log not found`). Therefore these are external runner-start blockers, not CodeQL source-analysis findings. No CI check is considered PASS.
+
+### Cubic AI review
+
+The latest available Cubic review reported **14 findings across 13 files**, but its review-post marker binds it to the prior PR head `2d99a3a92d42cd8c48e21dff06c2b1cdb92bff5c`, not the current pushed head. Re-review on the current SHA is required. Findings to revalidate include:
+
+- P0: TaskStore completion approval/evidence is not bound to `job_id`; cross-task token/evidence reuse remains a valid unresolved risk until task-bound Core/L3 capability enforcement is integrated.
+- P1: `scripts/fast_swarm_result.json` claims test results not produced by `fast_swarm.py`; AutoDeveloper approval fallback marks work failed without a resume path; `fast_swarm.py` assumes an untracked `.venv_fast`.
+- P2/P3: test environment variables leak across tests; missing separate valid-token/no-evidence regression; raw null identity claims can be coerced to the string `None`; worker tests lose success-path assertions; patch scripts do not verify replacement counts/postconditions; test generation is not idempotent; MCP evidence/token fields need size checks; import ordering issue.
+
+These are AI-generated review findings, not independent human review. They have not been marked resolved by this report. Each must be validated against the current PR head, fixed or rebutted with evidence, and independently reviewed where required.
