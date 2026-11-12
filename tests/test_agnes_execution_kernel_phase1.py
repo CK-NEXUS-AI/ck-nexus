@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import pytest
@@ -188,6 +188,27 @@ def test_sticky_approval_fingerprint_changes_if_input_changes():
     resolver.grant(approval_id="approval-1", fingerprint=f1, approved_by="human")
     assert resolver.is_approved(approval_id="approval-1", fingerprint=f1)
     assert not resolver.is_approved(approval_id="approval-1", fingerprint=f2)
+
+
+def test_sticky_approval_fingerprint_is_bound_to_execution_id():
+    resolver = StickyApprovalResolver()
+    first = _request(inputs={"command": ["pytest"]})
+    second = replace(first, execution_id="exec-2", correlation_id="corr-2")
+    first_fingerprint = resolver.fingerprint(first, ExecutorRiskClass.HIGH)
+    second_fingerprint = resolver.fingerprint(second, ExecutorRiskClass.HIGH)
+
+    assert first_fingerprint != second_fingerprint
+    resolver.grant(
+        approval_id="approval-exec-1",
+        fingerprint=first_fingerprint,
+        approved_by="human",
+    )
+    assert resolver.is_approved(
+        approval_id="approval-exec-1", fingerprint=first_fingerprint
+    )
+    assert not resolver.is_approved(
+        approval_id="approval-exec-1", fingerprint=second_fingerprint
+    )
 
 
 def test_sticky_approval_fingerprint_changes_if_permissions_or_credentials_change():
