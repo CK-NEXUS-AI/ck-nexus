@@ -161,31 +161,32 @@ class RepairWorker:
             # A verified task may intentionally produce non-release evidence (for
             # example, AI analysis). Keep task completion separate from release authority.
             release_evidence = bool(output.get("release_evidence", False))
+            completion_result = {
+                "evidence_refs": list(verification.evidence_refs),
+                "release_evidence": release_evidence,
+                "production_status": "NO-GO",
+                "external_mutation_authorized": False,
+            }
+            evidence_reference = output.get("evidence_reference")
+            execution_grant = output.get("execution_grant")
             try:
-                # Do not publish a completed checkpoint before the authoritative
-                # task transition. TaskStore currently fails closed until L3 grants
-                # are integrated into the same transaction.
+                if execution_grant is None:
+                    self.store.request_approval(
+                        job_id, result=completion_result,
+                        evidence_reference=evidence_reference,
+                        worker_id=self.worker_id, lease_token=lease_token,
+                    )
+                    return self._result(
+                        "awaiting_approval", attempts=attempts,
+                        evidence_refs=verification.evidence_refs,
+                    )
                 self.store.finish(
-                    job_id,
-                    success=True,
-                    result={
-                        "evidence_refs": list(verification.evidence_refs),
-                        "release_evidence": release_evidence,
-                        "production_status": "NO-GO",
-                        "external_mutation_authorized": False,
-                    },
-                    evidence_reference=output.get("evidence_reference"),
-                    worker_id=self.worker_id,
-                    lease_token=lease_token,
+                    job_id, success=True, result=completion_result,
+                    evidence_reference=evidence_reference, execution_grant=execution_grant,
+                    worker_id=self.worker_id, lease_token=lease_token,
                 )
             except (ValueError, PermissionError) as exc:
-                return self._fail(
-                    job_id,
-                    lease_token,
-                    str(exc),
-                    attempts=attempts,
-                    evidence_refs=evidence_refs,
-                )
+                return self._fail(job_id, lease_token, str(exc), attempts=attempts, evidence_refs=evidence_refs)
             return self._result(
                 "completed",
                 attempts=attempts,

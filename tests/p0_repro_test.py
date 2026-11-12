@@ -57,6 +57,9 @@ class PermissiveStore:
     def finish(self, _job_id, *, success, result, **_kwargs):
         self.finished_result = {"success": success, **(result or {})}
 
+    def request_approval(self, _job_id, *, result, **_kwargs):
+        self.finished_result = {"success": False, "awaiting_approval": True, **(result or {})}
+
 
 def test_a_missing_release_evidence_field_must_not_default_to_true():
     store = PermissiveStore()
@@ -117,7 +120,7 @@ def test_c_finish_rejects_forged_approver_identity(tmp_path):
     claimed = store.claim_next("untrusted-worker", lease_seconds=60)
     assert claimed is not None
 
-    with pytest.raises(PermissionError, match="approver|authority|identity|service token"):
+    with pytest.raises(PermissionError, match="approver|authority|identity|service token|task-bound Core/L3 capability grant"):
         store.finish(
             "p0-forged-approver",
             success=True,

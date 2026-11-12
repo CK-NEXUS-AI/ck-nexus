@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 from pathlib import Path
 
 from creator_app.credential_broker import CredentialId
@@ -16,6 +17,15 @@ class PolicyDenied(PermissionError):
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code
+
+
+def grant_secret_from_environment() -> bytes:
+    """Load the shared Core/L3 grant secret without providing a development fallback."""
+    value = os.environ.get("CKNEXUS_CAPABILITY_GRANT_SECRET", "")
+    secret = value.encode("utf-8")
+    if len(secret) < 32:
+        raise ValueError("CKNEXUS_CAPABILITY_GRANT_SECRET is missing or shorter than 32 bytes")
+    return secret
 
 
 def canonical_hash(params: dict) -> str:
@@ -114,6 +124,8 @@ class CapabilityAuthority:
             ctx.get("evidenceRefs") or ([ctx["evidenceRef"]] if ctx.get("evidenceRef") else [])
         )
         task_id = ctx.get("taskId")
+        if cap.get("requiresTaskScope") and (not isinstance(task_id, str) or not task_id.strip()):
+            deny("TASK_SCOPE_REQUIRED", "an explicit taskId is required for this capability")
         if cap.get("requiresSourceEvidence"):
             q = self.store.evidence_quality(
                 refs, task_id=task_id, allowed_kinds=cap.get("evidenceKinds")
@@ -182,9 +194,13 @@ class CapabilityAuthority:
     ) -> bool:
         # The task scope must come from the trusted caller's execution context,
         # never from the grant being presented for consumption.
-        if not isinstance(expected_task_id, str) or not expected_task_id.strip():
+        if not isinstance(expected_task_id, str) or not expected_task_id.strip() or not isinstance(grant, dict):
             return False
         unsigned = {k: v for k, v in grant.items() if k != "signature"}
+        if not {"grant_id", "agent_id", "capability_id", "params_hash", "task_id", "expires_at"}.issubset(unsigned):
+            return False
+        if unsigned.get("agent_id") != identity.agent_id:
+            return False
         if unsigned.get("task_id") != expected_task_id:
             return False
         sig = grant.get("signature", "")

@@ -41,9 +41,14 @@ class ArbitrationEngine:
         return 0.45 * evidence + 0.25 * owner + 0.30 * verifier - risk
 
     def resolve(
-        self, decision_id: str, domain: str, proposals: list[Proposal], *, high_risk: bool = False
+        self, decision_id: str, domain: str, proposals: list[Proposal], *,
+        task_id: str | None = None, high_risk: bool = False
     ) -> dict:
-        veto = next((p for p in proposals if self._authorized_veto(p, domain, decision_id)), None)
+        if not isinstance(task_id, str) or not task_id.strip():
+            out = {"decisionId": decision_id, "status": "BLOCKED_HUMAN_REVIEW", "reason": "explicit task_id required for evidence scope"}
+            self.store.append_audit({"type": "decision", "domain": domain, **out})
+            return out
+        veto = next((p for p in proposals if self._authorized_veto(p, domain, task_id)), None)
         if veto and (high_risk or veto.risk == "high"):
             out = {
                 "decisionId": decision_id,
@@ -54,7 +59,7 @@ class ArbitrationEngine:
             self.store.append_audit({"type": "decision", "domain": domain, **out})
             return out
         scored = sorted(
-            ((p, self._score(p, domain, decision_id)) for p in proposals), key=lambda x: x[1], reverse=True
+            ((p, self._score(p, domain, task_id)) for p in proposals), key=lambda x: x[1], reverse=True
         )
         if not scored:
             return {

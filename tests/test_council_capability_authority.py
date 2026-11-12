@@ -118,11 +118,11 @@ def test_safety_veto_requires_authorization_and_verified_evidence():
     d, s, ids, a = make()
     arb = ArbitrationEngine(CONTRACT, s)
     p = Proposal("COUNCIL-04", "ship", [], 0.9, "high", "", True)
-    out = arb.resolve("d", "security", [p], high_risk=True)
+    out = arb.resolve("d", "security", [p], task_id="d", high_risk=True)
     assert out["status"] != "BLOCKED_SAFETY_VETO"
     s.seed_evidence(ref="gate:r23", kind="artifact", digest="b" * 64, task_id="d2", quality=1)
     veto = Proposal("COUNCIL-03", "do-not-ship", ["gate:r23"], 0.9, "high", "gate failed", True)
-    out = arb.resolve("d2", "security", [p, veto], high_risk=True)
+    out = arb.resolve("d2", "security", [p, veto], task_id="d2", high_risk=True)
     assert out["status"] == "BLOCKED_SAFETY_VETO"
     assert out["vetoBy"] == "COUNCIL-03"
     d.cleanup()
@@ -421,3 +421,12 @@ def test_unscoped_grant_cannot_be_consumed(tmp_path):
         grant["grant_id"], agent_id="agent-a",
         capability_id="capability-a", params_hash="b" * 64,
     ) is False
+
+
+def test_completion_capability_requires_explicit_task_scope():
+    d, store, ids, authority = make()
+    owner = ids.verify(ids.issue(service_id="owner", agent_id="OWNER", role="admin"))
+    with pytest.raises(PolicyDenied) as exc:
+        authority.enforce(owner, "control_plane.task.complete", {"job_id": "t"}, {})
+    assert exc.value.code == "TASK_SCOPE_REQUIRED"
+    d.cleanup()

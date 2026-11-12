@@ -200,43 +200,37 @@ class AutoDeveloper:
             },
         )
         try:
+            if reason == "verified":
+                self.store.request_approval(
+                    job_id,
+                    result={
+                        "evidence_refs": [f"file://{evidence}"],
+                        "release_evidence": False,
+                        "production_status": "NO-GO",
+                        "external_mutation_authorized": False,
+                    },
+                    evidence_reference=f"file://{evidence}",
+                    worker_id="n8n-auto-developer",
+                    lease_token=str(task["lease_token"]),
+                )
+                return DevelopmentRun(
+                    "awaiting_approval", "approval_required", result.returncode,
+                    tests_ok, tuple(changed), str(evidence),
+                )
             self.store.finish(
-                job_id,
-                success=reason == "verified",
+                job_id, success=False,
                 result={
                     "evidence_refs": [f"file://{evidence}"],
                     "release_evidence": False,
                     "production_status": "NO-GO",
                     "external_mutation_authorized": False,
                 },
-                error=None if reason == "verified" else reason,
+                error=reason,
                 worker_id="n8n-auto-developer",
                 lease_token=str(task["lease_token"]),
             )
-        except (ValueError, PermissionError):
-            # Verification evidence is not approval. Keep the task out of completed
-            # until an authorized approver is supplied through the Core/L3 path.
-            self.store.finish(
-                job_id,
-                success=False,
-                error="approval_required",
-                result={
-                    "evidence_refs": [f"file://{evidence}"],
-                    "release_evidence": False,
-                    "production_status": "NO-GO",
-                    "external_mutation_authorized": False,
-                },
-                worker_id="n8n-auto-developer",
-                lease_token=str(task["lease_token"]),
-            )
-            return DevelopmentRun(
-                "blocked",
-                "approval_required",
-                result.returncode,
-                tests_ok,
-                tuple(changed),
-                str(evidence),
-            )
+        except ValueError as exc:
+            return DevelopmentRun("blocked", str(exc), result.returncode, tests_ok, tuple(changed), str(evidence))
         return DevelopmentRun(
             reason, reason, result.returncode, tests_ok, tuple(changed), str(evidence)
         )

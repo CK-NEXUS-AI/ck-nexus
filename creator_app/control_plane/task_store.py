@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import math
+import os
 import secrets
 import sqlite3
 import time
@@ -12,11 +15,16 @@ from pathlib import Path
 from typing import Any
 
 
+COMPLETION_CAPABILITY_ID = "control_plane.task.complete"
+
+
 class TaskStore:
     """Small local queue; it stores task data, never provider credentials."""
 
-    def __init__(self, database: str | Path) -> None:
+    def __init__(self, database: str | Path, *, grant_secret: bytes | None = None) -> None:
         self.database = str(database)
+        configured_secret = os.environ.get("CKNEXUS_CAPABILITY_GRANT_SECRET", "")
+        self.grant_secret = grant_secret if grant_secret is not None else configured_secret.encode("utf-8")
         Path(self.database).parent.mkdir(parents=True, exist_ok=True)
         with closing(self._connect()) as connection:
             connection.execute("PRAGMA journal_mode=WAL")
@@ -25,7 +33,7 @@ class TaskStore:
                 CREATE TABLE IF NOT EXISTS control_plane_tasks (
                     job_id TEXT PRIMARY KEY,
                     payload_json TEXT NOT NULL,
-                    state TEXT NOT NULL CHECK (state IN ('queued','running','completed','failed')),
+                    state TEXT NOT NULL CHECK (state IN ('queued','running','awaiting_approval','completed','failed')),
                     created_at REAL NOT NULL,
                     updated_at REAL NOT NULL,
                     worker_id TEXT,
@@ -44,6 +52,28 @@ class TaskStore:
             }
             if "lease_token" not in columns:
                 connection.execute("ALTER TABLE control_plane_tasks ADD COLUMN lease_token TEXT")
+            schema_row = connection.execute(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='control_plane_tasks'"
+            ).fetchone()
+            if schema_row and "awaiting_approval" not in str(schema_row["sql"]):
+                connection.execute("BEGIN IMMEDIATE")
+                connection.execute("DROP INDEX IF EXISTS idx_control_plane_tasks_queue")
+                connection.execute("ALTER TABLE control_plane_tasks RENAME TO control_plane_tasks_legacy")
+                connection.execute("""
+                    CREATE TABLE control_plane_tasks (
+                        job_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL,
+                        state TEXT NOT NULL CHECK (state IN ('queued','running','awaiting_approval','completed','failed')),
+                        created_at REAL NOT NULL, updated_at REAL NOT NULL, worker_id TEXT,
+                        lease_until REAL, lease_token TEXT, attempts INTEGER NOT NULL DEFAULT 0,
+                        checkpoint_json TEXT, result_json TEXT, error_text TEXT
+                    )
+                """)
+                connection.execute(
+                    "INSERT INTO control_plane_tasks SELECT job_id,payload_json,state,created_at,updated_at,worker_id,lease_until,lease_token,attempts,checkpoint_json,result_json,error_text FROM control_plane_tasks_legacy"
+                )
+                connection.execute("DROP TABLE control_plane_tasks_legacy")
+                connection.execute("CREATE INDEX idx_control_plane_tasks_queue ON control_plane_tasks(state, created_at)")
+                connection.commit()
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_control_plane_tasks_queue "
                 "ON control_plane_tasks(state, created_at)"
@@ -117,7 +147,7 @@ class TaskStore:
         """Return whether any task is queued or running, without mutating the queue."""
         with closing(self._connect()) as connection:
             row = connection.execute(
-                "SELECT 1 FROM control_plane_tasks WHERE state IN ('queued','running') LIMIT 1"
+                "SELECT 1 FROM control_plane_tasks WHERE state IN ('queued','running','awaiting_approval') LIMIT 1"
             ).fetchone()
         return row is not None
 
@@ -193,16 +223,16 @@ class TaskStore:
         error: str | None = None,
         evidence_reference: str | None = None,
         approver_token: str | None = None,
+        execution_grant: dict[str, Any] | None = None,
         worker_id: str,
         lease_token: str,
     ) -> None:
-        """Finish a failed task; successful completion is fail-closed pending L3 grants.
+        """Finish a task, consuming a task-bound Core/L3 grant atomically.
 
-        A service identity token (including an Admin token) is authentication, not
-        task-scoped completion authorization. This method deliberately refuses
-        success until a Core/L3 grant can be consumed atomically with this row
-        transition. The legacy approver_token argument is accepted only to avoid
-        breaking older callers; it is never treated as authority.
+        Identity tokens authenticate callers but never authorize completion. The
+        signed one-time grant, its task/evidence binding, and the task transition
+        are checked and committed in this same SQLite transaction. Therefore the
+        AuthorityStore grants/evidence tables MUST share this database file.
         """
         if not isinstance(worker_id, str) or not worker_id.strip():
             raise ValueError("worker_id must not be empty")
@@ -220,11 +250,27 @@ class TaskStore:
                 connection.rollback()
                 raise ValueError(f"job is not running with a valid lease: {job_id}")
             if success:
-                connection.rollback()
-                raise PermissionError(
-                    "successful completion requires a task-bound Core/L3 capability grant; "
-                    "identity tokens are not completion authority"
+                completed_result = dict(result or {})
+                completed_result["evidence_reference"] = evidence_reference
+                self._consume_completion_grant(
+                    connection,
+                    job_id=job_id,
+                    evidence_reference=evidence_reference,
+                    completion_result=completed_result,
+                    execution_grant=execution_grant,
                 )
+                cursor = connection.execute(
+                    "UPDATE control_plane_tasks SET state='completed', result_json=?, error_text=NULL, "
+                    "worker_id=NULL, lease_until=NULL, lease_token=NULL, updated_at=? "
+                    "WHERE job_id=? AND state='running' AND lease_until>? "
+                    "AND worker_id=? AND lease_token=?",
+                    (self._json(completed_result), now, job_id, now, worker_id, lease_token),
+                )
+                if cursor.rowcount != 1:
+                    connection.rollback()
+                    raise ValueError(f"job is not running with a valid lease: {job_id}")
+                connection.commit()
+                return
             cursor = connection.execute(
                 "UPDATE control_plane_tasks SET state='failed', result_json=?, error_text=?, "
                 "worker_id=NULL, lease_until=NULL, lease_token=NULL, updated_at=? "
@@ -244,6 +290,139 @@ class TaskStore:
                 connection.rollback()
                 raise ValueError(f"job is not running with a valid lease: {job_id}")
             connection.commit()
+
+    def request_approval(
+        self, job_id: str, *, result: dict[str, Any], evidence_reference: str,
+        worker_id: str, lease_token: str
+    ) -> None:
+        if not isinstance(evidence_reference, str) or not evidence_reference.strip():
+            raise ValueError("evidence_reference must not be empty")
+        now = time.time()
+        with closing(self._connect()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            cursor = connection.execute(
+                "UPDATE control_plane_tasks SET state='awaiting_approval', result_json=?, error_text='approval_required', "
+                "worker_id=NULL, lease_until=NULL, lease_token=NULL, updated_at=? "
+                "WHERE job_id=? AND state='running' AND lease_until>? AND worker_id=? AND lease_token=?",
+                (self._json({**dict(result), "evidence_reference": evidence_reference}), now,
+                 job_id, now, worker_id, lease_token),
+            )
+            if cursor.rowcount != 1:
+                connection.rollback()
+                raise ValueError(f"job is not running with a valid lease: {job_id}")
+            connection.commit()
+
+    def approve_pending_completion(
+        self, job_id: str, *, execution_grant: dict[str, Any], evidence_reference: str
+    ) -> None:
+        now = time.time()
+        with closing(self._connect()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT result_json FROM control_plane_tasks WHERE job_id=? AND state='awaiting_approval'",
+                (job_id,),
+            ).fetchone()
+            if row is None:
+                connection.rollback()
+                raise ValueError(f"task is not awaiting approval: {job_id}")
+            try:
+                completed_result = json.loads(row["result_json"] or "{}")
+            except (TypeError, json.JSONDecodeError) as exc:
+                connection.rollback()
+                raise ValueError("pending approval result is invalid") from exc
+            if completed_result.get("evidence_reference") != evidence_reference:
+                connection.rollback()
+                raise ValueError("approval evidence reference does not match pending result")
+            self._consume_completion_grant(
+                connection, job_id=job_id, evidence_reference=evidence_reference,
+                completion_result=completed_result, execution_grant=execution_grant,
+            )
+            cursor = connection.execute(
+                "UPDATE control_plane_tasks SET state='completed', result_json=?, error_text=NULL, updated_at=? "
+                "WHERE job_id=? AND state='awaiting_approval'",
+                (self._json(completed_result), now, job_id),
+            )
+            if cursor.rowcount != 1:
+                connection.rollback()
+                raise ValueError(f"task is not awaiting approval: {job_id}")
+            connection.commit()
+
+    @staticmethod
+    def _completion_params_hash(
+        job_id: str, evidence_reference: str, completion_result: dict[str, Any]
+    ) -> str:
+        payload = {"job_id": job_id, "result": completion_result}
+        raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def _consume_completion_grant(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        job_id: str,
+        evidence_reference: str | None,
+        completion_result: dict[str, Any],
+        execution_grant: dict[str, Any] | None,
+    ) -> None:
+        def deny() -> None:
+            raise PermissionError(
+                "successful completion requires a valid task-bound Core/L3 capability grant (one-time, signed, and backed by verified evidence)"
+            )
+
+        if not isinstance(evidence_reference, str) or not evidence_reference.strip():
+            deny()
+        if not isinstance(execution_grant, dict) or len(self.grant_secret) < 32:
+            deny()
+        required = {"grant_id", "agent_id", "capability_id", "params_hash", "task_id", "expires_at", "signature"}
+        if not required.issubset(execution_grant):
+            deny()
+        unsigned = {key: value for key, value in execution_grant.items() if key != "signature"}
+        signature = execution_grant.get("signature")
+        if not isinstance(signature, str):
+            deny()
+        raw = json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        expected_signature = hmac.new(self.grant_secret, raw, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected_signature):
+            deny()
+        if (
+            unsigned.get("task_id") != job_id
+            or unsigned.get("capability_id") != COMPLETION_CAPABILITY_ID
+            or not isinstance(unsigned.get("agent_id"), str)
+            or not unsigned["agent_id"].strip()
+            or unsigned.get("params_hash") != self._completion_params_hash(job_id, evidence_reference, completion_result)
+            or isinstance(unsigned.get("expires_at"), bool)
+            or not isinstance(unsigned.get("expires_at"), int)
+            or unsigned["expires_at"] <= int(time.time())
+        ):
+            deny()
+        tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if not {"grants", "evidence"}.issubset(tables):
+            deny()
+        grant = connection.execute(
+            "SELECT * FROM grants WHERE grant_id=?", (unsigned["grant_id"],)
+        ).fetchone()
+        if not grant or grant["used"] or grant["expires_at"] <= int(time.time()):
+            deny()
+        if (
+            grant["agent_id"] != unsigned["agent_id"]
+            or grant["capability_id"] != COMPLETION_CAPABILITY_ID
+            or grant["params_hash"] != unsigned["params_hash"]
+            or grant["task_id"] != job_id
+            or grant["expires_at"] != unsigned["expires_at"]
+        ):
+            deny()
+        evidence = connection.execute(
+            "SELECT 1 FROM evidence WHERE ref=? AND task_id=? AND verified=1 AND revoked=0 AND quality>0",
+            (evidence_reference, job_id),
+        ).fetchone()
+        if evidence is None:
+            deny()
+        consumed = connection.execute(
+            "UPDATE grants SET used=1 WHERE grant_id=? AND used=0 AND expires_at>? AND task_id=?",
+            (unsigned["grant_id"], int(time.time()), job_id),
+        )
+        if consumed.rowcount != 1:
+            deny()
 
     def requeue_expired(self, *, max_attempts: int = 3) -> int:
         """Requeue expired leases within a bounded retry budget.

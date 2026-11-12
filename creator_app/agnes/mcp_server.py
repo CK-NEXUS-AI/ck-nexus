@@ -82,6 +82,9 @@ def _task_store_path() -> Path:
     configured = os.getenv("CKNEXUS_TASK_DB", "").strip()
     if configured:
         return Path(configured).expanduser()
+    authority_database = os.getenv("CKNEXUS_COUNCIL_AUTHORITY_DB", "").strip()
+    if authority_database:
+        return Path(authority_database).expanduser()
     home = Path(os.path.expanduser("~"))
     working_dir = Path.cwd().resolve()
     if (
@@ -554,6 +557,7 @@ def cknexus_task_finish(
     error: str | None = None,
     evidence_reference: str | None = None,
     approver_token: str | None = None,
+    execution_grant: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Finish a task only while its lease is valid; never certify a release."""
     try:
@@ -585,6 +589,7 @@ def cknexus_task_finish(
             error=error,
             evidence_reference=evidence_reference,
             approver_token=approver_token,
+            execution_grant=execution_grant,
             worker_id=worker_id,
             lease_token=lease_token,
         )
@@ -606,6 +611,27 @@ def cknexus_task_finish(
         "production_status": "NO-GO",
         "release_evidence": False,
     }
+
+
+@mcp.tool()
+def cknexus_task_approve(
+    job_id: str,
+    evidence_reference: str,
+    execution_grant: dict[str, Any],
+) -> dict[str, Any]:
+    """Resume a verified task only with a signed, one-time Core/L3 completion grant."""
+    try:
+        job_id = _task_text(job_id, "job_id")
+        evidence_reference = _task_text(evidence_reference, "evidence_reference", max_chars=2_048)
+        get_task_store().approve_pending_completion(
+            job_id, execution_grant=execution_grant,
+            evidence_reference=evidence_reference,
+        )
+    except PermissionError:
+        return _task_result_error("UNAUTHORIZED", "valid task-bound Core/L3 completion grant required")
+    except ValueError as exc:
+        return _task_result_error("INVALID_INPUT", str(exc))
+    return {"ok": True, "job_id": job_id, "state": "completed", "execution_state": "FINISHED", "production_status": "NO-GO", "release_evidence": False}
 
 
 @mcp.tool()

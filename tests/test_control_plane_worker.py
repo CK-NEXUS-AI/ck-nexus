@@ -41,12 +41,11 @@ def test_worker_executes_verifies_and_finishes(tmp_path):
         worker_id="worker-1",
     )
     result = worker.run_once()
-    assert result.state == "failed"
-    assert "task-bound Core/L3 capability grant" in (result.error or "")
+    assert result.state == "awaiting_approval"
     assert result.release_evidence is False
     assert result.production_status == "NO-GO"
     assert result.external_mutation_authorized is False
-    assert store.get("job-1")["state"] == "failed"
+    assert store.get("job-1")["state"] == "awaiting_approval"
 
 
 def test_worker_handler_failure_is_bounded_and_failed(tmp_path):

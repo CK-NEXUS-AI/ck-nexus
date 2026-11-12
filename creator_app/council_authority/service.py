@@ -88,6 +88,7 @@ class Handler(BaseHTTPRequestHandler):
                     body["decisionId"],
                     body["domain"],
                     proposals,
+                    task_id=body.get("taskId"),
                     high_risk=body.get("highRisk", False),
                 )
                 return self._json(200, out)
