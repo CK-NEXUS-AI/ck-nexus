@@ -130,6 +130,7 @@ class AgnesExecuteRequest(BaseModel):
     executor: str | None = Field(default=None, max_length=64)
     inputs: dict = Field(default_factory=dict)
     correlation_id: str | None = Field(default=None, max_length=128)
+    execution_id: str | None = Field(default=None, max_length=128)
     tenant_id: str = Field(default="default", min_length=1, max_length=128)
     actor_id: str = Field(default="human", min_length=1, max_length=128)
     environment: Literal["development", "test", "staging", "production"] = "development"

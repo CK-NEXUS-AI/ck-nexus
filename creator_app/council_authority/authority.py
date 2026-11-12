@@ -177,8 +177,16 @@ class CapabilityAuthority:
         )
         return out
 
-    def consume_grant(self, identity, grant: dict, params: dict) -> bool:
+    def consume_grant(
+        self, identity, grant: dict, params: dict, *, expected_task_id: str | None = None
+    ) -> bool:
+        # The task scope must come from the trusted caller's execution context,
+        # never from the grant being presented for consumption.
+        if not isinstance(expected_task_id, str) or not expected_task_id.strip():
+            return False
         unsigned = {k: v for k, v in grant.items() if k != "signature"}
+        if unsigned.get("task_id") != expected_task_id:
+            return False
         sig = grant.get("signature", "")
         expected = hmac.new(
             self.grant_secret,
@@ -192,4 +200,5 @@ class CapabilityAuthority:
             agent_id=identity.agent_id,
             capability_id=unsigned["capability_id"],
             params_hash=canonical_hash(params),
+            task_id=expected_task_id,
         )

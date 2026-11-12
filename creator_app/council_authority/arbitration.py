@@ -20,17 +20,17 @@ class ArbitrationEngine:
         self.store = store
         self.threshold = evidence_threshold
 
-    def _authorized_veto(self, p: Proposal, domain: str) -> bool:
+    def _authorized_veto(self, p: Proposal, domain: str, task_id: str) -> bool:
         a = self.contract.get("agents", {}).get(p.agent_id, {})
         scopes = a.get("canVeto", [])
         return (
             p.is_safety_veto
             and (domain in scopes or "*" in scopes)
-            and self.store.evidence_quality(p.evidence_refs) > 0
+            and self.store.evidence_quality(p.evidence_refs, task_id=task_id) > 0
         )
 
-    def _score(self, p: Proposal, domain: str) -> float:
-        evidence = self.store.evidence_quality(p.evidence_refs)
+    def _score(self, p: Proposal, domain: str, task_id: str) -> float:
+        evidence = self.store.evidence_quality(p.evidence_refs, task_id=task_id)
         owner = (
             1.0
             if self.contract.get("agents", {}).get(p.agent_id, {}).get("domain") == domain
@@ -43,7 +43,7 @@ class ArbitrationEngine:
     def resolve(
         self, decision_id: str, domain: str, proposals: list[Proposal], *, high_risk: bool = False
     ) -> dict:
-        veto = next((p for p in proposals if self._authorized_veto(p, domain)), None)
+        veto = next((p for p in proposals if self._authorized_veto(p, domain, decision_id)), None)
         if veto and (high_risk or veto.risk == "high"):
             out = {
                 "decisionId": decision_id,
@@ -54,7 +54,7 @@ class ArbitrationEngine:
             self.store.append_audit({"type": "decision", "domain": domain, **out})
             return out
         scored = sorted(
-            ((p, self._score(p, domain)) for p in proposals), key=lambda x: x[1], reverse=True
+            ((p, self._score(p, domain, decision_id)) for p in proposals), key=lambda x: x[1], reverse=True
         )
         if not scored:
             return {

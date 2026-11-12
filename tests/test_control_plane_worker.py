@@ -1,18 +1,21 @@
 from __future__ import annotations
 
-import time
 import os
+import time
 
 import pytest
 
 from creator_app.control_plane.task_store import TaskStore
-from creator_app.council_authority.identity import IdentityVerifier
 from creator_app.control_plane.verification import ControlPlaneVerifier
 from creator_app.control_plane.worker import RepairWorker
+from creator_app.council_authority.identity import IdentityVerifier
+
+_TEST_SECRET = "test_secret_key_must_be_at_least_32_bytes_long_ok"
 
 
-_TEST_SECRET = 'test_secret_key_must_be_at_least_32_bytes_long_ok'
-os.environ.setdefault("CK_IDENTITY_SECRET", _TEST_SECRET)
+@pytest.fixture(autouse=True)
+def _isolate_identity_secret(monkeypatch):
+    monkeypatch.setenv("CK_IDENTITY_SECRET", _TEST_SECRET)
 
 
 def _test_approver_token():
@@ -38,11 +41,12 @@ def test_worker_executes_verifies_and_finishes(tmp_path):
         worker_id="worker-1",
     )
     result = worker.run_once()
-    assert result.state == "completed"
+    assert result.state == "failed"
+    assert "task-bound Core/L3 capability grant" in (result.error or "")
     assert result.release_evidence is False
     assert result.production_status == "NO-GO"
     assert result.external_mutation_authorized is False
-    assert store.get("job-1")["state"] == "completed"
+    assert store.get("job-1")["state"] == "failed"
 
 
 def test_worker_handler_failure_is_bounded_and_failed(tmp_path):

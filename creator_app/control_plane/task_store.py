@@ -11,8 +11,6 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any
 
-from creator_app.council_authority.identity import verify_token
-
 
 class TaskStore:
     """Small local queue; it stores task data, never provider credentials."""
@@ -198,32 +196,42 @@ class TaskStore:
         worker_id: str,
         lease_token: str,
     ) -> None:
-        if not worker_id.strip() or not lease_token.strip():
-            raise ValueError("worker_id and lease_token must not be empty")
-        approver = None
-        if success:
-            if not isinstance(approver_token, str) or not approver_token.strip():
-                raise PermissionError("successful finish requires a valid approver token")
-            approver = verify_token(approver_token.strip())
-            if not isinstance(evidence_reference, str) or not evidence_reference.strip():
-                raise ValueError("successful finish requires evidence_reference")
-        state = "completed" if success else "failed"
-        stored_result = dict(result or {})
-        if success:
-            stored_result["evidence_reference"] = evidence_reference.strip()
-            stored_result["approver_id"] = approver.agent_id
-            stored_result["approver_service_id"] = approver.service_id
-            stored_result["approver_role"] = approver.role
+        """Finish a failed task; successful completion is fail-closed pending L3 grants.
+
+        A service identity token (including an Admin token) is authentication, not
+        task-scoped completion authorization. This method deliberately refuses
+        success until a Core/L3 grant can be consumed atomically with this row
+        transition. The legacy approver_token argument is accepted only to avoid
+        breaking older callers; it is never treated as authority.
+        """
+        if not isinstance(worker_id, str) or not worker_id.strip():
+            raise ValueError("worker_id must not be empty")
+        if not isinstance(lease_token, str) or not lease_token.strip():
+            raise ValueError("lease_token must not be empty")
         now = time.time()
         with closing(self._connect()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT 1 FROM control_plane_tasks WHERE job_id=? AND state='running' "
+                "AND lease_until>? AND worker_id=? AND lease_token=?",
+                (job_id, now, worker_id, lease_token),
+            ).fetchone()
+            if row is None:
+                connection.rollback()
+                raise ValueError(f"job is not running with a valid lease: {job_id}")
+            if success:
+                connection.rollback()
+                raise PermissionError(
+                    "successful completion requires a task-bound Core/L3 capability grant; "
+                    "identity tokens are not completion authority"
+                )
             cursor = connection.execute(
-                "UPDATE control_plane_tasks SET state=?, result_json=?, error_text=?, "
+                "UPDATE control_plane_tasks SET state='failed', result_json=?, error_text=?, "
                 "worker_id=NULL, lease_until=NULL, lease_token=NULL, updated_at=? "
                 "WHERE job_id=? AND state='running' AND lease_until>? "
                 "AND worker_id=? AND lease_token=?",
                 (
-                    state,
-                    self._json(stored_result) if result is not None or success else None,
+                    self._json(dict(result or {})) if result is not None else None,
                     error,
                     now,
                     job_id,
@@ -233,7 +241,9 @@ class TaskStore:
                 ),
             )
             if cursor.rowcount != 1:
+                connection.rollback()
                 raise ValueError(f"job is not running with a valid lease: {job_id}")
+            connection.commit()
 
     def requeue_expired(self, *, max_attempts: int = 3) -> int:
         """Requeue expired leases within a bounded retry budget.

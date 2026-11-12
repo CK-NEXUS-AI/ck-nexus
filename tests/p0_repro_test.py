@@ -5,13 +5,16 @@ import os
 import pytest
 
 from creator_app.control_plane.task_store import TaskStore
-from creator_app.council_authority.identity import IdentityVerifier
 from creator_app.control_plane.verification import VerificationResult
 from creator_app.control_plane.worker import RepairWorker
+from creator_app.council_authority.identity import IdentityVerifier
+
+_TEST_SECRET = "test_secret_key_must_be_at_least_32_bytes_long_ok"
 
 
-_TEST_SECRET = 'test_secret_key_must_be_at_least_32_bytes_long_ok'
-os.environ.setdefault("CK_IDENTITY_SECRET", _TEST_SECRET)
+@pytest.fixture(autouse=True)
+def _isolate_identity_secret(monkeypatch):
+    monkeypatch.setenv("CK_IDENTITY_SECRET", _TEST_SECRET)
 
 
 def _test_approver_token():
@@ -77,7 +80,7 @@ def test_b_finish_success_requires_evidence_reference_and_approver_token(tmp_pat
     claimed = store.claim_next("p0-test-worker", lease_seconds=60)
     assert claimed is not None
 
-    with pytest.raises(PermissionError, match="approver token"):
+    with pytest.raises(PermissionError, match="task-bound Core/L3 capability grant"):
         store.finish(
             "p0-finish-missing-approval",
             success=True,
@@ -86,6 +89,26 @@ def test_b_finish_success_requires_evidence_reference_and_approver_token(tmp_pat
             lease_token=claimed["lease_token"],
         )
     assert store.get("p0-finish-missing-approval")["state"] == "running"
+
+
+def test_successful_finish_with_valid_admin_but_missing_evidence_is_rejected(tmp_path):
+    store = TaskStore(tmp_path / "finish-missing-evidence.sqlite3")
+    store.enqueue("p0-finish-missing-evidence", {"description": "evidence requirement"})
+    claimed = store.claim_next("p0-test-worker", lease_seconds=60)
+    assert claimed is not None
+    token = IdentityVerifier(os.environ["CK_IDENTITY_SECRET"].encode()).issue(
+        service_id="core-l3-test", agent_id="authorized-owner", role="admin"
+    )
+    with pytest.raises(PermissionError, match="task-bound Core/L3 capability grant"):
+        store.finish(
+            "p0-finish-missing-evidence",
+            success=True,
+            result={"passed": True},
+            approver_token=token,
+            worker_id="p0-test-worker",
+            lease_token=claimed["lease_token"],
+        )
+    assert store.get("p0-finish-missing-evidence")["state"] == "running"
 
 
 def test_c_finish_rejects_forged_approver_identity(tmp_path):
@@ -106,7 +129,7 @@ def test_c_finish_rejects_forged_approver_identity(tmp_path):
         )
 
 
-def test_d_finish_accepts_valid_approver_token(tmp_path):
+def test_d_finish_rejects_valid_admin_identity_without_task_bound_grant(tmp_path):
     store = TaskStore(tmp_path / "valid-approver.sqlite3")
     store.enqueue("p0-valid-approver", {"description": "valid approver reproduction"})
     claimed = store.claim_next("trusted-worker", lease_seconds=60)
@@ -115,22 +138,20 @@ def test_d_finish_accepts_valid_approver_token(tmp_path):
         service_id="core-l3-test", agent_id="authorized-owner", role="admin"
     )
 
-    store.finish(
-        "p0-valid-approver",
-        success=True,
-        result={"passed": True},
-        evidence_reference="evidence://verified-test-fixture",
-        approver_token=token,
-        worker_id="trusted-worker",
-        lease_token=claimed["lease_token"],
-    )
-    completed = store.get("p0-valid-approver")
-    assert completed is not None
-    assert completed["state"] == "completed"
-    import json
-    stored = json.loads(completed["result_json"])
-    assert stored["approver_id"] == "authorized-owner"
-    assert stored["approver_role"] == "admin"
+    with pytest.raises(PermissionError, match="task-bound Core/L3 capability grant"):
+        store.finish(
+            "p0-valid-approver",
+            success=True,
+            result={"passed": True},
+            evidence_reference="evidence://verified-test-fixture",
+            approver_token=token,
+            worker_id="trusted-worker",
+            lease_token=claimed["lease_token"],
+        )
+    unchanged = store.get("p0-valid-approver")
+    assert unchanged is not None
+    assert unchanged["state"] == "running"
+    assert unchanged["result_json"] is None
 
 
 def test_e_finish_rejects_valid_non_admin_token(tmp_path):
@@ -141,7 +162,7 @@ def test_e_finish_rejects_valid_non_admin_token(tmp_path):
     token = IdentityVerifier(os.environ["CK_IDENTITY_SECRET"].encode()).issue(
         service_id="worker-service", agent_id="ordinary-agent", role="agent"
     )
-    with pytest.raises(PermissionError, match="admin role"):
+    with pytest.raises(PermissionError, match="task-bound Core/L3 capability grant"):
         store.finish(
             "p0-non-admin",
             success=True,

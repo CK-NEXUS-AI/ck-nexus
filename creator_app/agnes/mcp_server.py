@@ -560,11 +560,20 @@ def cknexus_task_finish(
         job_id = _task_text(job_id, "job_id")
         worker_id = _task_text(worker_id, "worker_id", max_chars=_WORKER_ID_MAX_CHARS)
         lease_token = _task_text(lease_token, "lease_token", max_chars=256)
+        if evidence_reference is not None:
+            evidence_reference = _task_text(
+                evidence_reference, "evidence_reference", max_chars=2_048
+            )
+        if approver_token is not None:
+            approver_token = _task_text(approver_token, "approver_token", max_chars=4_096)
         if result is not None and _contains_sensitive_shape(result):
             return _task_result_error("SENSITIVE_INPUT", "result contains credential-shaped fields")
         if error is not None and len(error) > 4_096:
             return _task_result_error("PAYLOAD_TOO_LARGE", "error exceeds the maximum length")
-        serialized_result = TaskStore._json(result) if result is not None else ""
+        bounded_result = dict(result or {})
+        if evidence_reference is not None:
+            bounded_result["evidence_reference"] = evidence_reference
+        serialized_result = TaskStore._json(bounded_result)
         if len(serialized_result.encode("utf-8")) > _TASK_MAX_BYTES:
             return _task_result_error(
                 "PAYLOAD_TOO_LARGE", "result exceeds the maximum serialized size"
@@ -580,7 +589,12 @@ def cknexus_task_finish(
             lease_token=lease_token,
         )
     except PermissionError:
-        return _task_result_error("UNAUTHORIZED", "a valid Core/L3 approver token is required")
+        return _task_result_error(
+            "UNAUTHORIZED",
+            "a task-bound Core/L3 completion grant is required; an Admin identity token alone is insufficient",
+        )
+    except OverflowError as exc:
+        return _task_result_error("PAYLOAD_TOO_LARGE", str(exc))
     except ValueError as exc:
         code = "LEASE_CONFLICT" if "valid lease" in str(exc) else "INVALID_INPUT"
         return _task_result_error(code, str(exc))

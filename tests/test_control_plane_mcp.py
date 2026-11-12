@@ -7,9 +7,12 @@ import pytest
 import creator_app.agnes.mcp_server as mcp_server
 from creator_app.council_authority.identity import IdentityVerifier
 
+_TEST_SECRET = "test_secret_key_must_be_at_least_32_bytes_long_ok"
 
-_TEST_SECRET = 'test_secret_key_must_be_at_least_32_bytes_long_ok'
-os.environ.setdefault("CK_IDENTITY_SECRET", _TEST_SECRET)
+
+@pytest.fixture(autouse=True)
+def _isolate_identity_secret(monkeypatch):
+    monkeypatch.setenv("CK_IDENTITY_SECRET", _TEST_SECRET)
 
 
 def _test_approver_token():
@@ -102,8 +105,13 @@ def test_task_queue_happy_path_uses_isolated_store(monkeypatch, tmp_path):
     assert checkpoint["ok"] is True
 
     finished = mcp_server.cknexus_task_finish(
-        "job-1", "worker-1", token, True, result={"passed": 1},
-        evidence_reference="evidence://job-1", approver_token=_test_approver_token()
+        "job-1",
+        "worker-1",
+        token,
+        True,
+        result={"passed": 1},
+        evidence_reference="evidence://job-1",
+        approver_token=_test_approver_token(),
     )
     assert finished["ok"] is True
     status = mcp_server.cknexus_task_status("job-1")
@@ -145,8 +153,12 @@ def test_task_queue_stale_lease_is_fenced(monkeypatch, tmp_path):
     second = mcp_server.cknexus_task_claim("worker-1", lease_seconds=60)
     assert second["task"]["lease_token"] != token
     stale = mcp_server.cknexus_task_finish(
-        "job-1", "worker-1", token, True,
-        evidence_reference="evidence://job-1", approver_token=_test_approver_token()
+        "job-1",
+        "worker-1",
+        token,
+        True,
+        evidence_reference="evidence://job-1",
+        approver_token=_test_approver_token(),
     )
     assert stale["error_code"] == "LEASE_CONFLICT"
 

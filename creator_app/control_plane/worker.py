@@ -162,16 +162,9 @@ class RepairWorker:
             # example, AI analysis). Keep task completion separate from release authority.
             release_evidence = bool(output.get("release_evidence", False))
             try:
-                self.store.save_checkpoint(
-                    job_id,
-                    {
-                        "state": "completed",
-                        "evidence_refs": list(verification.evidence_refs),
-                        "release_evidence": release_evidence,
-                    },
-                    worker_id=self.worker_id,
-                    lease_token=lease_token,
-                )
+                # Do not publish a completed checkpoint before the authoritative
+                # task transition. TaskStore currently fails closed until L3 grants
+                # are integrated into the same transaction.
                 self.store.finish(
                     job_id,
                     success=True,
@@ -182,7 +175,6 @@ class RepairWorker:
                         "external_mutation_authorized": False,
                     },
                     evidence_reference=output.get("evidence_reference"),
-                    approver_token=output.get("approver_token"),
                     worker_id=self.worker_id,
                     lease_token=lease_token,
                 )

@@ -1013,6 +1013,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         plan_step = {
             "id": skill.id,
             "version": skill.version,
+            "execution_id": payload.execution_id,
             "executor": payload.executor or skill.executor,
             "inputs": payload.inputs,
             "timeout_seconds": payload.timeout_seconds,

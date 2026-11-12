@@ -69,9 +69,16 @@ class IdentityVerifier:
             raise IdentityError("invalid token issuer")
         if int(data.get("exp", 0)) <= int(time.time()):
             raise IdentityError("service token expired")
-        return CallerIdentity(
-            str(data["service_id"]), str(data["agent_id"]), str(data.get("role", "agent"))
-        )
+        service_id = data.get("service_id")
+        agent_id = data.get("agent_id")
+        role = data.get("role", "agent")
+        if (
+            not isinstance(service_id, str) or not service_id.strip()
+            or not isinstance(agent_id, str) or not agent_id.strip()
+            or not isinstance(role, str) or not role.strip()
+        ):
+            raise IdentityError("service identity claims must be non-empty strings")
+        return CallerIdentity(service_id, agent_id, role)
 
 
 def verify_token(token: str) -> CallerIdentity:

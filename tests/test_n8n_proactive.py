@@ -1,13 +1,18 @@
 import os
 from datetime import UTC, datetime
 
+import pytest
+
 from creator_app.control_plane.task_store import TaskStore
 from creator_app.council_authority.identity import IdentityVerifier
 from creator_app.n8n_intelligence.proactive import ProactiveTaskSeeder
 
+_TEST_SECRET = "test_secret_key_must_be_at_least_32_bytes_long_ok"
 
-_TEST_SECRET = 'test_secret_key_must_be_at_least_32_bytes_long_ok'
-os.environ.setdefault("CK_IDENTITY_SECRET", _TEST_SECRET)
+
+@pytest.fixture(autouse=True)
+def _isolate_identity_secret(monkeypatch):
+    monkeypatch.setenv("CK_IDENTITY_SECRET", _TEST_SECRET)
 
 
 def _test_approver_token():
@@ -53,17 +58,18 @@ def test_proactive_seeder_does_not_duplicate_same_day_task(tmp_path):
     seeder = ProactiveTaskSeeder(store, clock=clock)
     assert seeder.run_once().state == "seeded"
     task = store.claim_next("test-worker", lease_seconds=60)
-    store.finish(
-        task["job_id"],
-        success=True,
-        result={},
-        evidence_reference="evidence://n8n-proactive",
-        approver_token=_test_approver_token(),
-        worker_id="test-worker",
-        lease_token=task["lease_token"],
-    )
+    with pytest.raises(PermissionError, match="task-bound Core/L3 capability grant"):
+        store.finish(
+            task["job_id"],
+            success=True,
+            result={},
+            evidence_reference="evidence://n8n-proactive",
+            approver_token=_test_approver_token(),
+            worker_id="test-worker",
+            lease_token=task["lease_token"],
+        )
 
     result = seeder.run_once()
 
     assert result.state == "skipped"
-    assert result.reason == "already_seeded_today"
+    assert result.reason == "queue_not_empty"
