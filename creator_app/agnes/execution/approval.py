@@ -26,6 +26,8 @@ class StickyApprovalResolver:
     @staticmethod
     def fingerprint(request: SkillExecutionRequest, risk_class: ExecutorRiskClass) -> str:
         payload = {
+            "execution_id": request.execution_id,
+            "correlation_id": request.correlation_id,
             "skill_id": request.skill_id,
             "skill_version": request.skill_version,
             "input_hash": hashlib.sha256(canonical_json(request.inputs).encode()).hexdigest(),

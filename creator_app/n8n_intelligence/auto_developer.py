@@ -200,27 +200,43 @@ class AutoDeveloper:
             },
         )
         try:
+            if reason == "verified":
+                self.store.request_approval(
+                    job_id,
+                    result={
+                        "evidence_refs": [f"file://{evidence}"],
+                        "release_evidence": False,
+                        "production_status": "NO-GO",
+                        "external_mutation_authorized": False,
+                    },
+                    evidence_reference=f"file://{evidence}",
+                    worker_id="n8n-auto-developer",
+                    lease_token=str(task["lease_token"]),
+                )
+                return DevelopmentRun(
+                    "awaiting_approval",
+                    "approval_required",
+                    result.returncode,
+                    tests_ok,
+                    tuple(changed),
+                    str(evidence),
+                )
             self.store.finish(
                 job_id,
-                success=reason == "verified",
+                success=False,
                 result={
                     "evidence_refs": [f"file://{evidence}"],
                     "release_evidence": False,
                     "production_status": "NO-GO",
                     "external_mutation_authorized": False,
                 },
-                error=None if reason == "verified" else reason,
+                error=reason,
                 worker_id="n8n-auto-developer",
                 lease_token=str(task["lease_token"]),
             )
-        except ValueError:
+        except ValueError as exc:
             return DevelopmentRun(
-                "failed",
-                "task_finish_failed",
-                result.returncode,
-                tests_ok,
-                tuple(changed),
-                str(evidence),
+                "blocked", str(exc), result.returncode, tests_ok, tuple(changed), str(evidence)
             )
         return DevelopmentRun(
             reason, reason, result.returncode, tests_ok, tuple(changed), str(evidence)
