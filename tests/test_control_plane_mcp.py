@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 import os
 
 import pytest
 
 import creator_app.agnes.mcp_server as mcp_server
+from creator_app.control_plane.task_store import TaskStore
 from creator_app.council_authority.identity import IdentityVerifier
+from creator_app.council_authority.storage import AuthorityStore
 
 _TEST_SECRET = "test_secret_key_must_be_at_least_32_bytes_long_ok"
 
@@ -104,14 +109,44 @@ def test_task_queue_happy_path_uses_isolated_store(monkeypatch, tmp_path):
     )
     assert checkpoint["ok"] is True
 
+    secret = b"mcp-completion-grant-secret-32-bytes"
+    monkeypatch.setenv("CKNEXUS_CAPABILITY_GRANT_SECRET", secret.decode())
+    authority = AuthorityStore(str(tmp_path / "tasks.sqlite3"))
+    evidence_reference = "evidence://job-1"
+    authority.seed_evidence(
+        ref=evidence_reference,
+        kind="test_report",
+        digest=hashlib.sha256(b"verified").hexdigest(),
+        task_id="job-1",
+        quality=1.0,
+        verified=True,
+    )
+    completion_result = {
+        "passed": 1,
+        "evidence_reference": evidence_reference,
+    }
+    grant = authority.create_grant(
+        agent_id="OWNER",
+        capability_id="control_plane.task.complete",
+        params_hash=TaskStore._completion_params_hash(
+            "job-1", evidence_reference, completion_result
+        ),
+        task_id="job-1",
+        ttl_seconds=60,
+    )
+    signature = hmac.new(
+        secret,
+        json.dumps(grant, sort_keys=True, separators=(",", ":")).encode(),
+        hashlib.sha256,
+    ).hexdigest()
     finished = mcp_server.cknexus_task_finish(
         "job-1",
         "worker-1",
         token,
         True,
         result={"passed": 1},
-        evidence_reference="evidence://job-1",
-        approver_token=_test_approver_token(),
+        evidence_reference=evidence_reference,
+        execution_grant={**grant, "signature": signature},
     )
     assert finished["ok"] is True
     status = mcp_server.cknexus_task_status("job-1")
@@ -190,10 +225,11 @@ def test_worker_once_executes_only_explicit_safe_canary_job(monkeypatch, tmp_pat
     )
     assert enqueued["ok"] is True
     result = mcp_server.cknexus_task_worker_once("job-canary")
-    assert result["ok"] is False
-    assert result["error_code"] == "WORKER_FAILED"
+    assert result["ok"] is True
+    assert result["state"] == "awaiting_approval"
+    assert result["approval_required"] is True
     status = mcp_server.cknexus_task_status("job-canary")
-    assert status["task"]["state"] == "failed"
+    assert status["task"]["state"] == "awaiting_approval"
     assert "lease_token" not in status["task"]
 
 
@@ -280,10 +316,11 @@ def test_ai_analysis_worker_returns_model_answer_without_authorizing_mutation(
 
     result = mcp_server.cknexus_task_worker_once("job-analysis")
 
-    assert result["ok"] is False
-    assert result["error_code"] == "WORKER_FAILED"
+    assert result["ok"] is True
+    assert result["state"] == "awaiting_approval"
+    assert result["approval_required"] is True
     status = mcp_server.cknexus_task_status("job-analysis")["task"]
-    assert status["state"] == "failed"
+    assert status["state"] == "awaiting_approval"
 
 
 def test_ai_analysis_worker_fails_closed_when_provider_fails(monkeypatch, tmp_path):
@@ -329,9 +366,10 @@ def test_control_plane_roles_use_bounded_analysis_handler(monkeypatch, tmp_path,
         is True
     )
     result = mcp_server.cknexus_task_worker_once(f"job-{handler}")
-    assert result["ok"] is False
-    assert result["error_code"] == "WORKER_FAILED"
-    assert mcp_server.cknexus_task_status(f"job-{handler}")["task"]["state"] == "failed"
+    assert result["ok"] is True
+    assert result["state"] == "awaiting_approval"
+    assert result["approval_required"] is True
+    assert mcp_server.cknexus_task_status(f"job-{handler}")["task"]["state"] == "awaiting_approval"
 
 
 def test_worker_blocks_control_plane_task_until_dependency_has_verified_evidence(
@@ -361,8 +399,9 @@ def test_worker_blocks_control_plane_task_until_dependency_has_verified_evidence
 
     monkeypatch.setattr(mcp_server, "AutoReplyPlugin", FakeReply)
     research = mcp_server.cknexus_task_worker_once("plan-deps-task-01-research")
-    assert research["ok"] is False
-    assert research["error_code"] == "WORKER_FAILED"
+    assert research["ok"] is True
+    assert research["state"] == "awaiting_approval"
+    assert research["approval_required"] is True
     implementation = mcp_server.cknexus_task_worker_once("plan-deps-task-02-implementation")
     assert implementation["ok"] is False
     assert implementation["error_code"] == "DEPENDENCY_NOT_COMPLETED"

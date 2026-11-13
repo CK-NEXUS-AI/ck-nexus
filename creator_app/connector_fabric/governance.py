@@ -123,7 +123,9 @@ class CapabilityAuthorityToolAuthorizer:
         grant = decision.get("executionGrant")
         if not isinstance(grant, dict):
             return ToolAuthorizationDecision(False, "Policy authority did not issue a valid grant.")
-        if not self.authority.consume_grant(identity, grant, params, expected_task_id=context.get("taskId")):
+        if not self.authority.consume_grant(
+            identity, grant, params, expected_task_id=context.get("taskId")
+        ):
             return ToolAuthorizationDecision(False, "Execution grant could not be consumed.")
         return ToolAuthorizationDecision(True, "One-time policy grant consumed.")
 
@@ -165,8 +167,7 @@ class CapabilityAuthorityActivationAuthorizer:
                 "Unknown-risk connector tools block write activation.",
             )
         has_verified_non_read = any(
-            tool.risk in {RiskClass.WRITE, RiskClass.DESTRUCTIVE}
-            for tool in snapshot.tools
+            tool.risk in {RiskClass.WRITE, RiskClass.DESTRUCTIVE} for tool in snapshot.tools
         )
         if not has_verified_non_read:
             return ConnectorActivationDecision(
@@ -194,7 +195,9 @@ class CapabilityAuthorityActivationAuthorizer:
                 False,
                 "Policy authority did not issue a valid activation grant.",
             )
-        if not self.authority.consume_grant(identity, grant, params, expected_task_id=context.get("taskId")):
+        if not self.authority.consume_grant(
+            identity, grant, params, expected_task_id=context.get("taskId")
+        ):
             return ConnectorActivationDecision(False, "Activation grant could not be consumed.")
 
         grant_id = grant.get("grant_id")

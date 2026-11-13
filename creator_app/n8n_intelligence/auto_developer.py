@@ -214,11 +214,16 @@ class AutoDeveloper:
                     lease_token=str(task["lease_token"]),
                 )
                 return DevelopmentRun(
-                    "awaiting_approval", "approval_required", result.returncode,
-                    tests_ok, tuple(changed), str(evidence),
+                    "awaiting_approval",
+                    "approval_required",
+                    result.returncode,
+                    tests_ok,
+                    tuple(changed),
+                    str(evidence),
                 )
             self.store.finish(
-                job_id, success=False,
+                job_id,
+                success=False,
                 result={
                     "evidence_refs": [f"file://{evidence}"],
                     "release_evidence": False,
@@ -230,7 +235,9 @@ class AutoDeveloper:
                 lease_token=str(task["lease_token"]),
             )
         except ValueError as exc:
-            return DevelopmentRun("blocked", str(exc), result.returncode, tests_ok, tuple(changed), str(evidence))
+            return DevelopmentRun(
+                "blocked", str(exc), result.returncode, tests_ok, tuple(changed), str(evidence)
+            )
         return DevelopmentRun(
             reason, reason, result.returncode, tests_ok, tuple(changed), str(evidence)
         )

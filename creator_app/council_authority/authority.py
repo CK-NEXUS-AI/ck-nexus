@@ -194,10 +194,22 @@ class CapabilityAuthority:
     ) -> bool:
         # The task scope must come from the trusted caller's execution context,
         # never from the grant being presented for consumption.
-        if not isinstance(expected_task_id, str) or not expected_task_id.strip() or not isinstance(grant, dict):
+        if (
+            not isinstance(expected_task_id, str)
+            or not expected_task_id.strip()
+            or not isinstance(grant, dict)
+        ):
             return False
         unsigned = {k: v for k, v in grant.items() if k != "signature"}
-        if not {"grant_id", "agent_id", "capability_id", "params_hash", "task_id", "expires_at"}.issubset(unsigned):
+        required = {
+            "grant_id",
+            "agent_id",
+            "capability_id",
+            "params_hash",
+            "task_id",
+            "expires_at",
+        }
+        if not required.issubset(unsigned):
             return False
         if unsigned.get("agent_id") != identity.agent_id:
             return False

@@ -120,7 +120,10 @@ def test_c_finish_rejects_forged_approver_identity(tmp_path):
     claimed = store.claim_next("untrusted-worker", lease_seconds=60)
     assert claimed is not None
 
-    with pytest.raises(PermissionError, match="approver|authority|identity|service token|task-bound Core/L3 capability grant"):
+    with pytest.raises(
+        PermissionError,
+        match=("approver|authority|identity|service token|task-bound Core/L3 capability grant"),
+    ):
         store.finish(
             "p0-forged-approver",
             success=True,

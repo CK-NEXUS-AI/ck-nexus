@@ -24,7 +24,7 @@ def _test_approver_token():
     )
 
 
-def test_worker_executes_verifies_and_finishes(tmp_path):
+def test_worker_waits_for_approval_without_task_bound_grant(tmp_path):
     store = TaskStore(tmp_path / "queue.sqlite3")
     store.enqueue("job-1", {"handler": "echo", "description": "safe canary"})
     worker = RepairWorker(
@@ -195,3 +195,36 @@ def test_worker_cannot_finish_after_lease_expiry(tmp_path):
     result = worker.run_once()
     assert result.state == "failed"
     assert store.get("job-1")["state"] == "running"
+
+
+def test_worker_dispatches_successful_completion_with_task_bound_grant(tmp_path, monkeypatch):
+    store = TaskStore(tmp_path / "queue.sqlite3")
+    store.enqueue("job-complete", {"handler": "echo"})
+    captured = {}
+
+    def finish(job_id, **kwargs):
+        captured["job_id"] = job_id
+        captured.update(kwargs)
+
+    monkeypatch.setattr(store, "finish", finish)
+    grant = {"grant_id": "test-grant", "signature": "test-signature"}
+    worker = RepairWorker(
+        store=store,
+        verifier=ControlPlaneVerifier(max_repairs=0),
+        handlers={
+            "echo": lambda _payload: {
+                "ok": True,
+                "evidence_refs": ["evidence://job-complete"],
+                "evidence_reference": "evidence://job-complete",
+                "execution_grant": grant,
+            }
+        },
+        worker_id="worker-complete",
+    )
+
+    result = worker.run_once()
+
+    assert result.state == "completed"
+    assert captured["job_id"] == "job-complete"
+    assert captured["success"] is True
+    assert captured["execution_grant"] == grant

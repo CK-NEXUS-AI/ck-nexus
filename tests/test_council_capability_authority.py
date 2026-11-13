@@ -87,9 +87,10 @@ def test_verified_evidence_and_params_bound_one_time_grant():
         params,
         {"taskId": "t1", "evidenceRef": "git:repo@abc"},
     )
-    assert a.consume_grant(
-        ident, out["executionGrant"], {"repo": "other"}, expected_task_id="t1"
-    ) is False
+    assert (
+        a.consume_grant(ident, out["executionGrant"], {"repo": "other"}, expected_task_id="t1")
+        is False
+    )
     out = a.enforce(
         ident,
         "council.engineering.inspect_repo",
@@ -125,6 +126,10 @@ def test_safety_veto_requires_authorization_and_verified_evidence():
     out = arb.resolve("d2", "security", [p, veto], task_id="d2", high_risk=True)
     assert out["status"] == "BLOCKED_SAFETY_VETO"
     assert out["vetoBy"] == "COUNCIL-03"
+    assert out["task_id"] == "d2"
+    with s._db() as db:
+        audit_row = db.execute("SELECT payload FROM audit ORDER BY seq DESC LIMIT 1").fetchone()
+    assert json.loads(audit_row["payload"])["task_id"] == "d2"
     d.cleanup()
 
 
@@ -261,8 +266,14 @@ def test_consume_transaction_rolls_back_on_update_failure(tmp_path):
         ).fetchone()
         assert row["used"] == 0
         db.execute("DROP TRIGGER reject_grant_consume")
-    assert authority.consume_grant(identity, grant, params, expected_task_id="transaction-audit") is True
-    assert authority.consume_grant(identity, grant, params, expected_task_id="transaction-audit") is False
+    assert (
+        authority.consume_grant(identity, grant, params, expected_task_id="transaction-audit")
+        is True
+    )
+    assert (
+        authority.consume_grant(identity, grant, params, expected_task_id="transaction-audit")
+        is False
+    )
 
 
 def test_expired_grant_is_rejected_inside_consume_transaction(tmp_path):
@@ -272,7 +283,9 @@ def test_expired_grant_is_rejected_inside_consume_transaction(tmp_path):
             "UPDATE grants SET expires_at=? WHERE grant_id=?",
             (int(time.time()) - 1, grant["grant_id"]),
         )
-    assert authority.consume_grant(identity, grant, params, expected_task_id="expired-audit") is False
+    assert (
+        authority.consume_grant(identity, grant, params, expected_task_id="expired-audit") is False
+    )
     with store._db() as db:
         row = db.execute(
             "SELECT used FROM grants WHERE grant_id=?", (grant["grant_id"],)
@@ -348,12 +361,18 @@ def test_task_bound_evidence_rejects_unscoped_and_cross_task_records(tmp_path):
     store = AuthorityStore(str(tmp_path / "evidence-scope.sqlite"))
     digest = hashlib.sha256(b"evidence").hexdigest()
     store.seed_evidence(
-        ref="evidence:global", kind="git_commit", digest=digest,
-        task_id=None, quality=1,
+        ref="evidence:global",
+        kind="git_commit",
+        digest=digest,
+        task_id=None,
+        quality=1,
     )
     store.seed_evidence(
-        ref="evidence:task-a", kind="git_commit", digest=digest,
-        task_id="task-a", quality=1,
+        ref="evidence:task-a",
+        kind="git_commit",
+        digest=digest,
+        task_id="task-a",
+        quality=1,
     )
     assert store.evidence_quality(["evidence:global"], task_id="task-a") == 0
     assert store.evidence_quality(["evidence:task-a"], task_id="task-a") == 1
@@ -364,21 +383,41 @@ def test_grant_consumption_is_bound_to_exact_task_id(tmp_path):
     store = AuthorityStore(str(tmp_path / "grant-scope.sqlite"))
     params_hash = hashlib.sha256(b"params").hexdigest()
     grant = store.create_grant(
-        agent_id="agent-a", capability_id="cap.read",
-        params_hash=params_hash, task_id="task-a",
+        agent_id="agent-a",
+        capability_id="cap.read",
+        params_hash=params_hash,
+        task_id="task-a",
     )
-    assert store.consume_grant(
-        grant["grant_id"], agent_id="agent-a", capability_id="cap.read",
-        params_hash=params_hash, task_id="task-b",
-    ) is False
-    assert store.consume_grant(
-        grant["grant_id"], agent_id="agent-a", capability_id="cap.read",
-        params_hash=params_hash, task_id="task-a",
-    ) is True
-    assert store.consume_grant(
-        grant["grant_id"], agent_id="agent-a", capability_id="cap.read",
-        params_hash=params_hash, task_id="task-a",
-    ) is False
+    assert (
+        store.consume_grant(
+            grant["grant_id"],
+            agent_id="agent-a",
+            capability_id="cap.read",
+            params_hash=params_hash,
+            task_id="task-b",
+        )
+        is False
+    )
+    assert (
+        store.consume_grant(
+            grant["grant_id"],
+            agent_id="agent-a",
+            capability_id="cap.read",
+            params_hash=params_hash,
+            task_id="task-a",
+        )
+        is True
+    )
+    assert (
+        store.consume_grant(
+            grant["grant_id"],
+            agent_id="agent-a",
+            capability_id="cap.read",
+            params_hash=params_hash,
+            task_id="task-a",
+        )
+        is False
+    )
 
 
 def test_identity_rejects_null_claims_before_string_coercion():
@@ -388,14 +427,20 @@ def test_identity_rejects_null_claims_before_string_coercion():
     secret = b"i" * 32
     verifier = IdentityVerifier(secret)
     payload = {
-        "iss": "ck-nexus", "service_id": None, "agent_id": None,
-        "role": "admin", "iat": int(time.time()), "exp": int(time.time()) + 60,
+        "iss": "ck-nexus",
+        "service_id": None,
+        "agent_id": None,
+        "role": "admin",
+        "iat": int(time.time()),
+        "exp": int(time.time()) + 60,
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     body = base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
-    signature = base64.urlsafe_b64encode(
-        hmac.new(secret, body.encode(), hashlib.sha256).digest()
-    ).rstrip(b"=").decode()
+    signature = (
+        base64.urlsafe_b64encode(hmac.new(secret, body.encode(), hashlib.sha256).digest())
+        .rstrip(b"=")
+        .decode()
+    )
     with pytest.raises(IdentityError, match="non-empty strings"):
         verifier.verify(f"{body}.{signature}")
 
@@ -403,8 +448,11 @@ def test_identity_rejects_null_claims_before_string_coercion():
 def test_unscoped_evidence_is_never_accepted_for_authorization(tmp_path):
     store = AuthorityStore(str(tmp_path / "authority.sqlite3"))
     store.seed_evidence(
-        ref="evidence://task-a", kind="test", digest="a" * 64,
-        task_id="task-a", quality=1.0,
+        ref="evidence://task-a",
+        kind="test",
+        digest="a" * 64,
+        task_id="task-a",
+        quality=1.0,
     )
     assert store.evidence_quality(["evidence://task-a"]) == 0.0
     assert store.evidence_quality(["evidence://task-a"], task_id="task-b") == 0.0
@@ -414,13 +462,20 @@ def test_unscoped_evidence_is_never_accepted_for_authorization(tmp_path):
 def test_unscoped_grant_cannot_be_consumed(tmp_path):
     store = AuthorityStore(str(tmp_path / "authority.sqlite3"))
     grant = store.create_grant(
-        agent_id="agent-a", capability_id="capability-a",
-        params_hash="b" * 64, task_id=None,
+        agent_id="agent-a",
+        capability_id="capability-a",
+        params_hash="b" * 64,
+        task_id=None,
     )
-    assert store.consume_grant(
-        grant["grant_id"], agent_id="agent-a",
-        capability_id="capability-a", params_hash="b" * 64,
-    ) is False
+    assert (
+        store.consume_grant(
+            grant["grant_id"],
+            agent_id="agent-a",
+            capability_id="capability-a",
+            params_hash="b" * 64,
+        )
+        is False
+    )
 
 
 def test_completion_capability_requires_explicit_task_scope():

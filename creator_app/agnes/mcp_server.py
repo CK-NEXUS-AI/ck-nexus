@@ -477,6 +477,19 @@ def cknexus_task_worker_once(job_id: str) -> dict[str, Any]:
         result = worker.run_once(job_id=job_id)
     except (ValueError, KeyError, TypeError) as exc:
         return _task_result_error("INVALID_INPUT", str(exc))
+    if result.state == "awaiting_approval":
+        return {
+            "ok": True,
+            "job_id": job_id,
+            "state": "awaiting_approval",
+            "approval_required": True,
+            "attempts": result.attempts,
+            "evidence_refs": list(result.evidence_refs),
+            "execution_state": "VERIFIED",
+            "production_status": "NO-GO",
+            "external_mutation_authorized": False,
+            "release_evidence": False,
+        }
     if result.state != "completed":
         return _task_result_error("WORKER_FAILED", result.error or result.state)
     return {
@@ -596,7 +609,8 @@ def cknexus_task_finish(
     except PermissionError:
         return _task_result_error(
             "UNAUTHORIZED",
-            "a task-bound Core/L3 completion grant is required; an Admin identity token alone is insufficient",
+            "a task-bound Core/L3 completion grant is required; "
+            "an Admin identity token alone is insufficient",
         )
     except OverflowError as exc:
         return _task_result_error("PAYLOAD_TOO_LARGE", str(exc))
@@ -624,14 +638,24 @@ def cknexus_task_approve(
         job_id = _task_text(job_id, "job_id")
         evidence_reference = _task_text(evidence_reference, "evidence_reference", max_chars=2_048)
         get_task_store().approve_pending_completion(
-            job_id, execution_grant=execution_grant,
+            job_id,
+            execution_grant=execution_grant,
             evidence_reference=evidence_reference,
         )
     except PermissionError:
-        return _task_result_error("UNAUTHORIZED", "valid task-bound Core/L3 completion grant required")
+        return _task_result_error(
+            "UNAUTHORIZED", "valid task-bound Core/L3 completion grant required"
+        )
     except ValueError as exc:
         return _task_result_error("INVALID_INPUT", str(exc))
-    return {"ok": True, "job_id": job_id, "state": "completed", "execution_state": "FINISHED", "production_status": "NO-GO", "release_evidence": False}
+    return {
+        "ok": True,
+        "job_id": job_id,
+        "state": "completed",
+        "execution_state": "FINISHED",
+        "production_status": "NO-GO",
+        "release_evidence": False,
+    }
 
 
 @mcp.tool()

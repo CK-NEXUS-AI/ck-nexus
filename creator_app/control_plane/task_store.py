@@ -14,7 +14,6 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any
 
-
 COMPLETION_CAPABILITY_ID = "control_plane.task.complete"
 
 
@@ -24,7 +23,9 @@ class TaskStore:
     def __init__(self, database: str | Path, *, grant_secret: bytes | None = None) -> None:
         self.database = str(database)
         configured_secret = os.environ.get("CKNEXUS_CAPABILITY_GRANT_SECRET", "")
-        self.grant_secret = grant_secret if grant_secret is not None else configured_secret.encode("utf-8")
+        self.grant_secret = (
+            grant_secret if grant_secret is not None else configured_secret.encode("utf-8")
+        )
         Path(self.database).parent.mkdir(parents=True, exist_ok=True)
         with closing(self._connect()) as connection:
             connection.execute("PRAGMA journal_mode=WAL")
@@ -33,7 +34,9 @@ class TaskStore:
                 CREATE TABLE IF NOT EXISTS control_plane_tasks (
                     job_id TEXT PRIMARY KEY,
                     payload_json TEXT NOT NULL,
-                    state TEXT NOT NULL CHECK (state IN ('queued','running','awaiting_approval','completed','failed')),
+                    state TEXT NOT NULL CHECK (
+                        state IN ('queued','running','awaiting_approval','completed','failed')
+                    ),
                     created_at REAL NOT NULL,
                     updated_at REAL NOT NULL,
                     worker_id TEXT,
@@ -58,21 +61,31 @@ class TaskStore:
             if schema_row and "awaiting_approval" not in str(schema_row["sql"]):
                 connection.execute("BEGIN IMMEDIATE")
                 connection.execute("DROP INDEX IF EXISTS idx_control_plane_tasks_queue")
-                connection.execute("ALTER TABLE control_plane_tasks RENAME TO control_plane_tasks_legacy")
+                connection.execute(
+                    "ALTER TABLE control_plane_tasks RENAME TO control_plane_tasks_legacy"
+                )
                 connection.execute("""
                     CREATE TABLE control_plane_tasks (
                         job_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL,
-                        state TEXT NOT NULL CHECK (state IN ('queued','running','awaiting_approval','completed','failed')),
+                        state TEXT NOT NULL CHECK (
+                            state IN ('queued','running','awaiting_approval','completed','failed')
+                        ),
                         created_at REAL NOT NULL, updated_at REAL NOT NULL, worker_id TEXT,
                         lease_until REAL, lease_token TEXT, attempts INTEGER NOT NULL DEFAULT 0,
                         checkpoint_json TEXT, result_json TEXT, error_text TEXT
                     )
                 """)
                 connection.execute(
-                    "INSERT INTO control_plane_tasks SELECT job_id,payload_json,state,created_at,updated_at,worker_id,lease_until,lease_token,attempts,checkpoint_json,result_json,error_text FROM control_plane_tasks_legacy"
+                    "INSERT INTO control_plane_tasks "
+                    "SELECT job_id,payload_json,state,created_at,updated_at,worker_id,lease_until,"
+                    "lease_token,attempts,checkpoint_json,result_json,error_text "
+                    "FROM control_plane_tasks_legacy"
                 )
                 connection.execute("DROP TABLE control_plane_tasks_legacy")
-                connection.execute("CREATE INDEX idx_control_plane_tasks_queue ON control_plane_tasks(state, created_at)")
+                connection.execute(
+                    "CREATE INDEX idx_control_plane_tasks_queue "
+                    "ON control_plane_tasks(state, created_at)"
+                )
                 connection.commit()
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_control_plane_tasks_queue "
@@ -147,7 +160,8 @@ class TaskStore:
         """Return whether any task is queued or running, without mutating the queue."""
         with closing(self._connect()) as connection:
             row = connection.execute(
-                "SELECT 1 FROM control_plane_tasks WHERE state IN ('queued','running','awaiting_approval') LIMIT 1"
+                "SELECT 1 FROM control_plane_tasks "
+                "WHERE state IN ('queued','running','awaiting_approval') LIMIT 1"
             ).fetchone()
         return row is not None
 
@@ -242,7 +256,8 @@ class TaskStore:
         with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
-                "SELECT 1 FROM control_plane_tasks WHERE job_id=? AND state='running' "
+                "SELECT checkpoint_json FROM control_plane_tasks "
+                "WHERE job_id=? AND state='running' "
                 "AND lease_until>? AND worker_id=? AND lease_token=?",
                 (job_id, now, worker_id, lease_token),
             ).fetchone()
@@ -252,19 +267,43 @@ class TaskStore:
             if success:
                 completed_result = dict(result or {})
                 completed_result["evidence_reference"] = evidence_reference
-                self._consume_completion_grant(
+                approver_id = self._consume_completion_grant(
                     connection,
                     job_id=job_id,
                     evidence_reference=evidence_reference,
                     completion_result=completed_result,
                     execution_grant=execution_grant,
                 )
+                completed_result["approver_id"] = approver_id
+                try:
+                    checkpoint = json.loads(row["checkpoint_json"] or "{}")
+                except (TypeError, json.JSONDecodeError):
+                    checkpoint = {}
+                if not isinstance(checkpoint, dict):
+                    checkpoint = {}
+                checkpoint.update(
+                    {
+                        "state": "completed",
+                        "evidence_reference": evidence_reference,
+                        "approver_id": approver_id,
+                    }
+                )
                 cursor = connection.execute(
-                    "UPDATE control_plane_tasks SET state='completed', result_json=?, error_text=NULL, "
-                    "worker_id=NULL, lease_until=NULL, lease_token=NULL, updated_at=? "
+                    "UPDATE control_plane_tasks SET state='completed', "
+                    "result_json=?, checkpoint_json=?, "
+                    "error_text=NULL, worker_id=NULL, lease_until=NULL, "
+                    "lease_token=NULL, updated_at=? "
                     "WHERE job_id=? AND state='running' AND lease_until>? "
                     "AND worker_id=? AND lease_token=?",
-                    (self._json(completed_result), now, job_id, now, worker_id, lease_token),
+                    (
+                        self._json(completed_result),
+                        self._json(checkpoint),
+                        now,
+                        job_id,
+                        now,
+                        worker_id,
+                        lease_token,
+                    ),
                 )
                 if cursor.rowcount != 1:
                     connection.rollback()
@@ -292,8 +331,13 @@ class TaskStore:
             connection.commit()
 
     def request_approval(
-        self, job_id: str, *, result: dict[str, Any], evidence_reference: str,
-        worker_id: str, lease_token: str
+        self,
+        job_id: str,
+        *,
+        result: dict[str, Any],
+        evidence_reference: str,
+        worker_id: str,
+        lease_token: str,
     ) -> None:
         if not isinstance(evidence_reference, str) or not evidence_reference.strip():
             raise ValueError("evidence_reference must not be empty")
@@ -301,11 +345,19 @@ class TaskStore:
         with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
             cursor = connection.execute(
-                "UPDATE control_plane_tasks SET state='awaiting_approval', result_json=?, error_text='approval_required', "
+                "UPDATE control_plane_tasks SET state='awaiting_approval', "
+                "result_json=?, error_text='approval_required', "
                 "worker_id=NULL, lease_until=NULL, lease_token=NULL, updated_at=? "
-                "WHERE job_id=? AND state='running' AND lease_until>? AND worker_id=? AND lease_token=?",
-                (self._json({**dict(result), "evidence_reference": evidence_reference}), now,
-                 job_id, now, worker_id, lease_token),
+                "WHERE job_id=? AND state='running' AND lease_until>? "
+                "AND worker_id=? AND lease_token=?",
+                (
+                    self._json({**dict(result), "evidence_reference": evidence_reference}),
+                    now,
+                    job_id,
+                    now,
+                    worker_id,
+                    lease_token,
+                ),
             )
             if cursor.rowcount != 1:
                 connection.rollback()
@@ -319,7 +371,8 @@ class TaskStore:
         with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
-                "SELECT result_json FROM control_plane_tasks WHERE job_id=? AND state='awaiting_approval'",
+                "SELECT result_json FROM control_plane_tasks "
+                "WHERE job_id=? AND state='awaiting_approval'",
                 (job_id,),
             ).fetchone()
             if row is None:
@@ -333,14 +386,24 @@ class TaskStore:
             if completed_result.get("evidence_reference") != evidence_reference:
                 connection.rollback()
                 raise ValueError("approval evidence reference does not match pending result")
-            self._consume_completion_grant(
-                connection, job_id=job_id, evidence_reference=evidence_reference,
-                completion_result=completed_result, execution_grant=execution_grant,
+            approver_id = self._consume_completion_grant(
+                connection,
+                job_id=job_id,
+                evidence_reference=evidence_reference,
+                completion_result=completed_result,
+                execution_grant=execution_grant,
             )
+            completed_result["approver_id"] = approver_id
+            checkpoint = {
+                "state": "completed",
+                "evidence_reference": evidence_reference,
+                "approver_id": approver_id,
+            }
             cursor = connection.execute(
-                "UPDATE control_plane_tasks SET state='completed', result_json=?, error_text=NULL, updated_at=? "
-                "WHERE job_id=? AND state='awaiting_approval'",
-                (self._json(completed_result), now, job_id),
+                "UPDATE control_plane_tasks SET state='completed', "
+                "result_json=?, checkpoint_json=?, "
+                "error_text=NULL, updated_at=? WHERE job_id=? AND state='awaiting_approval'",
+                (self._json(completed_result), self._json(checkpoint), now, job_id),
             )
             if cursor.rowcount != 1:
                 connection.rollback()
@@ -363,17 +426,26 @@ class TaskStore:
         evidence_reference: str | None,
         completion_result: dict[str, Any],
         execution_grant: dict[str, Any] | None,
-    ) -> None:
+    ) -> str:
         def deny() -> None:
             raise PermissionError(
-                "successful completion requires a valid task-bound Core/L3 capability grant (one-time, signed, and backed by verified evidence)"
+                "successful completion requires a valid task-bound Core/L3 capability grant "
+                "(one-time, signed, and backed by verified evidence)"
             )
 
         if not isinstance(evidence_reference, str) or not evidence_reference.strip():
             deny()
         if not isinstance(execution_grant, dict) or len(self.grant_secret) < 32:
             deny()
-        required = {"grant_id", "agent_id", "capability_id", "params_hash", "task_id", "expires_at", "signature"}
+        required = {
+            "grant_id",
+            "agent_id",
+            "capability_id",
+            "params_hash",
+            "task_id",
+            "expires_at",
+            "signature",
+        }
         if not required.issubset(execution_grant):
             deny()
         unsigned = {key: value for key, value in execution_grant.items() if key != "signature"}
@@ -389,13 +461,17 @@ class TaskStore:
             or unsigned.get("capability_id") != COMPLETION_CAPABILITY_ID
             or not isinstance(unsigned.get("agent_id"), str)
             or not unsigned["agent_id"].strip()
-            or unsigned.get("params_hash") != self._completion_params_hash(job_id, evidence_reference, completion_result)
+            or unsigned.get("params_hash")
+            != self._completion_params_hash(job_id, evidence_reference, completion_result)
             or isinstance(unsigned.get("expires_at"), bool)
             or not isinstance(unsigned.get("expires_at"), int)
             or unsigned["expires_at"] <= int(time.time())
         ):
             deny()
-        tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        tables = {
+            row[0]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
         if not {"grants", "evidence"}.issubset(tables):
             deny()
         grant = connection.execute(
@@ -412,7 +488,8 @@ class TaskStore:
         ):
             deny()
         evidence = connection.execute(
-            "SELECT 1 FROM evidence WHERE ref=? AND task_id=? AND verified=1 AND revoked=0 AND quality>0",
+            "SELECT 1 FROM evidence WHERE ref=? AND task_id=? "
+            "AND verified=1 AND revoked=0 AND quality>0",
             (evidence_reference, job_id),
         ).fetchone()
         if evidence is None:
@@ -423,6 +500,7 @@ class TaskStore:
         )
         if consumed.rowcount != 1:
             deny()
+        return unsigned["agent_id"]
 
     def requeue_expired(self, *, max_attempts: int = 3) -> int:
         """Requeue expired leases within a bounded retry budget.

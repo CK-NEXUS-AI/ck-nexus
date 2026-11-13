@@ -168,25 +168,38 @@ class RepairWorker:
                 "external_mutation_authorized": False,
             }
             evidence_reference = output.get("evidence_reference")
+            if not isinstance(evidence_reference, str) or not evidence_reference.strip():
+                evidence_reference = (
+                    verification.evidence_refs[0] if verification.evidence_refs else None
+                )
             execution_grant = output.get("execution_grant")
             try:
                 if execution_grant is None:
                     self.store.request_approval(
-                        job_id, result=completion_result,
+                        job_id,
+                        result=completion_result,
                         evidence_reference=evidence_reference,
-                        worker_id=self.worker_id, lease_token=lease_token,
+                        worker_id=self.worker_id,
+                        lease_token=lease_token,
                     )
                     return self._result(
-                        "awaiting_approval", attempts=attempts,
+                        "awaiting_approval",
+                        attempts=attempts,
                         evidence_refs=verification.evidence_refs,
                     )
                 self.store.finish(
-                    job_id, success=True, result=completion_result,
-                    evidence_reference=evidence_reference, execution_grant=execution_grant,
-                    worker_id=self.worker_id, lease_token=lease_token,
+                    job_id,
+                    success=True,
+                    result=completion_result,
+                    evidence_reference=evidence_reference,
+                    execution_grant=execution_grant,
+                    worker_id=self.worker_id,
+                    lease_token=lease_token,
                 )
             except (ValueError, PermissionError) as exc:
-                return self._fail(job_id, lease_token, str(exc), attempts=attempts, evidence_refs=evidence_refs)
+                return self._fail(
+                    job_id, lease_token, str(exc), attempts=attempts, evidence_refs=evidence_refs
+                )
             return self._result(
                 "completed",
                 attempts=attempts,

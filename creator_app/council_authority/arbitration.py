@@ -41,17 +41,28 @@ class ArbitrationEngine:
         return 0.45 * evidence + 0.25 * owner + 0.30 * verifier - risk
 
     def resolve(
-        self, decision_id: str, domain: str, proposals: list[Proposal], *,
-        task_id: str | None = None, high_risk: bool = False
+        self,
+        decision_id: str,
+        domain: str,
+        proposals: list[Proposal],
+        *,
+        task_id: str | None = None,
+        high_risk: bool = False,
     ) -> dict:
         if not isinstance(task_id, str) or not task_id.strip():
-            out = {"decisionId": decision_id, "status": "BLOCKED_HUMAN_REVIEW", "reason": "explicit task_id required for evidence scope"}
+            out = {
+                "decisionId": decision_id,
+                "task_id": task_id,
+                "status": "BLOCKED_HUMAN_REVIEW",
+                "reason": "explicit task_id required for evidence scope",
+            }
             self.store.append_audit({"type": "decision", "domain": domain, **out})
             return out
         veto = next((p for p in proposals if self._authorized_veto(p, domain, task_id)), None)
         if veto and (high_risk or veto.risk == "high"):
             out = {
                 "decisionId": decision_id,
+                "task_id": task_id,
                 "status": "BLOCKED_SAFETY_VETO",
                 "vetoBy": veto.agent_id,
                 "reason": veto.reason or "verified safety veto",
@@ -59,19 +70,25 @@ class ArbitrationEngine:
             self.store.append_audit({"type": "decision", "domain": domain, **out})
             return out
         scored = sorted(
-            ((p, self._score(p, domain, task_id)) for p in proposals), key=lambda x: x[1], reverse=True
+            ((p, self._score(p, domain, task_id)) for p in proposals),
+            key=lambda x: x[1],
+            reverse=True,
         )
         if not scored:
             return {
                 "decisionId": decision_id,
+                "task_id": task_id,
                 "status": "BLOCKED_HUMAN_REVIEW",
                 "reason": "no proposals",
             }
+            self.store.append_audit({"type": "decision", "domain": domain, **out})
+            return out
         top, score = scored[0]
         runner = scored[1][1] if len(scored) > 1 else -99
         if score - runner < self.threshold:
             out = {
                 "decisionId": decision_id,
+                "task_id": task_id,
                 "status": "BLOCKED_HUMAN_REVIEW",
                 "scores": {p.agent_id: round(s, 3) for p, s in scored},
                 "reason": "insufficient verified evidence margin",
@@ -80,6 +97,7 @@ class ArbitrationEngine:
             return out
         out = {
             "decisionId": decision_id,
+            "task_id": task_id,
             "status": "RESOLVED",
             "selectedOption": top.option,
             "approver": top.agent_id,
