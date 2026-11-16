@@ -127,7 +127,7 @@ This snapshot records the latest checks available for this maintenance update. I
 | Area | Observed state | What it means |
 |---|---|---|
 | Production release | **NO-GO / NOT VERIFIED** | Q10–Q16 are not all closed with current, exact-subject evidence. |
-| GitHub Actions | **BLOCKED — Billing Lock** | Recent workflow attempts were blocked before job steps ran. This is an account/organization billing restriction, not evidence of a code-test failure. |
+| GitHub Actions | **BILLING LOCK REPORTED; PR CHECKS FAILURE** | The account/organization billing lock was reported in the latest operational handoff. Three PR #371 commit-associated runs currently show failure; the retrieved job summaries contain no step details, so their exact failure cause is not established here. |
 | PR #369 | **OPEN; remote branch unchanged** | A remediation patch exists only in an isolated VPS worktree. It has not been pushed, committed to GitHub, or merged. |
 | Local PR #369 verification | **PASS, local patch only** | 1,009 tests passed, 2 skipped; Ruff passed; Bandit reported 0 high/medium findings. These results do not certify the remote PR or current main. |
 | Gitleaks | **REVIEW REQUIRED** | The latest local scan reported the empty CKNEXUS_ACCESS_TOKEN example in .env.example as a false positive; confirm scanner output before treating the scan as clean. |
@@ -166,13 +166,13 @@ Check usage with the consolidated billing usage API. The older product-specific 
 gh api /users/USERNAME/settings/billing/usage
 ~~~
 
-For an organization, use the organization usage endpoint if your account has permission:
+For an organization, use the documented organization endpoint. It requires organization-administrator access and an organization on the enhanced billing platform:
 
 ~~~bash
-gh api /orgs/ORG/settings/billing/usage
+gh api /organizations/ORG/settings/billing/usage
 ~~~
 
-The response contains usageItems; it does not use the old total_minutes_used field. A 403 means the authenticated account lacks access or the endpoint is restricted; it does not prove that the Actions minutes quota was exhausted.
+The response contains usageItems; it does not use the old total_minutes_used field. The user endpoint also requires access to the enhanced billing platform; the organization endpoint requires organization-administrator access and enhanced billing. A 403 can indicate missing permission or platform eligibility; it does not prove that the Actions minutes quota was exhausted.
 
 **Important:** Clearing Actions caches or deleting artifacts may reclaim storage, but it does not unlock a billing-locked account. Artifact deletion is irreversible. Changing a private repository to public is not a general Billing Lock fix and must not be done just to try to restart workflows.
 
