@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
 
 from creator_app.api import create_app
+from creator_app.catalog import get_agent_spec, list_agent_cards
 from creator_app.config import Settings
+from creator_app.credential_broker import CredentialBroker
+from creator_app.dev_team import DevTeamRuntime
+from creator_app.providers import build_provider_router
+from creator_app.runtime import CreatorRuntime, ProviderRuntimeError
+from creator_app.schemas import DevTeamRequest, RunRequest
 
 
 def settings(tmp_path: Path, **overrides) -> Settings:
@@ -96,7 +104,6 @@ def test_dev_team_can_be_disabled(tmp_path: Path):
         assert response.json()["detail"]["error"] == "DEV_TEAM_DISABLED"
 
 
-
 def test_dev_team_mock_debate_reuses_existing_council(tmp_path: Path, monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with TestClient(create_app(settings(tmp_path))) as client:
@@ -115,3 +122,161 @@ def test_dev_team_mock_debate_reuses_existing_council(tmp_path: Path, monkeypatc
     assert "authority_effect: NONE" in body["content"]
     assert "Production authorization" in body["content"]
     assert "sk-" not in response.text
+
+
+class FakeGeminiRouter:
+    def __init__(self):
+        self.prompt = ""
+        self.invocations = 0
+
+    def preferred_status(self, *, required_capabilities=()):
+        if "agents-sdk" in set(required_capabilities):
+            return None
+        if "text" in set(required_capabilities):
+            return SimpleNamespace(
+                name="gemini",
+                capabilities=SimpleNamespace(models=("gemini-2.5-flash",)),
+            )
+        return None
+
+    async def invoke_named(self, provider_name, prompt, *, required_capabilities=()):
+        assert provider_name == "gemini"
+        assert "text" in set(required_capabilities)
+        self.prompt = prompt
+        self.invocations += 1
+        return SimpleNamespace(provider="gemini", output="Gemini single-model response.")
+
+    def report_failure(self, provider_name):
+        raise AssertionError("Fallback failure reporting is owned by ProviderRouter.")
+
+    def report_success(self, provider_name):
+        raise AssertionError("Gemini invoke_named owns provider health reporting.")
+
+
+def test_gemini_single_model_fallback_is_ready_and_truthfully_labelled(tmp_path: Path):
+    router = FakeGeminiRouter()
+    runtime = DevTeamRuntime(
+        settings(tmp_path, mock_ai=False, provider_allow_cloud=True),
+        provider_router=router,
+    )
+    request = DevTeamRequest(
+        prompt="ช่วยวางแผนพัฒนา CK-NEXUS Chat",
+        session_id="gemini-fallback-test",
+        consult_mode="council",
+        context="Development only.",
+        language="ไทย",
+    )
+
+    assert runtime.ready is True
+    import asyncio
+
+    result = asyncio.run(runtime.run(request))
+
+    assert result.mode == "gemini"
+    assert result.provider == "gemini"
+    assert result.model == "gemini-2.5-flash"
+    assert result.workflow == ["GEMINI_SINGLE_MODEL_FALLBACK"]
+    assert result.advisory_only is True
+    assert "one model, not five independent agents" in router.prompt
+    assert "Do not claim separate specialists were called" in router.prompt
+    assert router.invocations == 1
+
+
+def test_gemini_single_model_fallback_blocks_debate_mode(tmp_path: Path):
+    router = FakeGeminiRouter()
+    runtime = DevTeamRuntime(
+        settings(tmp_path, mock_ai=False, provider_allow_cloud=True),
+        provider_router=router,
+    )
+    request = DevTeamRequest(
+        prompt="ถกเถียงข้อเสนอ",
+        session_id="gemini-debate-test",
+        consult_mode="debate",
+        language="ไทย",
+    )
+
+    import asyncio
+
+    with pytest.raises(ProviderRuntimeError, match="DEBATE_REQUIRES_MULTI_AGENT"):
+        asyncio.run(runtime.run(request))
+    assert router.invocations == 0
+
+
+def test_configured_gemini_provider_enables_truthful_single_model_chat_status(
+    tmp_path: Path, monkeypatch
+):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-only-not-a-real-key")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    configured = settings(tmp_path, mock_ai=False, provider_allow_cloud=True)
+    router = build_provider_router(configured, CredentialBroker.from_environment())
+    preferred = router.preferred_status(required_capabilities={"text"})
+    assert preferred is not None
+    assert preferred.name == "gemini"
+    assert preferred.capabilities.models[0] == "gemini-2.5-flash"
+
+    with TestClient(create_app(configured)) as client:
+        status = client.get("/api/status")
+        roster = client.get("/api/dev-team")
+
+    assert status.status_code == 200
+    assert status.json()["mode"] == "gemini"
+    assert status.json()["model"] == "gemini-2.5-flash"
+    assert roster.status_code == 200
+    body = roster.json()
+    assert body["ready"] is True
+    assert body["chat_mode"] == "single-model-fallback"
+    assert body["single_model_fallback"] is True
+    assert body["web_search_enabled"] is False
+    assert body["debate"]["enabled"] is False
+
+
+def test_chat_endpoint_requires_configured_access_token(tmp_path: Path):
+    with TestClient(create_app(settings(tmp_path, access_token=""))) as client:
+        response = client.post("/api/chat", json=payload())
+    assert response.status_code == 503
+    assert response.json()["detail"]["error"] == "CHAT_AUTH_NOT_CONFIGURED"
+
+
+def test_chat_endpoint_uses_agnes_plan_without_executing_skills(tmp_path: Path):
+    configured = settings(tmp_path, access_token="chat-test-token", mock_ai=True)
+    with TestClient(create_app(configured)) as client:
+        denied = client.post("/api/chat", json=payload())
+        allowed = client.post(
+            "/api/chat",
+            headers={"Authorization": "Bearer chat-test-token"},
+            json=payload(consult_mode="auto"),
+        )
+
+    assert denied.status_code == 401
+    assert allowed.status_code == 200
+    body = allowed.json()
+    assert body["provider"] == "mock"
+    assert body["agnes"]["status"] == "PLANNED"
+    assert body["agnes"]["execution_status"] == "NOT_EXECUTED"
+    assert body["execution_status"] == "NOT_EXECUTED"
+    assert body["authority_effect"] == "NONE"
+    assert isinstance(body["agnes"]["selected_skills"], list)
+    assert "workspace" not in body["agnes"]
+    assert "/opt/" not in allowed.text
+
+
+def test_creator_runtime_uses_gemini_text_adapter_without_agents_sdk(tmp_path: Path):
+    router = FakeGeminiRouter()
+    configured = settings(tmp_path, mock_ai=False, provider_allow_cloud=True)
+    runtime = CreatorRuntime(configured, provider_router=router)
+    spec = get_agent_spec(list_agent_cards()[0].id)
+    request = RunRequest(
+        agent_id=spec.id,
+        prompt="เขียนคำอธิบาย CK-NEXUS",
+        session_id="creator-gemini-test",
+        language="ไทย",
+    )
+
+    import asyncio
+
+    result = asyncio.run(runtime.run(spec, request))
+    assert result.mode == "gemini"
+    assert result.provider == "gemini"
+    assert result.model == "gemini-2.5-flash"
+    assert result.content == "Gemini single-model response."
+    assert router.invocations == 1

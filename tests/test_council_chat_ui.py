@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from creator_app.api import create_app
@@ -87,3 +88,33 @@ def test_full_system_demo_has_direct_council_chat_controls(tmp_path: Path) -> No
     assert "appendCouncilMessage" in javascript
     assert "PREVIOUS COUNCIL OUTPUT" in javascript
     assert "DEBATE คำตอบล่าสุด" not in javascript
+
+
+def test_chat_cors_allows_only_explicit_configured_origin(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("CKNEXUS_CHAT_ALLOWED_ORIGINS", "https://ck-nexus-ai.github.io")
+    with TestClient(create_app(settings(tmp_path))) as client:
+        allowed = client.options(
+            "/api/dev-team/run",
+            headers={
+                "Origin": "https://ck-nexus-ai.github.io",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization,content-type",
+            },
+        )
+        denied = client.options(
+            "/api/dev-team/run",
+            headers={
+                "Origin": "https://untrusted.example",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization,content-type",
+            },
+        )
+    assert allowed.status_code == 200
+    assert allowed.headers["access-control-allow-origin"] == "https://ck-nexus-ai.github.io"
+    assert "access-control-allow-origin" not in denied.headers
+
+
+def test_chat_cors_rejects_wildcard_origin_configuration(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("CKNEXUS_CHAT_ALLOWED_ORIGINS", "*")
+    with pytest.raises(RuntimeError, match="wildcard is forbidden"):
+        create_app(settings(tmp_path))

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -14,6 +15,7 @@ from creator_app.credential_broker import (
     CredentialId,
     CredentialUnavailable,
 )
+from creator_app.free_providers import GeminiAdapter
 from creator_app.provider_router import (
     ProviderCapabilities,
     ProviderKind,
@@ -179,6 +181,13 @@ def build_provider_router(settings: Settings, broker: CredentialBroker) -> Provi
             timeout_seconds=settings.provider_timeout_seconds,
         )
     )
+    if os.getenv("GEMINI_API_KEY", "").strip():
+        providers.append(
+            GeminiAdapter(
+                model=os.getenv("CKNEXUS_GEMINI_MODEL", "gemini-2.5-flash").strip(),
+                timeout_seconds=settings.provider_timeout_seconds,
+            )
+        )
     return ProviderRouter(
         providers,
         policy=ProviderRouterPolicy(
