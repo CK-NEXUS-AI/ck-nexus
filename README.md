@@ -120,6 +120,82 @@ python3 scripts/release_check.py
 
 Then follow the complete [Release Checklist](docs/RELEASE_CHECKLIST.md). A successful command is one piece of evidence, not a substitute for the full release decision.
 
+## Current operational snapshot — 2026-11-17
+
+This snapshot records the latest checks available for this maintenance update. It does not replace exact-commit release evidence or the [Q10–Q16 Closure Contract](docs/Q10_Q16_CLOSURE_CONTRACT.md).
+
+| Area | Observed state | What it means |
+|---|---|---|
+| Production release | **NO-GO / NOT VERIFIED** | Q10–Q16 are not all closed with current, exact-subject evidence. |
+| GitHub Actions | **BLOCKED — Billing Lock** | Recent workflow attempts were blocked before job steps ran. This is an account/organization billing restriction, not evidence of a code-test failure. |
+| PR #369 | **OPEN; remote branch unchanged** | A remediation patch exists only in an isolated VPS worktree. It has not been pushed, committed to GitHub, or merged. |
+| Local PR #369 verification | **PASS, local patch only** | 1,009 tests passed, 2 skipped; Ruff passed; Bandit reported 0 high/medium findings. These results do not certify the remote PR or current main. |
+| Gitleaks | **REVIEW REQUIRED** | The latest local scan reported the empty CKNEXUS_ACCESS_TOKEN example in .env.example as a false positive; confirm scanner output before treating the scan as clean. |
+| Q10–Q16 | **NOT VERIFIED for Production** | Do not promote a release based on the local PR test run or historical gate reports. |
+
+The PR #369 local remediation patch and its verification record are stored on the VPS under:
+
+~~~text
+/opt/cknexus/evidence/pr369-remediations-20261117/
+~~~
+
+Patch SHA-256:
+
+~~~text
+1ddb0c591cb35b1514f41f77f3406c64d1b884d17f78094c74c5e72f4fe63c3a
+~~~
+
+This is local evidence only. The GitHub PR remains unchanged until a reviewed patch is deliberately committed and pushed. No merge or deployment is implied.
+
+### GitHub Actions Billing Lock — Termux setup and safe checks
+
+Install GitHub CLI in Termux:
+
+~~~bash
+pkg update -y
+pkg install gh -y
+gh auth login --hostname github.com --git-protocol https --web
+gh auth status
+~~~
+
+Use the browser/device login flow where possible. Do not paste a personal access token into chat, a README, shell history, or logs. Do not print the token with gh auth token.
+
+Check usage with the consolidated billing usage API. The older product-specific /settings/billing/actions endpoint has been retired:
+
+~~~bash
+gh api /users/USERNAME/settings/billing/usage
+~~~
+
+For an organization, use the organization usage endpoint if your account has permission:
+
+~~~bash
+gh api /orgs/ORG/settings/billing/usage
+~~~
+
+The response contains usageItems; it does not use the old total_minutes_used field. A 403 means the authenticated account lacks access or the endpoint is restricted; it does not prove that the Actions minutes quota was exhausted.
+
+**Important:** Clearing Actions caches or deleting artifacts may reclaim storage, but it does not unlock a billing-locked account. Artifact deletion is irreversible. Changing a private repository to public is not a general Billing Lock fix and must not be done just to try to restart workflows.
+
+The account or organization owner should open GitHub **Settings → Billing & licensing → Payment information**, review the billing notice/payment status, and follow GitHub's unlock instructions. If the billing page shows no actionable issue, contact [GitHub Support](https://support.github.com/contact). Do not retry blocked workflows until the billing lock is cleared.
+
+After the owner confirms the account is unlocked, inspect recent runs:
+
+~~~bash
+gh run list --repo CK-NEXUS-AI/ck-nexus --limit 5
+~~~
+
+Only rerun a specific failed run after checking its cause and confirming the billing restriction is gone:
+
+~~~bash
+gh run rerun RUN_ID --repo CK-NEXUS-AI/ck-nexus
+~~~
+
+References: [GitHub CLI authentication](https://cli.github.com/manual/gh_auth_login) · [Billing usage API](https://docs.github.com/en/rest/billing/usage) · [Unlocking a locked account](https://docs.github.com/en/billing/how-tos/troubleshooting/locked-account) · [Removing workflow artifacts](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/remove-workflow-artifacts).
+
+### Documentation freshness warning
+
+At the time of this README update, RELEASE_STATUS.md still contains a 2026-10-31 baseline and historical commit/run references. Reconcile that document against the current repository head and newly generated Q10–Q16 evidence before using it as a current release attestation. This README intentionally keeps the conservative NO-GO decision and does not silently rewrite historical evidence.
+
 ## Engineering records
 
 Implementation phases and historical milestones (including R-series and Agnes Execution Kernel phases) are documented as engineering records under [docs/](docs/). They describe the evolution and validation of individual capabilities; they are not separate products, runtime entry points, or independent Production certifications.
