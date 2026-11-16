@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Keep Remote MCP loopback-only until real verifier and edge canaries pass.
-- Enforce resource binding in the JWT verifier through the audience claim and in the attested verifier through an exact `AccessToken.resource` comparison; do not pass unsupported `validate_token_resource` settings to the MCP SDK.
+- Enforce resource binding in the JWT verifier through the audience claim, in the attested verifier through an exact `AccessToken.resource` comparison, and in MCP `AuthSettings` with `validate_token_resource=True` (supported by the currently installed SDK).
 - Required scope remains exactly `cknexus:read`.
 - Maximum token lifetime remains 15 minutes.
 - Verify JWT signature with an explicit asymmetric algorithm allow-list; never infer security policy from the token `alg` header.

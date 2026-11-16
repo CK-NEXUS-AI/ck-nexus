@@ -20,12 +20,16 @@ class AuthorityStore:
         with contextlib.suppress(OSError):
             Path(self.path).chmod(0o600)
 
+    @contextlib.contextmanager
     def _db(self):
         db = sqlite3.connect(self.path, timeout=30, isolation_level=None)
-        db.execute("PRAGMA busy_timeout=30000")
-        db.execute("PRAGMA synchronous=FULL")
-        db.row_factory = sqlite3.Row
-        return db
+        try:
+            db.execute("PRAGMA busy_timeout=30000")
+            db.execute("PRAGMA synchronous=FULL")
+            db.row_factory = sqlite3.Row
+            yield db
+        finally:
+            db.close()
 
     def _init(self):
         with self._db() as db:
@@ -175,8 +179,7 @@ class AuthorityStore:
     ) -> bool:
         # Explicitly close every connection and rollback every failed transaction.
         # Expiry and used-state checks happen under the same write lock as consume.
-        with self._lock:
-            db = self._db()
+        with self._lock, self._db() as db:
             try:
                 db.execute("BEGIN IMMEDIATE")
                 row = db.execute("SELECT * FROM grants WHERE grant_id=?", (grant_id,)).fetchone()
@@ -199,5 +202,3 @@ class AuthorityStore:
                     with contextlib.suppress(sqlite3.Error):
                         db.execute("ROLLBACK")
                 raise
-            finally:
-                db.close()

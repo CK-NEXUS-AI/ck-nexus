@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-import tempfile
 import time
 from pathlib import Path
 
@@ -30,28 +29,26 @@ class Broker:
         return self.allowed
 
 
-def make():
-    d = tempfile.TemporaryDirectory()
-    store = AuthorityStore(str(Path(d.name) / "a.db"))
+def make(tmp_path: Path):
+    store = AuthorityStore(str(tmp_path / "authority.db"))
     ids = IdentityVerifier(b"i" * 32)
     auth = CapabilityAuthority(
         CONTRACT, store=store, broker_adapter=Broker(), grant_secret=b"g" * 32
     )
-    return d, store, ids, auth
+    return store, ids, auth
 
 
-def test_identity_is_derived_from_signed_token_and_tamper_fails():
-    d, s, ids, a = make()
+def test_identity_is_derived_from_signed_token_and_tamper_fails(tmp_path):
+    s, ids, a = make(tmp_path)
     token = ids.issue(service_id="svc", agent_id="COUNCIL-03")
     ident = ids.verify(token)
     assert ident.agent_id == "COUNCIL-03"
     with pytest.raises(IdentityError):
         ids.verify(token[:-1] + ("A" if token[-1] != "A" else "B"))
-        d.cleanup()
 
 
-def test_missing_or_fake_evidence_is_denied_before_execution():
-    d, s, ids, a = make()
+def test_missing_or_fake_evidence_is_denied_before_execution(tmp_path):
+    s, ids, a = make(tmp_path)
     ident = ids.verify(ids.issue(service_id="svc", agent_id="COUNCIL-03"))
     with pytest.raises(PolicyDenied) as e:
         a.enforce(ident, "council.engineering.inspect_repo", {"repo": "ck-nexus"}, {"taskId": "t1"})
@@ -63,11 +60,10 @@ def test_missing_or_fake_evidence_is_denied_before_execution():
             {"repo": "ck-nexus"},
             {"taskId": "t1", "evidenceRef": "trust-me"},
         )
-        d.cleanup()
 
 
-def test_verified_evidence_and_params_bound_one_time_grant():
-    d, s, ids, a = make()
+def test_verified_evidence_and_params_bound_one_time_grant(tmp_path):
+    s, ids, a = make(tmp_path)
     ident = ids.verify(ids.issue(service_id="svc", agent_id="COUNCIL-03"))
     digest = hashlib.sha256(b"commit").hexdigest()
     s.seed_evidence(ref="git:repo@abc", kind="git_commit", digest=digest, task_id="t1", quality=1)
@@ -88,11 +84,10 @@ def test_verified_evidence_and_params_bound_one_time_grant():
         {"taskId": "t1", "evidenceRef": "git:repo@abc"},
     )
     assert a.consume_grant(ident, out["executionGrant"], {"repo": "other"}) is False
-    d.cleanup()
 
 
-def test_credential_denial_is_fail_closed():
-    d, s, ids, a = make()
+def test_credential_denial_is_fail_closed(tmp_path):
+    s, ids, a = make(tmp_path)
     a.broker = Broker(False)
     ident = ids.verify(ids.issue(service_id="svc", agent_id="COUNCIL-03"))
     s.seed_evidence(ref="git:x", kind="git_commit", digest="a" * 64, task_id="t", quality=1)
@@ -101,11 +96,10 @@ def test_credential_denial_is_fail_closed():
             ident, "council.engineering.inspect_repo", {}, {"taskId": "t", "evidenceRef": "git:x"}
         )
         assert e.value.code == "CREDENTIAL_DENIED"
-        d.cleanup()
 
 
-def test_safety_veto_requires_authorization_and_verified_evidence():
-    d, s, ids, a = make()
+def test_safety_veto_requires_authorization_and_verified_evidence(tmp_path):
+    s, ids, a = make(tmp_path)
     arb = ArbitrationEngine(CONTRACT, s)
     p = Proposal("COUNCIL-04", "ship", [], 0.9, "high", "", True)
     out = arb.resolve("d", "security", [p], high_risk=True)
@@ -115,11 +109,10 @@ def test_safety_veto_requires_authorization_and_verified_evidence():
     out = arb.resolve("d2", "security", [p, veto], high_risk=True)
     assert out["status"] == "BLOCKED_SAFETY_VETO"
     assert out["vetoBy"] == "COUNCIL-03"
-    d.cleanup()
 
 
-def test_admin_only_topup_capability():
-    d, s, ids, a = make()
+def test_admin_only_topup_capability(tmp_path):
+    s, ids, a = make(tmp_path)
     agent = ids.verify(ids.issue(service_id="svc", agent_id="COUNCIL-03"))
     with pytest.raises(PolicyDenied):
         a.enforce(agent, "system.budget.top_up", {"taskId": "x", "amount": 5}, {"taskId": "admin"})
@@ -128,16 +121,14 @@ def test_admin_only_topup_capability():
         owner, "system.budget.top_up", {"taskId": "x", "amount": 5}, {"taskId": "admin"}
     )
     assert out["approved"]
-    d.cleanup()
 
 
-def test_audit_hash_chain_changes_each_record():
-    d, s, ids, a = make()
+def test_audit_hash_chain_changes_each_record(tmp_path):
+    s, ids, a = make(tmp_path)
     r1 = s.append_audit({"x": 1})
     r2 = s.append_audit({"x": 2})
     assert r2["previous_hash"] == r1["entry_hash"]
     assert r1["entry_hash"] != r2["entry_hash"]
-    d.cleanup()
 
 
 def test_authority_grant_consume_is_atomic_across_store_instances_and_restart(tmp_path):
@@ -185,7 +176,7 @@ def test_authority_grant_consume_is_atomic_across_store_instances_and_restart(tm
 
 
 def test_authority_consume_fails_closed_when_database_is_unavailable(tmp_path):
-    d, store, ids, authority = make()
+    store, ids, authority = make(tmp_path)
     identity = ids.verify(ids.issue(service_id="svc", agent_id="COUNCIL-03"))
     digest = hashlib.sha256(b"commit").hexdigest()
     store.seed_evidence(
@@ -202,7 +193,6 @@ def test_authority_consume_fails_closed_when_database_is_unavailable(tmp_path):
     store.path = str(tmp_path / "missing-parent" / "authority.db")
     with pytest.raises(sqlite3.OperationalError):
         authority.consume_grant(identity, grant, params)
-    d.cleanup()
 
 
 def _issue_test_grant(tmp_path, *, task_id="transaction-audit", ttl_seconds=60):
@@ -309,12 +299,18 @@ def test_sqlite_busy_fails_closed_without_consuming_grant(tmp_path, monkeypatch)
     lock.execute("BEGIN IMMEDIATE")
     original_db = store._db
 
+    from contextlib import contextmanager
+
+    @contextmanager
     def zero_timeout_connection():
         db = sqlite3.connect(store.path, timeout=0, isolation_level=None)
-        db.execute("PRAGMA busy_timeout=0")
-        db.execute("PRAGMA synchronous=FULL")
-        db.row_factory = sqlite3.Row
-        return db
+        try:
+            db.execute("PRAGMA busy_timeout=0")
+            db.execute("PRAGMA synchronous=FULL")
+            db.row_factory = sqlite3.Row
+            yield db
+        finally:
+            db.close()
 
     monkeypatch.setattr(store, "_db", zero_timeout_connection)
     try:
@@ -332,3 +328,55 @@ def test_sqlite_busy_fails_closed_without_consuming_grant(tmp_path, monkeypatch)
         assert row["used"] == 0
     assert authority.consume_grant(identity, grant, params) is True
     assert authority.consume_grant(identity, grant, params) is False
+
+
+def _signed_identity_token(payload: dict[str, object], secret: bytes = b"i" * 32) -> str:
+    import base64
+
+    body = base64.urlsafe_b64encode(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).rstrip(b"=").decode()
+    signature = base64.urlsafe_b64encode(
+        __import__("hmac").new(secret, body.encode(), hashlib.sha256).digest()
+    ).rstrip(b"=").decode()
+    return f"{body}.{signature}"
+
+
+def test_identity_verifier_rejects_invalid_claims_and_time_bounds():
+    now = int(time.time())
+    verifier = IdentityVerifier(b"i" * 32)
+    base = {
+        "iss": "ck-nexus",
+        "service_id": "svc",
+        "agent_id": "agent",
+        "role": "agent",
+        "iat": now,
+        "exp": now + 30,
+    }
+    invalid_payloads = [
+        {**base, "iss": "other"},
+        {**base, "service_id": ""},
+        {**base, "iat": now + 120, "exp": now + 180},
+        {**base, "iat": now - 1, "exp": now + 901},
+        {**base, "iat": True},
+    ]
+    for payload in invalid_payloads:
+        with pytest.raises(IdentityError):
+            verifier.verify(_signed_identity_token(payload))
+
+
+def test_identity_verifier_rejects_oversized_and_malformed_tokens():
+    verifier = IdentityVerifier(b"i" * 32)
+    for token in ("", "not-a-token", "a.b.c", "x" * (verifier.MAX_TOKEN_BYTES + 1)):
+        with pytest.raises(IdentityError):
+            verifier.verify(token)
+
+
+def test_identity_verifier_bounds_issued_token_lifetime_and_claims():
+    verifier = IdentityVerifier(b"i" * 32)
+    with pytest.raises(ValueError, match="TTL"):
+        verifier.issue(service_id="svc", agent_id="agent", ttl_seconds=verifier.MAX_TTL_SECONDS + 1)
+    with pytest.raises(ValueError, match="service_id"):
+        verifier.issue(service_id=" ", agent_id="agent")
+    with pytest.raises(ValueError, match="issuer"):
+        IdentityVerifier(b"i" * 32, issuer=" ")

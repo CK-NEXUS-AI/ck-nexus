@@ -18,7 +18,7 @@ It does not authorize a public endpoint, create DNS, create a tunnel, mint crede
 
 - Remote MCP remains loopback-only until a real verifier and edge controls are independently verified.
 - `build_remote_server()` must continue to receive a real `TokenVerifier`; no static/fake verifier may be used outside tests.
-- Resource binding is enforced by the JWT audience check and the attested verifier's exact `AccessToken.resource` comparison; the installed MCP SDK `AuthSettings` has no `validate_token_resource` field.
+- Resource binding is enforced by the JWT audience check, the attested verifier's exact `AccessToken.resource` comparison, and `AuthSettings.validate_token_resource=True`; the installed SDK exposes this setting and a regression test asserts it.
 - Required scope remains exactly `cknexus:read` and scope authorization remains owned by MCP middleware.
 - `AttestedTokenVerifier` remains the CK-NEXUS policy layer for resource, issuer, expiry, issued-at, token lifetime, and exact build attestation.
 - Access tokens, refresh tokens, private keys, and authorization headers must never be logged, committed, or written to evidence.

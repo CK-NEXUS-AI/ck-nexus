@@ -66,8 +66,11 @@ async def db_session():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     Session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    async with Session() as session:
-        yield session
+    try:
+        async with Session() as session:
+            yield session
+    finally:
+        await engine.dispose()
 
 
 @pytest.mark.asyncio
