@@ -220,7 +220,7 @@ class DevTeamRuntime:
             if multi_agent is not None:
                 return True
             text_provider = self.provider_router.preferred_status(required_capabilities={"text"})
-            return text_provider is not None and text_provider.name == "gemini"
+            return text_provider is not None
         return self.credential_broker.is_configured(
             CredentialId.OPENAI_API_KEY, consumer="council.openai"
         )
@@ -251,10 +251,10 @@ class DevTeamRuntime:
                 preferred_text = self.provider_router.preferred_status(
                     required_capabilities={"text"}
                 )
-                if preferred_text is None or preferred_text.name != "gemini":
+                if preferred_text is None:
                     raise MissingCredentialError(
                         "No eligible CK-NEXUS chat provider is ready. "
-                        "Configure an Agents-SDK provider or the approved Gemini text fallback."
+                        "Configure an Agents-SDK provider or an approved free text provider."
                     )
                 if request.consult_mode == "debate":
                     raise ProviderRuntimeError(
@@ -262,20 +262,27 @@ class DevTeamRuntime:
                         "the multi-agent Agents SDK runtime."
                     )
                 try:
-                    selected = await self.provider_router.invoke_named(
-                        "gemini",
+                    selected = await self.provider_router.route(
                         self._build_single_model_input(request),
                         required_capabilities={"text"},
                     )
                 except Exception as exc:
                     raise ProviderRuntimeError(
-                        "The Gemini chat provider could not complete this request safely."
+                        "The selected chat provider could not complete this request safely."
                     ) from exc
                 content = selected.output
                 provider_name = selected.provider
-                mode = "gemini"
-                models = getattr(getattr(preferred_text, "capabilities", None), "models", ())
-                model_name = models[0] if models else "gemini-2.5-flash"
+                mode = selected.provider
+                selected_status = next(
+                    (
+                        item
+                        for item in self.provider_router.statuses()
+                        if item.name == selected.provider
+                    ),
+                    None,
+                )
+                models = getattr(getattr(selected_status, "capabilities", None), "models", ())
+                model_name = models[0] if models else selected.provider
                 fallback_single_model = True
             else:
                 if preferred_multi_agent is not None and preferred_multi_agent.name != "openai":
@@ -296,7 +303,7 @@ class DevTeamRuntime:
         metadata = self._result_metadata(request, content)
         if fallback_single_model:
             metadata = {
-                "workflow": ["GEMINI_SINGLE_MODEL_FALLBACK"],
+                "workflow": [f"{provider_name.upper()}_SINGLE_MODEL_FALLBACK"],
                 "debate_status": None,
                 "consensus_score": None,
                 "evidence_ref_count": None,
@@ -335,7 +342,7 @@ class DevTeamRuntime:
         }
         return (
             f"{TEAM_BASE_INSTRUCTIONS}\n\n"
-            "RUNTIME MODE: GEMINI SINGLE-MODEL FALLBACK. "
+            "RUNTIME MODE: SINGLE-MODEL FREE-PROVIDER FALLBACK. "
             "You are one model, not five independent agents. "
             "Do not claim separate specialists were called, web search was performed, "
             "or tools were executed. "

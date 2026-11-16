@@ -989,6 +989,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "policy": {
                 "local_first": provider_router.policy.local_first,
                 "allow_cloud": provider_router.policy.allow_cloud,
+                "free_only": os.getenv("CKNEXUS_FREE_ONLY", "").strip().lower()
+                in {"1", "true", "yes", "on"},
                 "max_attempts": provider_router.policy.max_attempts,
             },
             "providers": providers,
@@ -1266,13 +1268,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 if preferred_agents.capabilities.models
                 else resolved_settings.openai_model
             )
-        elif preferred_text is not None and preferred_text.name == "gemini":
-            provider_name = "gemini"
+        elif preferred_text is not None:
+            provider_name = preferred_text.name
             chat_mode = "single-model-fallback"
             model_name = (
                 preferred_text.capabilities.models[0]
                 if preferred_text.capabilities.models
-                else "gemini-2.5-flash"
+                else preferred_text.name
             )
         else:
             provider_name = "blocked"
@@ -1317,8 +1319,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
             "side_effect_policy": "advisory-only; execution requires a separate gated path",
             "provider_notice": (
-                "Gemini single-model fallback: no separate specialist calls, "
-                "no web search, and no tool execution."
+                "Single-model fallback: no separate specialist calls, "
+                "no live web search, and no tool execution."
                 if chat_mode == "single-model-fallback"
                 else None
             ),
@@ -1361,13 +1363,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 if preferred_agents.capabilities.models
                 else resolved_settings.openai_model
             )
-        elif preferred_text is not None and preferred_text.name == "gemini":
-            provider_name = "gemini"
+        elif preferred_text is not None:
+            provider_name = preferred_text.name
             chat_mode = "single-model-fallback"
             model_name = (
                 preferred_text.capabilities.models[0]
                 if preferred_text.capabilities.models
-                else "gemini-2.5-flash"
+                else preferred_text.name
             )
         else:
             provider_name, chat_mode, model_name = (

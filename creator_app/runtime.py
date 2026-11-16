@@ -86,16 +86,23 @@ class CreatorRuntime:
                 )
             if preferred.name not in {"openai", "ollama"}:
                 try:
-                    selected = await self.provider_router.invoke_named(
-                        preferred.name,
+                    selected = await self.provider_router.route(
                         self._build_provider_prompt(spec, request),
                         required_capabilities={"text"},
                     )
                 except ProviderRouteError as exc:
                     raise ProviderRuntimeError(
-                        "The selected AI provider could not complete this request safely."
+                        "The configured AI providers could not complete this request safely."
                     ) from exc
-                models = getattr(preferred.capabilities, "models", ())
+                selected_status = next(
+                    (
+                        item
+                        for item in self.provider_router.statuses()
+                        if item.name == selected.provider
+                    ),
+                    None,
+                )
+                models = getattr(getattr(selected_status, "capabilities", None), "models", ())
                 return RuntimeSelection(
                     content=selected.output,
                     mode=selected.provider,

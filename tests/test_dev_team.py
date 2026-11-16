@@ -125,32 +125,62 @@ def test_dev_team_mock_debate_reuses_existing_council(tmp_path: Path, monkeypatc
 
 
 class FakeGeminiRouter:
-    def __init__(self):
+    def __init__(self, provider_name="gemini", model="gemini-2.5-flash"):
         self.prompt = ""
         self.invocations = 0
+        self.provider_name = provider_name
+        self.model = model
 
     def preferred_status(self, *, required_capabilities=()):
         if "agents-sdk" in set(required_capabilities):
             return None
         if "text" in set(required_capabilities):
             return SimpleNamespace(
-                name="gemini",
-                capabilities=SimpleNamespace(models=("gemini-2.5-flash",)),
+                name=self.provider_name,
+                capabilities=SimpleNamespace(models=(self.model,)),
             )
         return None
 
-    async def invoke_named(self, provider_name, prompt, *, required_capabilities=()):
-        assert provider_name == "gemini"
+    def statuses(self):
+        return [
+            SimpleNamespace(
+                name=self.provider_name,
+                capabilities=SimpleNamespace(models=(self.model,)),
+            )
+        ]
+
+    async def route(self, prompt, *, required_capabilities=()):
         assert "text" in set(required_capabilities)
         self.prompt = prompt
         self.invocations += 1
-        return SimpleNamespace(provider="gemini", output="Gemini single-model response.")
+        return SimpleNamespace(
+            provider=self.provider_name,
+            output=(
+                "Gemini single-model response."
+                if self.provider_name == "gemini"
+                else f"{self.provider_name} single-model response."
+            ),
+        )
+
+    async def invoke_named(self, provider_name, prompt, *, required_capabilities=()):
+        assert provider_name == self.provider_name
+        assert "text" in set(required_capabilities)
+        self.prompt = prompt
+        self.invocations += 1
+        return SimpleNamespace(
+            provider=self.provider_name,
+            output=(
+                "Gemini single-model response."
+                if self.provider_name == "gemini"
+                else f"{self.provider_name} single-model response."
+            ),
+        )
 
     def report_failure(self, provider_name):
-        raise AssertionError("Fallback failure reporting is owned by ProviderRouter.")
+        raise AssertionError("ProviderRouter owns fallback failure reporting.")
 
     def report_success(self, provider_name):
-        raise AssertionError("Gemini invoke_named owns provider health reporting.")
+        raise AssertionError("ProviderRouter owns fallback success reporting.")
 
 
 def test_gemini_single_model_fallback_is_ready_and_truthfully_labelled(tmp_path: Path):
@@ -191,8 +221,34 @@ def test_gemini_single_model_prompt_uses_real_line_breaks(tmp_path: Path):
         language="ไทย",
     )
     prompt = DevTeamRuntime._build_single_model_input(request)
-    assert "\n\nRUNTIME MODE: GEMINI SINGLE-MODEL FALLBACK" in prompt
+    assert "\n\nRUNTIME MODE: SINGLE-MODEL FREE-PROVIDER FALLBACK" in prompt
     assert "\\n" not in prompt
+
+
+def test_openrouter_free_provider_can_serve_single_model_fallback(tmp_path: Path):
+    router = FakeGeminiRouter(provider_name="openrouter", model="openrouter/free")
+    runtime = DevTeamRuntime(
+        settings(tmp_path, mock_ai=False, provider_allow_cloud=True),
+        provider_router=router,
+    )
+    request = DevTeamRequest(
+        prompt="ช่วยสรุปแผนงาน",
+        session_id="openrouter-fallback-test",
+        consult_mode="council",
+        language="ไทย",
+    )
+
+    import asyncio
+
+    result = asyncio.run(runtime.run(request))
+
+    assert runtime.ready is True
+    assert result.mode == "openrouter"
+    assert result.provider == "openrouter"
+    assert result.model == "openrouter/free"
+    assert result.workflow == ["OPENROUTER_SINGLE_MODEL_FALLBACK"]
+    assert "one model, not five independent agents" in router.prompt
+    assert router.invocations == 1
 
 
 def test_gemini_single_model_fallback_blocks_debate_mode(tmp_path: Path):
@@ -220,6 +276,9 @@ def test_configured_gemini_provider_enables_truthful_single_model_chat_status(
 ):
     monkeypatch.setenv("GEMINI_API_KEY", "test-only-not-a-real-key")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.delenv("CKNEXUS_ENABLE_OPENROUTER_FREE", raising=False)
+    monkeypatch.delenv("CKNEXUS_FREE_ONLY", raising=False)
     configured = settings(
         tmp_path,
         mock_ai=False,
@@ -230,7 +289,7 @@ def test_configured_gemini_provider_enables_truthful_single_model_chat_status(
     preferred = router.preferred_status(required_capabilities={"text"})
     assert preferred is not None
     assert preferred.name == "gemini"
-    assert preferred.capabilities.models[0] == "gemini-2.5-flash"
+    assert preferred.capabilities.models[0] == "gemini-3.8-flash"
 
     with TestClient(create_app(configured)) as client:
         status = client.get("/api/status")
@@ -247,7 +306,7 @@ def test_configured_gemini_provider_enables_truthful_single_model_chat_status(
     assert chat_status.json()["execution_status"] == "NOT_EXECUTED"
     assert status.status_code == 200
     assert status.json()["mode"] == "gemini"
-    assert status.json()["model"] == "gemini-2.5-flash"
+    assert status.json()["model"] == "gemini-3.8-flash"
     assert roster.status_code == 200
     body = roster.json()
     assert body["ready"] is True
@@ -255,6 +314,24 @@ def test_configured_gemini_provider_enables_truthful_single_model_chat_status(
     assert body["single_model_fallback"] is True
     assert body["web_search_enabled"] is False
     assert body["debate"]["enabled"] is False
+
+
+def test_free_only_router_uses_gemini_and_openrouter_without_paid_openai(
+    tmp_path: Path, monkeypatch
+):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
+    monkeypatch.setenv("CKNEXUS_ENABLE_OPENROUTER_FREE", "true")
+    monkeypatch.setenv("CKNEXUS_FREE_ONLY", "true")
+    configured = settings(tmp_path, mock_ai=False, provider_allow_cloud=True)
+
+    router = build_provider_router(configured, CredentialBroker.from_environment())
+    statuses = router.statuses()
+    names = [item.name for item in statuses]
+
+    assert names == ["gemini", "openrouter"]
+    assert all(item.available for item in statuses)
+    assert router.preferred_status(required_capabilities={"text"}).name == "gemini"
 
 
 def test_chat_endpoint_requires_a_dedicated_chat_token(tmp_path: Path):
@@ -313,6 +390,28 @@ def test_chat_token_is_scoped_to_chat_routes_and_agnes_plan_is_read_only(tmp_pat
     assert isinstance(body["agnes"]["selected_skills"], list)
     assert "workspace" not in body["agnes"]
     assert "/opt/" not in allowed.text
+
+
+def test_creator_runtime_uses_openrouter_free_fallback_when_selected(tmp_path: Path):
+    router = FakeGeminiRouter(provider_name="openrouter", model="openrouter/free")
+    configured = settings(tmp_path, mock_ai=False, provider_allow_cloud=True)
+    runtime = CreatorRuntime(configured, provider_router=router)
+    spec = get_agent_spec(list_agent_cards()[0].id)
+    request = RunRequest(
+        agent_id=spec.id,
+        prompt="ช่วยสรุป CK-NEXUS",
+        session_id="creator-openrouter-test",
+        language="ไทย",
+    )
+
+    import asyncio
+
+    result = asyncio.run(runtime.run(spec, request))
+
+    assert result.mode == "openrouter"
+    assert result.provider == "openrouter"
+    assert result.model == "openrouter/free"
+    assert result.content == "openrouter single-model response."
 
 
 def test_creator_runtime_uses_gemini_text_adapter_without_agents_sdk(tmp_path: Path):

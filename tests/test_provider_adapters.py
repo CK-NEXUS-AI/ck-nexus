@@ -56,3 +56,10 @@ async def test_openai_adapter_uses_broker_without_exposing_key() -> None:
     assert result == "provider result"
     assert captured["api_key"] == "sk-provider-secret"
     assert "sk-provider-secret" not in repr(adapter.__dict__)
+
+
+def test_paid_openai_adapter_is_disabled_in_free_only_mode(monkeypatch) -> None:
+    monkeypatch.setenv("CKNEXUS_FREE_ONLY", "true")
+    broker = CredentialBroker(environment={CredentialId.OPENAI_API_KEY: "sk-test"})
+    adapter = OpenAIProviderAdapter(broker, model="gpt-test")
+    assert adapter.is_available() is False

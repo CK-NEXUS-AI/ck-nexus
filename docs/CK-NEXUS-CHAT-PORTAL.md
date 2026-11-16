@@ -47,3 +47,14 @@ The frontend is published from the repository's feat/ck-nexus-test-portal branch
 The public ingress is a separate loopback proxy on port 8102. It forwards only GET /api/chat/status and POST /api/chat to the Creator API on port 8000. It does not expose the other Creator API routes, does not forward cookies, limits request bodies to 64 KiB, and permits only the exact GitHub Pages HTTPS origin. Cloudflare Quick Tunnel points to this proxy, not directly to the full Creator API. The existing read-only evidence tunnel remains unchanged.
 
 The current temporary API URL is https://chosen-shuttle-looked-musical.trycloudflare.com and is prefilled in the Chat settings. Cloudflare Quick Tunnel assigns a temporary hostname that can change if the tunnel is recreated. A stable production URL requires a named Cloudflare Tunnel and a verified domain; do not treat the temporary URL as a production endpoint.
+
+
+## Free-provider routing
+
+The Creator API can run in CKNEXUS_FREE_ONLY=true mode. In that mode the paid OpenAI adapter is not registered, even if the legacy OpenAI credential exists. The currently approved cloud route is Google Gemini free-tier first, followed by OpenRouter's openrouter/free router, which selects only models advertised at zero token price. Both providers are enabled explicitly by server-side environment configuration.
+
+Gemini's free-tier prompts may be used by Google to improve products. Do not submit credentials, private keys, customer personal data, or confidential CK-NEXUS evidence to free hosted providers. OpenRouter's free model availability and provider-side data terms can vary by selected model; review the model/provider terms before using sensitive data.
+
+The existing Groq key returned HTTP 403 during a read-only /models check and is not routed. The existing Qwen key authenticated only against a Singapore Model Studio endpoint. Alibaba's current free-quota documentation says the general new-user free quota is available only in China (Beijing), not Singapore, so Qwen is not enabled for automatic free routing. OpenAI remains disabled in free-only mode.
+
+A successful /models check verifies key authentication and endpoint reachability only. It does not prove inference quota, model entitlement, or a successful chat completion.
