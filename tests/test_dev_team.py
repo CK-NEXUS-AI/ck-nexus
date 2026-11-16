@@ -220,7 +220,12 @@ def test_configured_gemini_provider_enables_truthful_single_model_chat_status(
 ):
     monkeypatch.setenv("GEMINI_API_KEY", "test-only-not-a-real-key")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    configured = settings(tmp_path, mock_ai=False, provider_allow_cloud=True)
+    configured = settings(
+        tmp_path,
+        mock_ai=False,
+        provider_allow_cloud=True,
+        chat_access_token="chat-status-test-token",
+    )
     router = build_provider_router(configured, CredentialBroker.from_environment())
     preferred = router.preferred_status(required_capabilities={"text"})
     assert preferred is not None
@@ -230,7 +235,16 @@ def test_configured_gemini_provider_enables_truthful_single_model_chat_status(
     with TestClient(create_app(configured)) as client:
         status = client.get("/api/status")
         roster = client.get("/api/dev-team")
+        chat_status = client.get(
+            "/api/chat/status",
+            headers={"Authorization": "Bearer chat-status-test-token"},
+        )
 
+    assert chat_status.status_code == 200
+    assert chat_status.json()["ready"] is True
+    assert chat_status.json()["provider"] == "gemini"
+    assert chat_status.json()["chat_mode"] == "single-model-fallback"
+    assert chat_status.json()["execution_status"] == "NOT_EXECUTED"
     assert status.status_code == 200
     assert status.json()["mode"] == "gemini"
     assert status.json()["model"] == "gemini-2.5-flash"
@@ -243,23 +257,51 @@ def test_configured_gemini_provider_enables_truthful_single_model_chat_status(
     assert body["debate"]["enabled"] is False
 
 
-def test_chat_endpoint_requires_configured_access_token(tmp_path: Path):
-    with TestClient(create_app(settings(tmp_path, access_token=""))) as client:
-        response = client.post("/api/chat", json=payload())
+def test_chat_endpoint_requires_a_dedicated_chat_token(tmp_path: Path):
+    configured = settings(tmp_path, access_token="global-api-token", chat_access_token="")
+    with TestClient(create_app(configured)) as client:
+        response = client.post(
+            "/api/chat",
+            headers={"Authorization": "Bearer global-api-token"},
+            json=payload(),
+        )
     assert response.status_code == 503
     assert response.json()["detail"]["error"] == "CHAT_AUTH_NOT_CONFIGURED"
 
 
-def test_chat_endpoint_uses_agnes_plan_without_executing_skills(tmp_path: Path):
-    configured = settings(tmp_path, access_token="chat-test-token", mock_ai=True)
+def test_chat_token_is_scoped_to_chat_routes_and_agnes_plan_is_read_only(tmp_path: Path):
+    configured = settings(
+        tmp_path,
+        access_token="global-api-token",
+        chat_access_token="chat-only-test-token",
+        mock_ai=True,
+    )
     with TestClient(create_app(configured)) as client:
+        global_token_chat = client.post(
+            "/api/chat",
+            headers={"Authorization": "Bearer global-api-token"},
+            json=payload(),
+        )
+        chat_token_roster = client.get(
+            "/api/dev-team",
+            headers={"Authorization": "Bearer chat-only-test-token"},
+        )
+        status = client.get(
+            "/api/chat/status",
+            headers={"Authorization": "Bearer chat-only-test-token"},
+        )
         denied = client.post("/api/chat", json=payload())
         allowed = client.post(
             "/api/chat",
-            headers={"Authorization": "Bearer chat-test-token"},
+            headers={"Authorization": "Bearer chat-only-test-token"},
             json=payload(consult_mode="auto"),
         )
 
+    assert global_token_chat.status_code == 401
+    assert chat_token_roster.status_code == 401
+    assert status.status_code == 200
+    assert status.json()["ready"] is True
+    assert status.json()["execution_status"] == "NOT_EXECUTED"
     assert denied.status_code == 401
     assert allowed.status_code == 200
     body = allowed.json()

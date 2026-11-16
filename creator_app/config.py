@@ -53,6 +53,7 @@ class Settings:
     database_path: Path = RUNTIME_ROOT / "data" / "cknexus.db"
     mock_ai: bool = False
     access_token: str = ""
+    chat_access_token: str = ""
     max_prompt_chars: int = 8_000
     history_limit: int = 30
     rate_limit_per_minute: int = 10
@@ -210,6 +211,7 @@ class Settings:
             database_path=database_path,
             mock_ai=_as_bool(os.getenv("CKNEXUS_MOCK_AI"), default=False),
             access_token=os.getenv("CKNEXUS_ACCESS_TOKEN", ""),
+            chat_access_token=os.getenv("CKNEXUS_CHAT_ACCESS_TOKEN", ""),
             max_prompt_chars=_as_int(
                 os.getenv("CKNEXUS_MAX_PROMPT_CHARS"),
                 default=8_000,

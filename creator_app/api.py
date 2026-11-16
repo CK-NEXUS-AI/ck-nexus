@@ -305,6 +305,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 },
             )
 
+    def require_chat_access_token(
+        authorization: str | None = Header(default=None),
+    ) -> None:
+        expected = resolved_settings.chat_access_token
+        if not expected:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "error": "CHAT_AUTH_NOT_CONFIGURED",
+                    "message": "A dedicated CK-NEXUS Chat token is not configured.",
+                },
+            )
+        supplied = ""
+        if authorization and authorization.startswith("Bearer "):
+            supplied = authorization.removeprefix("Bearer ").strip()
+        if not supplied or not hmac.compare_digest(supplied, expected):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "error": "UNAUTHORIZED",
+                    "message": "A valid CK-NEXUS Chat token is required.",
+                },
+            )
+
     def require_connector_fabric() -> ConnectorFabric:
         if connector_fabric is None:
             raise HTTPException(
@@ -1321,21 +1345,52 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         return await dev_team.run(payload)
 
+    @app.get("/api/chat/status")
+    async def ck_nexus_chat_status(
+        _: None = Depends(require_chat_access_token),
+    ) -> dict[str, object]:
+        preferred_agents = provider_router.preferred_status(required_capabilities={"agents-sdk"})
+        preferred_text = provider_router.preferred_status(required_capabilities={"text"})
+        if resolved_settings.mock_ai:
+            provider_name, chat_mode, model_name = "mock", "demo", "mock"
+        elif preferred_agents is not None:
+            provider_name = preferred_agents.name
+            chat_mode = "multi-agent"
+            model_name = (
+                preferred_agents.capabilities.models[0]
+                if preferred_agents.capabilities.models
+                else resolved_settings.openai_model
+            )
+        elif preferred_text is not None and preferred_text.name == "gemini":
+            provider_name = "gemini"
+            chat_mode = "single-model-fallback"
+            model_name = (
+                preferred_text.capabilities.models[0]
+                if preferred_text.capabilities.models
+                else "gemini-2.5-flash"
+            )
+        else:
+            provider_name, chat_mode, model_name = (
+                "blocked",
+                "blocked",
+                resolved_settings.openai_model,
+            )
+        return {
+            "ready": bool(resolved_settings.dev_team_enabled and dev_team.ready),
+            "provider": provider_name,
+            "model": model_name,
+            "chat_mode": chat_mode,
+            "agnes_enabled": resolved_settings.agnes_enabled,
+            "execution_status": "NOT_EXECUTED",
+            "authority_effect": "NONE",
+        }
+
     @app.post("/api/chat")
     async def ck_nexus_chat(
         payload: DevTeamRequest,
-        _: None = Depends(require_access_token),
+        _: None = Depends(require_chat_access_token),
         __: None = Depends(enforce_run_rate_limit),
     ) -> dict[str, object]:
-        # Chat must fail closed if no server-side access token is configured.
-        if not resolved_settings.access_token:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail={
-                    "error": "CHAT_AUTH_NOT_CONFIGURED",
-                    "message": "CK-NEXUS Chat requires server-side access-token authentication.",
-                },
-            )
         if not resolved_settings.dev_team_enabled or not dev_team.ready:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

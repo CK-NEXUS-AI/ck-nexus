@@ -94,18 +94,18 @@ def test_chat_cors_allows_only_explicit_configured_origin(tmp_path: Path, monkey
     monkeypatch.setenv("CKNEXUS_CHAT_ALLOWED_ORIGINS", "https://ck-nexus-ai.github.io")
     with TestClient(create_app(settings(tmp_path))) as client:
         allowed = client.options(
-            "/api/dev-team/run",
+            "/api/chat/status",
             headers={
                 "Origin": "https://ck-nexus-ai.github.io",
-                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Method": "GET",
                 "Access-Control-Request-Headers": "authorization,content-type",
             },
         )
         denied = client.options(
-            "/api/dev-team/run",
+            "/api/chat/status",
             headers={
                 "Origin": "https://untrusted.example",
-                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Method": "GET",
                 "Access-Control-Request-Headers": "authorization,content-type",
             },
         )
@@ -118,3 +118,17 @@ def test_chat_cors_rejects_wildcard_origin_configuration(tmp_path: Path, monkeyp
     monkeypatch.setenv("CKNEXUS_CHAT_ALLOWED_ORIGINS", "*")
     with pytest.raises(RuntimeError, match="wildcard is forbidden"):
         create_app(settings(tmp_path))
+
+
+def test_public_chat_ui_uses_only_scoped_chat_api_and_session_storage():
+    root = Path(__file__).resolve().parents[1]
+    javascript = (root / "docs" / "assets" / "chat.js").read_text(encoding="utf-8")
+    html = (root / "docs" / "index.html").read_text(encoding="utf-8")
+
+    assert 'request("/api/chat/status")' in javascript
+    assert 'request("/api/chat",' in javascript
+    assert 'request("/api/dev-team")' not in javascript
+    assert 'request("/api/agnes/status")' not in javascript
+    assert 'sessionStorage.setItem("ck_chat_token",token)' in javascript
+    assert "localStorage" not in javascript
+    assert "CK-NEXUS CHAT ACCESS TOKEN" in html
