@@ -132,7 +132,10 @@ def test_public_chat_ui_uses_only_scoped_chat_api_and_session_storage():
     assert 'sessionStorage.setItem("ck_chat_token",token)' in javascript
     assert "localStorage" not in javascript
     assert "CK-NEXUS CHAT ACCESS TOKEN" in html
-    assert (
-        'const DEFAULT_API_BASE="https://emerging-peoples-sheer-open.trycloudflare.com"'
-        in javascript
+    config = __import__("json").loads(
+        (root / "docs" / "chat-config.json").read_text(encoding="utf-8")
     )
+    assert 'fetch("./chat-config.json"' in javascript
+    assert config["apiBase"].startswith("https://")
+    assert "team.provider" in javascript
+    assert "GEMINI DIRECT" not in javascript
