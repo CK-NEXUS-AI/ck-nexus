@@ -1,5 +1,5 @@
 (() => {
-const DEFAULT_API_BASE="https://chosen-shuttle-looked-musical.trycloudflare.com";
+const DEFAULT_API_BASE="https://emerging-peoples-sheer-open.trycloudflare.com";
 const $=id=>document.getElementById(id);
 const state={apiBase:"",token:"",session:makeSession(),ready:false,busy:false,messages:[]};
 function makeSession(){return "ckchat-"+(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));}
