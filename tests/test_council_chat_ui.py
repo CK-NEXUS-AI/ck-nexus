@@ -133,6 +133,6 @@ def test_public_chat_ui_uses_only_scoped_chat_api_and_session_storage():
     assert "localStorage" not in javascript
     assert "CK-NEXUS CHAT ACCESS TOKEN" in html
     assert (
-        'const DEFAULT_API_BASE="https://executive-slowly-scores-char.trycloudflare.com"'
+        'const DEFAULT_API_BASE="https://chosen-shuttle-looked-musical.trycloudflare.com"'
         in javascript
     )
