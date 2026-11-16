@@ -1,0 +1,182 @@
+"""Local, read-only CK-NEXUS assessment prototype. Never issues a certificate."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+
+# subprocess is restricted to a fixed local command allowlist; shell execution is disabled.
+import subprocess  # nosec B404
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse
+from pydantic import BaseModel, Field
+
+app = FastAPI(title="CK-NEXUS Certification Portal", version="0.2.0-assessment-demo")
+ROOT = Path(__file__).resolve().parent.parent
+_demo_private_key = Ed25519PrivateKey.generate()
+_demo_public_key = (
+    _demo_private_key.public_key()
+    .public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    .hex()
+)
+
+
+class OwnerSignoff(BaseModel):
+    full_name: str = Field(min_length=2, max_length=160)
+    role: str = Field(min_length=2, max_length=120)
+    consent: bool
+    subject_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    profile_id: str = Field(min_length=1, max_length=80)
+
+
+def _run_fixed(args: list[str], timeout: int = 20) -> tuple[int, str]:
+    """Run only allowlisted local commands; request data can never select a command."""
+    allowed = {
+        ("git", "rev-parse", "HEAD"),
+        ("git", "status", "--porcelain"),
+        (sys.executable, "-m", "compileall", "-q", "certification_portal"),
+    }
+    if tuple(args) not in allowed:
+        return 126, "COMMAND_NOT_ALLOWLISTED"
+    try:
+        # Exact command allowlist; shell=False; bounded timeout.
+        p = subprocess.run(  # nosec B603
+            args, cwd=ROOT, capture_output=True, text=True, timeout=timeout, check=False
+        )
+        return p.returncode, (p.stdout + p.stderr)[-4000:]
+    except subprocess.TimeoutExpired:
+        return 124, f"TIMEOUT after {timeout}s"
+    except Exception as exc:  # report the failure as evidence, never as a pass
+        return 125, f"{type(exc).__name__}: {exc}"
+
+
+def assess_local() -> dict[str, Any]:
+    checks: list[dict[str, Any]] = []
+
+    def record(control: str, passed: bool, detail: str) -> None:
+        checks.append(
+            {"control": control, "result": "PASS" if passed else "FAIL", "detail": detail[:1200]}
+        )
+
+    required = [
+        "pyproject.toml",
+        "uv.lock",
+        "creator_app/unified.py",
+        "docs/UNIVERSAL_AI_OPERATING_STANDARD_V2_DRAFT.md",
+        "docs/CERTIFICATION_PORTAL_SPEC_DRAFT.md",
+    ]
+    missing = [p for p in required if not (ROOT / p).is_file()]
+    record(
+        "CKN-CORE-001_REQUIRED_FILES",
+        not missing,
+        "All required files present" if not missing else f"Missing: {missing}",
+    )
+
+    code, out = _run_fixed(["git", "rev-parse", "HEAD"])
+    sha = out.strip().splitlines()[0] if code == 0 and out.strip() else None
+    record("CKN-SOURCE-001_COMMIT_ID", bool(sha and len(sha) == 40), f"HEAD={sha}" if sha else out)
+
+    code, out = _run_fixed(["git", "status", "--porcelain"])
+    clean = code == 0 and not out.strip()
+    record(
+        "CKN-SOURCE-002_CLEAN_TREE",
+        clean,
+        "Working tree clean" if clean else f"Dirty/unavailable: {out.strip()[:800]}",
+    )
+
+    code, out = _run_fixed([sys.executable, "-m", "compileall", "-q", "certification_portal"])
+    record("CKN-PORTAL-001_COMPILE", code == 0, "Python compileall passed" if code == 0 else out)
+
+    v2 = ROOT / "docs/UNIVERSAL_AI_OPERATING_STANDARD_V2_DRAFT.md"
+    text = v2.read_text(encoding="utf-8") if v2.exists() else ""
+    draft = "NOT EFFECTIVE" in text or "NOT EFFECTIVE UNTIL" in text
+    record(
+        "CKN-GOV-001_POLICY_ADOPTION",
+        False if draft else bool(text),
+        "Policy V2 remains a draft; owner adoption and implementation not proven"
+        if draft
+        else "Policy adoption requires independent evidence",
+    )
+
+    mandatory_failed = any(c["result"] != "PASS" for c in checks)
+    result = (
+        "NOT_CERTIFIED" if mandatory_failed else "ASSESSMENT_PASS_PENDING_INDEPENDENT_VERIFICATION"
+    )
+    manifest = {
+        "assessment_type": "LOCAL_READ_ONLY_DEMO",
+        "profile_id": "CKNEXUS-CORE-v0.1-demo",
+        "profile_version": "0.1.0",
+        "subject": str(ROOT),
+        "subject_commit": sha,
+        "assessed_at": datetime.now(UTC).isoformat(),
+        "checks": checks,
+        "result": result,
+        "limitations": [
+            "Local self-assessment only; no independent verifier is connected.",
+            "Dirty worktree blocks a passing conformance result.",
+            "Policy V2 is a draft and has not been adopted.",
+            "No certificate is issued by this prototype.",
+        ],
+    }
+    canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    manifest["evidence_manifest_sha256"] = hashlib.sha256(canonical).hexdigest()
+    return manifest
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "mode": "ASSESSMENT_DEMO", "certificate_issuance": "disabled"}
+
+
+@app.get("/api/demo-key")
+def demo_key() -> dict[str, str]:
+    return {
+        "key_id": "ephemeral-demo-key",
+        "algorithm": "Ed25519",
+        "public_key_hex": _demo_public_key,
+        "trust": "NON_PRODUCTION_EPHEMERAL",
+    }
+
+
+@app.post("/api/assess/local")
+def assess_endpoint() -> dict[str, Any]:
+    """Run bounded, read-only checks against this local checkout only."""
+    return assess_local()
+
+
+@app.post("/api/owner-signoff-preview")
+def owner_signoff_preview(data: OwnerSignoff) -> JSONResponse:
+    if not data.consent:
+        raise HTTPException(status_code=400, detail="Owner consent is required")
+    body: dict[str, Any] = {
+        "status": "OWNER_SIGNOFF_PREVIEW_ONLY",
+        "full_name": data.full_name,
+        "role": data.role,
+        "subject_digest": data.subject_digest,
+        "profile_id": data.profile_id,
+        "signed_at": datetime.now(UTC).isoformat(),
+        "notice": (
+            "Demo preview only; identity authentication and legal-signature "
+            "requirements are not implemented."
+        ),
+    }
+    canonical = json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
+    body["digest"] = hashlib.sha256(canonical).hexdigest()
+    body["demo_signature"] = _demo_private_key.sign(canonical).hex()
+    body["key_id"] = "ephemeral-demo-key"
+    return JSONResponse(body)
+
+
+@app.get("/", response_class=HTMLResponse)
+def index() -> str:
+    return (Path(__file__).with_name("index.html")).read_text(encoding="utf-8")

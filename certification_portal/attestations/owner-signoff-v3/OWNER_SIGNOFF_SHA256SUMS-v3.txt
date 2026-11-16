@@ -1,0 +1,3 @@
+a0a6eb99375d523a9b1440c8941ec7eeb1d7ce3b8762eff0721350ba346e387f  owner-signoff-subject-manifest-v3.json
+39af99b38790f152d2e2f8034eb56d6b07b41f6f882608382e97fde71710185d  owner-signoff-ed25519-scope-v3.json
+196b380d3c09a1ca4de381a30e8066f47fded60232d6a49b80a21308bcf93ecd  OWNER_SIGNOFF_STATUS-v3.txt

@@ -33,10 +33,24 @@ def _evidence(tmp_path: Path, **updates) -> tuple[Path, Path]:
     return evidence_path, workspace
 
 
+def test_publish_is_blocked_by_default_without_explicit_authorization(tmp_path: Path):
+    evidence_path, _ = _evidence(tmp_path)
+    gitops = AutoGitOps(
+        tmp_path / "evidence",
+        runner=lambda *a, **k: (_ for _ in ()).throw(AssertionError("git must not run")),
+    )
+    result = gitops.run_once()
+    assert result.state == "blocked"
+    assert result.reason == "explicit_publish_authorization_required"
+    assert "gitops_state" not in json.loads(evidence_path.read_text(encoding="utf-8"))
+
+
 def test_unverified_evidence_never_stages_or_pushes(tmp_path: Path):
     evidence_path, _ = _evidence(tmp_path, state="verification_failed")
     gitops = AutoGitOps(
-        tmp_path / "evidence", runner=lambda *a, **k: (_ for _ in ()).throw(AssertionError())
+        tmp_path / "evidence",
+        publish_authorized=True,
+        runner=lambda *a, **k: (_ for _ in ()).throw(AssertionError()),
     )
     result = gitops.run_once()
     assert result.state == "idle"
@@ -46,7 +60,9 @@ def test_unverified_evidence_never_stages_or_pushes(tmp_path: Path):
 def test_forbidden_path_is_rejected_before_git_mutation(tmp_path: Path):
     evidence_path, _ = _evidence(tmp_path, changed_paths=[".env"])
     gitops = AutoGitOps(
-        tmp_path / "evidence", runner=lambda *a, **k: (_ for _ in ()).throw(AssertionError())
+        tmp_path / "evidence",
+        publish_authorized=True,
+        runner=lambda *a, **k: (_ for _ in ()).throw(AssertionError()),
     )
     result = gitops.run_once()
     assert result.state == "blocked"
@@ -108,7 +124,7 @@ def test_verified_change_is_committed_and_pushed_to_its_branch(tmp_path: Path):
     }
     (evidence_dir / "job-push-test.json").write_text(json.dumps(data), encoding="utf-8")
 
-    result = AutoGitOps(evidence_dir, repo_root=repo).run_once()
+    result = AutoGitOps(evidence_dir, repo_root=repo, publish_authorized=True).run_once()
 
     assert result.state == "published"
     assert result.commit_sha
@@ -133,6 +149,7 @@ def test_protected_agent_and_policy_files_cannot_be_published(tmp_path: Path):
     )
     gitops = AutoGitOps(
         tmp_path / "evidence",
+        publish_authorized=True,
         runner=lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("git must not run")),
     )
     result = gitops.run_once()

@@ -63,7 +63,7 @@ class GitOpsRun:
 
 
 class AutoGitOps:
-    """Commit and push verified task branches; never merge, force-push, or deploy."""
+    """Publish verified task branches only after explicit per-process authorization."""
 
     def __init__(
         self,
@@ -72,14 +72,18 @@ class AutoGitOps:
         runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
         remote: str = "origin",
         repo_root: str | Path | None = None,
+        publish_authorized: bool = False,
     ) -> None:
         self.evidence_dir = Path(evidence_dir)
         self.workspace_root = self.evidence_dir.parent / "worktrees"
         self.runner = runner
         self.remote = remote
         self.repo_root = Path(repo_root) if repo_root is not None else None
+        self.publish_authorized = publish_authorized
 
     def run_once(self) -> GitOpsRun:
+        if not self.publish_authorized:
+            return GitOpsRun("blocked", "explicit_publish_authorization_required")
         if not self.evidence_dir.is_dir():
             return GitOpsRun("idle", "evidence_directory_missing")
         for path in sorted(self.evidence_dir.glob("*.json")):
