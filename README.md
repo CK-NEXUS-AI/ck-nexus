@@ -18,6 +18,7 @@ CK-NEXUS is one platform with one canonical application runtime. **Agnes** is it
 | Review security and tests | [Security Audit](docs/SECURITY_AUDIT.md) · [Test Report](docs/TEST_REPORT.md) |
 | Prepare a release | [Release Status](RELEASE_STATUS.md) · [Release Checklist](docs/RELEASE_CHECKLIST.md) · [Q10–Q16 Contract](docs/Q10_Q16_CLOSURE_CONTRACT.md) |
 | Prepare customer delivery | [Seller Checklist](docs/SELLER_CHECKLIST.md) |
+| Change control and immediate evidence synchronization | [Change Synchronization Policy](docs/operations/CHANGE_SYNC_POLICY.md) · [2026-11-10 Baseline](docs/operations/CHANGE_SYNC_BASELINE_2026-11-10.md) |
 
 ## What CK-NEXUS provides
 
