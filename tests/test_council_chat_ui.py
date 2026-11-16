@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from creator_app.api import create_app
@@ -87,3 +88,54 @@ def test_full_system_demo_has_direct_council_chat_controls(tmp_path: Path) -> No
     assert "appendCouncilMessage" in javascript
     assert "PREVIOUS COUNCIL OUTPUT" in javascript
     assert "DEBATE คำตอบล่าสุด" not in javascript
+
+
+def test_chat_cors_allows_only_explicit_configured_origin(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("CKNEXUS_CHAT_ALLOWED_ORIGINS", "https://ck-nexus-ai.github.io")
+    with TestClient(create_app(settings(tmp_path))) as client:
+        allowed = client.options(
+            "/api/chat/status",
+            headers={
+                "Origin": "https://ck-nexus-ai.github.io",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "authorization,content-type",
+            },
+        )
+        denied = client.options(
+            "/api/chat/status",
+            headers={
+                "Origin": "https://untrusted.example",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "authorization,content-type",
+            },
+        )
+    assert allowed.status_code == 200
+    assert allowed.headers["access-control-allow-origin"] == "https://ck-nexus-ai.github.io"
+    assert "access-control-allow-origin" not in denied.headers
+
+
+def test_chat_cors_rejects_wildcard_origin_configuration(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("CKNEXUS_CHAT_ALLOWED_ORIGINS", "*")
+    with pytest.raises(RuntimeError, match="wildcard is forbidden"):
+        create_app(settings(tmp_path))
+
+
+def test_public_chat_ui_uses_only_scoped_chat_api_and_session_storage():
+    root = Path(__file__).resolve().parents[1]
+    javascript = (root / "docs" / "assets" / "chat.js").read_text(encoding="utf-8")
+    html = (root / "docs" / "index.html").read_text(encoding="utf-8")
+
+    assert 'request("/api/chat/status")' in javascript
+    assert 'request("/api/chat",' in javascript
+    assert 'request("/api/dev-team")' not in javascript
+    assert 'request("/api/agnes/status")' not in javascript
+    assert 'sessionStorage.setItem("ck_chat_token",token)' in javascript
+    assert "localStorage" not in javascript
+    assert "CK-NEXUS CHAT ACCESS TOKEN" in html
+    config = __import__("json").loads(
+        (root / "docs" / "chat-config.json").read_text(encoding="utf-8")
+    )
+    assert 'fetch("./chat-config.json"' in javascript
+    assert config["apiBase"].startswith("https://")
+    assert "team.provider" in javascript
+    assert "GEMINI DIRECT" not in javascript

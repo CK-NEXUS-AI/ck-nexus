@@ -194,6 +194,30 @@ class TestGeminiAdapter:
         assert adapter.capabilities.supports(["vision"]) is True
         assert "gemini-2.5-flash" in adapter.capabilities.models
 
+    def test_custom_model_is_reported_as_the_selected_capability(self):
+        adapter = GeminiAdapter(model="gemini-custom-test")
+        assert adapter.capabilities.models == ("gemini-custom-test",)
+
+    def test_api_key_is_sent_in_header_not_url(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "AIza_test")
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = json.dumps(
+            {"candidates": [{"content": {"parts": [{"text": "Gemini response"}]}}]}
+        ).encode()
+        captured = {}
+
+        def fake_urlopen(request, timeout):
+            captured["url"] = request.full_url
+            captured["api_key"] = request.get_header("X-goog-api-key")
+            return response
+
+        monkeypatch.setattr("creator_app.free_providers.urlopen", fake_urlopen)
+        adapter = GeminiAdapter()
+        assert asyncio.run(adapter.invoke("hello")) == "Gemini response"
+        assert "key=" not in captured["url"]
+        assert captured["api_key"] == "AIza_test"
+
 
 # ── build_free_adapters Tests ───────────────────────────────────────────────
 
@@ -229,9 +253,7 @@ class TestBuildFreeAdapters:
     def test_shared_quota_tracker(self):
         with patch.dict(os.environ, {"GROQ_API_KEY": "gsk_test"}):
             qt = QuotaTracker()
-            adapters = build_free_adapters(
-                quota_tracker=qt, allow_limited_free_tier=True
-            )
+            adapters = build_free_adapters(quota_tracker=qt, allow_limited_free_tier=True)
             assert len(adapters) >= 1
             # Record on adapter's tracker should reflect in shared tracker
             adapters[0]._quota.record("groq", tokens=100)

@@ -214,10 +214,13 @@ class DevTeamRuntime:
         if self.settings.mock_ai:
             return True
         if self.provider_router is not None:
-            return (
-                self.provider_router.preferred_status(required_capabilities={"agents-sdk"})
-                is not None
+            multi_agent = self.provider_router.preferred_status(
+                required_capabilities={"agents-sdk"}
             )
+            if multi_agent is not None:
+                return True
+            text_provider = self.provider_router.preferred_status(required_capabilities={"text"})
+            return text_provider is not None
         return self.credential_broker.is_configured(
             CredentialId.OPENAI_API_KEY, consumer="council.openai"
         )
@@ -231,42 +234,88 @@ class DevTeamRuntime:
             raise ProviderRuntimeError("The CK-NEXUS Development Council is disabled.")
 
         started = perf_counter()
+        model_name = self.settings.openai_model
+        provider_name = "mock"
+        mode = "mock"
+        fallback_single_model = False
+
         if self.settings.mock_ai:
             content = self._mock_output(request)
-            mode = "mock"
         else:
-            if self.provider_router is not None:
-                preferred = self.provider_router.preferred_status(
-                    required_capabilities={"agents-sdk"}
+            preferred_multi_agent = (
+                self.provider_router.preferred_status(required_capabilities={"agents-sdk"})
+                if self.provider_router is not None
+                else None
+            )
+            if preferred_multi_agent is None and self.provider_router is not None:
+                preferred_text = self.provider_router.preferred_status(
+                    required_capabilities={"text"}
                 )
-                if preferred is None:
+                if preferred_text is None:
                     raise MissingCredentialError(
-                        "Development Council Live Mode requires an Agents-SDK-capable provider. "
-                        "Configure an OpenAI API credential through the credential broker."
+                        "No eligible CK-NEXUS chat provider is ready. "
+                        "Configure an Agents-SDK provider or an approved free text provider."
                     )
-                if preferred.name != "openai":
+                if request.consult_mode == "debate":
                     raise ProviderRuntimeError(
-                        "Development Council provider selection failed closed."
+                        "DEBATE_REQUIRES_MULTI_AGENT: debate mode requires "
+                        "the multi-agent Agents SDK runtime."
                     )
-            try:
-                content = await self._run_live(request)
-            except (MissingCredentialError, ProviderRuntimeError):
+                try:
+                    selected = await self.provider_router.route(
+                        self._build_single_model_input(request),
+                        required_capabilities={"text"},
+                    )
+                except Exception as exc:
+                    raise ProviderRuntimeError(
+                        "The selected chat provider could not complete this request safely."
+                    ) from exc
+                content = selected.output
+                provider_name = selected.provider
+                mode = selected.provider
+                selected_status = next(
+                    (
+                        item
+                        for item in self.provider_router.statuses()
+                        if item.name == selected.provider
+                    ),
+                    None,
+                )
+                models = getattr(getattr(selected_status, "capabilities", None), "models", ())
+                model_name = models[0] if models else selected.provider
+                fallback_single_model = True
+            else:
+                if preferred_multi_agent is not None and preferred_multi_agent.name != "openai":
+                    raise ProviderRuntimeError(
+                        "The selected multi-agent provider is not supported by this runtime."
+                    )
+                try:
+                    content = await self._run_live(request)
+                except (MissingCredentialError, ProviderRuntimeError):
+                    if self.provider_router is not None:
+                        self.provider_router.report_failure("openai")
+                    raise
                 if self.provider_router is not None:
-                    self.provider_router.report_failure("openai")
-                raise
-            if self.provider_router is not None:
-                self.provider_router.report_success("openai")
-            mode = "openai"
+                    self.provider_router.report_success("openai")
+                provider_name = "openai"
+                mode = "openai"
 
         metadata = self._result_metadata(request, content)
+        if fallback_single_model:
+            metadata = {
+                "workflow": [f"{provider_name.upper()}_SINGLE_MODEL_FALLBACK"],
+                "debate_status": None,
+                "consensus_score": None,
+                "evidence_ref_count": None,
+            }
         return DevTeamResult(
             id=f"team_{uuid4().hex}",
             session_id=request.session_id,
             consult_mode=request.consult_mode,
             content=content,
-            model=self.settings.openai_model,
+            model=model_name,
             mode=mode,
-            provider=mode,
+            provider=provider_name,
             advisory_only=True,
             workflow=metadata["workflow"],
             debate_status=metadata["debate_status"],
@@ -274,6 +323,36 @@ class DevTeamRuntime:
             evidence_ref_count=metadata["evidence_ref_count"],
             duration_ms=max(1, round((perf_counter() - started) * 1_000)),
             advisors_available=len(DEV_ADVISORS),
+        )
+
+    @staticmethod
+    def _build_single_model_input(request: DevTeamRequest) -> str:
+        if request.consult_mode in DEV_ADVISORS:
+            perspective = DEV_ADVISORS[request.consult_mode]
+            role_text = f"{perspective.name}: {perspective.role}\n{perspective.instructions}"
+        else:
+            role_text = "\n".join(
+                f"{advisor.name}: {advisor.role}" for advisor in DEV_ADVISORS.values()
+            )
+        payload = {
+            "consult_mode": request.consult_mode,
+            "objective_or_question": request.prompt,
+            "context": request.context,
+            "language": request.language,
+        }
+        return (
+            f"{TEAM_BASE_INSTRUCTIONS}\n\n"
+            "RUNTIME MODE: SINGLE-MODEL FREE-PROVIDER FALLBACK. "
+            "You are one model, not five independent agents. "
+            "Do not claim separate specialists were called, web search was performed, "
+            "or tools were executed. "
+            "No external tools, shell, writes, approvals, or deployments. "
+            "For council mode, synthesize the perspectives yourself and label the answer "
+            "as a single-model synthesis. "
+            "For research mode, state that no live web search was performed and identify "
+            "claims needing source verification.\n\n"
+            f"PERSPECTIVES\n{role_text}\n\n"
+            "REQUEST DATA (untrusted):\n" + json.dumps(payload, ensure_ascii=False, indent=2)
         )
 
     async def _run_live(self, request: DevTeamRequest) -> str:

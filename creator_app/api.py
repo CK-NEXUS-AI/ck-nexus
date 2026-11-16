@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path as FilePath
 from typing import Annotated
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from fastapi import (
@@ -22,6 +23,7 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -228,6 +230,45 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         description="Menu-driven creator agents with local history.",
         lifespan=lifespan,
     )
+    # Cross-origin browser chat is opt-in. Never use wildcard origins or browser cookies.
+    chat_origins = [
+        item.strip().rstrip("/")
+        for item in os.getenv("CKNEXUS_CHAT_ALLOWED_ORIGINS", "").split(",")
+        if item.strip()
+    ]
+    if "*" in chat_origins:
+        raise RuntimeError(
+            "CKNEXUS_CHAT_ALLOWED_ORIGINS must list explicit origins; wildcard is forbidden."
+        )
+    for origin in chat_origins:
+        parsed_origin = urlsplit(origin)
+        local_http = parsed_origin.scheme == "http" and parsed_origin.hostname in {
+            "localhost",
+            "127.0.0.1",
+        }
+        secure_https = parsed_origin.scheme == "https" and bool(parsed_origin.hostname)
+        if (
+            not (local_http or secure_https)
+            or parsed_origin.username
+            or parsed_origin.password
+            or parsed_origin.path
+            or parsed_origin.query
+            or parsed_origin.fragment
+        ):
+            raise RuntimeError(
+                "Chat CORS origins must be exact HTTPS origins "
+                "(HTTP is allowed only for localhost)."
+            )
+    if chat_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=chat_origins,
+            allow_credentials=False,
+            allow_methods=["GET", "POST", "OPTIONS"],
+            allow_headers=["Authorization", "Content-Type", "X-Correlation-ID"],
+            expose_headers=["X-Correlation-ID"],
+            max_age=600,
+        )
     app.state.settings = resolved_settings
     app.state.credential_vault = credential_vault
     app.state.credential_broker = credential_broker
@@ -261,6 +302,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 detail={
                     "error": "UNAUTHORIZED",
                     "message": "A valid CK-NEXUS access token is required.",
+                },
+            )
+
+    def require_chat_access_token(
+        authorization: str | None = Header(default=None),
+    ) -> None:
+        expected = resolved_settings.chat_access_token
+        if not expected:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "error": "CHAT_AUTH_NOT_CONFIGURED",
+                    "message": "A dedicated CK-NEXUS Chat token is not configured.",
+                },
+            )
+        supplied = ""
+        if authorization and authorization.startswith("Bearer "):
+            supplied = authorization.removeprefix("Bearer ").strip()
+        if not supplied or not hmac.compare_digest(supplied, expected):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "error": "UNAUTHORIZED",
+                    "message": "A valid CK-NEXUS Chat token is required.",
                 },
             )
 
@@ -697,20 +762,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         else:
             preferred = provider_router.preferred_status(required_capabilities={"text"})
             mode = preferred.name if preferred is not None else "blocked"
+            models = getattr(getattr(preferred, "capabilities", None), "models", ())
             model = (
                 resolved_settings.ollama_model
                 if mode == "ollama"
-                else resolved_settings.openai_model
+                else (models[0] if models else resolved_settings.openai_model)
             )
-        openai_key_configured = credential_broker.is_configured(
-            CredentialId.OPENAI_API_KEY, consumer="provider.openai"
+        provider_key_configured = (
+            bool(preferred is not None and preferred.available)
+            if not resolved_settings.mock_ai
+            else False
         )
         return StatusResponse(
             name=resolved_settings.app_name,
             version=resolved_settings.app_version,
             mode=mode,
             model=model,
-            key_configured=openai_key_configured,
+            key_configured=provider_key_configured,
             database_ready=store.ping(),
             access_required=bool(resolved_settings.access_token),
             dev_team_enabled=resolved_settings.dev_team_enabled,
@@ -921,6 +989,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "policy": {
                 "local_first": provider_router.policy.local_first,
                 "allow_cloud": provider_router.policy.allow_cloud,
+                "free_only": os.getenv("CKNEXUS_FREE_ONLY", "").strip().lower()
+                in {"1", "true", "yes", "on"},
                 "max_attempts": provider_router.policy.max_attempts,
             },
             "providers": providers,
@@ -1184,33 +1254,57 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/dev-team")
     async def dev_team_roster(_: None = Depends(require_access_token)) -> dict[str, object]:
-        preferred = provider_router.preferred_status(required_capabilities={"agents-sdk"})
-        provider_name = (
-            "mock"
-            if resolved_settings.mock_ai
-            else (preferred.name if preferred is not None else "blocked")
-        )
+        preferred_agents = provider_router.preferred_status(required_capabilities={"agents-sdk"})
+        preferred_text = provider_router.preferred_status(required_capabilities={"text"})
+        if resolved_settings.mock_ai:
+            provider_name = "mock"
+            chat_mode = "demo"
+            model_name = "mock"
+        elif preferred_agents is not None:
+            provider_name = preferred_agents.name
+            chat_mode = "multi-agent"
+            model_name = (
+                preferred_agents.capabilities.models[0]
+                if preferred_agents.capabilities.models
+                else resolved_settings.openai_model
+            )
+        elif preferred_text is not None:
+            provider_name = preferred_text.name
+            chat_mode = "single-model-fallback"
+            model_name = (
+                preferred_text.capabilities.models[0]
+                if preferred_text.capabilities.models
+                else preferred_text.name
+            )
+        else:
+            provider_name = "blocked"
+            chat_mode = "blocked"
+            model_name = resolved_settings.openai_model
         return {
             "enabled": resolved_settings.dev_team_enabled,
             "ready": dev_team.ready,
             "mode": provider_name,
             "provider": provider_name,
-            "model": resolved_settings.openai_model,
+            "model": model_name,
+            "chat_mode": chat_mode,
+            "single_model_fallback": chat_mode == "single-model-fallback",
             "orchestrator": "CK-NEXUS Lead Orchestrator",
-            "web_search_enabled": resolved_settings.dev_team_web_search_enabled,
+            "web_search_enabled": (
+                resolved_settings.dev_team_web_search_enabled and chat_mode == "multi-agent"
+            ),
             "advisors": dev_team.roster(),
             "consult_modes": [
                 "auto",
                 "council",
-                "debate",
                 "architect",
                 "research",
                 "designer",
                 "builder",
                 "reviewer",
+                *(["debate"] if chat_mode in {"multi-agent", "demo"} else []),
             ],
             "debate": {
-                "enabled": True,
+                "enabled": chat_mode in {"multi-agent", "demo"},
                 "roles": [
                     "PROPOSER",
                     "OPPOSER",
@@ -1224,6 +1318,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "authority_effect": "NONE",
             },
             "side_effect_policy": "advisory-only; execution requires a separate gated path",
+            "provider_notice": (
+                "Single-model fallback: no separate specialist calls, "
+                "no live web search, and no tool execution."
+                if chat_mode == "single-model-fallback"
+                else None
+            ),
         }
 
     @app.post("/api/dev-team/run", response_model=DevTeamResult)
@@ -1246,6 +1346,113 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 },
             )
         return await dev_team.run(payload)
+
+    @app.get("/api/chat/status")
+    async def ck_nexus_chat_status(
+        _: None = Depends(require_chat_access_token),
+    ) -> dict[str, object]:
+        preferred_agents = provider_router.preferred_status(required_capabilities={"agents-sdk"})
+        preferred_text = provider_router.preferred_status(required_capabilities={"text"})
+        if resolved_settings.mock_ai:
+            provider_name, chat_mode, model_name = "mock", "demo", "mock"
+        elif preferred_agents is not None:
+            provider_name = preferred_agents.name
+            chat_mode = "multi-agent"
+            model_name = (
+                preferred_agents.capabilities.models[0]
+                if preferred_agents.capabilities.models
+                else resolved_settings.openai_model
+            )
+        elif preferred_text is not None:
+            provider_name = preferred_text.name
+            chat_mode = "single-model-fallback"
+            model_name = (
+                preferred_text.capabilities.models[0]
+                if preferred_text.capabilities.models
+                else preferred_text.name
+            )
+        else:
+            provider_name, chat_mode, model_name = (
+                "blocked",
+                "blocked",
+                resolved_settings.openai_model,
+            )
+        return {
+            "ready": bool(resolved_settings.dev_team_enabled and dev_team.ready),
+            "provider": provider_name,
+            "model": model_name,
+            "chat_mode": chat_mode,
+            "agnes_enabled": resolved_settings.agnes_enabled,
+            "execution_status": "NOT_EXECUTED",
+            "authority_effect": "NONE",
+        }
+
+    @app.post("/api/chat")
+    async def ck_nexus_chat(
+        payload: DevTeamRequest,
+        _: None = Depends(require_chat_access_token),
+        __: None = Depends(enforce_run_rate_limit),
+    ) -> dict[str, object]:
+        if not resolved_settings.dev_team_enabled or not dev_team.ready:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "error": "CHAT_PROVIDER_NOT_READY",
+                    "message": "No approved CK-NEXUS chat provider is ready.",
+                },
+            )
+        if len(payload.prompt) > resolved_settings.max_prompt_chars:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": "PROMPT_TOO_LONG", "message": "Chat message is too long."},
+            )
+
+        agnes_summary: dict[str, object] = {
+            "status": "DISABLED",
+            "plan_id": None,
+            "selected_skills": [],
+            "requires_approval": False,
+            "execution_status": "NOT_EXECUTED",
+        }
+        if resolved_settings.agnes_enabled:
+            try:
+                raw_plan = agnes.plan(payload.prompt)
+                selected = raw_plan.get("skills", [])
+                safe_skills = [
+                    {
+                        "id": str(item.get("id", "")),
+                        "name": str(item.get("name", "")),
+                        "risk": str(item.get("risk", "unknown")),
+                        "approval_required": bool(item.get("approval_required", False)),
+                    }
+                    for item in selected
+                    if isinstance(item, dict)
+                ]
+                agnes_summary = {
+                    "status": "PLANNED",
+                    "plan_id": raw_plan.get("plan_id"),
+                    "selected_skills": safe_skills,
+                    "requires_approval": bool(raw_plan.get("requires_approval", False)),
+                    "execution_status": "NOT_EXECUTED",
+                }
+            except Exception:
+                agnes_summary["status"] = "PLAN_UNAVAILABLE"
+
+        chat_context = payload.context
+        if agnes_summary["status"] == "PLANNED":
+            plan_context = (
+                "\n\nAGNES READ-ONLY PLAN (planning only; no skill was executed):\n"
+                + json.dumps(agnes_summary, ensure_ascii=False)
+            )
+            chat_context = payload.context[: max(0, 8_000 - len(plan_context))] + plan_context
+        chat_request = payload.model_copy(update={"context": chat_context})
+        result = await dev_team.run(chat_request)
+        return {
+            **result.model_dump(),
+            "agnes": agnes_summary,
+            "execution_status": "NOT_EXECUTED",
+            "authority_effect": "NONE",
+        }
 
     @app.get("/api/agents")
     async def agents(_: None = Depends(require_access_token)):
@@ -1325,10 +1532,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/dev-status", dependencies=[Depends(require_access_token)])
     async def development_status_snapshot() -> JSONResponse:
         """Serve the collector snapshot only; never execute host commands in a request."""
-        status_path = FilePath(os.getenv(
-            "CKNEXUS_DEV_STATUS_FILE",
-            str(FilePath.cwd() / "data" / "dev_status.json"),
-        ))
+        status_path = FilePath(
+            os.getenv(
+                "CKNEXUS_DEV_STATUS_FILE",
+                str(FilePath.cwd() / "data" / "dev_status.json"),
+            )
+        )
         try:
             payload = json.loads(status_path.read_text(encoding="utf-8"))
             if (
@@ -1358,8 +1567,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             return JSONResponse(
-                {"available": False, "stale": True, "age_seconds": None, "items": {},
-                 "error": "STATUS_SNAPSHOT_UNAVAILABLE"},
+                {
+                    "available": False,
+                    "stale": True,
+                    "age_seconds": None,
+                    "items": {},
+                    "error": "STATUS_SNAPSHOT_UNAVAILABLE",
+                },
                 headers={"Cache-Control": "no-store"},
             )
 

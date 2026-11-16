@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -14,6 +15,7 @@ from creator_app.credential_broker import (
     CredentialId,
     CredentialUnavailable,
 )
+from creator_app.free_providers import GeminiAdapter, OpenAICompatibleAdapter
 from creator_app.provider_router import (
     ProviderCapabilities,
     ProviderKind,
@@ -136,8 +138,11 @@ class OpenAIProviderAdapter:
         )
 
     def is_available(self) -> bool:
-        return bool(self.model) and self.broker.is_configured(
-            CredentialId.OPENAI_API_KEY, consumer="provider.openai"
+        free_only = os.getenv("CKNEXUS_FREE_ONLY", "").strip().lower() in {"1", "true", "yes", "on"}
+        return (
+            not free_only
+            and bool(self.model)
+            and self.broker.is_configured(CredentialId.OPENAI_API_KEY, consumer="provider.openai")
         )
 
     async def invoke(self, prompt: str) -> str:
@@ -172,13 +177,50 @@ def build_provider_router(settings: Settings, broker: CredentialBroker) -> Provi
                 timeout_seconds=settings.provider_timeout_seconds,
             )
         )
-    providers.append(
-        OpenAIProviderAdapter(
-            broker,
-            model=settings.openai_model,
-            timeout_seconds=settings.provider_timeout_seconds,
+
+    # Free cloud providers are explicitly opt-in. Prefer the live-verified
+    # OpenRouter zero-price router, then use Gemini as a secondary free-tier path.
+    if (
+        os.getenv("CKNEXUS_ENABLE_OPENROUTER_FREE", "").strip().lower()
+        in {"1", "true", "yes", "on"}
+        and os.getenv("OPENROUTER_API_KEY", "").strip()
+    ):
+        providers.append(
+            OpenAICompatibleAdapter(
+                name="openrouter",
+                base_url="https://openrouter.ai/api/v1",
+                env_key="OPENROUTER_API_KEY",
+                model=os.getenv("CKNEXUS_OPENROUTER_MODEL", "openrouter/free").strip()
+                or "openrouter/free",
+                models=("openrouter/free",),
+                features=frozenset({"text", "free-model-routing"}),
+                timeout_seconds=settings.provider_timeout_seconds,
+                extra_headers={"X-Title": "CK-NEXUS"},
+            )
         )
-    )
+    if os.getenv("GEMINI_API_KEY", "").strip():
+        providers.append(
+            GeminiAdapter(
+                model=(
+                    os.getenv("CKNEXUS_GEMINI_MODEL", "gemini-3.8-flash").strip()
+                    or "gemini-3.8-flash"
+                ),
+                timeout_seconds=settings.provider_timeout_seconds,
+            )
+        )
+
+    # In free-only mode, paid OpenAI must not be considered as a fallback even
+    # when its credential is present in the legacy environment file.
+    free_only = os.getenv("CKNEXUS_FREE_ONLY", "").strip().lower() in {"1", "true", "yes", "on"}
+    if not free_only:
+        providers.append(
+            OpenAIProviderAdapter(
+                broker,
+                model=settings.openai_model,
+                timeout_seconds=settings.provider_timeout_seconds,
+            )
+        )
+
     return ProviderRouter(
         providers,
         policy=ProviderRouterPolicy(

@@ -219,7 +219,7 @@ class GeminiAdapter:
         self._quota = quota_tracker
         self.capabilities = ProviderCapabilities(
             features=frozenset({"text", "vision"}),
-            models=("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"),
+            models=(model,),
         )
 
     def _get_key(self) -> str:
@@ -237,8 +237,7 @@ class GeminiAdapter:
             raise RuntimeError("Gemini: GEMINI_API_KEY not set")
 
         url = (
-            f"https://generativelanguage.googleapis.com/v1beta/"
-            f"models/{self.model}:generateContent?key={key}"
+            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
         )
         _require_safe_provider_url(url)
         payload = json.dumps(
@@ -254,6 +253,7 @@ class GeminiAdapter:
             method="POST",
             headers={
                 "Content-Type": "application/json",
+                "x-goog-api-key": key,
             },
         )
 
