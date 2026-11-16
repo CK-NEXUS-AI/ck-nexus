@@ -5,8 +5,7 @@ Requires=cknexus-creator.service
 
 [Service]
 Type=simple
-User=nobody
-Group=nogroup
+DynamicUser=yes
 WorkingDirectory=/opt/cknexus/current-chat-release/deploy
 Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=PYTHONPATH=/opt/cknexus/current-chat-release/deploy

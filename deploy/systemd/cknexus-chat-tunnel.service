@@ -6,9 +6,10 @@ Requires=cknexus-chat-ingress.service
 
 [Service]
 Type=simple
-User=nobody
-Group=nogroup
+DynamicUser=yes
 Environment=HOME=/var/lib/cknexus-chat-tunnel
+StateDirectory=cknexus-chat-tunnel
+StateDirectoryMode=0700
 ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8102
 Restart=always
 RestartSec=5
@@ -20,7 +21,6 @@ ProtectHome=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
-ReadWritePaths=/var/lib/cknexus-chat-tunnel
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 UMask=0077
 
