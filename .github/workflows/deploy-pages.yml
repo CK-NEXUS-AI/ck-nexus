@@ -1,7 +1,7 @@
 name: Deploy CK-NEXUS Test Portal
 on:
   push:
-    branches: [main]
+    branches: [main, feat/ck-nexus-test-portal]
     paths:
       - "website/**"
       - ".github/workflows/deploy-pages.yml"
