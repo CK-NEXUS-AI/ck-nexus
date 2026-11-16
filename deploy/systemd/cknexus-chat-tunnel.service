@@ -1,0 +1,28 @@
+[Unit]
+Description=CK-NEXUS Chat-only Cloudflare HTTPS Quick Tunnel
+After=network-online.target cknexus-chat-ingress.service
+Wants=network-online.target
+Requires=cknexus-chat-ingress.service
+
+[Service]
+Type=simple
+User=nobody
+Group=nogroup
+Environment=HOME=/var/lib/cknexus-chat-tunnel
+ExecStart=/usr/local/bin/cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8102
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/var/lib/cknexus-chat-tunnel
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

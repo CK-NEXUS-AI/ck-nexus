@@ -1,0 +1,31 @@
+[Unit]
+Description=CK-NEXUS Chat-only HTTPS ingress proxy
+After=network.target cknexus-creator.service
+Requires=cknexus-creator.service
+
+[Service]
+Type=simple
+User=nobody
+Group=nogroup
+WorkingDirectory=/opt/cknexus/current-chat-release/deploy
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONPATH=/opt/cknexus/current-chat-release/deploy
+Environment=CKNEXUS_CHAT_ALLOWED_ORIGINS=https://ck-nexus-ai.github.io
+ExecStart=/opt/cknexus-creator-venv/bin/uvicorn cknexus_chat_ingress:create_app --factory --app-dir /opt/cknexus/current-chat-release/deploy --host 127.0.0.1 --port 8102 --no-access-log
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_UNIX
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
