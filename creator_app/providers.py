@@ -184,7 +184,10 @@ def build_provider_router(settings: Settings, broker: CredentialBroker) -> Provi
     if os.getenv("GEMINI_API_KEY", "").strip():
         providers.append(
             GeminiAdapter(
-                model=os.getenv("CKNEXUS_GEMINI_MODEL", "gemini-2.5-flash").strip(),
+                model=(
+                    os.getenv("CKNEXUS_GEMINI_MODEL", "gemini-2.5-flash").strip()
+                    or "gemini-2.5-flash"
+                ),
                 timeout_seconds=settings.provider_timeout_seconds,
             )
         )

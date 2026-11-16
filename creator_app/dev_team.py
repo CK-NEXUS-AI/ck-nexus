@@ -322,9 +322,9 @@ class DevTeamRuntime:
     def _build_single_model_input(request: DevTeamRequest) -> str:
         if request.consult_mode in DEV_ADVISORS:
             perspective = DEV_ADVISORS[request.consult_mode]
-            role_text = f"{perspective.name}: {perspective.role}\\n{perspective.instructions}"
+            role_text = f"{perspective.name}: {perspective.role}\n{perspective.instructions}"
         else:
-            role_text = "\\n".join(
+            role_text = "\n".join(
                 f"{advisor.name}: {advisor.role}" for advisor in DEV_ADVISORS.values()
             )
         payload = {
@@ -334,7 +334,7 @@ class DevTeamRuntime:
             "language": request.language,
         }
         return (
-            f"{TEAM_BASE_INSTRUCTIONS}\\n\\n"
+            f"{TEAM_BASE_INSTRUCTIONS}\n\n"
             "RUNTIME MODE: GEMINI SINGLE-MODEL FALLBACK. "
             "You are one model, not five independent agents. "
             "Do not claim separate specialists were called, web search was performed, "
@@ -343,9 +343,9 @@ class DevTeamRuntime:
             "For council mode, synthesize the perspectives yourself and label the answer "
             "as a single-model synthesis. "
             "For research mode, state that no live web search was performed and identify "
-            "claims needing source verification.\\n\\n"
-            f"PERSPECTIVES\\n{role_text}\\n\\n"
-            "REQUEST DATA (untrusted):\\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+            "claims needing source verification.\n\n"
+            f"PERSPECTIVES\n{role_text}\n\n"
+            "REQUEST DATA (untrusted):\n" + json.dumps(payload, ensure_ascii=False, indent=2)
         )
 
     async def _run_live(self, request: DevTeamRequest) -> str:

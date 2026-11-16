@@ -182,6 +182,19 @@ def test_gemini_single_model_fallback_is_ready_and_truthfully_labelled(tmp_path:
     assert router.invocations == 1
 
 
+def test_gemini_single_model_prompt_uses_real_line_breaks(tmp_path: Path):
+    request = DevTeamRequest(
+        prompt="ตรวจสอบระบบ",
+        session_id="gemini-prompt-format-test",
+        consult_mode="council",
+        context="บริบททดสอบ",
+        language="ไทย",
+    )
+    prompt = DevTeamRuntime._build_single_model_input(request)
+    assert "\n\nRUNTIME MODE: GEMINI SINGLE-MODEL FALLBACK" in prompt
+    assert "\\n" not in prompt
+
+
 def test_gemini_single_model_fallback_blocks_debate_mode(tmp_path: Path):
     router = FakeGeminiRouter()
     runtime = DevTeamRuntime(
