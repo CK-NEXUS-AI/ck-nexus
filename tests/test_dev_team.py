@@ -329,9 +329,9 @@ def test_free_only_router_uses_gemini_and_openrouter_without_paid_openai(
     statuses = router.statuses()
     names = [item.name for item in statuses]
 
-    assert names == ["gemini", "openrouter"]
+    assert names == ["openrouter", "gemini"]
     assert all(item.available for item in statuses)
-    assert router.preferred_status(required_capabilities={"text"}).name == "gemini"
+    assert router.preferred_status(required_capabilities={"text"}).name == "openrouter"
 
 
 def test_chat_endpoint_requires_a_dedicated_chat_token(tmp_path: Path):

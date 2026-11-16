@@ -6,8 +6,8 @@ Last reviewed: 2026-11-17
 
 | Provider | Credential | Read-only check | Routing decision |
 |---|---|---|---|
-| Google Gemini | Present in /etc/cknexus/gemini.env | GET /v1beta/models returned HTTP 200; gemini-3.8-flash listed | Enabled as free-tier primary |
-| OpenRouter | Present in /etc/cknexus/openrouter.env | GET /api/v1/models returned HTTP 200; zero-price models listed | Enabled with openrouter/free |
+| Google Gemini | Present in /etc/cknexus/gemini.env | GET /v1beta/models returned HTTP 200; gemini-3.8-flash listed; direct generation returned HTTP 503 during smoke test | Registered as secondary free-tier fallback; live inference currently unavailable (HTTP 503) |
+| OpenRouter | Present in /etc/cknexus/openrouter.env | GET /api/v1/models returned HTTP 200; zero-price models listed | Enabled as primary with openrouter/free |
 | Groq | Present in /etc/cknexus/groq.env | GET /openai/v1/models returned HTTP 403 | Not routed; key/account access needs repair |
 | Alibaba Model Studio / Qwen | Present in /etc/cknexus/qwen.env | Singapore workspace /models returned HTTP 200 | Not routed as free; Singapore general free quota is not available under current published policy |
 | OpenAI | Present in legacy /etc/cknexus/creator.env | Not probed; no recurring free API tier | Disabled by CKNEXUS_FREE_ONLY=true |
@@ -29,7 +29,7 @@ No API keys or key fragments are stored in this document or in Git.
 - CKNEXUS_FREE_ONLY=true prevents paid OpenAI from being registered as a fallback.
 - CKNEXUS_ENABLE_OPENROUTER_FREE=true enables OpenRouter's zero-price model router.
 - CKNEXUS_OPENROUTER_MODEL=openrouter/free delegates free-model selection to OpenRouter.
-- CKNEXUS_GEMINI_MODEL=gemini-3.8-flash selects a model listed in the Gemini free-tier catalog.
+- CKNEXUS_GEMINI_MODEL=gemini-3.8-flash selects a model listed in the Gemini free-tier catalog as the secondary provider.
 - No provider is considered live-inference verified by a /models response alone.
 - No live generation request was sent during setup, so no inference quota was consumed by this integration work.
 

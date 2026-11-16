@@ -51,7 +51,7 @@ The current temporary API URL is https://emerging-peoples-sheer-open.trycloudfla
 
 ## Free-provider routing
 
-The Creator API can run in CKNEXUS_FREE_ONLY=true mode. In that mode the paid OpenAI adapter is not registered, even if the legacy OpenAI credential exists. The currently approved cloud route is Google Gemini free-tier first, followed by OpenRouter's openrouter/free router, which selects only models advertised at zero token price. Both providers are enabled explicitly by server-side environment configuration.
+The Creator API can run in CKNEXUS_FREE_ONLY=true mode. In that mode the paid OpenAI adapter is not registered, even if the legacy OpenAI credential exists. The currently approved cloud route is OpenRouter's openrouter/free router first, followed by Google Gemini free-tier as a secondary path. OpenRouter selects only models advertised at zero token price. Both providers are enabled explicitly by server-side environment configuration.
 
 Gemini's free-tier prompts may be used by Google to improve products. Do not submit credentials, private keys, customer personal data, or confidential CK-NEXUS evidence to free hosted providers. OpenRouter's free model availability and provider-side data terms can vary by selected model; review the model/provider terms before using sensitive data.
 
