@@ -46,4 +46,4 @@ The frontend is published from the repository's feat/ck-nexus-test-portal branch
 
 The public ingress is a separate loopback proxy on port 8102. It forwards only GET /api/chat/status and POST /api/chat to the Creator API on port 8000. It does not expose the other Creator API routes, does not forward cookies, limits request bodies to 64 KiB, and permits only the exact GitHub Pages HTTPS origin. Cloudflare Quick Tunnel points to this proxy, not directly to the full Creator API. The existing read-only evidence tunnel remains unchanged.
 
-Cloudflare Quick Tunnel assigns a temporary hostname that can change if the tunnel is recreated. A stable production URL requires a named Cloudflare Tunnel and a verified domain; do not treat the temporary URL as a production endpoint.
+The current temporary API URL is https://executive-slowly-scores-char.trycloudflare.com and is prefilled in the Chat settings. Cloudflare Quick Tunnel assigns a temporary hostname that can change if the tunnel is recreated. A stable production URL requires a named Cloudflare Tunnel and a verified domain; do not treat the temporary URL as a production endpoint.

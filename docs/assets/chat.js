@@ -1,4 +1,5 @@
 (() => {
+const DEFAULT_API_BASE="https://executive-slowly-scores-char.trycloudflare.com";
 const $=id=>document.getElementById(id);
 const state={apiBase:"",token:"",session:makeSession(),ready:false,busy:false,messages:[]};
 function makeSession(){return "ckchat-"+(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));}
@@ -17,5 +18,5 @@ $("new-chat").addEventListener("click",()=>{state.session=makeSession();state.me
 $("send").addEventListener("click",()=>sendMessage($("prompt").value));$("prompt").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage($("prompt").value);}});$("prompt").addEventListener("input",()=>{const el=$("prompt");el.style.height="auto";el.style.height=Math.min(el.scrollHeight,170)+"px";});
 document.querySelectorAll("[data-prompt]").forEach(b=>b.addEventListener("click",()=>{$("prompt").value=b.dataset.prompt;$("prompt").focus();}));
 $("mobile-menu").addEventListener("click",()=>$("sidebar").classList.toggle("open"));$("settings").addEventListener("click",e=>{if(e.target===$("settings"))$("settings").close();});
-state.apiBase=sessionStorage.getItem("ck_chat_api")||"";state.token=sessionStorage.getItem("ck_chat_token")||"";if(state.apiBase&&state.token){$("api-base").value=state.apiBase;$("token").value=state.token;setConnected(false,"กดตั้งค่าเพื่อยืนยันการเชื่อมต่ออีกครั้ง");}else setConnected(false);
+state.apiBase=sessionStorage.getItem("ck_chat_api")||DEFAULT_API_BASE;state.token=sessionStorage.getItem("ck_chat_token")||"";if(state.apiBase&&state.token){$("api-base").value=state.apiBase;$("token").value=state.token;setConnected(false,"กดตั้งค่าเพื่อยืนยันการเชื่อมต่ออีกครั้ง");}else setConnected(false);
 })();
