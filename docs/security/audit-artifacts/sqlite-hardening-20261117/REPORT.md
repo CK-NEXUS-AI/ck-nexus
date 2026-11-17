@@ -5,41 +5,50 @@ Branch: `security/sqlite-hardening-20261117`
 Base: `main` at `4d1366cef3cbdd18aa174bdf67308567635c750a`
 PR: [#374 — Harden local SQLite database paths and sidecars](https://github.com/CK-NEXUS-AI/ck-nexus/pull/374)
 
-This PR isolates SQLite hardening from the wider integration bundle in PR #373. It changes **7 files** relative to `main`: the shared SQLite opener, two database integrations, two test files, and the evidence report/manifest.
+This PR isolates SQLite hardening from the wider integration bundle in PR #373. The candidate now changes **8 files** relative to `main`: four Python modules, two test files, and the evidence report/manifest.
 
 ## Verification on VPS
 
-- Full repository pytest suite on this isolated branch: **1,004 passed, 2 skipped** (59.81s; exit 0).
-- Ruff check on all five changed Python source/test files: PASS.
+- Full repository pytest suite: **1,008 passed, 2 skipped** (70.54s; exit 0; 12 deprecation warnings).
+- Ruff lint check on all six changed Python source/test files: PASS.
+- Ruff formatter check: NOT RUN in this verification pass.
 - `git diff --check`: PASS.
-- Bandit targeted scan on the three changed source files: exit 0; no findings reported.
-- pip-audit: no known vulnerabilities reported; local package `ck-nexus-creator` could not be audited from PyPI.
+- Bandit targeted scan on the four changed Python modules: exit 0; no findings reported.
+- pip-audit: no known vulnerabilities reported among auditable packages; local package `ck-nexus-creator` could not be audited from PyPI.
+
+## Review-driven fixes
+
+- Existing owned database directories are tightened to mode 0700 using an opened directory descriptor; the path/inode is rechecked after tightening.
+- EbookKnowledgeStore construction and read-only queries no longer create missing parent directories. Directory creation/tightening occurs on the write initialization path.
+- Explicit `isolation_level` is forwarded to read-only SQLite connections.
+- BrainRuntime and BrainJournal consistently expand `~` journal paths.
+- The missing-`O_NOFOLLOW` regression test now works on platforms where the attribute is absent.
+- The Q10–Q16 status table links to the [Q10–Q16 Closure Contract](../../../Q10_Q16_CLOSURE_CONTRACT.md).
+
+## Sidecar and TOCTOU boundary
+
 - Regression tests cover symlinked `-journal`, `-shm`, existing `-wal`, and deterministic database-path replacement immediately before `sqlite3.connect`.
-- The deterministic path-replacement test confirms detection of that controlled replacement. It is **not** a concurrent TOCTOU stress test and does not prove protection against hostile processes running under the same UID.
+- The deterministic path-replacement test confirms detection of that controlled replacement. It is **not** a concurrent TOCTOU stress test.
+- Existing sidecars and sidecars visible during connection setup are checked. SQLite may create WAL/SHM later on first use; the private 0700 parent directory is the cross-UID protection boundary for those later creations. Hostile processes running under the same UID remain inside the documented trust boundary.
 
-## Independent review limitations
+## Independent review status
 
-No fresh independent review of this isolated seven-file candidate has been completed. The previous Codex review covered an earlier five-file SQLite snapshot only, before the journal/SHM and deterministic path-swap regressions were added. A full review of PR #374 remains required before merge.
+Cubic's previous AI review identified seven issues. The fixes above address the reported cases, but the reviewer has not yet re-reviewed the new commit. A fresh Codex review is also pending. No independent review is claimed complete.
 
-The same-UID process trust boundary remains unchanged. Do not interpret the controlled path-swap regression as proof against concurrent hostile same-UID processes.
-
-## PR, CI, and release status (observed 2026-11-17)
+## PR, CI, and release status
 
 | Item | Verified status |
 |---|---|
 | PR #374 | OPEN |
-| Changed files | 7 |
+| Changed files | 8 |
 | GitHub Actions | BLOCKED — billing lock; jobs did not start |
-| Independent review | NOT VERIFIED |
+| Cubic re-review | PENDING |
+| Independent Codex review | PENDING |
 | Merge | NOT MERGED |
 | Deployment | NOT DEPLOYED |
 | Q10–Q16 | NOT CLOSED / NOT VERIFIED |
 | Production readiness | **NO-GO** |
 
-The PR #374 check-run annotations state: `The job was not started because your account is locked due to a billing issue.` This is an account-level block, not a code-test failure. No alternate account has been used to bypass it.
+The PR #374 check-run annotations state: `The job was not started because your account is locked due to a billing issue.` This is an account-level block, not a code-test failure. No alternate GitHub account has been used to bypass it.
 
-PR #373 remains open as a separate, broader 60-file integration bundle. Its SQLite changes are duplicated in the focused PR #374; PR #373 must be reviewed independently and must not be treated as verified by PR #374's test results.
-
-## SHA-256
-
-The manifest records SHA-256 hashes and byte sizes for the five changed Python source/test files in this isolated branch.
+PR #373 remains open as a separate, broader 60-file integration bundle. Its SQLite changes overlap the focused PR #374; PR #373 must be reviewed independently and must not be treated as verified by PR #374's test results.

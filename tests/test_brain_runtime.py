@@ -186,20 +186,22 @@ def test_brain_journal_rejects_symlinked_wal_sidecar(tmp_path):
     assert target.read_bytes() == b"do not modify"
 
 
-def test_brain_journal_rejects_world_writable_non_sticky_parent(tmp_path):
+def test_brain_journal_tightens_existing_world_writable_parent(tmp_path):
+    import stat
+
     parent = tmp_path / "unsafe"
     parent.mkdir()
     parent.chmod(0o777)
-    db = parent / "brain.sqlite3"
+    journal = BrainJournal(parent / "brain.sqlite3")
 
-    with pytest.raises(PermissionError, match="private"):
-        BrainJournal(db)
+    assert stat.S_IMODE(parent.stat().st_mode) == 0o700
+    assert journal.database.exists()
 
 
 def test_sqlite_security_fails_closed_without_nofollow_support(tmp_path, monkeypatch):
     from creator_app import sqlite_security
 
-    monkeypatch.delattr(sqlite_security.os, "O_NOFOLLOW")
+    monkeypatch.delattr(sqlite_security.os, "O_NOFOLLOW", raising=False)
     with pytest.raises(OSError, match="O_NOFOLLOW"):
         BrainJournal(tmp_path / "brain.sqlite3")
 
@@ -291,22 +293,26 @@ def test_new_wal_sidecars_are_private_under_permissive_umask(tmp_path):
         os.umask(previous_umask)
 
 
-def test_brain_journal_rejects_sticky_world_writable_database_directory(tmp_path):
+def test_brain_journal_tightens_existing_sticky_world_writable_directory(tmp_path):
+    import stat
+
     parent = tmp_path / "sticky-shared"
     parent.mkdir()
     parent.chmod(0o1777)
+    BrainJournal(parent / "brain.sqlite3")
 
-    with pytest.raises(PermissionError, match="private"):
-        BrainJournal(parent / "brain.sqlite3")
+    assert stat.S_IMODE(parent.stat().st_mode) == 0o700
 
 
-def test_brain_journal_rejects_readable_nonwritable_database_directory(tmp_path):
+def test_brain_journal_tightens_existing_readable_database_directory(tmp_path):
+    import stat
+
     parent = tmp_path / "readable"
     parent.mkdir()
     parent.chmod(0o755)
+    BrainJournal(parent / "brain.sqlite3")
 
-    with pytest.raises(PermissionError, match="private"):
-        BrainJournal(parent / "brain.sqlite3")
+    assert stat.S_IMODE(parent.stat().st_mode) == 0o700
 
 
 @pytest.mark.parametrize("suffix", ["-journal", "-shm"])
@@ -323,6 +329,20 @@ def test_sqlite_security_rejects_symlinked_journal_and_shm_sidecars(tmp_path, su
         connect_sqlite_database(database, timeout=1)
 
     assert target.read_bytes() == b"do not modify"
+
+
+def test_readonly_sqlite_preserves_explicit_isolation_level(tmp_path):
+    from creator_app.sqlite_security import connect_sqlite_database
+
+    database = tmp_path / "readonly-isolation.sqlite3"
+    BrainJournal(database)
+    connection = connect_sqlite_database(
+        database, timeout=1, readonly=True, isolation_level=None
+    )
+    try:
+        assert connection.isolation_level is None
+    finally:
+        connection.close()
 
 
 def test_sqlite_security_detects_database_path_swap_during_connect(tmp_path, monkeypatch):
@@ -353,3 +373,22 @@ def test_sqlite_security_detects_database_path_swap_during_connect(tmp_path, mon
         sqlite_security.connect_sqlite_database(database, timeout=1)
 
     assert target.read_bytes() == target_before
+
+
+def test_brain_runtime_expands_tilde_journal_path_consistently(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    brain = BrainRuntime(
+        root=_root(tmp_path),
+        journal_path="~/state/brain.sqlite3",
+        task_db_path=tmp_path / "tasks.sqlite3",
+        knowledge_db_path=tmp_path / "missing.sqlite3",
+        evidence_dir=tmp_path / "missing-evidence",
+    )
+
+    brain.record_observation(task="tilde-path", outcome="reported_success")
+
+    assert brain.journal_path == home / "state" / "brain.sqlite3"
+    assert brain.journal_path.is_file()
+    assert brain.journal_summary()["observation_count"] == 1

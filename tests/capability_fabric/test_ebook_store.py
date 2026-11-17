@@ -93,6 +93,15 @@ def test_readonly_search_does_not_create_or_mutate_index(tmp_path) -> None:
     assert not path.exists()
 
 
+def test_readonly_search_does_not_create_missing_parent_directory(tmp_path) -> None:
+    parent = tmp_path / "not-created" / "nested"
+    store = EbookKnowledgeStore(parent / "knowledge.sqlite3")
+
+    assert store.search_readonly("attention") == ()
+    assert store.list_documents_readonly() == ()
+    assert not parent.exists()
+
+
 def test_readonly_search_uses_existing_index_and_honors_revocation(tmp_path) -> None:
     document = _document()
     chunks = chunk_epub(document, rights_basis=EbookRightsBasis.OPEN_LICENSE)
@@ -127,6 +136,19 @@ def test_database_rejects_symlink_without_touching_target(tmp_path) -> None:
         store.initialize()
 
     assert target.read_bytes() == b"do not modify"
+
+
+def test_initialize_tightens_existing_database_directory(tmp_path) -> None:
+    import stat
+
+    parent = tmp_path / "legacy-knowledge"
+    parent.mkdir(mode=0o755)
+    parent.chmod(0o755)
+    store = EbookKnowledgeStore(parent / "knowledge.sqlite3")
+
+    store.initialize()
+
+    assert stat.S_IMODE(parent.stat().st_mode) == 0o700
 
 
 def test_existing_database_permissions_are_tightened(tmp_path) -> None:

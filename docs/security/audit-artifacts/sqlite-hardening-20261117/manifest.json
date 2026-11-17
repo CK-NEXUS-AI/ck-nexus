@@ -4,82 +4,90 @@
   "repository": "CK-NEXUS-AI/ck-nexus",
   "branch": "security/sqlite-hardening-20261117",
   "base_commit": "4d1366cef3cbdd18aa174bdf67308567635c750a",
-  "state": "PR #374 open; hosted GitHub Actions blocked before job start by billing lock; local verification recorded",
+  "state": "PR #374 open; local verification refreshed after review-driven fixes; hosted CI blocked by billing lock; independent re-review pending",
   "files": [
     {
       "path": "creator_app/sqlite_security.py",
-      "sha256": "d61d21395bde2cf797cbdb6cbb191a1401834d752489a74b385ce6d3e78ddec7",
-      "bytes": 5524
+      "sha256": "6a3dc0428c73f63aeda3f5bfa401fcae15c79b4b4a8248e5f5c874ba920bf862",
+      "bytes": 7230
     },
     {
       "path": "creator_app/brain/journal.py",
-      "sha256": "d4080464c2555c26ae64a9a29279a0f9938b3aad69f19c6c8276f4a602136be5",
-      "bytes": 9953
+      "sha256": "bf60e8f16d595ec4cdf5bdb094976087610df40a31160b0b88e06b06780a9793",
+      "bytes": 9853
+    },
+    {
+      "path": "creator_app/brain/runtime.py",
+      "sha256": "3dd0d4f67bbff30a678e4631289d1b5fe6431ed435be854e6e16829bfa9fe9dc",
+      "bytes": 7729
     },
     {
       "path": "creator_app/global_knowledge/ebook_store.py",
-      "sha256": "183dc0519366cc980b87bec14c0358492a70d1418d1f2b516368b6dc15a94a2e",
-      "bytes": 11393
+      "sha256": "28fdcf2ad1a9c00289a0f832d90698cf9d6ef287c6619eb7579b8ff9b87b1ac2",
+      "bytes": 11361
     },
     {
       "path": "tests/test_brain_runtime.py",
-      "sha256": "53267130baf79365c867df77f38d316aa8e9efef3fd0046675f3bb9edfa1c021",
-      "bytes": 11788
+      "sha256": "fd063d664cf7d0a660705cfbd4ae371e19f2bb1da9f582e9ed17de3fedccc2f7",
+      "bytes": 12992
     },
     {
       "path": "tests/capability_fabric/test_ebook_store.py",
-      "sha256": "333633dd9425ed35a5fb944456a31d4ca872dd0fe3d23b052554a750b241fb4a",
-      "bytes": 5513
+      "sha256": "5140a511b847feb03c3909aee188cabc962539e42bb5e1d570cd31f501f8c0ab",
+      "bytes": 6178
     }
   ],
   "checks": {
-    "pytest": "1004 passed, 2 skipped; 59.81s; exit 0; full repository suite on isolated branch based on origin/main",
-    "ruff": "pass on five changed source/test files",
-    "git_diff_check": "pass on isolated branch",
+    "pytest": "1008 passed, 2 skipped; 70.54s; exit 0; full repository suite on isolated branch based on origin/main; 12 deprecation warnings",
+    "ruff": "PASS on six changed Python source/test files",
+    "ruff_format": "NOT_RUN_THIS_REVISION",
+    "git_diff_check": "PASS",
     "bandit": {
-      "high": 0,
-      "medium": 0,
-      "low": 0
+      "result": "PASS",
+      "scope": "Four changed Python source modules",
+      "findings": "No findings reported; exit 0"
     },
     "pip_audit": {
       "result": "PASS_WITH_UNAUDITED_LOCAL_PACKAGE",
-      "known_vulnerabilities": 0,
-      "audited_dependencies": 84,
+      "known_vulnerabilities": "None reported",
       "skipped_dependencies": [
         {
           "name": "ck-nexus-creator",
-          "reason": "Dependency not found on PyPI and could not be audited: ck-nexus-creator (0.2.0)"
+          "reason": "Dependency not found on PyPI and could not be audited"
         }
-      ]
-    },
-    "sqlite_quick_check": "ok",
-    "service": "cknexus-creator.service active",
-    "database_permissions": {
-      "directory": "0700",
-      "file": "0600",
-      "owner": "cknexus-creator:cknexus-creator"
-    },
-    "codex_review": {
-      "result": "NOT_VERIFIED",
-      "scope": "No fresh independent review of the isolated branch; previous review covered only an earlier five-file snapshot.",
-      "actionable_findings": null,
-      "limitations": [
-        "New journal/SHM symlink and deterministic path-swap tests have not received a fresh independent review.",
-        "Full isolated PR review remains required before merge.",
-        "The path-swap regression is deterministic and does not prove resistance to concurrent same-UID hostile processes.",
-        "Same-UID processes remain inside the documented trust boundary."
       ]
     },
     "sqlite_security_regressions": {
       "symlinked_journal": "PASS",
       "symlinked_shm": "PASS",
       "symlinked_wal": "PASS (existing regression)",
-      "database_path_swap_during_connect": "PASS (deterministic monkeypatched path swap; post-open identity validation detected replacement)",
-      "scope_note": "Not a concurrent TOCTOU stress test; same-UID trust boundary unchanged."
+      "database_path_swap_during_connect": "PASS (deterministic monkeypatched path replacement; not a concurrent race stress test)",
+      "existing_owned_directory_permissions": "PASS (tightened to 0700 through opened directory descriptor)",
+      "readonly_ebook_missing_parent": "PASS (no directory created)",
+      "readonly_isolation_level_forwarding": "PASS",
+      "tilde_journal_path_consistency": "PASS",
+      "nofollow_missing_flag_test": "PASS (monkeypatch deletion is portable)"
+    },
+    "historical_runtime_observations": {
+      "sqlite_quick_check": "ok (observed on VPS before this candidate revision; not rerun against candidate data)",
+      "service": "cknexus-creator.service active (observed on VPS; not a deployment of this PR)",
+      "database_permissions": {
+        "directory": "0700",
+        "file": "0600",
+        "owner": "cknexus-creator:cknexus-creator"
+      }
+    },
+    "independent_review": {
+      "codex": "PENDING_FRESH_REVIEW",
+      "cubic": "PRIOR_REVIEW_FOUND_7_ISSUES; fixes pushed for re-review pending",
+      "limitations": [
+        "No concurrent TOCTOU stress test",
+        "Same-UID hostile processes remain inside the documented trust boundary"
+      ]
     },
     "github_actions": {
       "status": "BLOCKED_BILLING_LOCK",
-      "evidence": "PR #374 check-run annotations state: The job was not started because your account is locked due to a billing issue.",
+      "evidence": "Every non-Cubic PR #374 check run reports: The job was not started because your account is locked due to a billing issue.",
       "tests_started": false
     },
     "pr": {
@@ -87,17 +95,17 @@
       "state": "OPEN",
       "url": "https://github.com/CK-NEXUS-AI/ck-nexus/pull/374",
       "base": "main",
-      "changed_files": 7,
-      "head_commit_before_this_evidence_update": "baeee7034190c6824396e686b82c0ed3286c1f4b",
+      "changed_files": 8,
       "merge_performed": false,
       "production_deployment_performed": false
     }
   },
   "limitations": [
-    "PR #374 is a seven-file SQLite-only change based on main; hosted CI cannot start while the GitHub account billing lock persists.",
-    "No fresh independent review of this isolated branch has been completed; independent review is required before merge.",
-    "The deterministic path-swap test verifies detection but is not a concurrent race stress test; same-UID hostile processes remain inside the documented trust boundary.",
-    "The original Codex review covered only an earlier five-file SQLite snapshot, before the journal/SHM and path-swap regressions.",
+    "PR #374 is an isolated SQLite hardening candidate; hosted CI jobs cannot start while the GitHub billing lock persists.",
+    "A fresh independent Codex review is pending; Cubic review findings were addressed locally and require re-review on the pushed commit.",
+    "Ruff formatter check was not run in this verification pass; Ruff lint check passed.",
+    "The deterministic path-swap test is not a concurrent TOCTOU stress test.",
+    "WAL/SHM files SQLite creates after the connection is returned are protected from other UIDs by the private directory; hostile same-UID processes remain inside the documented trust boundary.",
     "Production readiness and Q10-Q16 closure are not established.",
     "No merge or deployment performed."
   ]

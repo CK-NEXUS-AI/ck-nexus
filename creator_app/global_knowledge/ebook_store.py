@@ -20,7 +20,10 @@ from creator_app.global_knowledge.ebook_ingest import (
     EbookIngestError,
     EbookRightsBasis,
 )
-from creator_app.sqlite_security import connect_sqlite_database
+from creator_app.sqlite_security import (
+    connect_sqlite_database,
+    prepare_private_sqlite_parent,
+)
 
 _SEARCH_SQL = """SELECT c.chunk_id, c.source_sha256, d.title, d.filename,
     c.chapter_id, c.chapter_order, c.chunk_order, c.text, c.rights_basis
@@ -53,11 +56,10 @@ class EbookKnowledgeStore:
     def __init__(self, path: str | Path) -> None:
         """Resolve the database path once, then use only private local storage."""
         requested_path = Path(path).expanduser()
-        requested_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path = requested_path.parent.resolve() / requested_path.name
 
     def initialize(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path = prepare_private_sqlite_parent(self.path)
         with closing(self._connect()) as conn, conn:
             conn.executescript(
                 """
