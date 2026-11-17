@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
+import secrets
 import subprocess
 import time
 from collections.abc import Callable
@@ -16,6 +16,7 @@ from creator_app.control_plane.task_store import TaskStore
 
 from .learning import AgentLearningMemory
 
+DEFAULT_WORKSPACE_ROOT = Path("/var/lib/cknexus/n8n-intelligence/worktrees")
 _ALLOWED_HANDLER = "n8n_development_signal"
 _DENIED_PARTS = (
     ".env",
@@ -102,14 +103,11 @@ class AutoDeveloper:
         runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
         assistant: str = "opencode",
         timeout_seconds: int = 180,
-        workspace_root: str | Path | None = None,
     ) -> None:
         self.store = store
         self.policy = AutoDeveloperPolicy(Path(repo), timeout_seconds=timeout_seconds)
         self.evidence_dir = Path(evidence_dir)
-        self.workspace_root = (
-            Path(workspace_root) if workspace_root else self.evidence_dir.parent / "worktrees"
-        )
+        self.workspace_root = DEFAULT_WORKSPACE_ROOT
         self.learning = AgentLearningMemory(self.evidence_dir)
         self.runner = runner
         self.assistant = assistant
@@ -228,13 +226,9 @@ class AutoDeveloper:
         )
 
     def _create_workspace(self, job_id: str) -> tuple[Path, str]:
-        key = hashlib.sha256(job_id.encode("utf-8")).hexdigest()[:16]
-        if not re.fullmatch(r"[0-9a-f]{16}", key):
-            raise RuntimeError("workspace_key_invalid")
-        workspace_root = self.workspace_root.resolve()
-        workspace = (workspace_root / key).resolve()
-        if workspace.parent != workspace_root:
-            raise RuntimeError("workspace_path_escape")
+        key = secrets.token_hex(8)
+        workspace_root = self.workspace_root
+        workspace = workspace_root / key
         branch = f"cknexus/auto-dev/{key}"
         if not re.fullmatch(r"cknexus/auto-dev/[0-9a-f]{16}", branch):
             raise RuntimeError("workspace_branch_invalid")

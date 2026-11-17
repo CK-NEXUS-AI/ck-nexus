@@ -176,21 +176,16 @@ def restore(
     dump = backup_dir / "postgres.dump"
     started = time.time()
     target_env = _database_environment(target_url)
-    proc = subprocess.run(
-        [
-            pg_restore,
-            "--clean",
-            "--if-exists",
-            "--no-owner",
-            "--no-acl",
-            str(dump.resolve()),
-        ],
-        env=target_env,
-        text=True,
-        capture_output=True,
-        check=False,
-        shell=False,
-    )
+    with dump.open("rb") as dump_stream:
+        proc = subprocess.run(
+            [pg_restore, "--clean", "--if-exists", "--no-owner", "--no-acl"],
+            env=target_env,
+            stdin=dump_stream,
+            text=True,
+            capture_output=True,
+            check=False,
+            shell=False,
+        )
     if proc.returncode != 0:
         raise RuntimeError(f"pg_restore failed with exit code {proc.returncode}")
     table_sql = (

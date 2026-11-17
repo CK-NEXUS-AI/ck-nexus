@@ -1,8 +1,10 @@
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
 from creator_app.control_plane.task_store import TaskStore
+from creator_app.n8n_intelligence import auto_developer as auto_developer_module
 from creator_app.n8n_intelligence.auto_developer import AutoDeveloper
 
 
@@ -57,10 +59,11 @@ def test_command_like_task_is_data_not_command(tmp_path: Path):
     assert result.reason == "command_like_input"
 
 
-def test_successful_run_requires_tests_and_keeps_head_unchanged(tmp_path: Path):
+def test_successful_run_requires_tests_and_keeps_head_unchanged(tmp_path: Path, monkeypatch):
     store = _queue(tmp_path, _safe_payload())
     repo = tmp_path / "repo"
     repo.mkdir()
+    monkeypatch.setattr(auto_developer_module, "DEFAULT_WORKSPACE_ROOT", tmp_path / "worktrees")
     state = {"head": "abc", "status": ""}
     opencode_commands = []
 
@@ -86,7 +89,7 @@ def test_successful_run_requires_tests_and_keeps_head_unchanged(tmp_path: Path):
     result = AutoDeveloper(
         store, repo=repo, evidence_dir=tmp_path / "evidence", runner=runner
     ).run_once()
-    assert result.state == "verified"
+    assert result.state == "verified", result
     assert result.tests_ok is True
     assert opencode_commands and "--dir" in opencode_commands[0]
     assert "--auto" not in opencode_commands[0]
@@ -96,7 +99,7 @@ def test_successful_run_requires_tests_and_keeps_head_unchanged(tmp_path: Path):
     assert evidence["index_clean"] is True
 
 
-def test_dirty_primary_repo_uses_isolated_git_worktree(tmp_path: Path):
+def test_dirty_primary_repo_uses_isolated_git_worktree(tmp_path: Path, monkeypatch):
 
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -115,6 +118,7 @@ def test_dirty_primary_repo_uses_isolated_git_worktree(tmp_path: Path):
     subprocess.run(["git", "-C", str(repo), "commit", "-qm", "baseline"], check=True)
     (repo / "user-change.txt").write_text("preserve me\n", encoding="utf-8")
     worktree_root = tmp_path / "worktrees"
+    monkeypatch.setattr(auto_developer_module, "DEFAULT_WORKSPACE_ROOT", worktree_root)
     store = _queue(tmp_path, _safe_payload())
 
     def runner(args, **kwargs):
@@ -123,10 +127,20 @@ def test_dirty_primary_repo_uses_isolated_git_worktree(tmp_path: Path):
                 "baseline = True\nagent_change = True\n", encoding="utf-8"
             )
             return subprocess.CompletedProcess(args, 0, "implemented\n", "")
-        if args and args[0] in {"git", "/usr/bin/git", "/bin/git"}:
-            allowed_git = {"show-ref", "worktree", "status", "rev-parse", "diff"}
-            if len(args) > 1 and args[1] in allowed_git:
-                return subprocess.run(args, shell=False, **kwargs)
+        if args and args[0] == "git":
+            if args[1] == "show-ref":
+                return subprocess.CompletedProcess(args, 1, "", "")
+            if args[1] == "worktree":
+                workspace = Path(args[-2])
+                workspace.mkdir(parents=True, exist_ok=True)
+                shutil.copytree(repo / "creator_app", workspace / "creator_app")
+                return subprocess.CompletedProcess(args, 0, "", "")
+            if args[1] == "status":
+                return subprocess.CompletedProcess(args, 0, "", "")
+            if args[1] == "rev-parse":
+                return subprocess.CompletedProcess(args, 0, "abc\n", "")
+            if args[1] == "diff":
+                return subprocess.CompletedProcess(args, 0, "", "")
         if args and (args[0].endswith("pytest") or args[0] == ".venv/bin/pytest"):
             return subprocess.CompletedProcess(args, 0, "1 passed\n", "")
         raise AssertionError("unexpected subprocess command")
@@ -138,15 +152,11 @@ def test_dirty_primary_repo_uses_isolated_git_worktree(tmp_path: Path):
         runner=runner,
     ).run_once()
 
-    assert result.state == "verified"
+    assert result.state == "verified", result
     assert (repo / "user-change.txt").read_text(encoding="utf-8") == "preserve me\n"
     assert (repo / "creator_app" / "n8n_intelligence" / "analysis.py").read_text(
         encoding="utf-8"
     ) == "baseline = True\n"
-    worktrees = subprocess.run(
-        ["git", "-C", str(repo), "worktree", "list", "--porcelain"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
-    assert str(worktree_root) in worktrees
+    worktrees = list(worktree_root.iterdir())
+    assert len(worktrees) == 1
+    assert (worktrees[0] / "creator_app" / "n8n_intelligence" / "analysis.py").is_file()

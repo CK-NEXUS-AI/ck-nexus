@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import re
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlencode
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "evidence" / "ai_factory" / "github_signals.jsonl"
@@ -33,31 +35,51 @@ def classify_cli_error(stderr: str) -> str:
     return "unclassified_cli_error"
 
 
+def _github_token() -> str:
+    token = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
+    if token:
+        return token.strip()
+    result = subprocess.run(
+        ["gh", "auth", "token"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        shell=False,
+        close_fds=True,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        raise RuntimeError("github_authentication_unavailable")
+    return result.stdout.strip()
+
+
 def search(query: str, limit: int = 20) -> list[dict]:
-    """Search GitHub using a constrained query passed as a single field value."""
+    """Search GitHub via a fixed API origin; user query is URL-encoded data."""
     query = query.strip()
     if not query or len(query) > 240 or not re.fullmatch(r"[A-Za-z0-9_:/.*><=+\- ]+", query):
         raise ValueError("GitHub search query contains unsupported characters")
     if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
         raise ValueError("GitHub search limit must be between 1 and 100")
-    command = [
-        "gh",
-        "api",
-        "-X",
-        "GET",
-        "search/repositories",
-        "-f",
-        "q=" + query,
-        "-f",
-        "per_page=" + str(limit),
-    ]
-    result = subprocess.run(
-        command, cwd=ROOT, text=True, capture_output=True, check=False, shell=False, close_fds=True
-    )
-    if result.returncode != 0:
-        category = classify_cli_error(result.stderr)
-        raise RuntimeError(f"github_search_failed:{category}:exit={result.returncode}")
-    payload = json.loads(result.stdout)
+    connection = http.client.HTTPSConnection("api.github.com", timeout=20)
+    try:
+        connection.request(
+            "GET",
+            "/search/repositories?" + urlencode({"q": query, "per_page": limit}),
+            headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": "Bearer " + _github_token(),
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        response = connection.getresponse()
+        if response.status != 200:
+            raise RuntimeError(f"HTTP {response.status}: GitHub search failed")
+        payload = json.loads(response.read(2_000_000))
+    except Exception as exc:
+        category = classify_cli_error(str(exc))
+        raise RuntimeError(f"github_search_failed:{category}") from None
+    finally:
+        connection.close()
     return payload.get("items", [])
 
 

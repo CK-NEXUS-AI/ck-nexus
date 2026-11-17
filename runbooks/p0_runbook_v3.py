@@ -29,7 +29,7 @@ REQUIRED_GATES = [
 ]
 VALID = {"PASS", "FAIL", "BLOCKED", "N/A"}
 ROOT = Path(__file__).resolve().parents[1]
-COMPOSE = Path(os.getenv("CKNEXUS_COMPOSE_FILE", str(ROOT / "docker-compose.p0.yml")))
+COMPOSE = ROOT / "docker-compose.p0.yml"
 
 
 def now() -> str:
@@ -195,7 +195,6 @@ def wait_http(url: str, seconds: int = 120) -> bool:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--env-file", default=str(ROOT / ".env.prod"))
     ap.add_argument("--allow-destructive", action="store_true")
     args = ap.parse_args()
 
@@ -238,13 +237,12 @@ def main() -> int:
         ev.gate("P0-OPS", "BLOCKED", details={"reason": "Docker unavailable"})
         return 2
 
-    env_path = Path(args.env_file)
+    env_path = ROOT / ".env.prod"
     if not env_path.exists():
         ev.gate("P0-OPS", "BLOCKED", details={"reason": f"Missing env file: {env_path}"})
         return 2
 
     env = os.environ.copy()
-    env["CKNEXUS_COMPOSE_FILE"] = str(COMPOSE)
     env["CKNEXUS_ENV_FILE"] = str(env_path)
     for line in env_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
