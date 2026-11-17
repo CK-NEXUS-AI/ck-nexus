@@ -1,10 +1,10 @@
 {
   "schema": "cknexus-evidence-manifest/v1",
-  "created_at_utc": "2026-11-17T01:50:53.826787+00:00",
+  "created_at_utc": "2026-11-17T01:52:17.372934+00:00",
   "repository": "CK-NEXUS-AI/ck-nexus",
   "branch": "security/sqlite-hardening-20261117",
   "base_commit": "4d1366cef3cbdd18aa174bdf67308567635c750a",
-  "state": "PR #374 open at head 5a50bbe; code revision 658f2fd has 37 targeted tests passing; latest Cubic check passed but left two evidence wording/provenance comments; hosted CI blocked by confirmed GitHub billing lock",
+  "state": "PR #374 remains open; code revision 658f2fd has 37 targeted tests passing; latest completed Cubic check passed with two evidence comments; follow-up evidence edits await re-review; hosted CI blocked by confirmed GitHub billing lock",
   "files": [
     {
       "path": "creator_app/sqlite_security.py",
@@ -91,14 +91,14 @@
         ]
       },
       "cubic": {
-        "result": "CHECK_PASS_WITH_TWO_EVIDENCE_COMMENTS",
-        "reviewed_pr_head": "5a50bbe70809699d2e167c719800d15e8f55c047",
-        "code_revision_with_targeted_tests": "658f2fd3b73698a64174f0f29e8b9753f02229da",
-        "latest_review_run": "d638eda3-7700-5053-ae83-3c4fa6abd6a7",
-        "comments_remaining": [
-          "REPORT.md should describe previous code findings as author-reported fixes, not independently verified.",
-          "manifest.json must distinguish the actual PR head from the code revision that was tested."
+        "result": "FOLLOWUP_EVIDENCE_REVIEW_PENDING",
+        "latest_completed_check": "PASS, on prior PR head before follow-up evidence edits",
+        "review_run": "d638eda3-7700-5053-ae83-3c4fa6abd6a7",
+        "comments": [
+          "Report wording must identify prior code fixes as author-reported, not independently confirmed.",
+          "Manifest must not misidentify a prior code revision as the current PR head."
         ],
+        "followup_edits": "Report wording corrected; dynamic PR head SHA removed from manifest so it cannot become stale; current PR head remains available from GitHub.",
         "independent_signoff": "NOT_CLAIMED"
       }
     },
@@ -115,7 +115,7 @@
       "changed_files": 8,
       "merge_performed": false,
       "production_deployment_performed": false,
-      "head_commit": "5a50bbe70809699d2e167c719800d15e8f55c047"
+      "head_reference": "Query GitHub PR #374 for the live head; this manifest records the tested code revision separately."
     },
     "current_revision": {
       "commit": "658f2fd3b73698a64174f0f29e8b9753f02229da",
@@ -132,7 +132,7 @@
     "PR #374 remains an isolated SQLite hardening candidate; hosted CI cannot start while the GitHub billing lock persists.",
     "Full repository test collection on the VPS was blocked by missing project dependencies; only the 37 targeted tests were run on code commit 658f2fd.",
     "Bandit and pip-audit were not rerun on code commit 658f2fd; previous results are explicitly historical.",
-    "Latest Cubic check passed but left two evidence wording/provenance comments; independent sign-off is not claimed.",
+    "Follow-up evidence edits after the latest Cubic review are awaiting re-review; independent sign-off is not claimed.",
     "The deterministic path-swap test is not a concurrent TOCTOU stress test.",
     "WAL/SHM files SQLite creates after connection return are protected from other UIDs by the private directory; hostile same-UID processes remain inside the documented trust boundary.",
     "Production readiness and Q10-Q16 closure are not established.",
