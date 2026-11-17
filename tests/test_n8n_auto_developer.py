@@ -123,9 +123,13 @@ def test_dirty_primary_repo_uses_isolated_git_worktree(tmp_path: Path):
                 "baseline = True\nagent_change = True\n", encoding="utf-8"
             )
             return subprocess.CompletedProcess(args, 0, "implemented\n", "")
+        if args and args[0] in {"git", "/usr/bin/git", "/bin/git"}:
+            allowed_git = {"show-ref", "worktree", "status", "rev-parse", "diff"}
+            if len(args) > 1 and args[1] in allowed_git:
+                return subprocess.run(args, shell=False, **kwargs)
         if args and (args[0].endswith("pytest") or args[0] == ".venv/bin/pytest"):
             return subprocess.CompletedProcess(args, 0, "1 passed\n", "")
-        return subprocess.run(args, **kwargs)
+        raise AssertionError("unexpected subprocess command")
 
     result = AutoDeveloper(
         store,

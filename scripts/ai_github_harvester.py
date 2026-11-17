@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -33,6 +34,12 @@ def classify_cli_error(stderr: str) -> str:
 
 
 def search(query: str, limit: int = 20) -> list[dict]:
+    """Search GitHub using a constrained query passed as a single field value."""
+    query = query.strip()
+    if not query or len(query) > 240 or not re.fullmatch(r"[A-Za-z0-9_:/.*><=+\- ]+", query):
+        raise ValueError("GitHub search query contains unsupported characters")
+    if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
+        raise ValueError("GitHub search limit must be between 1 and 100")
     command = [
         "gh",
         "api",
@@ -44,7 +51,9 @@ def search(query: str, limit: int = 20) -> list[dict]:
         "-f",
         "per_page=" + str(limit),
     ]
-    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
+    result = subprocess.run(
+        command, cwd=ROOT, text=True, capture_output=True, check=False, shell=False, close_fds=True
+    )
     if result.returncode != 0:
         category = classify_cli_error(result.stderr)
         raise RuntimeError(f"github_search_failed:{category}:exit={result.returncode}")

@@ -71,3 +71,12 @@ def test_verify_dump_rejects_checksum_mismatch(tmp_path: Path):
     (tmp_path / "SHA256SUMS").write_text("0" * 64 + "  postgres.dump\n")
     with pytest.raises(postgres_dr.DRBlocked, match="checksum"):
         postgres_dr.verify_dump(tmp_path)
+
+
+def test_database_connection_string_is_passed_through_environment_not_argv(monkeypatch):
+    monkeypatch.setenv("PGHOST", "db.example")
+    env = postgres_dr._database_environment("postgresql://user:secret@db.example/app")
+    assert env["PGDATABASE"] == "app"
+    assert env["PGHOST"] == "db.example"
+    assert env["PGUSER"] == "user"
+    assert env["PGPASSWORD"] == "secret"

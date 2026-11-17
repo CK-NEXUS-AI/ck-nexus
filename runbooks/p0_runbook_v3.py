@@ -36,10 +36,64 @@ def now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+def _repo_path(value: str) -> Path:
+    path = Path(value).resolve()
+    if path != ROOT and ROOT not in path.parents:
+        raise ValueError("runbook file argument must stay inside the repository")
+    return path
+
+
+def _validate_runbook_command(cmd: list[str]) -> None:
+    if not isinstance(cmd, list) or not cmd or not all(isinstance(item, str) for item in cmd):
+        raise ValueError("runbook command must be a non-empty argument list")
+    if any("\x00" in item for item in cmd):
+        raise ValueError("runbook command contains a NUL byte")
+    executable = cmd[0]
+    if executable == "git":
+        if len(cmd) < 2 or cmd[1] not in {"rev-parse", "branch", "status"}:
+            raise ValueError("runbook Git operation is not allowlisted")
+        return
+    if executable == sys.executable:
+        if len(cmd) < 2 or _repo_path(cmd[1]).suffix != ".py":
+            raise ValueError("runbook Python script is not allowlisted")
+        _repo_path(cmd[1])
+        return
+    if executable == "bash":
+        if len(cmd) != 2 or _repo_path(cmd[1]).suffix != ".sh":
+            raise ValueError("runbook shell script is not allowlisted")
+        _repo_path(cmd[1])
+        return
+    if executable == "docker":
+        if cmd[1:] == ["version"]:
+            return
+        if len(cmd) < 5 or cmd[1] != "compose":
+            raise ValueError("runbook Docker operation is not allowlisted")
+        if not any(cmd[index] in {"-f", "--env-file"} for index in range(2, len(cmd) - 1)):
+            raise ValueError("runbook Compose file must be explicit")
+        for index, value in enumerate(cmd[:-1]):
+            if value in {"-f", "--env-file"}:
+                _repo_path(cmd[index + 1])
+        if not any(value in {"up", "exec"} for value in cmd[2:]):
+            raise ValueError("runbook Compose subcommand is not allowlisted")
+        return
+    raise ValueError("runbook executable is not allowlisted")
+
+
 def run(
     cmd: list[str], *, timeout: int = 300, env: dict[str, str] | None = None
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, cwd=ROOT, text=True, capture_output=True, timeout=timeout, env=env)
+    """Run only allowlisted repository scripts and local operations; never invoke a shell."""
+    _validate_runbook_command(cmd)
+    return subprocess.run(
+        cmd,
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        timeout=timeout,
+        env=env,
+        shell=False,
+        close_fds=True,
+    )
 
 
 def sha256_tree(root: Path) -> str:

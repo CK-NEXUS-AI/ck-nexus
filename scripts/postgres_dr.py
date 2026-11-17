@@ -10,7 +10,7 @@ import subprocess
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 REQUIRED_TABLES = ("agnes_idempotency", "creator_runs", "email_journal", "email_outbox")
 
@@ -27,13 +27,17 @@ class DbIdentity:
 
 
 def _identity(url: str) -> DbIdentity:
-    parsed = urlsplit(url)
+    try:
+        parsed = urlsplit(url)
+        port = parsed.port
+    except ValueError as exc:
+        raise DRBlocked("database URL contains an invalid port") from exc
     if parsed.scheme not in {"postgres", "postgresql"}:
         raise DRBlocked("database URL must use postgres:// or postgresql://")
     database = parsed.path.lstrip("/").split("?", 1)[0]
     if not parsed.hostname or not database:
         raise DRBlocked("database URL must include host and database name")
-    return DbIdentity(parsed.hostname, parsed.port, database)
+    return DbIdentity(parsed.hostname, port, database)
 
 
 def _same_database(a: DbIdentity, b: DbIdentity) -> bool:
@@ -78,10 +82,31 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def _run(
-    cmd: list[str], *, env: dict[str, str] | None = None, stdin=None
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, env=env, stdin=stdin, text=True, capture_output=True, check=False)
+def _database_environment(database_url: str) -> dict[str, str]:
+    """Pass connection strings through libpq's environment, never command arguments."""
+    _identity(database_url)
+    parsed = urlsplit(database_url)
+    env = os.environ.copy()
+    env["PGHOST"] = parsed.hostname or ""
+    env["PGDATABASE"] = parsed.path.lstrip("/").split("?", 1)[0]
+    if parsed.port is not None:
+        env["PGPORT"] = str(parsed.port)
+    if parsed.username is not None:
+        env["PGUSER"] = unquote(parsed.username)
+    if parsed.password is not None:
+        env["PGPASSWORD"] = unquote(parsed.password)
+    query = parse_qs(parsed.query, strict_parsing=False)
+    allowed_options = {
+        "sslmode": "PGSSLMODE",
+        "connect_timeout": "PGCONNECT_TIMEOUT",
+        "application_name": "PGAPPNAME",
+        "target_session_attrs": "PGTARGETSESSIONATTRS",
+    }
+    for key, env_name in allowed_options.items():
+        values = query.get(key)
+        if values and len(values) == 1:
+            env[env_name] = values[0]
+    return env
 
 
 def backup(source_url: str, output_dir: Path, rpo_seconds: int) -> dict[str, object]:
@@ -92,10 +117,12 @@ def backup(source_url: str, output_dir: Path, rpo_seconds: int) -> dict[str, obj
     started = time.time()
     with dump.open("wb") as fh:
         proc = subprocess.run(
-            [pg_dump, "--dbname", source_url, "--format=custom", "--no-owner", "--no-acl"],
+            [pg_dump, "--format=custom", "--no-owner", "--no-acl"],
+            env=_database_environment(source_url),
             stdout=fh,
             stderr=subprocess.PIPE,
             check=False,
+            shell=False,
         )
     if proc.returncode != 0:
         dump.unlink(missing_ok=True)
@@ -148,24 +175,35 @@ def restore(
     integrity = verify_dump(backup_dir)
     dump = backup_dir / "postgres.dump"
     started = time.time()
-    proc = _run(
+    target_env = _database_environment(target_url)
+    proc = subprocess.run(
         [
             pg_restore,
-            "--dbname",
-            target_url,
             "--clean",
             "--if-exists",
             "--no-owner",
             "--no-acl",
-            str(dump),
-        ]
+            str(dump.resolve()),
+        ],
+        env=target_env,
+        text=True,
+        capture_output=True,
+        check=False,
+        shell=False,
     )
     if proc.returncode != 0:
         raise RuntimeError(f"pg_restore failed with exit code {proc.returncode}")
     table_sql = (
         "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' ORDER BY tablename;"
     )
-    verify = _run([psql, target_url, "-Atqc", table_sql])
+    verify = subprocess.run(
+        [psql, "-Atqc", table_sql],
+        env=target_env,
+        text=True,
+        capture_output=True,
+        check=False,
+        shell=False,
+    )
     if verify.returncode != 0:
         raise RuntimeError(
             f"post-restore verification query failed with exit code {verify.returncode}"

@@ -50,18 +50,20 @@ def test_browser_open_dispatches_only_approved_https_navigation(monkeypatch):
         stdout = '{"ok":true,"url":"https://github.com/CK-NEXUS-AI/ck-nexus","title":"CK-NEXUS"}'
         stderr = ""
 
-    calls = []
+
+    captured = {}
 
     def fake_run(args, **kwargs):
-        calls.append(args)
+        captured["args"] = args
+        captured["input"] = kwargs.get("input")
         return Result()
 
     monkeypatch.setattr(mcp_server.subprocess, "run", fake_run)
     result = mcp_server.cknexus_browser_open("https://github.com/CK-NEXUS-AI/ck-nexus")
     assert result["ok"] is True
     assert result["external_mutation_authorized"] is False
-    assert calls[0][0:3] == ["sudo", "-n", "/usr/local/sbin/cknexus-browser-mcp"]
-    assert calls[0][-2:] == ["open", "https://github.com/CK-NEXUS-AI/ck-nexus"]
+    assert captured["args"] == ["sudo", "-n", "/usr/local/sbin/cknexus-browser-mcp", "open"]
+    assert captured["input"] == "https://github.com/CK-NEXUS-AI/ck-nexus\n"
 
 
 def test_screenshot_reserves_and_removes_private_temp_file(tmp_path, monkeypatch):

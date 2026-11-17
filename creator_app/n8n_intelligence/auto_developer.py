@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import time
 from collections.abc import Callable
@@ -228,9 +229,16 @@ class AutoDeveloper:
 
     def _create_workspace(self, job_id: str) -> tuple[Path, str]:
         key = hashlib.sha256(job_id.encode("utf-8")).hexdigest()[:16]
-        workspace = self.workspace_root / key
+        if not re.fullmatch(r"[0-9a-f]{16}", key):
+            raise RuntimeError("workspace_key_invalid")
+        workspace_root = self.workspace_root.resolve()
+        workspace = (workspace_root / key).resolve()
+        if workspace.parent != workspace_root:
+            raise RuntimeError("workspace_path_escape")
         branch = f"cknexus/auto-dev/{key}"
-        self.workspace_root.mkdir(parents=True, exist_ok=True)
+        if not re.fullmatch(r"cknexus/auto-dev/[0-9a-f]{16}", branch):
+            raise RuntimeError("workspace_branch_invalid")
+        workspace_root.mkdir(parents=True, exist_ok=True)
         if workspace.exists():
             raise RuntimeError("workspace_already_exists")
         branch_check = self.runner(
