@@ -38,7 +38,7 @@ export OPENCODE_SERVER_USERNAME="opencode"
 opencode serve --hostname 127.0.0.1 --port 18924
 ```
 
-If an existing OpenCode TUI/session server is already running on another port, do not start a second server; set `OPENCODE_BASE_URL` to that server instead.
+If an existing OpenCode TUI/session server is already running on another port, do not start a second server; set `OPENCODE_BASE_URL` to that server’s loopback IP URL instead. Remote hosts and DNS names are rejected so the bridge cannot forward Basic credentials to an untrusted host.
 
 ## Start the MCP bridge
 

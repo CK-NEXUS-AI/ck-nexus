@@ -6,12 +6,43 @@ import os
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlsplit
 
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("CK_GATEWAY_PORT", "8790"))
 SCANNER_HEALTH = "http://127.0.0.1:8787/health"
 QWEN_KEY = os.environ.get("DASHSCOPE_API_KEY", "").strip()
-QWEN_BASE = os.environ.get("DASHSCOPE_BASE_URL", "").rstrip("/")
+
+
+def validated_qwen_base(value: str) -> str:
+    """Allow only official HTTPS DashScope endpoints before sending QWEN_KEY."""
+    if not value:
+        return ""
+    try:
+        parsed = urlsplit(value)
+        host = (parsed.hostname or "").lower().rstrip(".")
+        port = parsed.port
+    except ValueError:
+        return ""
+    allowed_host = host in {
+        "dashscope-intl.aliyuncs.com",
+        "dashscope.aliyuncs.com",
+    } or host.endswith(".maas.aliyuncs.com")
+    if (
+        parsed.scheme != "https"
+        or not allowed_host
+        or port not in (None, 443)
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path != "/compatible-mode/v1"
+        or parsed.query
+        or parsed.fragment
+    ):
+        return ""
+    return value.rstrip("/")
+
+
+QWEN_BASE = validated_qwen_base(os.environ.get("DASHSCOPE_BASE_URL", ""))
 QWEN_MODEL = os.environ.get("QWEN_MODEL", "qwen3.6-plus").strip()
 QWEN_OK = bool(QWEN_KEY and QWEN_BASE)
 MAX_BODY = 65536

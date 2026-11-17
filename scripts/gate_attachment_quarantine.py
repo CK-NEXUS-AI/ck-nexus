@@ -6,22 +6,23 @@ import tempfile
 import urllib.request
 
 try:
-    from scripts._safe_http import safe_urlopen
+    from scripts._safe_http import require_loopback_url, safe_urlopen
 except ImportError:
-    from _safe_http import safe_urlopen
+    from _safe_http import require_loopback_url, safe_urlopen
 import uuid
 import zipfile
 
 
 def upload(url, path, token):
+    url = require_loopback_url(url)
     boundary = "----ckn" + uuid.uuid4().hex
     data = path.read_bytes()
     name = path.name
     body = (
         (
-            f'--{boundary}\r\n'
+            f"--{boundary}\r\n"
             f'Content-Disposition: form-data; name="file"; filename="{name}"\r\n'
-            f'Content-Type: application/octet-stream\r\n\r\n'
+            f"Content-Type: application/octet-stream\r\n\r\n"
         ).encode()
         + data
         + f"\r\n--{boundary}--\r\n".encode()

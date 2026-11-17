@@ -8,10 +8,11 @@ import {
   toNodeHandler,
 } from '@modelcontextprotocol/node';
 import * as z from 'zod/v4';
+import { validateLoopbackBaseUrl } from './url-validation.js';
 
 const HOST = process.env.CKNEXUS_BRIDGE_HOST ?? '127.0.0.1';
 const PORT = Number(process.env.CKNEXUS_BRIDGE_PORT ?? '18925');
-const OPENCODE_BASE_URL = (process.env.OPENCODE_BASE_URL ?? 'http://127.0.0.1:18924').replace(/\/$/, '');
+const OPENCODE_BASE_URL = validateLoopbackBaseUrl(process.env.OPENCODE_BASE_URL ?? 'http://127.0.0.1:18924');
 const OPENCODE_USERNAME = process.env.OPENCODE_SERVER_USERNAME ?? 'opencode';
 const OPENCODE_PASSWORD = process.env.OPENCODE_SERVER_PASSWORD ?? '';
 const BRIDGE_TOKEN = process.env.CKNEXUS_BRIDGE_TOKEN ?? '';
