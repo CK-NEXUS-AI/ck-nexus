@@ -1,38 +1,54 @@
-# SQLite Hardening Evidence
+# CK-NEXUS SQLite and Related Review Evidence
 
+Repository: `spinlnw10-art/ck-nexus`
 Branch: `integration/termux-change-sync-policy-20261117`
-SQLite baseline commit: `0bd62e097ab2397048a858e93a4b6f1c8bcadf82`
-Base parent for the SQLite hardening change: `f7b64885df118cc81183aedce202a5068291d841`
+Base: `main` at `4d1366cef3cbdd18aa174bdf67308567635c750a`
+Code commit: `7d820b5ee6b146065b8e7d0f16a6f81febace249`
+PR: [#373 — CK-NEXUS integration](https://github.com/spinlnw10-art/ck-nexus/pull/373)
 
-## Verification update
+This report covers the SQLite-related source and regression files listed in `manifest.json`. It is not a full review or certification of the complete 63-file PR.
 
-- Full VPS pytest suite after the additional regressions: **1,019 passed, 2 skipped** (70.27s; exit 0).
-- Ruff check: PASS.
-- Ruff format check: PASS.
+## Current verification on exact code commit
+
+- Focused pytest suite: **117 passed** in 16.45 seconds on exact commit `7d820b5ee6b146065b8e7d0f16a6f81febace249`.
+- Ruff check: PASS on all 19 changed Python files.
+- Ruff format check: PASS on 17 changed Python files. `creator_app/api.py` and `creator_app/unified_control.py` retain their original formatting; only the FastAPI status-code compatibility literals were changed there.
 - `git diff --check`: PASS.
-- Added direct symlink rejection tests for `-journal` and `-shm`; existing `-wal` symlink regression remains.
-- Added a deterministic path-swap test that replaces the database path with a symlink immediately before `sqlite3.connect`; the helper detects the changed path/inode and fails closed.
-- The path-swap test is a controlled regression test, not a concurrent race stress test. It does not establish protection against hostile processes running under the same UID.
-- Previous security evidence remains: Bandit 0 high / 0 medium / 0 low; pip-audit 0 known vulnerabilities among 84 audited dependencies, with one local package not auditable from PyPI; SQLite `PRAGMA quick_check`: `ok`; `cknexus-creator.service`: active; DB directory/file modes `0700` / `0600`.
+- Workflow YAML parse: PASS for `.github/workflows/universal-system-ci.yml`.
 
-## Independent review limitations
+## Review-driven SQLite fixes
 
-The original Codex review covered the original five-file SQLite change snapshot only, not the full repository. The new journal/SHM symlink tests and deterministic path-swap test were added after that review and have **not yet received a fresh independent Codex review**. The same-UID process trust boundary remains unchanged.
+- The main database path disappearing during connection setup now fails closed; only SQLite sidecars may legitimately disappear during recovery.
+- Explicit `isolation_level` is forwarded for read-only connections.
+- The SQLite helper documents the actual sidecar boundary: existing and setup-visible sidecars are checked; WAL/SHM created later are protected by the private database directory across UIDs. Same-UID hostile processes remain inside the documented trust boundary.
+- `TaskStore` and `BrainJournal` now use the same private-parent helper. A newly created shared `.state` directory is mode 0700; existing non-private directories are rejected without chmod.
+- Read-only Ebook Knowledge Store lookups no longer create missing parent directories.
+- `AuthorityStore` uses the hardened SQLite opener; symlinked databases and existing non-private parents fail closed.
+- Regression tests cover database unlink during connect, read-only isolation level, shared TaskStore/BrainJournal state permissions, symlink rejection, and no-side-effect read-only lookup.
 
-## PR and CI status (observed 2026-11-17)
+## Related review fixes in this PR
 
-| Item | Verified status |
-|---|---|
-| PR #373 | OPEN |
-| PR scope relative to current `origin/main` merge base | 60 files across a multi-commit integration bundle; broader than SQLite hardening alone |
-| GitHub Actions | BLOCKED — billing lock; jobs did not start |
-| Merge | NOT MERGED |
-| Deployment | NOT DEPLOYED |
-| Production readiness | NO-GO |
-| Q10–Q16 | NOT CLOSED / NOT VERIFIED |
+- OMNI and n8n now share one direct HTTP transport helper that ignores environment proxies and refuses redirects.
+- OMNI URLs with literal trailing `?` or `#` delimiters are rejected.
+- Browser screenshot retention is bounded to 10 caller-owned artifacts and 24 hours; unrelated temporary directories are not removed.
+- Browser screenshot tests assert both `chown` calls and the expected caller UID/GID.
+- Agent profile tests now validate role-specific content and both inline and multiline tool allowlists.
+- FastAPI validation responses use literal HTTP 422 for compatibility across the declared FastAPI version range.
+- Change-sync policy uses the canonical `BLOCKED` workflow state and marks minimum change-record fields as mandatory.
 
-GitHub check-run annotations state: `The job was not started because your account is locked due to a billing issue.` This is an account/billing-level block, not a code-test failure. No alternate account was used to bypass the restriction.
+## CI and PR status
 
-## SHA-256
+- On the preceding workflow-fix commit `939aae0c5b562115e3175c4a9bca53da50ef87b2`, all **7/7 GitHub Actions workflows passed**.
+- Workflows for the current code commit `7d820b5ee6b146065b8e7d0f16a6f81febace249` were still in progress when this evidence snapshot was prepared.
+- PR #373 remains OPEN and unmerged. No deployment or release was performed.
 
-The manifest records current hashes and byte sizes for the five original SQLite source/test files. The updated `tests/test_brain_runtime.py` hash reflects the added regression tests.
+## Historical evidence only
+
+The earlier full repository run of 1,019 passed / 2 skipped, Bandit 0 high / 0 medium / 0 low, pip-audit 0 known vulnerabilities among 84 auditable packages, SQLite `PRAGMA quick_check: ok`, and the active `cknexus-creator.service` observation were recorded on earlier revisions/runtime observations. They were **not rerun on this code commit** and must not be treated as current-release evidence.
+
+## Limitations and blockers
+
+- This is not a full independent review of all 63 files in PR #373.
+- Two P1 findings concern files in the previously signed 11-file owner-signoff scope: the portal's displayed subject digest and the evidence-redaction rule. Those files were deliberately preserved. Editing them would invalidate the existing attestation and requires a new explicit owner sign-off for the revised scope.
+- Automatic GitOps publishing remains fail-closed. No environment variable or other publish authorization was enabled.
+- Q10–Q16 remain NOT CLOSED / NOT VERIFIED. Production readiness remains **NO-GO**.

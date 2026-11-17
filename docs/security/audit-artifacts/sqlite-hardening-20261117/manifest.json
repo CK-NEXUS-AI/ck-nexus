@@ -1,103 +1,123 @@
 {
   "schema": "cknexus-evidence-manifest/v1",
-  "created_at_utc": "2026-11-17T00:18:07.540153+00:00",
-  "repository": "CK-NEXUS-AI/ck-nexus",
+  "created_at_utc": "2026-11-17T04:48:25.718693+00:00",
+  "repository": "spinlnw10-art/ck-nexus",
   "branch": "integration/termux-change-sync-policy-20261117",
-  "base_commit": "f7b64885df118cc81183aedce202a5068291d841",
-  "state": "verification evidence updated on PR #373 branch; PR remains open",
+  "base_commit": "4d1366cef3cbdd18aa174bdf67308567635c750a",
+  "code_commit": "7d820b5ee6b146065b8e7d0f16a6f81febace249",
+  "state": "PR #373 remains open and unmerged; SQLite-related review fixes are committed; 117 focused tests pass on the exact code commit; latest GitHub CI for this commit was still in progress at evidence capture; no deployment; production NO-GO.",
   "files": [
     {
       "path": "creator_app/sqlite_security.py",
-      "sha256": "d61d21395bde2cf797cbdb6cbb191a1401834d752489a74b385ce6d3e78ddec7",
-      "bytes": 5524
+      "sha256": "e2e51c060f6b0253848e4e613c4deee707a5b0b321990f88203ec09da695d577",
+      "bytes": 7952
     },
     {
       "path": "creator_app/brain/journal.py",
-      "sha256": "d4080464c2555c26ae64a9a29279a0f9938b3aad69f19c6c8276f4a602136be5",
-      "bytes": 9953
+      "sha256": "bf60e8f16d595ec4cdf5bdb094976087610df40a31160b0b88e06b06780a9793",
+      "bytes": 9853
+    },
+    {
+      "path": "creator_app/brain/runtime.py",
+      "sha256": "78923bfc86779b34eba836f3e2096a6e1888628ed70462b7f3c1f90986b05aa4",
+      "bytes": 7755
+    },
+    {
+      "path": "creator_app/control_plane/task_store.py",
+      "sha256": "e2306e2d6eca7e81ee3e2bb8e309b178a389dcd1c2f45b27f020b33ea0c69407",
+      "bytes": 10982
     },
     {
       "path": "creator_app/global_knowledge/ebook_store.py",
-      "sha256": "183dc0519366cc980b87bec14c0358492a70d1418d1f2b516368b6dc15a94a2e",
-      "bytes": 11393
+      "sha256": "28fdcf2ad1a9c00289a0f832d90698cf9d6ef287c6619eb7579b8ff9b87b1ac2",
+      "bytes": 11361
+    },
+    {
+      "path": "creator_app/council_authority/storage.py",
+      "sha256": "82b360cf6afee97e02da3c057bd127f3e4074fbb4608531e18ba4dd98aaa41ae",
+      "bytes": 8026
     },
     {
       "path": "tests/test_brain_runtime.py",
-      "sha256": "53267130baf79365c867df77f38d316aa8e9efef3fd0046675f3bb9edfa1c021",
-      "bytes": 11788
+      "sha256": "8c60f95c08ba6bd5372587540cfa1bc0da1d35e0ed15d0c8f8453e02fec6b442",
+      "bytes": 15877
+    },
+    {
+      "path": "tests/test_control_plane_task_store.py",
+      "sha256": "0fbb52137939c062702fa5cfa7b0b38e576f4090d78fbce7a1799ad7bd302e97",
+      "bytes": 9271
     },
     {
       "path": "tests/capability_fabric/test_ebook_store.py",
-      "sha256": "333633dd9425ed35a5fb944456a31d4ca872dd0fe3d23b052554a750b241fb4a",
-      "bytes": 5513
+      "sha256": "7917c2290ca55a31711d1885c13942745fb8ff40ea2f18ad5c0810571cc67237",
+      "bytes": 6426
+    },
+    {
+      "path": "tests/test_council_capability_authority.py",
+      "sha256": "db8ed5da4680c5f2819cd764ff7dec4b5231fe9d5c03b989c782432790fa4d57",
+      "bytes": 15388
     }
   ],
   "checks": {
-    "pytest": "1019 passed, 2 skipped; 70.27s; exit 0; full suite on VPS after added SQLite sidecar and path-swap tests",
-    "ruff": "pass",
-    "ruff_format": "pass; 5 files",
-    "git_diff_check": "pass",
-    "bandit": {
-      "high": 0,
-      "medium": 0,
-      "low": 0
+    "pytest": {
+      "result": "PASS",
+      "count": "117 passed",
+      "duration_seconds": 16.45,
+      "scope": "12 focused test modules covering agent metadata, browser wrapper, BrainJournal, TaskStore, AuthorityStore, OMNI transport, n8n transport, EbookKnowledgeStore, creator API, development API and R7 API contract.",
+      "code_commit": "7d820b5ee6b146065b8e7d0f16a6f81febace249"
     },
-    "pip_audit": {
-      "result": "PASS_WITH_UNAUDITED_LOCAL_PACKAGE",
-      "known_vulnerabilities": 0,
-      "audited_dependencies": 84,
-      "skipped_dependencies": [
-        {
-          "name": "ck-nexus-creator",
-          "reason": "Dependency not found on PyPI and could not be audited: ck-nexus-creator (0.2.0)"
-        }
-      ]
+    "ruff_check": "PASS on all 19 changed Python files",
+    "ruff_format": "PASS on 17 changed Python files; creator_app/api.py and creator_app/unified_control.py retained baseline formatting to avoid unrelated formatting churn.",
+    "git_diff_check": "PASS",
+    "workflow_yaml_parse": "PASS for .github/workflows/universal-system-ci.yml",
+    "sqlite_regressions": {
+      "database_path_disappearing_during_connect": "PASS; raises OSError and closes connection",
+      "readonly_isolation_level": "PASS; explicit isolation_level forwarded",
+      "brain_journal_task_store_shared_state": "PASS; new shared .state directory is 0700 and DB files are 0600",
+      "existing_nonprivate_task_store_directory": "PASS; rejected without chmod",
+      "ebook_readonly_missing_parent": "PASS; no directory created",
+      "authority_store_symlink_database": "PASS; target remains unchanged",
+      "authority_store_nonprivate_directory": "PASS; rejected without chmod"
     },
-    "sqlite_quick_check": "ok",
-    "service": "cknexus-creator.service active",
-    "database_permissions": {
-      "directory": "0700",
-      "file": "0600",
-      "owner": "cknexus-creator:cknexus-creator"
+    "transport_regressions": {
+      "omni_redirect": "PASS; actual 302 response raises HTTPError and is not followed",
+      "environment_proxy": "PASS; direct transport ignores HTTP_PROXY/HTTPS_PROXY",
+      "empty_query_fragment_delimiters": "PASS; literal trailing ? and # rejected",
+      "shared_http_transport": "PASS; OMNI and n8n clients use one no-proxy/no-redirect helper"
     },
-    "codex_review": {
-      "result": "ACCEPTABLE_FOR_PR",
-      "scope": "five-file snapshot only",
-      "actionable_findings": 0,
-      "limitations": [
-        "Original Codex review covered the original five-file SQLite change snapshot only, not the full repository.",
-        "New journal/SHM symlink and deterministic path-swap tests were added after that review and have not yet received a fresh independent Codex review.",
-        "The path-swap regression is deterministic and does not prove resistance to concurrent same-UID hostile processes.",
-        "Same-UID processes are inside the documented trust boundary.",
-        "Not a full repository review."
-      ]
-    },
-    "sqlite_security_regressions": {
-      "symlinked_journal": "PASS",
-      "symlinked_shm": "PASS",
-      "symlinked_wal": "PASS (existing regression)",
-      "database_path_swap_during_connect": "PASS (deterministic monkeypatched path swap; post-open identity validation detected replacement)",
-      "scope_note": "Not a concurrent TOCTOU stress test; same-UID trust boundary unchanged."
-    },
+    "browser_screenshot_retention": "PASS; caller-owned artifacts limited to 10 and 24 hours; unrelated directories retained",
+    "agent_profile_metadata": "PASS; role-specific assertions and multiline tools allowlist validation",
     "github_actions": {
-      "status": "BLOCKED_BILLING_LOCK",
-      "evidence": "GitHub check-run annotations: The job was not started because your account is locked due to a billing issue.",
-      "tests_started": false
+      "current_code_commit": "IN_PROGRESS at evidence capture",
+      "previous_commit_939aae0": "7 of 7 workflows passed"
     },
-    "pr": {
-      "number": 373,
-      "state": "OPEN",
-      "merge_performed": false,
-      "production_deployment_performed": false,
-      "scope_at_current_origin_main_merge_base": "60 files; multi-commit integration bundle broader than SQLite hardening alone"
+    "historical_only": {
+      "full_repository_pytest": "1019 passed, 2 skipped on earlier pre-review revision; not rerun on this commit",
+      "bandit": "0 high / 0 medium / 0 low on earlier revision; not rerun on this commit",
+      "pip_audit": "0 known vulnerabilities among 84 auditable packages on earlier revision; local package not auditable; not rerun on this commit",
+      "sqlite_quick_check": "ok on earlier runtime observation; not rerun on current deployed database",
+      "creator_service": "active on earlier runtime observation; no deployment performed in this change"
     }
   },
+  "pr": {
+    "number": 373,
+    "state": "OPEN",
+    "head_commit": "7d820b5ee6b146065b8e7d0f16a6f81febace249",
+    "base_commit": "4d1366cef3cbdd18aa174bdf67308567635c750a",
+    "changed_files": 63,
+    "commits": 15,
+    "additions": 2735,
+    "deletions": 186,
+    "merge_performed": false,
+    "deployment_performed": false
+  },
   "limitations": [
-    "The PR currently spans 60 files and 10 commits relative to the current origin/main merge base; it is broader than SQLite hardening alone.",
-    "Original Codex review covered only the original five-file SQLite snapshot; the newly added tests have not yet received a fresh independent Codex review.",
-    "The deterministic path-swap test verifies detection but is not a concurrent race stress test; same-UID hostile processes remain inside the documented trust boundary.",
-    "GitHub Actions jobs are blocked before start by an account billing lock; no CI test execution has occurred on GitHub.",
-    "Production readiness and Q10-Q16 closure are not established.",
-    "No merge or deployment performed."
+    "This evidence covers the listed SQLite source/test files, not the full 63-file PR.",
+    "Focused tests pass on the exact code commit; the full repository suite was not rerun on this commit.",
+    "Bandit and pip-audit results are historical and were not rerun on this commit.",
+    "No full independent review of all 63 files is claimed.",
+    "Some P1 findings affect the previously signed 11-file owner-signoff subject. Those files were preserved; editing them would invalidate the existing attestation and requires a new explicit owner sign-off.",
+    "Automatic GitOps publishing remains fail-closed; no publish authorization was enabled.",
+    "Q10-Q16 are not closed and Production remains NO-GO."
   ]
 }
