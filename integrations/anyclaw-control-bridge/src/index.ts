@@ -14,7 +14,7 @@ const execFileAsync = promisify(execFile);
 const HOST = process.env.CKNEXUS_ANYCLAW_HOST ?? '127.0.0.1';
 const PORT = Number(process.env.CKNEXUS_ANYCLAW_PORT ?? '18926');
 const BRIDGE_TOKEN = process.env.CKNEXUS_ANYCLAW_TOKEN ?? '';
-const ANYCLAW_BIN = process.env.ANYCLAW_BIN ?? 'anyclaw';
+const ANYCLAW_BIN = 'anyclaw'; // Fixed executable; do not accept a caller-controlled binary path.
 const MAX_OUTPUT = Number(process.env.CKNEXUS_ANYCLAW_MAX_OUTPUT ?? '65536');
 
 function redact(value: string): string {

@@ -1,24 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { validateLoopbackBaseUrl } from './url-validation.js';
+import { validateLoopbackPort } from './url-validation.js';
 
-test('accepts IPv4 loopback upstream URLs', () => {
-  assert.equal(validateLoopbackBaseUrl('http://127.0.0.1:18924/'), 'http://127.0.0.1:18924');
+test('uses the fixed default local OpenCode port', () => {
+  assert.equal(validateLoopbackPort(undefined), 18924);
+  assert.equal(validateLoopbackPort(''), 18924);
 });
 
-test('accepts IPv6 loopback upstream URLs', () => {
-  assert.equal(validateLoopbackBaseUrl('http://[::1]:18924/'), 'http://[::1]:18924');
+test('accepts a valid explicit local TCP port', () => {
+  assert.equal(validateLoopbackPort('19001'), 19001);
 });
 
-test('rejects remote hosts, DNS names, and credential-bearing URLs', () => {
-  for (const value of [
-    'https://opencode.example:18924/',
-    'http://localhost:18924/',
-    'http://127.0.0.1@evil.example:18924/',
-    'http://user:pass@127.0.0.1:18924/',
-    'http://127.0.0.1:18924/proxy',
-    'http://127.0.0.1:18924/?next=https://evil.example',
-  ]) {
-    assert.throws(() => validateLoopbackBaseUrl(value));
+test('rejects URLs, non-numeric values, and out-of-range ports', () => {
+  for (const value of ['https://remote.example', 'localhost:18924', '0', '65536', '-1', '1.5']) {
+    assert.throws(() => validateLoopbackPort(value));
   }
 });

@@ -1,21 +1,12 @@
-/** Validate the local OpenCode upstream before Basic credentials are attached. */
-export function validateLoopbackBaseUrl(value: string): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw new Error('OPENCODE_BASE_URL must be a valid URL');
+/** Validate the local OpenCode port; the upstream host is a fixed loopback literal. */
+export function validateLoopbackPort(value: string | undefined): number {
+  if (value === undefined || value.trim() === '') return 18924;
+  if (!/^\d{1,5}$/.test(value)) {
+    throw new Error('OPENCODE_PORT must be a decimal TCP port');
   }
-
-  const hostname = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase();
-  if (!['127.0.0.1', '::1'].includes(hostname)) {
-    throw new Error('OPENCODE_BASE_URL must use a loopback IP literal');
+  const port = Number(value);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error('OPENCODE_PORT must be between 1 and 65535');
   }
-  if (!['http:', 'https:'].includes(parsed.protocol)) {
-    throw new Error('OPENCODE_BASE_URL must use HTTP or HTTPS');
-  }
-  if (parsed.username || parsed.password || parsed.search || parsed.hash || parsed.pathname !== '/') {
-    throw new Error('OPENCODE_BASE_URL must not contain credentials, a path, query, or fragment');
-  }
-  return parsed.origin;
+  return port;
 }

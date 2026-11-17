@@ -45,3 +45,45 @@ def test_redirect_handler_rejects_cross_port_loopback_redirect():
     handler = _LoopbackRedirect()
     with pytest.raises(ValueError):
         handler.redirect_request(request, None, 302, "Found", {}, "http://127.0.0.1:9000/collect")
+
+
+def test_redirect_handler_rejects_cross_scheme_loopback_redirect():
+    request = urllib.request.Request("http://127.0.0.1:8000/health")
+    handler = _LoopbackRedirect()
+    with pytest.raises(ValueError):
+        handler.redirect_request(request, None, 302, "Found", {}, "https://127.0.0.1:8000/collect")
+
+
+def test_https_allowlist_accepts_only_exact_approved_hosts():
+    from scripts._safe_http import require_https_host_url
+
+    allowed = {"dashscope-intl.aliyuncs.com", "dashscope.aliyuncs.com"}
+    url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions"
+    assert require_https_host_url(url, allowed) == url
+    for denied in (
+        "http://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        "https://dashscope-intl.aliyuncs.com.evil.example/compatible-mode/v1",
+        "https://tenant.maas.aliyuncs.com/compatible-mode/v1",
+        "https://user:pass@dashscope.aliyuncs.com/compatible-mode/v1",
+        "https://dashscope.aliyuncs.com:8443/compatible-mode/v1",
+    ):
+        with pytest.raises(ValueError):
+            require_https_host_url(denied, allowed)
+
+
+def test_https_allowlist_redirect_rejects_other_approved_host():
+    from scripts._safe_http import _AllowlistedRedirect
+
+    request = urllib.request.Request(
+        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions"
+    )
+    handler = _AllowlistedRedirect({"dashscope-intl.aliyuncs.com", "dashscope.aliyuncs.com"})
+    with pytest.raises(ValueError):
+        handler.redirect_request(
+            request,
+            None,
+            302,
+            "Found",
+            {},
+            "https://dashscope.aliyuncs.com/collect",
+        )

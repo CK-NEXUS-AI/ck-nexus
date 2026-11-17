@@ -52,3 +52,50 @@ def safe_urlopen(req, timeout):
     url = req.full_url if hasattr(req, "full_url") else req
     require_loopback_url(url)
     return _OPENER.open(req, timeout=timeout)
+
+
+def require_https_host_url(url: str, allowed_hosts: set[str]) -> str:
+    """Validate a credential-bearing HTTPS URL against an exact host allowlist."""
+    try:
+        parsed = urlsplit(str(url))
+        hostname = (parsed.hostname or "").lower().rstrip(".")
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("malformed URL") from exc
+    normalized_hosts = {host.lower().rstrip(".") for host in allowed_hosts}
+    if (
+        parsed.scheme.lower() != "https"
+        or hostname not in normalized_hosts
+        or port not in (None, 443)
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.fragment
+    ):
+        raise ValueError("URL must use HTTPS and an explicitly approved host")
+    return str(url)
+
+
+class _AllowlistedRedirect(urllib.request.HTTPRedirectHandler):
+    def __init__(self, allowed_hosts: set[str]):
+        super().__init__()
+        self.allowed_hosts = allowed_hosts
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        require_https_host_url(newurl, self.allowed_hosts)
+        original = urlsplit(req.full_url)
+        redirected = urlsplit(newurl)
+        if (original.scheme.lower(), (original.hostname or "").lower(), original.port) != (
+            redirected.scheme.lower(),
+            (redirected.hostname or "").lower(),
+            redirected.port,
+        ):
+            raise ValueError("cross-origin redirects are not allowed")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def safe_urlopen_allowlisted(req, timeout, allowed_hosts: set[str]):
+    """Open HTTPS requests only to exact hosts, rejecting cross-origin redirects."""
+    url = req.full_url if hasattr(req, "full_url") else req
+    require_https_host_url(url, allowed_hosts)
+    opener = urllib.request.build_opener(_AllowlistedRedirect(allowed_hosts))
+    return opener.open(req, timeout=timeout)
