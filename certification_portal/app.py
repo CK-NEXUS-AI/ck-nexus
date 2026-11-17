@@ -7,7 +7,6 @@ import json
 
 # subprocess is restricted to a fixed local command allowlist; shell execution is disabled.
 import subprocess  # nosec B404
-import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -43,8 +42,8 @@ def _run_fixed(args: list[str], timeout: int = 20) -> tuple[int, str]:
     """Run only allowlisted local commands; request data can never select a command."""
     allowed = {
         ("git", "rev-parse", "HEAD"),
+        ("git", "rev-parse", "--abbrev-ref", "HEAD"),
         ("git", "status", "--porcelain"),
-        (sys.executable, "-m", "compileall", "-q", "certification_portal"),
     }
     if tuple(args) not in allowed:
         return 126, "COMMAND_NOT_ALLOWLISTED"
@@ -94,18 +93,20 @@ def assess_local() -> dict[str, Any]:
         "Working tree clean" if clean else f"Dirty/unavailable: {out.strip()[:800]}",
     )
 
-    code, out = _run_fixed([sys.executable, "-m", "compileall", "-q", "certification_portal"])
-    record("CKN-PORTAL-001_COMPILE", code == 0, "Python compileall passed" if code == 0 else out)
+    # Compile source in memory: compileall writes __pycache__ into the checkout.
+    try:
+        for source in (ROOT / "certification_portal").glob("*.py"):
+            compile(source.read_text(encoding="utf-8"), str(source), "exec")
+        record("CKN-PORTAL-001_COMPILE", True, "Portal Python sources compiled in memory")
+    except (OSError, SyntaxError, UnicodeError) as exc:
+        record("CKN-PORTAL-001_COMPILE", False, f"{type(exc).__name__}: {exc}")
 
-    v2 = ROOT / "docs/UNIVERSAL_AI_OPERATING_STANDARD_V2_DRAFT.md"
-    text = v2.read_text(encoding="utf-8") if v2.exists() else ""
-    draft = "NOT EFFECTIVE" in text or "NOT EFFECTIVE UNTIL" in text
+    # A document status-line edit is not proof of adoption. Until a separately
+    # authenticated adoption verifier exists, this gate is deliberately closed.
     record(
         "CKN-GOV-001_POLICY_ADOPTION",
-        False if draft else bool(text),
-        "Policy V2 remains a draft; owner adoption and implementation not proven"
-        if draft
-        else "Policy adoption requires independent evidence",
+        False,
+        "BLOCKED: no independently verified owner adoption and Policy Kernel enforcement evidence",
     )
 
     mandatory_failed = any(c["result"] != "PASS" for c in checks)
@@ -131,6 +132,65 @@ def assess_local() -> dict[str, Any]:
     canonical = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
     manifest["evidence_manifest_sha256"] = hashlib.sha256(canonical).hexdigest()
     return manifest
+
+
+def _load_owner_signoff_subject() -> dict[str, Any]:
+    """Return only a candidate manifest whose listed files still match exactly."""
+    manifest_path = (
+        ROOT / "certification_portal/signoff-candidates/owner-signoff-subject-manifest-v4.json"
+    )
+    try:
+        if manifest_path.is_symlink():
+            raise ValueError("manifest path must not be a symlink")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if manifest.get("branch") != _git_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]):
+            raise ValueError("manifest branch does not match this checkout")
+        files = manifest.get("files")
+        if not isinstance(files, list) or not files:
+            raise ValueError("manifest file list is empty")
+        for item in files:
+            relative = Path(item["path"])
+            if relative.is_absolute() or ".." in relative.parts:
+                raise ValueError("manifest contains an unsafe path")
+            target = ROOT / relative
+            resolved = target.resolve(strict=True)
+            if target.is_symlink() or not resolved.is_relative_to(ROOT.resolve()):
+                raise ValueError("manifest path escapes the repository or uses a symlink")
+            raw = resolved.read_bytes()
+            if len(raw) != item["size"] or hashlib.sha256(raw).hexdigest() != item["sha256"]:
+                raise ValueError(f"manifest file mismatch: {relative.as_posix()}")
+        claimed = manifest.get("subject_sha256")
+        payload = {
+            key: manifest[key]
+            for key in ("subject", "profile_id", "branch", "base_commit", "files")
+        }
+        actual = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        if claimed != actual:
+            raise ValueError("manifest subject digest is invalid")
+        return {
+            "subject_digest": actual,
+            "profile_id": manifest["profile_id"],
+            "file_count": len(files),
+        }
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(
+            status_code=503, detail="Owner sign-off subject is not ready or has changed"
+        ) from exc
+
+
+def _git_output(args: list[str]) -> str:
+    code, output = _run_fixed(args)
+    if code != 0:
+        raise ValueError("git source identity unavailable")
+    return output.strip()
+
+
+@app.get("/api/owner-signoff-subject")
+def owner_signoff_subject() -> dict[str, Any]:
+    """Expose a digest only after checking the candidate manifest and every file."""
+    return _load_owner_signoff_subject()
 
 
 @app.get("/health")

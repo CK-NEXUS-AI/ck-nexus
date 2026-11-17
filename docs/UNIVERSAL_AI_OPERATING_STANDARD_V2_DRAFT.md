@@ -11,7 +11,9 @@
 
 Canonical chain:
 
-`Intent → Identity → Capability → Machine Policy → Risk Decision → Scoped Lease → Isolated Execution → Independent Verification → Evidence → Status / Attestation → Learning`
+`Human Intent → Agent Identity → Lease → Policy → Approval → Credential Reference → Sandbox → Execution → Verification → Evidence → Memory → Learning/Recovery`
+
+This governance chain is canonical for CK-NEXUS. Capability and risk evaluation are policy checks within the chain, not replacements for approval, credential-reference, or memory controls.
 
 ## 2. Roles
 
@@ -66,7 +68,7 @@ Status is computed from evidence. Execution is not verification. Passing CI is n
 - Repository, branch, exact commit SHA and dirty-tree state where applicable.
 - Policy ID/version/hash; risk decision; lease scope and expiry.
 - Inputs and configuration fingerprints; secrets must be represented only by safe references/hashes, never values.
-- Commands/operations, start/end timestamps, exit codes and raw logs.
+- Commands/operations, start/end timestamps, exit codes and sanitized logs. Raw logs may exist only transiently in the isolated worker; redact secrets, credentials, personal data and sensitive identifiers before any persistence, evidence append, export or public exposure. Record the redaction method and result; if safe sanitization cannot be verified, do not persist or publish the log.
 - Test names, results, coverage where required, security scan outputs and dependency/SBOM data.
 - Artifact hashes, independent verifier result and evidence-chain reference.
 - Final derived status, limitations, expiry and revocation state.
@@ -76,7 +78,7 @@ Evidence must be append-only or tamper-evident. Missing evidence blocks PASS and
 ## 7. Independent verification requirements
 
 - Executor and verifier must be logically separated; high-risk verification must use a separate identity or isolated runner.
-- Verify source SHA before and after execution.
+- Compute the exact source/tree SHA before and after execution and compare for equality. Any mismatch means the source changed during assessment: mark the run BLOCKED/UNVERIFIED, discard its PASS result, and prohibit attestation until the complete assessment is rerun against one immutable subject.
 - Verify lockfile integrity and installed dependency set.
 - Run unit, integration, security, configuration, backup/restore and runtime health tests required by the selected profile.
 - Verify negative cases: denied permissions, missing credentials, invalid signatures, expired leases, untrusted inputs and failed rollback.
@@ -114,7 +116,7 @@ The signer does not need to approve routine test results individually. The signe
 - G2: Executor/verifier separation, evidence integrity and negative tests verified.
 - G3: Portal issues only non-production test attestations; signature and revocation tested.
 - G4: Independent security review and external legal/accreditation review where external claims are made.
-- G5: Owner signs exact policy digest; policy becomes effective.
+- G5: Owner signs the exact policy digest AND an independent verifier confirms the adopted policy is enforced by the live Policy Kernel for the declared scope. Signature alone is insufficient; missing or failed enforcement evidence keeps v2 ineffective.
 - G6: Production deployment separately approved and verified.
 
 Until G5, v1 and existing hard safety boundaries remain in force. This draft does not authorize production deployment, destructive actions, permission changes, billing changes, repository pushes or merges.

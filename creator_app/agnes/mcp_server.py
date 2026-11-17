@@ -841,12 +841,8 @@ def cknexus_capability_catalog(
 @mcp.tool()
 def cknexus_knowledge_search(query: str, limit: int = 8) -> dict[str, Any]:
     """Search rights-cleared CK-NEXUS e-book knowledge with source/chunk citations."""
-    db_path = Path(
-        os.getenv(
-            "CKNEXUS_EBOOK_DB",
-            "/var/lib/cknexus-knowledge/ebooks.sqlite3",
-        )
-    )
+    # Database location is a fixed service setting, never supplied by an MCP caller.
+    db_path = Path("/var/lib/cknexus-knowledge/ebooks.sqlite3")
     hits = EbookKnowledgeStore(db_path).search_readonly(query, limit=limit)
     return {
         "status": "ok",
@@ -874,12 +870,8 @@ def cknexus_knowledge_search(query: str, limit: int = 8) -> dict[str, Any]:
 @mcp.tool()
 def cknexus_knowledge_sources() -> dict[str, Any]:
     """List indexed e-book sources and revocation state without exposing source contents."""
-    db_path = Path(
-        os.getenv(
-            "CKNEXUS_EBOOK_DB",
-            "/var/lib/cknexus-knowledge/ebooks.sqlite3",
-        )
-    )
+    # Database location is a fixed service setting, never supplied by an MCP caller.
+    db_path = Path("/var/lib/cknexus-knowledge/ebooks.sqlite3")
     documents = EbookKnowledgeStore(db_path).list_documents_readonly()
     return {
         "status": "ok",

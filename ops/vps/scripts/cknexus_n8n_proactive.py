@@ -9,6 +9,7 @@ from pathlib import Path
 
 from creator_app.control_plane.task_store import TaskStore
 from creator_app.n8n_intelligence.proactive import ProactiveTaskSeeder
+from creator_app.sqlite_security import validate_configured_sqlite_path
 
 
 def main() -> int:
@@ -16,6 +17,10 @@ def main() -> int:
         os.getenv("CKNEXUS_TASK_DATABASE", "/root/.local/state/cknexus/control-plane.sqlite3")
     )
     try:
+        database = validate_configured_sqlite_path(
+            database,
+            allowed_roots=("/var/lib/cknexus", "/root/.local/state/cknexus"),
+        )
         result = ProactiveTaskSeeder(TaskStore(database)).run_once()
         print(
             json.dumps(

@@ -1,6 +1,7 @@
 import hashlib
 import json
 
+from creator_app.council_authority import omni_evidence
 from creator_app.council_authority.omni_evidence import CouncilStoreEvidenceVerifier, verify
 from creator_app.council_authority.storage import AuthorityStore
 from tests.test_omni_issuer import request
@@ -39,6 +40,7 @@ def test_council_evidence_verifier_requires_task_bound_verified_refs(tmp_path, m
     assert verifier(req, omni_context)
     kinds_file = tmp_path / "evidence-kinds.json"
     kinds_file.write_text(json.dumps({"code.read": ["git_commit", "artifact"]}))
+    monkeypatch.setattr(omni_evidence, "_COUNCIL_AUTHORITY_SQLITE_ROOTS", (tmp_path,))
     monkeypatch.setenv("CKNEXUS_COUNCIL_AUTHORITY_DB", str(tmp_path / "council.sqlite"))
     monkeypatch.setenv("CKNEXUS_OMNI_EVIDENCE_KINDS_FILE", str(kinds_file))
     assert verify(req, omni_context)
@@ -59,3 +61,19 @@ def test_council_evidence_verifier_requires_task_bound_verified_refs(tmp_path, m
     )
     assert not verifier(wrong_task, omni_context)
     assert not CouncilStoreEvidenceVerifier(store, {"code.read": ("artifact",)})(req, omni_context)
+
+
+def test_verify_rejects_database_outside_approved_storage_roots(tmp_path, monkeypatch):
+    trusted = tmp_path / "trusted"
+    trusted.mkdir()
+    outside_database = tmp_path / "outside" / "council.sqlite"
+    outside_database.parent.mkdir()
+    outside_database.touch()
+    kinds_file = tmp_path / "evidence-kinds.json"
+    kinds_file.write_text(json.dumps({"code.read": ["git_commit"]}))
+    monkeypatch.setattr(omni_evidence, "_COUNCIL_AUTHORITY_SQLITE_ROOTS", (trusted,))
+    monkeypatch.setenv("CKNEXUS_COUNCIL_AUTHORITY_DB", str(outside_database))
+    monkeypatch.setenv("CKNEXUS_OMNI_EVIDENCE_KINDS_FILE", str(kinds_file))
+
+    req = request()
+    assert not verify(req, context(req))

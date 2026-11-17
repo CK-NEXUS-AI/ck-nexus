@@ -13,7 +13,7 @@ The portal must not describe its own attestation as an ISO certificate, SOC 2 re
 
 1. **Register:** enter system name, owner, repository/artifact URL, immutable commit SHA or digest, environment and declared scope.
 2. **Authorize:** prove ownership or permission to assess; select read-only or sandbox assessment. Never accept arbitrary shell commands from the browser.
-3. **Select profile:** CK-NEXUS Core, Secure Runtime, AI Governance, Release Readiness, or mapped external-framework profile.
+3. **Select profile:** Core Integrity, Security Baseline, AI Governance, Operational Resilience, Release Readiness, or a mapped external-framework profile. These names must match the versioned profile catalog in Section 7.
 4. **Assess:** execute version-pinned checks in isolated workers with quotas and no production credentials by default.
 5. **Verify:** a separate verifier checks logs, signatures, artifact digests, policy results and required negative tests.
 6. **Issue:** if all mandatory controls pass, create a signed attestation, PDF report, JSON record and QR/public verification URL.
@@ -49,7 +49,7 @@ A passing attestation is forbidden if any mandatory control is failed, skipped, 
 ## 6. Security controls
 
 - Strict SSRF protection, domain/IP allowlists, DNS rebinding defenses and blocked metadata/private ranges unless explicitly scoped for a controlled internal runner.
-- No arbitrary command, script, URL fetch, package install or write operation from public requests.
+- No arbitrary command, script, URL fetch, package install or write operation from public requests. URL fetches and package installation are permitted only inside an isolated, quota-limited worker, after Policy Kernel authorization and strict domain/IP allowlist plus SSRF/DNS-rebinding checks; never execute them in the web/API process.
 - Sandboxed ephemeral workers; no host mounts, privileged containers or shared writable workspaces.
 - No production credentials by default; short-lived scoped credentials only when explicitly required and authorized.
 - Rate limits, quotas, abuse detection, audit logging, tenant isolation and data retention controls.

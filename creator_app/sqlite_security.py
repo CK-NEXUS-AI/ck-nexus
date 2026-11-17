@@ -17,6 +17,42 @@ _SIDECAR_SUFFIXES = ("-journal", "-wal", "-shm")
 _DEFAULT_ISOLATION = object()
 
 
+def validate_configured_sqlite_path(
+    path: str | Path, *, allowed_roots: tuple[str | Path, ...]
+) -> Path:
+    """Resolve an operator-configured database path under fixed trusted roots.
+
+    Call this at CLI/environment boundaries before passing a path to a store.
+    Real-path normalization happens before the path is converted to ``Path``;
+    containment is checked against trusted, code-defined storage roots. The
+    lower-level opener still performs ownership, mode, no-follow, regular-file,
+    and inode checks.
+    """
+    raw_path = os.path.expanduser(os.fspath(path))
+    if not os.path.isabs(raw_path):
+        raise ValueError("configured SQLite database path must be absolute")
+    if ".." in raw_path.split(os.sep):
+        raise ValueError("configured SQLite database path must not contain traversal segments")
+    if os.path.splitext(raw_path)[1].lower() not in {".db", ".sqlite", ".sqlite3"}:
+        raise ValueError(
+            "configured SQLite database path has an unsupported database file extension"
+        )
+
+    normalized = os.path.realpath(raw_path)
+    roots = tuple(os.path.realpath(os.path.expanduser(os.fspath(root))) for root in allowed_roots)
+    contained = False
+    for root in roots:
+        try:
+            if normalized != root and os.path.commonpath((root, normalized)) == root:
+                contained = True
+                break
+        except ValueError:
+            continue
+    if not roots or not contained:
+        raise ValueError("configured SQLite database path is outside approved storage roots")
+    return Path(normalized)
+
+
 def prepare_private_sqlite_parent(path: str | Path) -> Path:
     """Create a private database directory; never chmod an existing directory."""
     if not hasattr(os, "geteuid") or not hasattr(os, "O_NOFOLLOW"):

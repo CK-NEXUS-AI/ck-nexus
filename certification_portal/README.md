@@ -5,12 +5,15 @@
 Run from the repository root with the isolated Python 3.12 environment:
 
 ```bash
-/tmp/cknexus-install-venv-py312-approved-20261117/bin/uvicorn certification_portal.app:app --host 127.0.0.1 --port 18765
+# From the repository root, after installing the project's declared dependencies
+.venv/bin/uvicorn certification_portal.app:app --host 127.0.0.1 --port 18765
 ```
 
 Routes:
 - `GET /` — local dashboard and owner-signoff preview form.
 - `GET /health` — demo health.
+- `GET /api/demo-key` — ephemeral public key for verifying preview signatures.
+- `GET /api/owner-signoff-subject` — returns the current candidate digest only when its manifest and every listed file validate.
 - `POST /api/assess/local` — fixed, read-only checks against this local checkout only.
 - `POST /api/owner-signoff-preview` — demo-only Ed25519 declaration preview.
 
