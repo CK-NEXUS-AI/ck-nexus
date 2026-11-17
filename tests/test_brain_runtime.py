@@ -203,23 +203,37 @@ def test_brain_journal_rejects_symlinked_wal_sidecar(tmp_path):
     assert target.read_bytes() == b"do not modify"
 
 
-def test_brain_journal_tightens_existing_world_writable_parent(tmp_path):
+def test_brain_journal_creates_new_private_database_parent(tmp_path):
+    import os
+    import stat
+
+    database = tmp_path / "new-parent" / "private-state" / "brain.sqlite3"
+    BrainJournal(database)
+
+    assert stat.S_IMODE(os.stat(database.parent).st_mode) == 0o700
+    assert stat.S_IMODE(os.stat(database).st_mode) == 0o600
+
+
+def test_brain_journal_rejects_existing_world_writable_parent_without_chmod(tmp_path):
     import stat
 
     parent = tmp_path / "unsafe"
     parent.mkdir()
     parent.chmod(0o777)
-    journal = BrainJournal(parent / "brain.sqlite3")
 
-    assert stat.S_IMODE(parent.stat().st_mode) == 0o700
-    assert journal.database.exists()
+    with pytest.raises(PermissionError, match="existing directory permissions"):
+        BrainJournal(parent / "brain.sqlite3")
+
+    assert stat.S_IMODE(parent.stat().st_mode) == 0o777
+    assert not (parent / "brain.sqlite3").exists()
 
 
-def test_sqlite_security_fails_closed_without_nofollow_support(tmp_path, monkeypatch):
+@pytest.mark.parametrize("attribute", ["geteuid", "O_NOFOLLOW"])
+def test_sqlite_security_fails_closed_without_posix_primitives(tmp_path, monkeypatch, attribute):
     from creator_app import sqlite_security
 
-    monkeypatch.delattr(sqlite_security.os, "O_NOFOLLOW", raising=False)
-    with pytest.raises(OSError, match="O_NOFOLLOW"):
+    monkeypatch.delattr(sqlite_security.os, attribute, raising=False)
+    with pytest.raises(OSError, match="require POSIX"):
         BrainJournal(tmp_path / "brain.sqlite3")
 
 
@@ -310,26 +324,30 @@ def test_new_wal_sidecars_are_private_under_permissive_umask(tmp_path):
         os.umask(previous_umask)
 
 
-def test_brain_journal_tightens_existing_sticky_world_writable_directory(tmp_path):
+def test_brain_journal_rejects_existing_sticky_shared_directory_without_chmod(tmp_path):
     import stat
 
     parent = tmp_path / "sticky-shared"
     parent.mkdir()
     parent.chmod(0o1777)
-    BrainJournal(parent / "brain.sqlite3")
 
-    assert stat.S_IMODE(parent.stat().st_mode) == 0o700
+    with pytest.raises(PermissionError, match="existing directory permissions"):
+        BrainJournal(parent / "brain.sqlite3")
+
+    assert stat.S_IMODE(parent.stat().st_mode) == 0o1777
 
 
-def test_brain_journal_tightens_existing_readable_database_directory(tmp_path):
+def test_brain_journal_rejects_existing_readable_database_directory_without_chmod(tmp_path):
     import stat
 
     parent = tmp_path / "readable"
     parent.mkdir()
     parent.chmod(0o755)
-    BrainJournal(parent / "brain.sqlite3")
 
-    assert stat.S_IMODE(parent.stat().st_mode) == 0o700
+    with pytest.raises(PermissionError, match="existing directory permissions"):
+        BrainJournal(parent / "brain.sqlite3")
+
+    assert stat.S_IMODE(parent.stat().st_mode) == 0o755
 
 
 @pytest.mark.parametrize("suffix", ["-journal", "-shm"])

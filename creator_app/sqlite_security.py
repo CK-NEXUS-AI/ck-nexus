@@ -1,10 +1,15 @@
-"""Safe local SQLite path opening for private CK-NEXUS state databases."""
+"""Safe local SQLite path opening for private CK-NEXUS state databases.
+
+The hardened backend requires POSIX geteuid and O_NOFOLLOW primitives. It fails
+closed on platforms without them rather than silently weakening path checks.
+"""
 
 from __future__ import annotations
 
 import os
 import sqlite3
 import stat
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -13,12 +18,16 @@ _DEFAULT_ISOLATION = object()
 
 
 def prepare_private_sqlite_parent(path: str | Path) -> Path:
-    """Create a private database directory or tighten an existing owned one."""
+    """Create a private database directory; never chmod an existing directory."""
     if not hasattr(os, "geteuid") or not hasattr(os, "O_NOFOLLOW"):
         raise OSError("secure SQLite paths require POSIX geteuid and O_NOFOLLOW support")
 
     requested = Path(path).expanduser()
-    requested.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    # Existing paths may be shared with unrelated files. Do not change
+    # their permissions; require an operator-created private DB directory.
+    with suppress(FileExistsError):
+        requested.parent.mkdir(parents=True, exist_ok=False, mode=0o700)
+
     parent = requested.parent.resolve(strict=True)
     flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_DIRECTORY", 0)
     flags |= getattr(os, "O_CLOEXEC", 0)
@@ -30,12 +39,15 @@ def prepare_private_sqlite_parent(path: str | Path) -> Path:
         if opened.st_uid != os.geteuid():
             raise PermissionError("SQLite database directory must belong to the current user")
         if stat.S_IMODE(opened.st_mode) & 0o077:
-            os.fchmod(fd, 0o700)
+            raise PermissionError(
+                "SQLite database directory must already be private (mode 0700 or stricter); "
+                "existing directory permissions are never changed automatically"
+            )
         current = os.stat(parent, follow_symlinks=False)
         if (current.st_dev, current.st_ino) != (opened.st_dev, opened.st_ino):
             raise OSError("SQLite database directory changed while preparing it")
         if stat.S_IMODE(current.st_mode) & 0o077:
-            raise PermissionError("SQLite database directory could not be made private")
+            raise PermissionError("SQLite database directory is not private")
     finally:
         os.close(fd)
     return parent / requested.name

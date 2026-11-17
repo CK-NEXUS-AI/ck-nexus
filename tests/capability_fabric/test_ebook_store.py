@@ -138,7 +138,9 @@ def test_database_rejects_symlink_without_touching_target(tmp_path) -> None:
     assert target.read_bytes() == b"do not modify"
 
 
-def test_initialize_tightens_existing_database_directory(tmp_path) -> None:
+def test_initialize_rejects_existing_nonprivate_database_directory_without_chmod(
+    tmp_path,
+) -> None:
     import stat
 
     parent = tmp_path / "legacy-knowledge"
@@ -146,9 +148,11 @@ def test_initialize_tightens_existing_database_directory(tmp_path) -> None:
     parent.chmod(0o755)
     store = EbookKnowledgeStore(parent / "knowledge.sqlite3")
 
-    store.initialize()
+    with pytest.raises(PermissionError, match="existing directory permissions"):
+        store.initialize()
 
-    assert stat.S_IMODE(parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(parent.stat().st_mode) == 0o755
+    assert not (parent / "knowledge.sqlite3").exists()
 
 
 def test_existing_database_permissions_are_tightened(tmp_path) -> None:
