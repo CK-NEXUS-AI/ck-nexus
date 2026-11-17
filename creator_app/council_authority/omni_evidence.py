@@ -10,6 +10,16 @@ from typing import Any
 from creator_app.agnes.execution.omni import OMNIExecutionContext
 from creator_app.agnes.execution.request import SkillExecutionRequest
 from creator_app.council_authority.storage import AuthorityStore
+from creator_app.sqlite_security import configured_sqlite_database_id
+
+
+def _council_authority_database_path(configured_path: str | Path) -> Path | None:
+    database_id = configured_sqlite_database_id(configured_path)
+    if database_id == "council_authority_var_lib":
+        return Path("/var/lib/cknexus/council-authority/evidence.sqlite3")
+    if database_id == "council_authority_user_state":
+        return Path("/root/.local/state/cknexus/council-authority/evidence.sqlite3")
+    return None
 
 
 class CouncilStoreEvidenceVerifier:
@@ -71,12 +81,18 @@ class CouncilStoreEvidenceVerifier:
 
 def verify(request: SkillExecutionRequest, context: OMNIExecutionContext) -> bool:
     """Configured callback for scripts/run_omni_issuer.py; missing config denies."""
-    database = Path(os.environ.get("CKNEXUS_COUNCIL_AUTHORITY_DB", ""))
+    database_value = os.environ.get("CKNEXUS_COUNCIL_AUTHORITY_DB", "")
     policy_path = Path(os.environ.get("CKNEXUS_OMNI_EVIDENCE_KINDS_FILE", ""))
+    if not database_value:
+        return False
+    try:
+        database = _council_authority_database_path(database_value)
+        if database is None:
+            return False
+    except (OSError, ValueError):
+        return False
     if (
-        not str(database)
-        or not database.is_file()
-        or database.is_symlink()
+        not database.is_file()
         or not str(policy_path)
         or not policy_path.is_file()
         or policy_path.is_symlink()

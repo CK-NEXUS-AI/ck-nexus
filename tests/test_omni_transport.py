@@ -121,3 +121,75 @@ def test_http_boundary_rejects_agent_identity_mismatch(tmp_path):
             bad_client.issue_context(request("bad-agent-exec"))
     finally:
         close_server(server, thread)
+
+
+def test_http_authority_rejects_credentialed_or_remote_http_urls(tmp_path):
+    issuer = make_issuer(tmp_path)
+    cases = (
+        "https://user:password@example.test",
+        "http://example.test",
+        "https://example.test/path?token=unexpected",
+        "https://example.test/path#fragment",
+        "https://example.test:invalid",
+    )
+    for base_url in cases:
+        with pytest.raises(ValueError):
+            HttpIndependentOmniAuthority(
+                base_url,
+                service_token="test-token",
+                public_key=issuer.public_key,
+                issuer_id=issuer.issuer_id,
+            )
+
+
+def test_http_authority_transport_does_not_follow_redirects_or_environment_proxy(
+    monkeypatch,
+):
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from urllib.error import HTTPError
+    from urllib.request import Request
+
+    from creator_app.council_authority.omni_transport import _open_request
+
+    class RedirectHandler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.send_response(302)
+            self.send_header("Location", "http://attacker.invalid/collect")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def log_message(self, _format, *_args):
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), RedirectHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:1")
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:1")
+    monkeypatch.setenv("NO_PROXY", "")
+    try:
+        request = Request(
+            f"http://127.0.0.1:{server.server_address[1]}/context",
+            data=b"{}",
+            method="POST",
+            headers={"Authorization": "Bearer test-only"},
+        )
+        with pytest.raises(HTTPError) as excinfo:
+            _open_request(request, timeout=2)
+        assert excinfo.value.code == 302
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_http_authority_rejects_empty_query_or_fragment_delimiters(tmp_path):
+    issuer = make_issuer(tmp_path)
+    for base_url in ("https://issuer.example.test/path?", "https://issuer.example.test/path#"):
+        with pytest.raises(ValueError):
+            HttpIndependentOmniAuthority(
+                base_url,
+                service_token="test-token",
+                public_key=issuer.public_key,
+                issuer_id=issuer.issuer_id,
+            )

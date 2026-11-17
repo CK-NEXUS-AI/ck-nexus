@@ -8,6 +8,16 @@ from pathlib import Path
 
 from creator_app.control_plane.task_store import TaskStore
 from creator_app.n8n_intelligence.auto_developer import AutoDeveloper
+from creator_app.sqlite_security import configured_sqlite_database_id
+
+
+def _task_database_path(configured_path: str | Path) -> Path:
+    database_id = configured_sqlite_database_id(configured_path)
+    if database_id == "control_plane_user_state":
+        return Path("/root/.local/state/cknexus/control-plane.sqlite3")
+    if database_id == "control_plane_var_lib":
+        return Path("/var/lib/cknexus/control-plane/tasks.db")
+    raise ValueError("configured path is not a task database")
 
 
 def build_parser():
@@ -37,6 +47,7 @@ def build_parser():
 
 
 def run(repo, task_database, evidence_dir, timeout, workspace_root=None):
+    task_database = _task_database_path(task_database)
     result = AutoDeveloper(
         TaskStore(task_database),
         repo=repo,

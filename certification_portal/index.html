@@ -1,0 +1,28 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>CK-NEXUS Certification Portal — Demo</title>
+<style>
+:root{--bg:#0b1220;--panel:#121d30;--line:#26364e;--text:#e8eef8;--muted:#a9b8cc;--accent:#62a8ff;--warn:#ffcc66}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px system-ui,sans-serif}
+main{max-width:900px;margin:36px auto;padding:0 18px}header,.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;margin-bottom:18px}
+p{color:var(--muted);line-height:1.55}.warning{border-left:4px solid var(--warn);padding:10px 14px;background:#2a2418;color:#ffe3a6;border-radius:8px}
+label{display:block;margin:14px 0 6px}input{width:100%;padding:12px;border:1px solid var(--line);border-radius:9px;background:#0b1423;color:var(--text);font:inherit}
+button{margin-top:18px;padding:12px 18px;border:0;border-radius:9px;background:var(--accent);color:#071321;font-weight:700;font-size:15px}
+.check{display:flex;gap:10px;align-items:flex-start}.check input{width:auto;margin-top:5px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#08101d;padding:14px;border-radius:10px;color:#b9d5ff}
+</style></head><body><main><header><h1>CK-NEXUS Certification Portal</h1>
+<p>ระบบตรวจมาตรฐานและออกผลประเมินอัตโนมัติ</p>
+<div class="warning"><b>DEMO ONLY — NOT A CERTIFICATE</b><br>ประเมินภายในเท่านั้น ไม่ใช่ใบรับรอง ISO หรือหน่วยงานภายนอก</div></header>
+<section class="panel"><h2>Local automated assessment</h2><p>ตรวจไฟล์, Commit, สถานะ Worktree และ Compile โดยไม่แก้ไขระบบ</p>
+<button id="assess">เริ่มตรวจระบบ</button><pre id="assessment">ยังไม่ได้เริ่มตรวจ</pre></section>
+<section class="panel"><h2>Owner sign-off preview</h2><p>ตัวอย่างช่องลงนาม ผูกกับ SHA-256 และโปรไฟล์</p>
+<form id="signoff"><label>ชื่อ-นามสกุลผู้ลงนาม</label><input name="full_name" required minlength="2" maxlength="160" value="" placeholder="กรอกชื่อผู้ลงนาม">
+<label>ตำแหน่ง / บทบาท</label><input name="role" required minlength="2" maxlength="120" value="เจ้าของระบบ / ผู้รับผิดชอบ CK-NEXUS (System Owner)">
+<label>SHA-256 ของชุดเอกสารที่ระบุขอบเขต</label><input name="subject_digest" required pattern="[0-9a-f]{64}" value="" readonly>
+<p>ค่า SHA ครอบคลุมเฉพาะ 11 ไฟล์ที่ระบุใน Manifest นี้ ไม่ครอบคลุมไฟล์อื่นใน PR, ทั้ง Repository หรือ Production Runtime และจะแสดงเมื่อไฟล์ทุกชิ้นตรงกันเท่านั้น</p>
+<label>รหัสมาตรฐาน / โปรไฟล์</label><input name="profile_id" required value="CKNEXUS-CORE-v0.1-demo" readonly>
+<label class="check"><input type="checkbox" name="consent" required><span>ข้าพเจ้ายืนยันว่าได้อ่านชื่อผู้ลงนาม บทบาท SHA-256 และขอบเขตการลงนามแล้ว และยินยอมสร้างลายเซ็นทดสอบ</span></label>
+<button type="submit">สร้างตัวอย่างลายเซ็นดิจิทัล</button></form><pre id="result">ยังไม่มีการลงนาม</pre></section>
+</main><script>
+fetch('/api/owner-signoff-subject').then(async r=>{if(!r.ok)throw new Error('ยังไม่มี Manifest ที่ตรวจสอบได้');return r.json()}).then(s=>{document.querySelector('[name=subject_digest]').value=s.subject_digest;document.querySelector('[name=profile_id]').value=s.profile_id}).catch(()=>{document.getElementById('result').textContent='ยังไม่พร้อมลงนาม: ต้องสร้างและตรวจสอบ Manifest ฉบับใหม่ก่อน'});
+document.getElementById('assess').addEventListener('click',async()=>{const r=await fetch('/api/assess/local',{method:'POST'});document.getElementById('assessment').textContent=JSON.stringify(await r.json(),null,2)});
+document.getElementById('signoff').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target);const body=Object.fromEntries(f.entries());body.consent=f.get('consent')==='on';const r=await fetch('/api/owner-signoff-preview',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});document.getElementById('result').textContent=JSON.stringify(await r.json(),null,2)});
+</script></body></html>

@@ -17,7 +17,13 @@ def main() -> int:
     repo = Path(os.getenv("CKNEXUS_REPO", "/root/ck-nexus"))
     remote = os.getenv("CKNEXUS_GITOPS_REMOTE", "origin")
     try:
-        result = AutoGitOps(evidence_dir, repo_root=repo, remote=remote).run_once()
+        publish_authorized = os.getenv("CKNEXUS_AUTO_GITOPS_PUBLISH_AUTHORIZED") == "1"
+        result = AutoGitOps(
+            evidence_dir,
+            repo_root=repo,
+            remote=remote,
+            publish_authorized=publish_authorized,
+        ).run_once()
         print(
             json.dumps(
                 {

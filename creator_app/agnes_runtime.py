@@ -153,7 +153,8 @@ class AgnesNervousSystem:
             )
             workspace_manager = SandboxWorkspaceManager(sandbox_policy)
             if phase3_enabled:
-                assert cgroups is not None
+                if cgroups is None:
+                    raise RuntimeError("phase3_enabled_requires_cgroup_manager")
                 runner = HardenedLinuxNamespaceRunner(sandbox_policy, cgroups=cgroups)
             else:
                 runner = LinuxNamespaceRunner(sandbox_policy)

@@ -31,15 +31,15 @@ class BrainRuntime:
         self.catalog_path = self.root / "config" / "capability_catalog.json"
         self.journal_path = Path(
             journal_path or os.getenv("CKNEXUS_BRAIN_DB", self.root / ".state" / "brain.sqlite3")
-        )
+        ).expanduser()
         self.task_db_path = Path(
             task_db_path
             or os.getenv("CKNEXUS_TASK_DB", self.root / ".state" / "control-plane.sqlite3")
-        )
+        ).expanduser()
         self.knowledge_db_path = Path(
             knowledge_db_path
             or os.getenv("CKNEXUS_EBOOK_DB", "/var/lib/cknexus-knowledge/ebooks.sqlite3")
-        )
+        ).expanduser()
         self.evidence_dir = Path(evidence_dir or self.root / "evidence" / "auto_dev")
         self.orchestrator = orchestrator or ControlPlaneOrchestrator()
 

@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Narrow privileged wrapper for CK-NEXUS read-only browser automation."""
+
 from __future__ import annotations
 
 import ipaddress
 import os
+import shutil
+import stat
 import subprocess
 import sys
+import tempfile
+import time
 from urllib.parse import urlsplit
 
 HELPER = "/usr/local/bin/cknexus-browser"
@@ -39,29 +44,98 @@ def valid_url(value: str) -> bool:
         return False
 
 
+def cleanup_screenshot_artifacts(caller_uid: int) -> None:
+    """Keep at most 10 caller-owned screenshots for 24 hours."""
+    artifacts = []
+    try:
+        entries = os.scandir(tempfile.gettempdir())
+    except OSError:
+        return
+    with entries:
+        for entry in entries:
+            if not entry.name.startswith("cknexus-browser-"):
+                continue
+            try:
+                if not entry.is_dir(follow_symlinks=False):
+                    continue
+                directory = entry.stat(follow_symlinks=False)
+                if directory.st_uid != caller_uid:
+                    continue
+                contents = os.listdir(entry.path)
+                if contents != ["screenshot.png"]:
+                    continue
+                screenshot = os.stat(
+                    os.path.join(entry.path, "screenshot.png"), follow_symlinks=False
+                )
+                if not stat.S_ISREG(screenshot.st_mode) or screenshot.st_uid != caller_uid:
+                    continue
+                artifacts.append((directory.st_mtime, entry.path))
+            except OSError:
+                continue
+
+    artifacts.sort(reverse=True)
+    cutoff = time.time() - 24 * 60 * 60
+    for index, (modified, path) in enumerate(artifacts):
+        if modified < cutoff or index >= 10:
+            shutil.rmtree(path, ignore_errors=True)
+
+
 def main() -> int:
     if len(sys.argv) < 2 or sys.argv[1] not in ACTIONS:
         print("Denied browser action.", file=sys.stderr)
         return 2
     action = sys.argv[1]
-    expected = 3 if action in {"open", "screenshot"} else 2
+    expected = 3 if action == "open" else 2
     if len(sys.argv) != expected:
         print("Invalid browser arguments.", file=sys.stderr)
         return 2
     if action == "open" and not valid_url(sys.argv[2]):
         print("Denied URL.", file=sys.stderr)
         return 2
-    if action == "screenshot" and sys.argv[2] != "/tmp/cknexus-browser-mcp.png":
-        print("Denied screenshot path.", file=sys.stderr)
-        return 2
+
     args = [HELPER, action]
-    if len(sys.argv) == 3:
+    screenshot_dir = None
+    screenshot_path = None
+    caller_uid = None
+    caller_gid = None
+    if action == "open":
         args.append(sys.argv[2])
+    elif action == "screenshot":
+        try:
+            caller_uid = int(os.environ["SUDO_UID"])
+            caller_gid = int(os.environ["SUDO_GID"])
+            if caller_uid < 1 or caller_gid < 1:
+                raise ValueError("invalid caller identity")
+        except (KeyError, ValueError):
+            print("Screenshot requires an authenticated sudo caller.", file=sys.stderr)
+            return 2
+        cleanup_screenshot_artifacts(caller_uid)
+        screenshot_dir = tempfile.mkdtemp(prefix="cknexus-browser-")
+        os.chmod(screenshot_dir, 0o700)
+        screenshot_path = os.path.join(screenshot_dir, "screenshot.png")
+        args.append(screenshot_path)
+
     try:
         result = subprocess.run(args, capture_output=True, text=True, timeout=32, check=False)
     except (OSError, subprocess.TimeoutExpired):
+        if screenshot_dir:
+            shutil.rmtree(screenshot_dir, ignore_errors=True)
         print("Browser helper unavailable or timed out.", file=sys.stderr)
         return 3
+
+    if action == "screenshot":
+        if result.returncode == 0 and screenshot_dir and screenshot_path:
+            if not os.path.isfile(screenshot_path) or os.path.islink(screenshot_path):
+                shutil.rmtree(screenshot_dir, ignore_errors=True)
+                print("Browser screenshot output is invalid.", file=sys.stderr)
+                return 3
+            os.chown(screenshot_path, caller_uid, caller_gid)
+            os.chmod(screenshot_path, 0o600)
+            os.chown(screenshot_dir, caller_uid, caller_gid)
+            os.chmod(screenshot_dir, 0o700)
+        elif screenshot_dir:
+            shutil.rmtree(screenshot_dir, ignore_errors=True)
+
     if result.stdout:
         print(result.stdout[:14000], end="" if result.stdout.endswith("\n") else "\n")
     if result.returncode and result.stderr:

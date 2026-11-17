@@ -225,3 +225,31 @@ def test_has_open_tasks_tracks_queued_and_running_states(tmp_path: Path):
         lease_token=claimed["lease_token"],
     )
     assert store.has_open_tasks() is False
+
+
+def test_task_store_and_brain_journal_share_private_state_directory(tmp_path):
+    import stat
+
+    from creator_app.brain.journal import BrainJournal
+
+    state = tmp_path / ".state"
+    TaskStore(state / "control-plane.sqlite3")
+    BrainJournal(state / "brain.sqlite3")
+
+    assert stat.S_IMODE(state.stat().st_mode) == 0o700
+    assert stat.S_IMODE((state / "control-plane.sqlite3").stat().st_mode) == 0o600
+    assert stat.S_IMODE((state / "brain.sqlite3").stat().st_mode) == 0o600
+
+
+def test_task_store_rejects_existing_nonprivate_directory_without_chmod(tmp_path):
+    import stat
+
+    state = tmp_path / ".state"
+    state.mkdir(mode=0o755)
+    state.chmod(0o755)
+
+    with pytest.raises(PermissionError, match="existing directory permissions"):
+        TaskStore(state / "control-plane.sqlite3")
+
+    assert stat.S_IMODE(state.stat().st_mode) == 0o755
+    assert not (state / "control-plane.sqlite3").exists()

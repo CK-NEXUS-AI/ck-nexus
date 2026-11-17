@@ -8,6 +8,10 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from creator_app.http_transport import (
+    open_direct_request as _open_request,
+)
+
 
 class N8NReadError(RuntimeError):
     pass
@@ -26,8 +30,7 @@ class N8NReadClient:
             or parsed.query
             or parsed.fragment
             or (
-                parsed.scheme == "http"
-                and parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+                parsed.scheme == "http" and parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
             )
         ):
             raise ValueError(
@@ -65,8 +68,7 @@ class N8NReadClient:
             method="GET",
         )
         try:
-            # base_url is validated to use only HTTP or HTTPS in __init__.
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # nosec B310
+            with _open_request(request, timeout=self.timeout) as response:
                 raw = response.read(2_000_001)
             if len(raw) > 2_000_000:
                 raise N8NReadError("n8n response exceeds safe size")

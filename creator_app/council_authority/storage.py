@@ -7,25 +7,29 @@ import sqlite3
 import threading
 import time
 import uuid
-from pathlib import Path
+
+from creator_app.sqlite_security import connect_sqlite_database, prepare_private_sqlite_parent
 
 
 class AuthorityStore:
     def __init__(self, path: str):
-        self.path = path
-        Path(path).parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        self.path = str(prepare_private_sqlite_parent(path))
         self._lock = threading.RLock()
         self._init()
-        # Deployment checks surface inability to chmod; never hide other errors.
-        with contextlib.suppress(OSError):
-            Path(self.path).chmod(0o600)
 
+    @contextlib.contextmanager
     def _db(self):
-        db = sqlite3.connect(self.path, timeout=30, isolation_level=None)
-        db.execute("PRAGMA busy_timeout=30000")
-        db.execute("PRAGMA synchronous=FULL")
-        db.row_factory = sqlite3.Row
-        return db
+        try:
+            db = connect_sqlite_database(self.path, timeout=30, isolation_level=None)
+        except FileNotFoundError as exc:
+            raise sqlite3.OperationalError("authority database is unavailable") from exc
+        try:
+            db.execute("PRAGMA busy_timeout=30000")
+            db.execute("PRAGMA synchronous=FULL")
+            db.row_factory = sqlite3.Row
+            yield db
+        finally:
+            db.close()
 
     def _init(self):
         with self._db() as db:
@@ -175,8 +179,7 @@ class AuthorityStore:
     ) -> bool:
         # Explicitly close every connection and rollback every failed transaction.
         # Expiry and used-state checks happen under the same write lock as consume.
-        with self._lock:
-            db = self._db()
+        with self._lock, self._db() as db:
             try:
                 db.execute("BEGIN IMMEDIATE")
                 row = db.execute("SELECT * FROM grants WHERE grant_id=?", (grant_id,)).fetchone()
@@ -199,5 +202,3 @@ class AuthorityStore:
                     with contextlib.suppress(sqlite3.Error):
                         db.execute("ROLLBACK")
                 raise
-            finally:
-                db.close()

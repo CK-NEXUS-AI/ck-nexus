@@ -1,0 +1,76 @@
+{
+  "subject": "CK-NEXUS PR #373 certification portal and policy-document scope only; exactly 11 listed files; excludes other PR files, full repository and production runtime; unsigned; no release, merge or deployment authorization",
+  "profile_id": "CKNEXUS-CORE-v0.1-demo",
+  "branch": "integration/termux-change-sync-policy-20261117",
+  "base_commit": "c7f457c307c9aeff8ec33b3d74109164d7a810c3",
+  "files": [
+    {
+      "path": "RELEASE_STATUS.md",
+      "size": 12598,
+      "sha256": "bfc2f5fca1b68c3621cd1b14e2afbb648b6df5e283f971067735e01faef6ee8a",
+      "normalization": "none"
+    },
+    {
+      "path": "certification_portal/README.md",
+      "size": 1760,
+      "sha256": "2cfa600dee5867c55956108f4313137779f5e8e2b8f164f97fc3770e00464452",
+      "normalization": "none"
+    },
+    {
+      "path": "certification_portal/__init__.py",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "normalization": "none"
+    },
+    {
+      "path": "certification_portal/app.py",
+      "size": 9437,
+      "sha256": "d9501d31e9ac012b0ed2d9fc118bd8fb314f58ab3102707b1ee0f1d53acd10cc",
+      "normalization": "none"
+    },
+    {
+      "path": "certification_portal/index.html",
+      "size": 5118,
+      "sha256": "257cac8f015f561d9a3f843f351c1872762d2de0b322043ccf54c0a0fb3f3aa5",
+      "normalization": "none"
+    },
+    {
+      "path": "creator_app/agnes_runtime.py",
+      "size": 16429,
+      "sha256": "02a3daeb9035502c61beca4f7d70bf9d3a205589e3bfbe857d803b847178784f",
+      "normalization": "none"
+    },
+    {
+      "path": "creator_app/n8n_intelligence/auto_gitops.py",
+      "size": 13008,
+      "sha256": "2979020f0784a529c694c40d64d789abd6f62655a3e63ea61cc46bb9d3893dba",
+      "normalization": "none"
+    },
+    {
+      "path": "docs/CERTIFICATION_PORTAL_SPEC_DRAFT.md",
+      "size": 7150,
+      "sha256": "3906721b6e1a628723f060546b10c48c80e1627982a6290859a6eadf0bba05c3",
+      "normalization": "none"
+    },
+    {
+      "path": "docs/UNIVERSAL_AI_OPERATING_STANDARD_V2_DRAFT.md",
+      "size": 10135,
+      "sha256": "3a8015d4c4c6d11ce4f3eee063e211e4e8aa5dcd436265d7cfc8fc62a9b2b819",
+      "normalization": "none"
+    },
+    {
+      "path": "ops/vps/scripts/cknexus_n8n_auto_gitops.py",
+      "size": 1474,
+      "sha256": "63a04ee0f9ac3da013d17556ed7ffb3075dc3c19fc8db3c54c31c5484c76f32b",
+      "normalization": "none"
+    },
+    {
+      "path": "tests/test_n8n_auto_gitops.py",
+      "size": 6276,
+      "sha256": "bb587a393f8b4fcfb8c4eed233399ac39927e5a7740f8ce81ae310c4f972d4ad",
+      "normalization": "none"
+    }
+  ],
+  "subject_sha256": "8a6e5f8c96bbde44d02593e33c908f78e81016fddaf93e90f295def71307f478",
+  "hash_method": "SHA-256 over canonical JSON of subject, profile_id, branch, base_commit and exact file path/size/SHA-256 list; candidate only; no owner signature"
+}

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from ops.vps.scripts import cknexus_n8n_intelligence as intelligence_cli
 from ops.vps.scripts.cknexus_n8n_intelligence import build_parser, run
 
 
@@ -9,11 +10,14 @@ def test_cli_parser_has_bounded_defaults():
     assert args.slow_seconds == 30.0
 
 
-def test_cli_run_returns_failure_without_leaking_secret(tmp_path: Path, capsys):
+def test_cli_run_returns_failure_without_leaking_secret(tmp_path: Path, capsys, monkeypatch):
     class BrokenClient:
         def list_executions(self):
             raise RuntimeError("Authorization: Bearer TOP-SECRET")
 
+    monkeypatch.setattr(
+        intelligence_cli, "_task_database_path", lambda _path: tmp_path / "tasks.db"
+    )
     code = run(BrokenClient(), tmp_path / "events.db", tmp_path / "tasks.db", 30.0, 50)
     output = capsys.readouterr().out
     assert code == 1
