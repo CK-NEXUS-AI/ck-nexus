@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 import subprocess
 import time
 from dataclasses import asdict, dataclass
@@ -109,10 +110,35 @@ def _database_environment(database_url: str) -> dict[str, str]:
     return env
 
 
+def _validated_backup_dir(value: Path, *, create: bool = False) -> Path:
+    """Resolve backup paths inside private temporary storage before file access."""
+    root = Path("/tmp").resolve(strict=True)
+    candidate = value.resolve(strict=False)
+    if candidate == root or not candidate.is_relative_to(root):
+        raise DRBlocked("backup directory must be inside the approved temporary storage")
+    if create:
+        parent = candidate.parent
+        try:
+            parent_mode = stat.S_IMODE(parent.stat().st_mode)
+        except OSError as exc:
+            raise DRBlocked("backup parent directory is unavailable") from exc
+        if parent_mode & 0o077:
+            raise DRBlocked("backup parent directory must be private")
+        candidate.mkdir(mode=0o700, parents=False, exist_ok=False)
+    else:
+        try:
+            candidate_mode = stat.S_IMODE(candidate.stat().st_mode)
+        except OSError as exc:
+            raise DRBlocked("backup directory is unavailable") from exc
+        if not candidate.is_dir() or candidate_mode & 0o077:
+            raise DRBlocked("backup directory must be a private directory")
+    return candidate
+
+
 def backup(source_url: str, output_dir: Path, rpo_seconds: int) -> dict[str, object]:
     pg_dump = _require_tool("pg_dump")
     _identity(source_url)
-    output_dir.mkdir(parents=True, exist_ok=False)
+    output_dir = _validated_backup_dir(output_dir, create=True)
     dump = output_dir / "postgres.dump"
     started = time.time()
     with dump.open("wb") as fh:
@@ -149,6 +175,7 @@ def backup(source_url: str, output_dir: Path, rpo_seconds: int) -> dict[str, obj
 
 
 def verify_dump(backup_dir: Path) -> dict[str, object]:
+    backup_dir = _validated_backup_dir(backup_dir)
     dump = backup_dir / "postgres.dump"
     sums = backup_dir / "SHA256SUMS"
     if not dump.is_file() or not sums.is_file():
@@ -172,6 +199,7 @@ def restore(
     )
     pg_restore = _require_tool("pg_restore")
     psql = _require_tool("psql")
+    backup_dir = _validated_backup_dir(backup_dir)
     integrity = verify_dump(backup_dir)
     dump = backup_dir / "postgres.dump"
     started = time.time()

@@ -80,3 +80,20 @@ def test_database_connection_string_is_passed_through_environment_not_argv(monke
     assert env["PGHOST"] == "db.example"
     assert env["PGUSER"] == "user"
     assert env["PGPASSWORD"] == "secret"
+
+
+def test_backup_directory_rejects_paths_outside_private_temp_storage(tmp_path: Path):
+    with pytest.raises(postgres_dr.DRBlocked, match="approved temporary storage"):
+        postgres_dr._validated_backup_dir(Path("/etc"))
+
+
+def test_backup_directory_rejects_group_or_world_accessible_directory(tmp_path: Path):
+    tmp_path.chmod(0o755)
+    with pytest.raises(postgres_dr.DRBlocked, match="private directory"):
+        postgres_dr._validated_backup_dir(tmp_path)
+
+
+def test_backup_directory_creation_requires_private_parent(tmp_path: Path):
+    tmp_path.chmod(0o755)
+    with pytest.raises(postgres_dr.DRBlocked, match="parent directory must be private"):
+        postgres_dr._validated_backup_dir(tmp_path / "backup", create=True)
