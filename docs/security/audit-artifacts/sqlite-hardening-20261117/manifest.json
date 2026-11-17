@@ -1,15 +1,15 @@
 {
   "schema": "cknexus-evidence-manifest/v1",
-  "created_at_utc": "2026-11-17T00:18:07.540153+00:00",
+  "created_at_utc": "2026-11-17T01:46:02.945938+00:00",
   "repository": "CK-NEXUS-AI/ck-nexus",
   "branch": "security/sqlite-hardening-20261117",
   "base_commit": "4d1366cef3cbdd18aa174bdf67308567635c750a",
-  "state": "PR #374 open; local verification refreshed after review-driven fixes; hosted CI blocked by billing lock; independent re-review pending",
+  "state": "PR #374 open at 658f2fd; latest Cubic findings addressed in code; targeted VPS tests pass; full suite collection blocked by missing VPS dependencies; hosted CI blocked by confirmed GitHub billing lock",
   "files": [
     {
       "path": "creator_app/sqlite_security.py",
-      "sha256": "6a3dc0428c73f63aeda3f5bfa401fcae15c79b4b4a8248e5f5c874ba920bf862",
-      "bytes": 7230
+      "sha256": "92a9d2841b2d13abd78674a496b0c02ca7407fc30c7ff82f259ed5e42b1461f1",
+      "bytes": 7243
     },
     {
       "path": "creator_app/brain/journal.py",
@@ -18,8 +18,8 @@
     },
     {
       "path": "creator_app/brain/runtime.py",
-      "sha256": "3dd0d4f67bbff30a678e4631289d1b5fe6431ed435be854e6e16829bfa9fe9dc",
-      "bytes": 7729
+      "sha256": "78923bfc86779b34eba836f3e2096a6e1888628ed70462b7f3c1f90986b05aa4",
+      "bytes": 7755
     },
     {
       "path": "creator_app/global_knowledge/ebook_store.py",
@@ -28,8 +28,8 @@
     },
     {
       "path": "tests/test_brain_runtime.py",
-      "sha256": "fd063d664cf7d0a660705cfbd4ae371e19f2bb1da9f582e9ed17de3fedccc2f7",
-      "bytes": 12992
+      "sha256": "d8e800c5042f4f5fca487df373a909ee059a0159d26309e7dc95205aba78216c",
+      "bytes": 14395
     },
     {
       "path": "tests/capability_fabric/test_ebook_store.py",
@@ -38,23 +38,26 @@
     }
   ],
   "checks": {
-    "pytest": "1008 passed, 2 skipped; 70.54s; exit 0; full repository suite on isolated branch based on origin/main; 12 deprecation warnings",
-    "ruff": "PASS on six changed Python source/test files",
-    "ruff_format": "NOT_RUN_THIS_REVISION",
-    "git_diff_check": "PASS",
+    "pytest": {
+      "current_revision": "37 passed; targeted tests/test_brain_runtime.py and tests/capability_fabric/test_ebook_store.py; 2.27s; VPS",
+      "full_suite_current_revision": "NOT_RUN_TO_COMPLETION; collection blocked by missing environment dependencies (fastapi, sqlalchemy, mcp, uvicorn, python-dotenv, pydantic, httpx)",
+      "historical_full_suite": "1008 passed, 2 skipped; 70.54s; commit 54510a991a2b67a58b99976e1a92ade48b284108; historical only"
+    },
+    "ruff": "PASS on three changed Python files (Termux, current revision 658f2fd)",
+    "ruff_format": "PASS on three changed Python files (Termux, current revision 658f2fd)",
+    "git_diff_check": "PASS (current revision 658f2fd)",
     "bandit": {
-      "result": "PASS",
-      "scope": "Four changed Python source modules",
-      "findings": "No findings reported; exit 0"
+      "current_revision": "NOT_RERUN",
+      "historical_result": "PASS",
+      "historical_scope": "Four changed Python source modules on prior code revision 54510a9",
+      "historical_findings": "No findings reported; exit 0"
     },
     "pip_audit": {
-      "result": "PASS_WITH_UNAUDITED_LOCAL_PACKAGE",
-      "known_vulnerabilities": "None reported",
-      "skipped_dependencies": [
-        {
-          "name": "ck-nexus-creator",
-          "reason": "Dependency not found on PyPI and could not be audited"
-        }
+      "current_revision": "NOT_RERUN",
+      "historical_result": "PASS_WITH_UNAUDITED_LOCAL_PACKAGE",
+      "historical_known_vulnerabilities": "None reported among auditable packages on prior code revision 54510a9",
+      "historical_skipped_dependencies": [
+        "ck-nexus-creator: not found on PyPI"
       ]
     },
     "sqlite_security_regressions": {
@@ -88,16 +91,14 @@
         ]
       },
       "cubic": {
-        "result": "IN_PROGRESS",
-        "check_run_id": 133737466631,
-        "last_observed": "Reviewed 8 of 8 files; check run remained in_progress",
-        "prior_findings": 7,
-        "prior_findings_addressed_in_commit": "54510a991a2b67a58b99976e1a92ade48b284108"
+        "result": "PENDING_AFTER_PUSH",
+        "reviewed_commit": "658f2fd3b73698a64174f0f29e8b9753f02229da",
+        "previous_findings": "Latest two findings in review run be3f039d-272b-50a7-a0b1-032cf7856b87 addressed in commit 658f2fd; new re-review pending"
       }
     },
     "github_actions": {
       "status": "BLOCKED_BILLING_LOCK",
-      "evidence": "Every non-Cubic PR #374 check run reports: The job was not started because your account is locked due to a billing issue.",
+      "evidence": "Latest PR check runs after 658f2fd failed before runner allocation; GitHub check annotations on prior runs explicitly state the account is locked due to a billing issue.",
       "tests_started": false
     },
     "pr": {
@@ -107,16 +108,27 @@
       "base": "main",
       "changed_files": 8,
       "merge_performed": false,
-      "production_deployment_performed": false
+      "production_deployment_performed": false,
+      "head_commit": "658f2fd3b73698a64174f0f29e8b9753f02229da"
+    },
+    "current_revision": {
+      "commit": "658f2fd3b73698a64174f0f29e8b9753f02229da",
+      "targeted_pytest": "37 passed",
+      "ruff": "PASS",
+      "ruff_format": "PASS",
+      "git_diff_check": "PASS",
+      "full_suite": "BLOCKED_AT_COLLECTION_BY_MISSING_VPS_DEPENDENCIES",
+      "bandit": "NOT_RERUN",
+      "pip_audit": "NOT_RERUN"
     }
   },
   "limitations": [
-    "PR #374 is an isolated SQLite hardening candidate; hosted CI jobs cannot start while the GitHub billing lock persists.",
-    "Ruff formatter check was not run in this verification pass; Ruff lint check passed.",
+    "PR #374 remains an isolated SQLite hardening candidate; hosted CI cannot start while the GitHub billing lock persists.",
+    "Full repository test collection on the VPS was blocked by missing project dependencies; only the 37 targeted tests were run on current revision.",
+    "Bandit and pip-audit were not rerun on current revision; previous results are explicitly historical.",
     "The deterministic path-swap test is not a concurrent TOCTOU stress test.",
-    "WAL/SHM files SQLite creates after the connection is returned are protected from other UIDs by the private directory; hostile same-UID processes remain inside the documented trust boundary.",
+    "WAL/SHM files SQLite creates after connection return are protected from other UIDs by the private directory; hostile same-UID processes remain inside the documented trust boundary.",
     "Production readiness and Q10-Q16 closure are not established.",
-    "No merge or deployment performed.",
-    "Cubic re-review of the latest pushed commit was still in progress at the time of this evidence update."
+    "No merge or deployment performed."
   ]
 }

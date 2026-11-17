@@ -7,7 +7,9 @@ PR: [#374 — Harden local SQLite database paths and sidecars](https://github.co
 
 This PR isolates SQLite hardening from the wider integration bundle in PR #373. The candidate now changes **8 files** relative to `main`: four Python modules, two test files, and the evidence report/manifest.
 
-## Verification on VPS
+## Historical verification on code commit 54510a9
+
+The results in this section were recorded on the prior code commit 54510a991a2b67a58b99976e1a92ade48b284108. They are historical and are not represented as fresh verification of the current revision.
 
 - Full repository pytest suite: **1,008 passed, 2 skipped** (70.54s; exit 0; 12 deprecation warnings).
 - Ruff lint check on all six changed Python source/test files: PASS.
@@ -15,6 +17,15 @@ This PR isolates SQLite hardening from the wider integration bundle in PR #373. 
 - `git diff --check`: PASS.
 - Bandit targeted scan on the four changed Python modules: exit 0; no findings reported.
 - pip-audit: no known vulnerabilities reported among auditable packages; local package `ck-nexus-creator` could not be audited from PyPI.
+
+## Current revision verification — 658f2fd
+
+- Targeted VPS tests: **37 passed** across tests/test_brain_runtime.py and tests/capability_fabric/test_ebook_store.py (2.27s).
+- Ruff lint: PASS on the three changed Python files (Termux).
+- Ruff format check: PASS on the three changed Python files (Termux).
+- git diff --check: PASS.
+- Full repository pytest collection: BLOCKED in the available VPS system Python because the environment lacks project dependencies including FastAPI, SQLAlchemy, MCP, Uvicorn, python-dotenv, Pydantic, and httpx. The full suite did not execute; this is an environment limitation, not a test failure in the changed code.
+- Bandit and pip-audit: NOT RERUN on this revision. Historical outcomes remain in the section above only.
 
 ## Review-driven fixes
 
@@ -42,7 +53,7 @@ Cubic's previous AI review identified seven issues. The fixes above address the 
 | PR #374 | OPEN |
 | Changed files | 8 |
 | GitHub Actions | BLOCKED — billing lock; jobs did not start |
-| Cubic re-review | IN PROGRESS — 8/8 files inspected |
+| Cubic re-review | PENDING after commit 658f2fd; previous findings addressed in the pushed revision |
 | Independent Codex review | COMPLETE — no actionable findings on `54510a9` |
 | Merge | NOT MERGED |
 | Deployment | NOT DEPLOYED |
