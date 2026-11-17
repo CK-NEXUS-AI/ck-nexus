@@ -9,15 +9,13 @@ permissions:
   contents: read
 
 env:
-  Q12_SOURCE_SHA: ad2fac7aa0752117dde065c7ad9b0b8d41136aa2
-  Q12_SOURCE_TREE: eb2074176319072ca3f31d5c8c990752ba849b0a
-  Q12_RELEASE_SUBJECT: 772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200
+  Q12_SOURCE_SHA: ${{ github.sha }}
   CKNEXUS_ENVIRONMENT: staging
-  CKNEXUS_AGNES_CGROUP_ROOT: ${{ vars.CKNEXUS_AGNES_CGROUP_ROOT }}
 
 jobs:
   q12:
     runs-on: [self-hosted, linux, cknexus-q12]
+    timeout-minutes: 20
     steps:
       - name: Prove non-root runner identity
         shell: bash
@@ -26,21 +24,44 @@ jobs:
           echo "runner_user=$(id -un)"
           echo "runner_uid=$(id -u)"
           test "$(id -u)" -ne 0
-      - name: Checkout exact frozen candidate
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          ref: ${{ env.Q12_SOURCE_SHA }}
-          fetch-depth: 1
-      - name: Verify immutable release subject
+
+      - name: Resolve delegated cgroup root from runner service boundary
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$Q12_SOURCE_SHA"
-          test "$(git rev-parse HEAD^{tree})" = "$Q12_SOURCE_TREE"
+          rel=$(awk -F: '$1 == "0" { print $3 }' /proc/self/cgroup)
+          case "$rel" in
+            */supervisor) rel="${rel%/supervisor}" ;;
+            */supervisor/*) rel="${rel%%/supervisor*}" ;;
+            *) echo "Runner process is not inside the delegated supervisor subgroup: $rel" >&2; exit 1 ;;
+          esac
+          root="/sys/fs/cgroup$rel"
+          test "$root" != "/sys/fs/cgroup"
+          test -d "$root"
+          echo "CKNEXUS_AGNES_CGROUP_ROOT=$root" >> "$GITHUB_ENV"
+          printf 'Delegated cgroup root: %s\n' "$root"
+
+      - name: Checkout exact workflow commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Resolve immutable Q12 source identity
+        id: subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse HEAD)
+          tree=$(git rev-parse 'HEAD^{tree}')
           subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
-          test "$subject" = "$Q12_RELEASE_SUBJECT"
-          python3 --version
+          test "$sha" = "$GITHUB_SHA"
+          echo "source_sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "source_tree=$tree" >> "$GITHUB_OUTPUT"
+          echo "release_subject=$subject" >> "$GITHUB_OUTPUT"
+
       - name: Verify true delegated cgroup v2 boundary
+        id: preflight
         shell: bash
         run: |
           set -euo pipefail
@@ -55,57 +76,92 @@ jobs:
           printf '%s\n' "$CKNEXUS_AGNES_CGROUP_ROOT" > q12-delegated-root.txt
           cat "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.controllers" > q12-controllers.txt
           printf '%s\n' "$(id -un)" > q12-runner-user.txt
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
       - name: Run exact Q12 kernel enforcement as non-root
         id: gate
+        if: always()
         shell: bash
+        env:
+          PREFLIGHT_OUTCOME: ${{ steps.preflight.outcome }}
         run: |
           set +e
-          python3 scripts/agnes_cgroup_v2_staging_gate.py >Q12_CGROUP_RAW.json 2>q12-gate-error.txt
-          rc=$?
+          if [ "$PREFLIGHT_OUTCOME" = "success" ]; then
+            python3 scripts/agnes_cgroup_v2_staging_gate.py >Q12_CGROUP_RAW.json 2>q12-gate-error.txt
+            rc=$?
+          else
+            printf '%s\n' '{"status":"BLOCKED","reason":"delegated_cgroup_preflight_failed"}' >Q12_CGROUP_RAW.json
+            printf '%s\n' 'Q12 delegated cgroup preflight failed; kernel gate not run.' >q12-gate-error.txt
+            rc=2
+          fi
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
           exit 0
+
       - name: Emit exact Q12 evidence
+        if: always()
         env:
+          SOURCE_SHA: ${{ steps.subject.outputs.source_sha }}
+          SOURCE_TREE: ${{ steps.subject.outputs.source_tree }}
+          RELEASE_SUBJECT: ${{ steps.subject.outputs.release_subject }}
           RUN_ID: ${{ github.run_id }}
           RUNNER_NAME_VALUE: ${{ runner.name }}
           RUNNER_OS_VALUE: ${{ runner.os }}
           RUNNER_ARCH_VALUE: ${{ runner.arch }}
           GATE_RC: ${{ steps.gate.outputs.rc }}
+          PREFLIGHT_OK: ${{ steps.preflight.outcome == 'success' }}
         shell: bash
         run: |
-          python3 - "$Q12_SOURCE_SHA" "$Q12_SOURCE_TREE" "$Q12_RELEASE_SUBJECT" "$RUN_ID" <<'PY'
-          import json,os,sys
-          sha,tree,subject,run_id=sys.argv[1:]
-          gate_rc=int(os.getenv('GATE_RC','1'))
-          raw=None
-          try: raw=json.load(open('Q12_CGROUP_RAW.json',encoding='utf-8'))
-          except (FileNotFoundError,json.JSONDecodeError): pass
-          passed=gate_rc==0 and isinstance(raw,dict) and raw.get('status')=='PASS'
-          diagnostic=''
-          try: diagnostic=open('q12-gate-error.txt',encoding='utf-8').read()
-          except FileNotFoundError: pass
-          evidence={
-            'schema_version':6,'gate':'Q12','source_sha':sha,'source_tree':tree,
-            'release_subject_manifest_sha256':subject,'github_run_id':int(run_id),
-            'environment_class':'self-hosted-linux-delegated-cgroup-v2',
-            'runner_name':os.getenv('RUNNER_NAME_VALUE'),'runner_os':os.getenv('RUNNER_OS_VALUE'),'runner_arch':os.getenv('RUNNER_ARCH_VALUE'),
-            'required_identity':'non-root CK-NEXUS service identity',
-            'runner_user':open('q12-runner-user.txt',encoding='utf-8').read().strip(),
-            'delegated_root':os.environ['CKNEXUS_AGNES_CGROUP_ROOT'],
-            'controllers':open('q12-controllers.txt',encoding='utf-8').read().split(),
-            'delegation_ready':True,'gate_exit_code':gate_rc,'raw':raw,
-            'actual_kernel_enforcement':passed,'result':'PASS' if passed else 'FAIL',
-            'production_promotion_allowed':passed,'diagnostic':diagnostic[:2000],
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          gate_rc = int(os.getenv("GATE_RC", "1"))
+          try:
+              raw = json.loads(Path("Q12_CGROUP_RAW.json").read_text(encoding="utf-8"))
+          except (FileNotFoundError, json.JSONDecodeError):
+              raw = None
+          preflight_ok = os.getenv("PREFLIGHT_OK", "false").lower() == "true"
+          passed = (
+              preflight_ok
+              and gate_rc == 0
+              and isinstance(raw, dict)
+              and raw.get("status") == "PASS"
+          )
+          result = "PASS" if passed else ("BLOCKED" if not preflight_ok else "FAIL")
+          diagnostic = Path("q12-gate-error.txt").read_text(encoding="utf-8") if Path("q12-gate-error.txt").exists() else ""
+          evidence = {
+              "schema_version": 7,
+              "gate": "Q12",
+              "source_sha": os.environ["SOURCE_SHA"],
+              "source_tree": os.environ["SOURCE_TREE"],
+              "release_subject_manifest_sha256": os.environ["RELEASE_SUBJECT"],
+              "github_run_id": int(os.environ["RUN_ID"]),
+              "environment_class": "self-hosted-linux-delegated-cgroup-v2",
+              "runner_name": os.getenv("RUNNER_NAME_VALUE"),
+              "runner_os": os.getenv("RUNNER_OS_VALUE"),
+              "runner_arch": os.getenv("RUNNER_ARCH_VALUE"),
+              "required_identity": "dedicated non-root GitHub Actions runner identity",
+              "runner_user": Path("q12-runner-user.txt").read_text(encoding="utf-8").strip() if Path("q12-runner-user.txt").is_file() else "NOT_CAPTURED",
+              "delegated_root": os.getenv("CKNEXUS_AGNES_CGROUP_ROOT", ""),
+              "controllers": Path("q12-controllers.txt").read_text(encoding="utf-8").split() if Path("q12-controllers.txt").is_file() else [],
+              "delegation_ready": os.getenv("PREFLIGHT_OK", "false").lower() == "true",
+              "gate_exit_code": gate_rc,
+              "raw": raw,
+              "actual_kernel_enforcement": passed,
+              "result": result,
+              "production_promotion_allowed": passed,
+              "diagnostic": diagnostic[:2000],
           }
-          with open('Q12_CGROUP_V2.json','w',encoding='utf-8') as f:
-              json.dump(evidence,f,indent=2,sort_keys=True); f.write('\n')
-          print(json.dumps({k:v for k,v in evidence.items() if k!='diagnostic'},indent=2,sort_keys=True))
+          Path("Q12_CGROUP_V2.json").write_text(
+              json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          print(json.dumps({k: v for k, v in evidence.items() if k != "diagnostic"}, indent=2, sort_keys=True))
           PY
+
       - name: Upload Q12 evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: q12-final-${{ env.Q12_SOURCE_SHA }}
+          name: q12-final-${{ github.sha }}
           path: |
             Q12_CGROUP_V2.json
             Q12_CGROUP_RAW.json
@@ -114,5 +170,8 @@ jobs:
             q12-runner-user.txt
             q12-gate-error.txt
           if-no-files-found: error
+          retention-days: 90
+
       - name: Enforce Q12
+        if: always()
         run: python3 -c "import json; x=json.load(open('Q12_CGROUP_V2.json')); assert x['result']=='PASS' and x['production_promotion_allowed'] is True"

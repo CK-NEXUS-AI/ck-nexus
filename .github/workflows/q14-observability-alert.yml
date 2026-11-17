@@ -1,0 +1,378 @@
+name: Q14 observability alert delivery evidence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  q14:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact release candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Resolve immutable Q14 source identity
+        id: subject
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse HEAD)
+          tree=$(git rev-parse 'HEAD^{tree}')
+          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          test "$sha" = "$GITHUB_SHA"
+          echo "source_sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "source_tree=$tree" >> "$GITHUB_OUTPUT"
+          echo "release_subject=$subject" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python and install frozen dependencies
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Install project
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install "uv==0.12.4"
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+
+      - name: Create isolated staging state and inject one stale lease
+        shell: bash
+        env:
+          Q14_STATE_DIR: ${{ runner.temp }}/q14-state
+        run: |
+          set -euo pipefail
+          mkdir -p "$Q14_STATE_DIR"
+          chmod 700 "$Q14_STATE_DIR"
+          export CKNEXUS_Q14_EMAIL_DB="$Q14_STATE_DIR/email.sqlite3"
+          .venv/bin/python - <<'PY'
+          import os
+          from datetime import timedelta
+          from pathlib import Path
+          from services.email_gateway.repository import EmailGatewayRepository, utc_now
+
+          db = Path(os.environ["CKNEXUS_Q14_EMAIL_DB"])
+          repo = EmailGatewayRepository(db)
+          repo.initialize()
+          stale_at = utc_now() - timedelta(minutes=5)
+          claim = repo.claim_message(
+              mailbox="q14-staging@example.invalid",
+              provider="q14-test",
+              provider_message_id="q14-stale-processing-lease",
+              claimed_by="q14-observability-gate",
+              lease_seconds=30,
+              now=stale_at,
+          )
+          if not claim.claimed or not claim.journal_id:
+              raise SystemExit("Q14 stale lease injection failed")
+          Path(os.environ["Q14_STATE_DIR"], "journal-id.txt").write_text(
+              claim.journal_id, encoding="utf-8"
+          )
+          print("Q14 injected one stale PROCESSING lease into isolated SQLite state.")
+          PY
+
+      - name: Start CK-NEXUS staging API
+        shell: bash
+        env:
+          Q14_STATE_DIR: ${{ runner.temp }}/q14-state
+          CKNEXUS_ENVIRONMENT: staging
+          CKNEXUS_MOCK_AI: 'true'
+          CKNEXUS_DATABASE_PATH: ${{ runner.temp }}/q14-state/main.sqlite3
+          CKNEXUS_VAULT_PATH: ${{ runner.temp }}/q14-state/vault.sqlite3
+          CKNEXUS_EMAIL_DATABASE_PATH: ${{ runner.temp }}/q14-state/email.sqlite3
+          CKNEXUS_EMAIL_GATEWAY_ENABLED: 'true'
+          CKNEXUS_EMAIL_WEBHOOK_TOKEN: q14-isolated-staging-webhook-token-0123456789
+          CKNEXUS_ACCESS_TOKEN: q14-isolated-staging-access-token
+          CKNEXUS_RUNTIME_BINDING_ENABLED: 'false'
+        run: |
+          set -euo pipefail
+          nohup .venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000 >"$Q14_STATE_DIR/api.log" 2>&1 &
+          echo $! > "$Q14_STATE_DIR/api.pid"
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null &&
+               curl -fsS -H "Authorization: Bearer $CKNEXUS_ACCESS_TOKEN" http://127.0.0.1:8000/metrics >/dev/null; then
+              echo "CK-NEXUS staging API ready."
+              exit 0
+            fi
+            sleep 2
+          done
+          cat "$Q14_STATE_DIR/api.log"
+          exit 1
+
+      - name: Start ephemeral staging alert receiver
+        shell: bash
+        env:
+          Q14_STATE_DIR: ${{ runner.temp }}/q14-state
+        run: |
+          set -euo pipefail
+          cat > "$Q14_STATE_DIR/receiver.py" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from datetime import datetime, timezone
+          from http.server import BaseHTTPRequestHandler, HTTPServer
+          from pathlib import Path
+
+          receipt_path = Path(sys.argv[1])
+
+          class Receiver(BaseHTTPRequestHandler):
+              def do_GET(self):
+                  self.send_response(200)
+                  self.end_headers()
+                  self.wfile.write(b"ok")
+
+              def do_POST(self):
+                  length = int(self.headers.get("Content-Length", "0"))
+                  raw = self.rfile.read(length)
+                  payload = json.loads(raw)
+                  alerts = [
+                      {
+                          "alertname": item.get("labels", {}).get("alertname"),
+                          "status": item.get("status"),
+                          "labels": item.get("labels", {}),
+                          "annotations": item.get("annotations", {}),
+                      }
+                      for item in payload.get("alerts", [])
+                  ]
+                  record = {
+                      "received_at": datetime.now(timezone.utc).isoformat(),
+                      "receiver": payload.get("receiver"),
+                      "alerts": alerts,
+                      "payload_sha256": hashlib.sha256(raw).hexdigest(),
+                  }
+                  with receipt_path.open("a", encoding="utf-8") as handle:
+                      handle.write(json.dumps(record, sort_keys=True) + "\n")
+                  self.send_response(200)
+                  self.end_headers()
+                  self.wfile.write(b"accepted")
+
+              def log_message(self, _format, *_args):
+                  return
+
+          HTTPServer(("0.0.0.0", 9000), Receiver).serve_forever()
+          PY
+          nohup .venv/bin/python "$Q14_STATE_DIR/receiver.py" "$Q14_STATE_DIR/alert-receipts.jsonl" >"$Q14_STATE_DIR/receiver.log" 2>&1 &
+          echo $! > "$Q14_STATE_DIR/receiver.pid"
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:9000/health >/dev/null 2>&1; then
+              exit 0
+            fi
+            if kill -0 "$(cat "$Q14_STATE_DIR/receiver.pid")" 2>/dev/null; then
+              sleep 1
+            else
+              cat "$Q14_STATE_DIR/receiver.log"
+              exit 1
+            fi
+          done
+          kill -0 "$(cat "$Q14_STATE_DIR/receiver.pid")"
+
+      - name: Start pinned Prometheus and Alertmanager staging containers
+        shell: bash
+        env:
+          Q14_STATE_DIR: ${{ runner.temp }}/q14-state
+        run: |
+          set -euo pipefail
+          docker network create q14-observability >/dev/null
+          cat > "$Q14_STATE_DIR/alertmanager.yml" <<'YAML'
+          route:
+            receiver: q14-staging-webhook
+            group_by: [alertname]
+            group_wait: 1s
+            group_interval: 5s
+            repeat_interval: 1h
+          receivers:
+            - name: q14-staging-webhook
+              webhook_configs:
+                - url: http://host.docker.internal:9000/alerts
+                  send_resolved: true
+          YAML
+          cat > "$Q14_STATE_DIR/prometheus.yml" <<'YAML'
+          global:
+            scrape_interval: 5s
+            evaluation_interval: 5s
+          alerting:
+            alertmanagers:
+              - static_configs:
+                  - targets: [q14-alertmanager:9093]
+          rule_files:
+            - /etc/prometheus/alert_rules.yaml
+          scrape_configs:
+            - job_name: ck-nexus-staging
+              metrics_path: /metrics
+              authorization:
+                type: Bearer
+                credentials: q14-isolated-staging-access-token
+              static_configs:
+                - targets: [host.docker.internal:8000]
+          YAML
+          docker run -d --name q14-alertmanager --network q14-observability \
+            --add-host=host.docker.internal:host-gateway \
+            -p 127.0.0.1:9093:9093 \
+            -v "$Q14_STATE_DIR/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro" \
+            prom/alertmanager:v0.28.1 \
+            --config.file=/etc/alertmanager/alertmanager.yml
+          docker run -d --name q14-prometheus --network q14-observability \
+            --add-host=host.docker.internal:host-gateway \
+            -p 127.0.0.1:9090:9090 \
+            -v "$Q14_STATE_DIR/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
+            -v "$GITHUB_WORKSPACE/observability/alert_rules.yaml:/etc/prometheus/alert_rules.yaml:ro" \
+            prom/prometheus:v3.5.0 \
+            --config.file=/etc/prometheus/prometheus.yml \
+            --storage.tsdb.path=/prometheus
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:9090/-/ready >/dev/null &&
+               curl -fsS http://127.0.0.1:9093/-/ready >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs q14-prometheus
+          docker logs q14-alertmanager
+          exit 1
+
+      - name: Verify operator alert delivery and recover staging lease
+        shell: bash
+        env:
+          Q14_STATE_DIR: ${{ runner.temp }}/q14-state
+          CKNEXUS_ACCESS_TOKEN: q14-isolated-staging-access-token
+        run: |
+          set -euo pipefail
+          receipt="$Q14_STATE_DIR/alert-receipts.jsonl"
+          found=0
+          for i in $(seq 1 210); do
+            if [ -s "$receipt" ] && .venv/bin/python - "$receipt" <<'PY'
+          import json, sys
+          from pathlib import Path
+          rows = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines() if line]
+          raise SystemExit(0 if any(
+              alert.get("alertname") == "CKNexusEmailStaleLeases"
+              and alert.get("status") == "firing"
+              for row in rows for alert in row.get("alerts", [])
+          ) else 1)
+          PY
+            then
+              found=1
+              break
+            fi
+            sleep 1
+          done
+          test "$found" -eq 1
+          .venv/bin/python - "$Q14_STATE_DIR/journal-id.txt" "$Q14_STATE_DIR/email.sqlite3" <<'PY'
+          import sys
+          from pathlib import Path
+          from services.email_gateway.repository import EmailGatewayRepository
+          journal_id = Path(sys.argv[1]).read_text().strip()
+          EmailGatewayRepository(Path(sys.argv[2])).mark_completed(journal_id)
+          print("Q14 staging lease recovered.")
+          PY
+          sleep 12
+          CKNEXUS_ALERT_RECEIPT_FILE="$receipt" .venv/bin/python scripts/gate_observability.py
+          touch "$Q14_STATE_DIR/p0-check-passed"
+
+      - name: Emit exact Q14 evidence
+        if: always()
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.subject.outputs.source_sha }}
+          SOURCE_TREE: ${{ steps.subject.outputs.source_tree }}
+          RELEASE_SUBJECT: ${{ steps.subject.outputs.release_subject }}
+          RUN_ID: ${{ github.run_id }}
+          Q14_STATE_DIR: ${{ runner.temp }}/q14-state
+        run: |
+          .venv/bin/python - <<'PY'
+          import hashlib, json, os, subprocess
+          from pathlib import Path
+          root = Path(os.environ["Q14_STATE_DIR"])
+          receipt = root / "alert-receipts.jsonl"
+          def digest(path):
+              return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+          def image_id(name):
+              result = subprocess.run(
+                  ["docker", "inspect", "--format", "{{.Image}}", name],
+                  text=True, capture_output=True, check=False,
+              )
+              return result.stdout.strip() if result.returncode == 0 else None
+          def image_digest(name):
+              result = subprocess.run(
+                  ["docker", "inspect", "--format", "{{json .RepoDigests}}", name],
+                  text=True, capture_output=True, check=False,
+              )
+              if result.returncode != 0:
+                  return None
+              try:
+                  values = json.loads(result.stdout)
+                  return values[0] if values else None
+              except json.JSONDecodeError:
+                  return None
+          receipt_rows = []
+          if receipt.is_file():
+              receipt_rows = [json.loads(line) for line in receipt.read_text().splitlines() if line]
+          firing = any(
+              alert.get("alertname") == "CKNexusEmailStaleLeases" and alert.get("status") == "firing"
+              for row in receipt_rows for alert in row.get("alerts", [])
+          )
+          api_log = root / "api.log"
+          health_ok = (root / "p0-check-passed").is_file()
+          passed = firing and receipt.is_file() and api_log.is_file() and health_ok
+          evidence = {
+              "schema_version": 5,
+              "gate": "Q14",
+              "source_sha": os.getenv("SOURCE_SHA"),
+              "source_tree": os.getenv("SOURCE_TREE"),
+              "release_subject_manifest_sha256": os.getenv("RELEASE_SUBJECT"),
+              "github_run_id": int(os.getenv("RUN_ID", "0")),
+              "failure_injection": "one stale PROCESSING lease in isolated staging SQLite state",
+              "failure_injection_scope": "ephemeral GitHub-hosted runner only",
+              "alert_name": "CKNexusEmailStaleLeases",
+              "alert_rule_for": "2m",
+              "operator_receiver_class": "ephemeral-staging-webhook-receiver",
+              "alert_delivery": "PASS" if firing else "NOT_VERIFIED",
+              "alert_receipt_sha256": digest(receipt),
+              "alert_receipt_count": len(receipt_rows),
+              "prometheus_image": "prom/prometheus:v3.5.0",
+              "prometheus_image_id": image_id("q14-prometheus"),
+              "prometheus_repo_digest": image_digest("q14-prometheus"),
+              "alertmanager_image": "prom/alertmanager:v0.28.1",
+              "alertmanager_image_id": image_id("q14-alertmanager"),
+              "alertmanager_repo_digest": image_digest("q14-alertmanager"),
+              "health_metrics_gate": "PASS" if health_ok else "NOT_VERIFIED",
+              "result": "PASS_CANDIDATE" if passed else "BLOCKED",
+              "production_promotion_allowed": passed,
+              "live_production_touched": False,
+          }
+          Path("Q14_OBSERVABILITY_ALERT.json").write_text(
+              json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          print(json.dumps(evidence, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload Q14 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: q14-observability-${{ github.sha }}
+          path: Q14_OBSERVABILITY_ALERT.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Clean up isolated staging services
+        if: always()
+        shell: bash
+        env:
+          Q14_STATE_DIR: ${{ runner.temp }}/q14-state
+        run: |
+          if [ -f "$Q14_STATE_DIR/api.pid" ]; then kill "$(cat "$Q14_STATE_DIR/api.pid")" 2>/dev/null || true; fi
+          if [ -f "$Q14_STATE_DIR/receiver.pid" ]; then kill "$(cat "$Q14_STATE_DIR/receiver.pid")" 2>/dev/null || true; fi
+          docker rm -f q14-prometheus q14-alertmanager 2>/dev/null || true
+          docker network rm q14-observability 2>/dev/null || true
+
+      - name: Enforce Q14 evidence
+        if: success()
+        run: .venv/bin/python -c "import json; x=json.load(open('Q14_OBSERVABILITY_ALERT.json')); assert x['result']=='PASS_CANDIDATE' and x['alert_delivery']=='PASS' and x['production_promotion_allowed'] is True"
