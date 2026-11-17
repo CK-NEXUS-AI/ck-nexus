@@ -46,10 +46,12 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
+          path: q12-src
 
       - name: Resolve immutable Q12 source identity
         id: subject
         shell: bash
+        working-directory: q12-src
         run: |
           set -euo pipefail
           sha=$(git rev-parse HEAD)
@@ -63,6 +65,7 @@ jobs:
       - name: Verify true delegated cgroup v2 boundary
         id: preflight
         shell: bash
+        working-directory: q12-src
         run: |
           set -euo pipefail
           test -n "${CKNEXUS_AGNES_CGROUP_ROOT:-}"
@@ -82,6 +85,7 @@ jobs:
         id: gate
         if: always()
         shell: bash
+        working-directory: q12-src
         env:
           PREFLIGHT_OUTCOME: ${{ steps.preflight.outcome }}
         run: |
@@ -99,6 +103,7 @@ jobs:
 
       - name: Emit exact Q12 evidence
         if: always()
+        working-directory: q12-src
         env:
           SOURCE_SHA: ${{ steps.subject.outputs.source_sha }}
           SOURCE_TREE: ${{ steps.subject.outputs.source_tree }}
@@ -163,15 +168,16 @@ jobs:
         with:
           name: q12-final-${{ github.sha }}
           path: |
-            Q12_CGROUP_V2.json
-            Q12_CGROUP_RAW.json
-            q12-delegated-root.txt
-            q12-controllers.txt
-            q12-runner-user.txt
-            q12-gate-error.txt
+            q12-src/Q12_CGROUP_V2.json
+            q12-src/Q12_CGROUP_RAW.json
+            q12-src/q12-delegated-root.txt
+            q12-src/q12-controllers.txt
+            q12-src/q12-runner-user.txt
+            q12-src/q12-gate-error.txt
           if-no-files-found: error
           retention-days: 90
 
       - name: Enforce Q12
         if: always()
+        working-directory: q12-src
         run: python3 -c "import json; x=json.load(open('Q12_CGROUP_V2.json')); assert x['result']=='PASS' and x['production_promotion_allowed'] is True"

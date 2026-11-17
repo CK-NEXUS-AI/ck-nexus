@@ -1,6 +1,8 @@
 name: Q14 observability alert delivery evidence
 
 on:
+  push:
+    branches: [integration/termux-change-sync-policy-20261117]
   workflow_dispatch:
 
 permissions:
