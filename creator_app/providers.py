@@ -16,6 +16,7 @@ from creator_app.credential_broker import (
     CredentialUnavailable,
 )
 from creator_app.free_providers import GeminiAdapter, OpenAICompatibleAdapter
+from creator_app.integration_security import open_trusted_request
 from creator_app.provider_router import (
     ProviderCapabilities,
     ProviderKind,
@@ -164,6 +165,72 @@ class OpenAIProviderAdapter:
         return output
 
 
+class ClaudeProviderAdapter:
+    """Anthropic Messages API adapter; key is read from process environment only."""
+
+    name = "claude"
+    kind = ProviderKind.CLOUD
+
+    def __init__(
+        self,
+        *,
+        model: str = "claude-sonnet-4-5",
+        timeout_seconds: int = 90,
+        opener: Callable[..., Any] | None = None,
+    ) -> None:
+        self.model = model.strip()
+        self.timeout_seconds = timeout_seconds
+        self._opener = opener
+        self.capabilities = ProviderCapabilities(
+            features=frozenset({"text", "reasoning", "coding"}),
+            models=(self.model,) if self.model else (),
+        )
+
+    def is_available(self) -> bool:
+        return bool(self.model and os.environ.get("ANTHROPIC_API_KEY", "").strip())
+
+    async def invoke(self, prompt: str) -> str:
+        key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+        if not key or not self.model:
+            raise RuntimeError("Claude provider is not configured.")
+        payload = json.dumps({
+            "model": self.model,
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": prompt}],
+        }).encode("utf-8")
+        request = Request(
+            "https://api.anthropic.com/v1/messages",
+            data=payload,
+            method="POST",
+            headers={
+                "content-type": "application/json",
+                "x-api-key": key,
+                "anthropic-version": "2023-06-01",
+            },
+        )
+
+        def _call() -> str:
+            if self._opener is None:
+                response_context = open_trusted_request(
+                    request,
+                    trusted_hosts={"api.anthropic.com"},
+                    timeout=self.timeout_seconds,
+                )
+            else:
+                response_context = self._opener(request, timeout=self.timeout_seconds)
+            with response_context as response:
+                body = json.loads(response.read().decode("utf-8"))
+            output = "\n".join(
+                str(block.get("text", "")) for block in body.get("content", [])
+                if block.get("type") == "text"
+            ).strip()
+            if not output:
+                raise RuntimeError("Claude response did not contain text.")
+            return output
+
+        return await asyncio.to_thread(_call)
+
+
 def build_provider_router(settings: Settings, broker: CredentialBroker) -> ProviderRouter:
     providers = []
     if settings.mock_ai:
@@ -205,6 +272,17 @@ def build_provider_router(settings: Settings, broker: CredentialBroker) -> Provi
                     os.getenv("CKNEXUS_GEMINI_MODEL", "gemini-3.8-flash").strip()
                     or "gemini-3.8-flash"
                 ),
+                timeout_seconds=settings.provider_timeout_seconds,
+            )
+        )
+
+    # Keep zero-cost/free providers ahead of Claude. Claude is an opt-in paid
+    # fallback only when its protected key is supplied to this service.
+    if os.getenv("ANTHROPIC_API_KEY", "").strip():
+        providers.append(
+            ClaudeProviderAdapter(
+                model=os.getenv("CKNEXUS_CLAUDE_MODEL", "claude-sonnet-4-5").strip()
+                or "claude-sonnet-4-5",
                 timeout_seconds=settings.provider_timeout_seconds,
             )
         )
