@@ -102,3 +102,60 @@ def test_readonly_search_uses_existing_index_and_honors_revocation(tmp_path) -> 
     assert len(store.list_documents_readonly()) == 1
     assert store.revoke(document.sha256)
     assert store.search_readonly("attention") == ()
+
+
+def test_database_file_is_private_to_owner(tmp_path) -> None:
+    import os
+    import stat
+
+    document = _document()
+    chunks = chunk_epub(document, rights_basis=EbookRightsBasis.OPEN_LICENSE)
+    path = tmp_path / "knowledge.sqlite3"
+    store = EbookKnowledgeStore(path)
+    store.ingest(document, chunks)
+    assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
+
+
+def test_database_rejects_symlink_without_touching_target(tmp_path) -> None:
+    target = tmp_path / "target.sqlite3"
+    target.write_bytes(b"do not modify")
+    link = tmp_path / "knowledge.sqlite3"
+    link.symlink_to(target)
+    store = EbookKnowledgeStore(link)
+
+    with pytest.raises(OSError):
+        store.initialize()
+
+    assert target.read_bytes() == b"do not modify"
+
+
+def test_existing_database_permissions_are_tightened(tmp_path) -> None:
+    import os
+    import stat
+
+    path = tmp_path / "knowledge.sqlite3"
+    path.touch()
+    store = EbookKnowledgeStore(path)
+    store.initialize()
+    path.chmod(0o644)
+
+    store.list_documents()
+
+    assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
+
+
+def test_readonly_apis_reject_symlink_database_path(tmp_path) -> None:
+    document = _document()
+    chunks = chunk_epub(document, rights_basis=EbookRightsBasis.OPEN_LICENSE)
+    target = tmp_path / "target.sqlite3"
+    target_store = EbookKnowledgeStore(target)
+    target_store.ingest(document, chunks)
+
+    link = tmp_path / "knowledge.sqlite3"
+    link.symlink_to(target)
+    store = EbookKnowledgeStore(link)
+
+    with pytest.raises(OSError):
+        store.search_readonly("attention")
+    with pytest.raises(OSError):
+        store.list_documents_readonly()

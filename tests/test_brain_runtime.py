@@ -113,3 +113,197 @@ def test_journal_rejects_untrusted_outcomes_and_secret_shaped_refs(tmp_path):
         journal.record_observation(
             task="task", outcome="reported_success", evidence_refs=["ghp_" + "a" * 30]
         )
+
+
+def test_brain_journal_database_is_private_to_owner(tmp_path):
+    import os
+    import stat
+
+    db = tmp_path / "brain.sqlite3"
+    BrainJournal(db)
+    assert stat.S_IMODE(os.stat(db).st_mode) == 0o600
+
+
+def test_brain_journal_rejects_symlink_without_touching_target(tmp_path):
+    target = tmp_path / "target.sqlite3"
+    target.write_bytes(b"do not modify")
+    link = tmp_path / "brain.sqlite3"
+    link.symlink_to(target)
+
+    with pytest.raises(OSError):
+        BrainJournal(link)
+
+    assert target.read_bytes() == b"do not modify"
+
+
+def test_brain_journal_tightens_existing_database_permissions(tmp_path):
+    import os
+    import stat
+
+    db = tmp_path / "brain.sqlite3"
+    BrainJournal(db)
+    db.chmod(0o644)
+
+    BrainJournal(db)
+
+    assert stat.S_IMODE(os.stat(db).st_mode) == 0o600
+
+
+def test_brain_journal_tightens_existing_wal_and_shm_permissions(tmp_path):
+    import os
+    import stat
+
+    db = tmp_path / "brain.sqlite3"
+    journal = BrainJournal(db)
+    first = journal._connect()
+    first.execute("PRAGMA journal_mode=WAL")
+    first.execute("CREATE TABLE IF NOT EXISTS sidecar_probe (value INTEGER)")
+    first.execute("INSERT INTO sidecar_probe VALUES (1)")
+    wal = Path(f"{db}-wal")
+    shm = Path(f"{db}-shm")
+    assert wal.exists() and shm.exists()
+    wal.chmod(0o644)
+    shm.chmod(0o644)
+
+    second = journal._connect()
+    try:
+        assert stat.S_IMODE(os.stat(wal).st_mode) == 0o600
+        assert stat.S_IMODE(os.stat(shm).st_mode) == 0o600
+    finally:
+        second.close()
+        first.close()
+
+
+def test_brain_journal_rejects_symlinked_wal_sidecar(tmp_path):
+    target = tmp_path / "target-wal"
+    target.write_bytes(b"do not modify")
+    db = tmp_path / "brain.sqlite3"
+    Path(f"{db}-wal").symlink_to(target)
+
+    with pytest.raises(OSError):
+        BrainJournal(db)
+
+    assert target.read_bytes() == b"do not modify"
+
+
+def test_brain_journal_rejects_world_writable_non_sticky_parent(tmp_path):
+    parent = tmp_path / "unsafe"
+    parent.mkdir()
+    parent.chmod(0o777)
+    db = parent / "brain.sqlite3"
+
+    with pytest.raises(PermissionError, match="private"):
+        BrainJournal(db)
+
+
+def test_sqlite_security_fails_closed_without_nofollow_support(tmp_path, monkeypatch):
+    from creator_app import sqlite_security
+
+    monkeypatch.delattr(sqlite_security.os, "O_NOFOLLOW")
+    with pytest.raises(OSError, match="O_NOFOLLOW"):
+        BrainJournal(tmp_path / "brain.sqlite3")
+
+
+def test_brain_journal_rejects_fifo_database_path(tmp_path):
+    import os
+
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("FIFO paths are not supported on this platform")
+    database = tmp_path / "brain.sqlite3"
+    os.mkfifo(database)
+
+    with pytest.raises(OSError, match="regular files"):
+        BrainJournal(database)
+
+
+def test_brain_journal_rejects_hard_link_database_path(tmp_path):
+    import os
+
+    target = tmp_path / "shared-data"
+    target.write_bytes(b"not a sqlite database")
+    database = tmp_path / "brain.sqlite3"
+    os.link(target, database)
+
+    with pytest.raises(OSError, match="hard-linked"):
+        BrainJournal(database)
+
+    assert target.read_bytes() == b"not a sqlite database"
+
+
+def test_readonly_sqlite_supports_active_wal_and_wal_without_shm(tmp_path):
+    import os
+    import shutil
+    import stat
+
+    from creator_app.sqlite_security import connect_sqlite_database
+
+    database = tmp_path / "journal.sqlite3"
+    journal = BrainJournal(database)
+    writer = journal._connect()
+    writer.execute("CREATE TABLE IF NOT EXISTS wal_probe (value TEXT)")
+    writer.execute("INSERT INTO wal_probe VALUES ('committed-in-wal')")
+
+    reader = connect_sqlite_database(database, timeout=2, readonly=True)
+    assert reader.execute("SELECT value FROM wal_probe").fetchone() == ("committed-in-wal",)
+    reader.close()
+
+    copied_dir = tmp_path / "wal-copy"
+    copied_dir.mkdir(mode=0o700)
+    copied_dir.chmod(0o700)
+    copied_db = copied_dir / "journal.sqlite3"
+    shutil.copy2(database, copied_db)
+    shutil.copy2(Path(f"{database}-wal"), Path(f"{copied_db}-wal"))
+    assert not Path(f"{copied_db}-shm").exists()
+
+    previous_umask = os.umask(0)
+    try:
+        copied_reader = connect_sqlite_database(copied_db, timeout=2, readonly=True)
+    finally:
+        os.umask(previous_umask)
+    try:
+        assert copied_reader.execute("SELECT value FROM wal_probe").fetchone() == (
+            "committed-in-wal",
+        )
+        assert stat.S_IMODE(os.stat(f"{copied_db}-shm").st_mode) == 0o600
+    finally:
+        copied_reader.close()
+        writer.close()
+
+
+def test_new_wal_sidecars_are_private_under_permissive_umask(tmp_path):
+    import os
+    import stat
+
+    database = tmp_path / "brain.sqlite3"
+    previous_umask = os.umask(0)
+    try:
+        journal = BrainJournal(database)
+        writer = journal._connect()
+        writer.execute("CREATE TABLE IF NOT EXISTS umask_probe (value INTEGER)")
+        writer.execute("INSERT INTO umask_probe VALUES (1)")
+        wal = Path(f"{database}-wal")
+        shm = Path(f"{database}-shm")
+        assert wal.exists() and shm.exists()
+        assert stat.S_IMODE(os.stat(wal).st_mode) == 0o600
+        assert stat.S_IMODE(os.stat(shm).st_mode) == 0o600
+        writer.close()
+    finally:
+        os.umask(previous_umask)
+
+
+def test_brain_journal_rejects_sticky_world_writable_database_directory(tmp_path):
+    parent = tmp_path / "sticky-shared"
+    parent.mkdir()
+    parent.chmod(0o1777)
+
+    with pytest.raises(PermissionError, match="private"):
+        BrainJournal(parent / "brain.sqlite3")
+
+
+def test_brain_journal_rejects_readable_nonwritable_database_directory(tmp_path):
+    parent = tmp_path / "readable"
+    parent.mkdir()
+    parent.chmod(0o755)
+
+    with pytest.raises(PermissionError, match="private"):
+        BrainJournal(parent / "brain.sqlite3")
