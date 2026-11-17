@@ -39,4 +39,4 @@ For an existing POSIX installation:
 5. Restart the service and verify the database and sidecar files are owned by
    the service identity and have mode 0600.
 
-No automatic migration or permission change is performed by the application.
+The application does not automatically migrate existing directories or change existing directory permissions. On writable opens, it sets the database file and any existing SQLite sidecar files to mode 0600; it does not change directory permissions.

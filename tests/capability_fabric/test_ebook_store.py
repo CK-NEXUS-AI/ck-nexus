@@ -152,7 +152,9 @@ def test_initialize_rejects_existing_nonprivate_database_directory_without_chmod
         store.initialize()
 
     assert stat.S_IMODE(parent.stat().st_mode) == 0o755
-    assert not (parent / "knowledge.sqlite3").exists()
+    database_entry = parent / "knowledge.sqlite3"
+    assert not database_entry.is_symlink()
+    assert not database_entry.exists()
 
 
 def test_existing_database_permissions_are_tightened(tmp_path) -> None:
