@@ -12,8 +12,6 @@ from creator_app.agnes.execution.request import SkillExecutionRequest
 from creator_app.council_authority.storage import AuthorityStore
 from creator_app.sqlite_security import validate_configured_sqlite_path
 
-_COUNCIL_AUTHORITY_SQLITE_ROOTS = ("/var/lib/cknexus", "/root/.local/state/cknexus")
-
 
 class CouncilStoreEvidenceVerifier:
     """Require evidence to be verified, unrevoked, task-bound, and policy-allowed."""
@@ -79,10 +77,7 @@ def verify(request: SkillExecutionRequest, context: OMNIExecutionContext) -> boo
     if not database_value:
         return False
     try:
-        database = validate_configured_sqlite_path(
-            database_value,
-            allowed_roots=_COUNCIL_AUTHORITY_SQLITE_ROOTS,
-        )
+        database = validate_configured_sqlite_path(database_value)
     except (OSError, ValueError):
         return False
     if (

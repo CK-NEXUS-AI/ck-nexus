@@ -17,10 +17,7 @@ def main() -> int:
         os.getenv("CKNEXUS_TASK_DATABASE", "/root/.local/state/cknexus/control-plane.sqlite3")
     )
     try:
-        database = validate_configured_sqlite_path(
-            database,
-            allowed_roots=("/var/lib/cknexus", "/root/.local/state/cknexus"),
-        )
+        database = validate_configured_sqlite_path(database)
         result = ProactiveTaskSeeder(TaskStore(database)).run_once()
         print(
             json.dumps(

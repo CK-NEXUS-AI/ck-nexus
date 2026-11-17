@@ -12,6 +12,7 @@ from creator_app.control_plane.task_store import TaskStore
 from creator_app.n8n_intelligence.client import N8NReadClient
 from creator_app.n8n_intelligence.collector import CollectorConfig, N8NIntelligenceCollector
 from creator_app.n8n_intelligence.store import N8NIntelligenceStore
+from creator_app.sqlite_security import validate_configured_sqlite_path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -48,6 +49,7 @@ def build_parser() -> argparse.ArgumentParser:
 def run(
     client, database: Path, task_database: Path, slow_seconds: float, max_executions: int
 ) -> int:
+    task_database = validate_configured_sqlite_path(task_database)
     intelligence = N8NIntelligenceStore(database)
     task_store = TaskStore(task_database)
     collector = N8NIntelligenceCollector(

@@ -17,33 +17,35 @@ _SIDECAR_SUFFIXES = ("-journal", "-wal", "-shm")
 _DEFAULT_ISOLATION = object()
 
 
-def validate_configured_sqlite_path(
-    path: str | Path, *, allowed_roots: tuple[str | Path, ...]
-) -> Path:
-    """Resolve an operator-configured database path under fixed trusted roots.
+_APPROVED_SQLITE_DATABASES = {
+    "/var/lib/cknexus/control-plane/tasks.db": Path("/var/lib/cknexus/control-plane/tasks.db"),
+    "/root/.local/state/cknexus/control-plane.sqlite3": Path(
+        "/root/.local/state/cknexus/control-plane.sqlite3"
+    ),
+    "/var/lib/cknexus/council-authority/evidence.sqlite3": Path(
+        "/var/lib/cknexus/council-authority/evidence.sqlite3"
+    ),
+    "/root/.local/state/cknexus/council-authority/evidence.sqlite3": Path(
+        "/root/.local/state/cknexus/council-authority/evidence.sqlite3"
+    ),
+}
 
-    Call this at CLI/environment boundaries before passing a path to a store.
-    Real-path normalization happens before the path is converted to ``Path``;
-    containment is checked against trusted, code-defined storage roots. The
-    lower-level opener still performs ownership, mode, no-follow, regular-file,
-    and inode checks.
+
+def validate_configured_sqlite_path(path: str | Path) -> Path:
+    """Select an exact, code-approved database location for service state.
+
+    Environment and CLI values are selectors only: they must exactly match a
+    known service path. The returned Path is a constant from this module, never
+    constructed from the supplied value. The lower-level opener still checks
+    ownership, mode, no-follow, regular-file, and inode properties.
     """
-    raw_path = os.path.expanduser(os.fspath(path))
-    if not os.path.isabs(raw_path):
-        raise ValueError("configured SQLite database path must be absolute")
-    if ".." in raw_path.split(os.sep):
-        raise ValueError("configured SQLite database path must not contain traversal segments")
-    if os.path.splitext(raw_path)[1].lower() not in {".db", ".sqlite", ".sqlite3"}:
+    configured = os.fspath(path)
+    approved = _APPROVED_SQLITE_DATABASES.get(configured)
+    if approved is None:
         raise ValueError(
-            "configured SQLite database path has an unsupported database file extension"
+            "configured SQLite database path is not an approved CK-NEXUS database path"
         )
-
-    normalized = os.path.realpath(raw_path)
-    roots = tuple(os.path.realpath(os.path.expanduser(os.fspath(root))) for root in allowed_roots)
-    contained = any(normalized.startswith(root.rstrip(os.sep) + os.sep) for root in roots)
-    if not roots or not contained:
-        raise ValueError("configured SQLite database path is outside approved storage roots")
-    return Path(normalized)
+    return approved
 
 
 def prepare_private_sqlite_parent(path: str | Path) -> Path:
