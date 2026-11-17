@@ -6,8 +6,6 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
-from pathlib import Path
 
 
 def main() -> int:
@@ -42,51 +40,23 @@ def main() -> int:
         )
         print(json.dumps(result, sort_keys=True))
         return 2
-    with tempfile.TemporaryDirectory(prefix="cknexus-r19-dr-") as tmp:
-        backup_dir = Path(tmp) / "backup"
-        backup = subprocess.run(
-            [
-                sys.executable,
-                "scripts/postgres_dr.py",
-                "backup",
-                "--source-url",
-                source,
-                "--output-dir",
-                str(backup_dir),
-            ],
-            text=True,
-            capture_output=True,
-        )
-        if backup.returncode != 0:
-            result.update(
-                status="BLOCKED" if backup.returncode == 2 else "FAIL", reason="backup_gate_failed"
-            )
-            print(json.dumps(result, sort_keys=True))
-            return backup.returncode
-        restore = subprocess.run(
-            [
-                sys.executable,
-                "scripts/postgres_dr.py",
-                "restore",
-                "--source-url",
-                source,
-                "--target-url",
-                target,
-                "--backup-dir",
-                str(backup_dir),
-            ],
-            text=True,
-            capture_output=True,
-        )
-        result.update(
-            status="PASS"
-            if restore.returncode == 0
-            else ("BLOCKED" if restore.returncode == 2 else "FAIL"),
-            backup="completed",
-            restore="completed" if restore.returncode == 0 else "not_passed",
-        )
-        print(json.dumps(result, sort_keys=True))
-        return restore.returncode
+    drill = subprocess.run(
+        [sys.executable, "scripts/postgres_dr.py"],
+        text=True,
+        capture_output=True,
+        env=os.environ.copy(),
+        shell=False,
+        close_fds=True,
+    )
+    if drill.stdout:
+        try:
+            result.update(json.loads(drill.stdout.strip()))
+        except json.JSONDecodeError:
+            result.update(status="FAIL", reason="postgres_dr_returned_invalid_json")
+    else:
+        result.update(status="BLOCKED" if drill.returncode == 2 else "FAIL")
+    print(json.dumps(result, sort_keys=True))
+    return drill.returncode
 
 
 if __name__ == "__main__":

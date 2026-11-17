@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 import os
 import shutil
-import stat
 import subprocess
+import tempfile
 import time
 from dataclasses import asdict, dataclass
-from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 REQUIRED_TABLES = ("agnes_idempotency", "creator_runs", "email_journal", "email_outbox")
@@ -75,16 +73,8 @@ def _require_tool(name: str) -> str:
     return path
 
 
-def _sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as fh:
-        for block in iter(lambda: fh.read(1024 * 1024), b""):
-            h.update(block)
-    return h.hexdigest()
-
-
 def _database_environment(database_url: str) -> dict[str, str]:
-    """Pass connection strings through libpq's environment, never command arguments."""
+    """Pass connection fields through libpq's environment, never process arguments."""
     _identity(database_url)
     parsed = urlsplit(database_url)
     env = os.environ.copy()
@@ -110,112 +100,63 @@ def _database_environment(database_url: str) -> dict[str, str]:
     return env
 
 
-def _validated_backup_dir(value: Path, *, create: bool = False) -> Path:
-    """Resolve backup paths inside private temporary storage before file access."""
-    root = Path("/tmp").resolve(strict=True)
-    candidate = value.resolve(strict=False)
-    if candidate == root or not candidate.is_relative_to(root):
-        raise DRBlocked("backup directory must be inside the approved temporary storage")
-    if create:
-        parent = candidate.parent
-        try:
-            parent_mode = stat.S_IMODE(parent.stat().st_mode)
-        except OSError as exc:
-            raise DRBlocked("backup parent directory is unavailable") from exc
-        if parent_mode & 0o077:
-            raise DRBlocked("backup parent directory must be private")
-        candidate.mkdir(mode=0o700, parents=False, exist_ok=False)
-    else:
-        try:
-            candidate_mode = stat.S_IMODE(candidate.stat().st_mode)
-        except OSError as exc:
-            raise DRBlocked("backup directory is unavailable") from exc
-        if not candidate.is_dir() or candidate_mode & 0o077:
-            raise DRBlocked("backup directory must be a private directory")
-    return candidate
+def _hash_stream(stream) -> tuple[str, int]:
+    digest = hashlib.sha256()
+    size = 0
+    stream.seek(0)
+    for block in iter(lambda: stream.read(1024 * 1024), b""):
+        digest.update(block)
+        size += len(block)
+    stream.seek(0)
+    return digest.hexdigest(), size
 
 
-def backup(source_url: str, output_dir: Path, rpo_seconds: int) -> dict[str, object]:
-    pg_dump = _require_tool("pg_dump")
-    _identity(source_url)
-    output_dir = _validated_backup_dir(output_dir, create=True)
-    dump = output_dir / "postgres.dump"
-    started = time.time()
-    with dump.open("wb") as fh:
-        proc = subprocess.run(
-            [pg_dump, "--format=custom", "--no-owner", "--no-acl"],
-            env=_database_environment(source_url),
-            stdout=fh,
-            stderr=subprocess.PIPE,
-            check=False,
-            shell=False,
-        )
-    if proc.returncode != 0:
-        dump.unlink(missing_ok=True)
-        raise RuntimeError(f"pg_dump failed with exit code {proc.returncode}")
-    digest = _sha256(dump)
-    finished = time.time()
-    metadata = {
-        "status": "PASS",
-        "operation": "backup",
-        "database": asdict(_identity(source_url)),
-        "dump_file": dump.name,
-        "sha256": digest,
-        "size_bytes": dump.stat().st_size,
-        "started_at_epoch": started,
-        "finished_at_epoch": finished,
-        "duration_seconds": round(finished - started, 3),
-        "rpo_target_seconds": rpo_seconds,
-    }
-    (output_dir / "SHA256SUMS").write_text(f"{digest}  {dump.name}\n")
-    (output_dir / "backup-metadata.json").write_text(
-        json.dumps(metadata, indent=2, sort_keys=True) + "\n"
-    )
-    return metadata
-
-
-def verify_dump(backup_dir: Path) -> dict[str, object]:
-    backup_dir = _validated_backup_dir(backup_dir)
-    dump = backup_dir / "postgres.dump"
-    sums = backup_dir / "SHA256SUMS"
-    if not dump.is_file() or not sums.is_file():
-        raise DRBlocked("backup directory is missing postgres.dump or SHA256SUMS")
-    expected = sums.read_text().split()[0]
-    actual = _sha256(dump)
-    if expected != actual:
-        raise DRBlocked("backup checksum mismatch")
-    return {"status": "PASS", "sha256": actual, "size_bytes": dump.stat().st_size}
-
-
-def restore(
-    source_url: str, target_url: str, backup_dir: Path, rto_seconds: int
+def drill(
+    source_url: str, target_url: str, rpo_seconds: int, rto_seconds: int
 ) -> dict[str, object]:
-    validate_restore_boundary(
+    """Back up and restore through an anonymous temporary file; accept no file paths."""
+    source, target = validate_restore_boundary(
         source_url,
         target_url,
         os.getenv("CKNEXUS_ENVIRONMENT", ""),
         os.getenv("CKNEXUS_ALLOW_DESTRUCTIVE_RESTORE", ""),
         os.getenv("CKNEXUS_RESTORE_TARGET_CLASS", ""),
     )
+    pg_dump = _require_tool("pg_dump")
     pg_restore = _require_tool("pg_restore")
     psql = _require_tool("psql")
-    backup_dir = _validated_backup_dir(backup_dir)
-    integrity = verify_dump(backup_dir)
-    dump = backup_dir / "postgres.dump"
-    started = time.time()
+    source_env = _database_environment(source_url)
     target_env = _database_environment(target_url)
-    with dump.open("rb") as dump_stream:
-        proc = subprocess.run(
+    started = time.time()
+
+    with tempfile.TemporaryFile(mode="w+b") as dump_stream:
+        backup = subprocess.run(
+            [pg_dump, "--format=custom", "--no-owner", "--no-acl"],
+            env=source_env,
+            stdout=dump_stream,
+            stderr=subprocess.PIPE,
+            check=False,
+            shell=False,
+            close_fds=True,
+        )
+        if backup.returncode != 0:
+            raise RuntimeError(f"pg_dump failed with exit code {backup.returncode}")
+        digest, size = _hash_stream(dump_stream)
+        if size == 0:
+            raise RuntimeError("pg_dump produced an empty backup")
+
+        restore = subprocess.run(
             [pg_restore, "--clean", "--if-exists", "--no-owner", "--no-acl"],
             env=target_env,
             stdin=dump_stream,
-            text=True,
-            capture_output=True,
+            stderr=subprocess.PIPE,
             check=False,
             shell=False,
+            close_fds=True,
         )
-    if proc.returncode != 0:
-        raise RuntimeError(f"pg_restore failed with exit code {proc.returncode}")
+        if restore.returncode != 0:
+            raise RuntimeError(f"pg_restore failed with exit code {restore.returncode}")
+
     table_sql = (
         "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' ORDER BY tablename;"
     )
@@ -226,6 +167,7 @@ def restore(
         capture_output=True,
         check=False,
         shell=False,
+        close_fds=True,
     )
     if verify.returncode != 0:
         raise RuntimeError(
@@ -235,45 +177,35 @@ def restore(
     missing = sorted(set(REQUIRED_TABLES) - tables)
     if missing:
         raise RuntimeError("post-restore required tables missing:" + ",".join(missing))
+
     finished = time.time()
     duration = finished - started
     return {
         "status": "PASS" if duration <= rto_seconds else "FAIL",
-        "operation": "restore-drill",
-        "target": asdict(_identity(target_url)),
-        "backup_sha256": integrity["sha256"],
+        "operation": "postgres-backup-and-restore-drill",
+        "source": asdict(source),
+        "target": asdict(target),
+        "backup_sha256": digest,
+        "backup_size_bytes": size,
         "duration_seconds": round(duration, 3),
+        "rpo_target_seconds": rpo_seconds,
         "rto_target_seconds": rto_seconds,
         "required_tables_verified": list(REQUIRED_TABLES),
     }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="CK-NEXUS PostgreSQL backup/isolated restore drill"
-    )
-    sub = parser.add_subparsers(dest="command", required=True)
-    b = sub.add_parser("backup")
-    b.add_argument("--source-url", default=os.getenv("CKNEXUS_DATABASE_URL", ""))
-    b.add_argument("--output-dir", required=True)
-    b.add_argument(
-        "--rpo-seconds", type=int, default=int(os.getenv("CKNEXUS_RPO_TARGET_SECONDS", "3600"))
-    )
-    r = sub.add_parser("restore")
-    r.add_argument("--source-url", default=os.getenv("CKNEXUS_DATABASE_URL", ""))
-    r.add_argument("--target-url", default=os.getenv("CKNEXUS_RESTORE_DATABASE_URL", ""))
-    r.add_argument("--backup-dir", required=True)
-    r.add_argument(
-        "--rto-seconds", type=int, default=int(os.getenv("CKNEXUS_RTO_TARGET_SECONDS", "900"))
-    )
-    args = parser.parse_args()
+    source = os.getenv("CKNEXUS_DATABASE_URL", "").strip()
+    target = os.getenv("CKNEXUS_RESTORE_DATABASE_URL", "").strip()
     try:
-        if args.command == "backup":
-            result = backup(args.source_url, Path(args.output_dir), args.rpo_seconds)
-        else:
-            result = restore(
-                args.source_url, args.target_url, Path(args.backup_dir), args.rto_seconds
-            )
+        if not source or not target:
+            raise DRBlocked("source_or_isolated_restore_url_not_configured")
+        result = drill(
+            source,
+            target,
+            int(os.getenv("CKNEXUS_RPO_TARGET_SECONDS", "3600")),
+            int(os.getenv("CKNEXUS_RTO_TARGET_SECONDS", "900")),
+        )
         print(json.dumps(result, sort_keys=True))
         return 0 if result.get("status") == "PASS" else 1
     except DRBlocked as exc:

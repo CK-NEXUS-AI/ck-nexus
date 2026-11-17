@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from pathlib import Path
+import io
 
 import pytest
 
@@ -56,21 +56,12 @@ def test_restore_boundary_accepts_isolated_target():
     assert target.database == "prod_restore"
 
 
-def test_verify_dump_checksum(tmp_path: Path):
-    dump = tmp_path / "postgres.dump"
-    dump.write_bytes(b"safe fixture")
-    digest = hashlib.sha256(dump.read_bytes()).hexdigest()
-    (tmp_path / "SHA256SUMS").write_text(f"{digest}  postgres.dump\n")
-    result = postgres_dr.verify_dump(tmp_path)
-    assert result["status"] == "PASS"
-    assert result["sha256"] == digest
-
-
-def test_verify_dump_rejects_checksum_mismatch(tmp_path: Path):
-    (tmp_path / "postgres.dump").write_bytes(b"changed")
-    (tmp_path / "SHA256SUMS").write_text("0" * 64 + "  postgres.dump\n")
-    with pytest.raises(postgres_dr.DRBlocked, match="checksum"):
-        postgres_dr.verify_dump(tmp_path)
+def test_hash_stream_rewinds_and_returns_checksum_and_size():
+    stream = io.BytesIO(b"safe fixture")
+    digest, size = postgres_dr._hash_stream(stream)
+    assert digest == hashlib.sha256(b"safe fixture").hexdigest()
+    assert size == len(b"safe fixture")
+    assert stream.tell() == 0
 
 
 def test_database_connection_string_is_passed_through_environment_not_argv(monkeypatch):
@@ -80,20 +71,3 @@ def test_database_connection_string_is_passed_through_environment_not_argv(monke
     assert env["PGHOST"] == "db.example"
     assert env["PGUSER"] == "user"
     assert env["PGPASSWORD"] == "secret"
-
-
-def test_backup_directory_rejects_paths_outside_private_temp_storage(tmp_path: Path):
-    with pytest.raises(postgres_dr.DRBlocked, match="approved temporary storage"):
-        postgres_dr._validated_backup_dir(Path("/etc"))
-
-
-def test_backup_directory_rejects_group_or_world_accessible_directory(tmp_path: Path):
-    tmp_path.chmod(0o755)
-    with pytest.raises(postgres_dr.DRBlocked, match="private directory"):
-        postgres_dr._validated_backup_dir(tmp_path)
-
-
-def test_backup_directory_creation_requires_private_parent(tmp_path: Path):
-    tmp_path.chmod(0o755)
-    with pytest.raises(postgres_dr.DRBlocked, match="parent directory must be private"):
-        postgres_dr._validated_backup_dir(tmp_path / "backup", create=True)
