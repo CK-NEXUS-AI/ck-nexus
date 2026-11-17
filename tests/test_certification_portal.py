@@ -6,6 +6,7 @@ import json
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from fastapi.testclient import TestClient
 
+from certification_portal import app as portal_app
 from certification_portal.app import app
 
 client = TestClient(app)
@@ -94,7 +95,12 @@ def test_owner_signoff_preview_is_cryptographically_verifiable_but_demo_only() -
     )
 
 
-def test_owner_signoff_subject_is_loaded_from_verified_manifest() -> None:
+def test_owner_signoff_subject_is_loaded_from_verified_manifest(monkeypatch) -> None:
+    monkeypatch.setattr(
+        portal_app,
+        "_git_output",
+        lambda _args: "integration/termux-change-sync-policy-20261117",
+    )
     response = client.get("/api/owner-signoff-subject")
 
     assert response.status_code == 200
@@ -102,6 +108,13 @@ def test_owner_signoff_subject_is_loaded_from_verified_manifest() -> None:
     assert len(result["subject_digest"]) == 64
     assert result["profile_id"] == "CKNEXUS-CORE-v0.1-demo"
     assert result["file_count"] == 11
+
+
+def test_owner_signoff_subject_rejects_wrong_branch(monkeypatch) -> None:
+    monkeypatch.setattr(portal_app, "_git_output", lambda _args: "untrusted-branch")
+    response = client.get("/api/owner-signoff-subject")
+
+    assert response.status_code == 503
 
 
 def test_local_assessment_compile_does_not_write_pycache() -> None:

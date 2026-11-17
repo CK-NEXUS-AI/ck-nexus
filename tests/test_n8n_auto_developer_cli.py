@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from ops.vps.scripts import cknexus_n8n_auto_developer as auto_developer_cli
 from ops.vps.scripts.cknexus_n8n_auto_developer import build_parser, run
 
 
@@ -9,7 +10,10 @@ def test_cli_defaults_are_bounded():
     assert args.repo == Path("/root/ck-nexus")
 
 
-def test_cli_idle_without_tasks(tmp_path: Path, capsys):
+def test_cli_idle_without_tasks(tmp_path: Path, capsys, monkeypatch):
+    monkeypatch.setattr(
+        auto_developer_cli, "_AUTO_DEV_TASK_DATABASE_ROOTS", (tmp_path,), raising=False
+    )
     code = run(tmp_path / "repo", tmp_path / "tasks.db", tmp_path / "evidence", 30)
     output = capsys.readouterr().out
     assert code == 0

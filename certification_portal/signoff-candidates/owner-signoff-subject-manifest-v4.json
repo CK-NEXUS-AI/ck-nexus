@@ -1,7 +1,7 @@
 {
   "subject": "CK-NEXUS PR #373 certification portal and policy-document scope only; exactly 11 listed files; excludes other PR files, full repository and production runtime; unsigned; no release, merge or deployment authorization",
   "profile_id": "CKNEXUS-CORE-v0.1-demo",
-  "branch": "fix/pr373-review-remediations-20261117",
+  "branch": "integration/termux-change-sync-policy-20261117",
   "base_commit": "c7f457c307c9aeff8ec33b3d74109164d7a810c3",
   "files": [
     {
@@ -24,8 +24,8 @@
     },
     {
       "path": "certification_portal/app.py",
-      "size": 9461,
-      "sha256": "99914d86a6584526e9c8e7ed38fde64a225eaa033365ceb7f096da4a777caa9f",
+      "size": 9437,
+      "sha256": "d9501d31e9ac012b0ed2d9fc118bd8fb314f58ab3102707b1ee0f1d53acd10cc",
       "normalization": "none"
     },
     {
@@ -71,6 +71,6 @@
       "normalization": "none"
     }
   ],
-  "subject_sha256": "159d96b11a20de0864c786e7e321b0d83b9e704db6ac24818a63e9d2d3ec3180",
+  "subject_sha256": "8a6e5f8c96bbde44d02593e33c908f78e81016fddaf93e90f295def71307f478",
   "hash_method": "SHA-256 over canonical JSON of subject, profile_id, branch, base_commit and exact file path/size/SHA-256 list; candidate only; no owner signature"
 }

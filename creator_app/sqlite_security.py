@@ -40,14 +40,7 @@ def validate_configured_sqlite_path(
 
     normalized = os.path.realpath(raw_path)
     roots = tuple(os.path.realpath(os.path.expanduser(os.fspath(root))) for root in allowed_roots)
-    contained = False
-    for root in roots:
-        try:
-            if normalized != root and os.path.commonpath((root, normalized)) == root:
-                contained = True
-                break
-        except ValueError:
-            continue
+    contained = any(normalized.startswith(root.rstrip(os.sep) + os.sep) for root in roots)
     if not roots or not contained:
         raise ValueError("configured SQLite database path is outside approved storage roots")
     return Path(normalized)

@@ -55,8 +55,8 @@ def _run_fixed(args: list[str], timeout: int = 20) -> tuple[int, str]:
         return p.returncode, (p.stdout + p.stderr)[-4000:]
     except subprocess.TimeoutExpired:
         return 124, f"TIMEOUT after {timeout}s"
-    except Exception as exc:  # report the failure as evidence, never as a pass
-        return 125, f"{type(exc).__name__}: {exc}"
+    except Exception:  # report only a generic failure, never exception details
+        return 125, "COMMAND_EXECUTION_FAILED"
 
 
 def assess_local() -> dict[str, Any]:
@@ -98,8 +98,8 @@ def assess_local() -> dict[str, Any]:
         for source in (ROOT / "certification_portal").glob("*.py"):
             compile(source.read_text(encoding="utf-8"), str(source), "exec")
         record("CKN-PORTAL-001_COMPILE", True, "Portal Python sources compiled in memory")
-    except (OSError, SyntaxError, UnicodeError) as exc:
-        record("CKN-PORTAL-001_COMPILE", False, f"{type(exc).__name__}: {exc}")
+    except (OSError, SyntaxError, UnicodeError):
+        record("CKN-PORTAL-001_COMPILE", False, "SOURCE_COMPILE_FAILED")
 
     # A document status-line edit is not proof of adoption. Until a separately
     # authenticated adoption verifier exists, this gate is deliberately closed.
@@ -174,10 +174,10 @@ def _load_owner_signoff_subject() -> dict[str, Any]:
             "profile_id": manifest["profile_id"],
             "file_count": len(files),
         }
-    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError):
         raise HTTPException(
             status_code=503, detail="Owner sign-off subject is not ready or has changed"
-        ) from exc
+        ) from None
 
 
 def _git_output(args: list[str]) -> str:

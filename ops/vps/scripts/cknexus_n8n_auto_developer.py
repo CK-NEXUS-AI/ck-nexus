@@ -10,6 +10,8 @@ from creator_app.control_plane.task_store import TaskStore
 from creator_app.n8n_intelligence.auto_developer import AutoDeveloper
 from creator_app.sqlite_security import validate_configured_sqlite_path
 
+_AUTO_DEV_TASK_DATABASE_ROOTS = ("/var/lib/cknexus", "/root/.local/state/cknexus")
+
 
 def build_parser():
     p = argparse.ArgumentParser(description="CK-NEXUS n8n Auto Developer")
@@ -40,7 +42,7 @@ def build_parser():
 def run(repo, task_database, evidence_dir, timeout, workspace_root=None):
     task_database = validate_configured_sqlite_path(
         task_database,
-        allowed_roots=("/var/lib/cknexus", "/root/.local/state/cknexus"),
+        allowed_roots=_AUTO_DEV_TASK_DATABASE_ROOTS,
     )
     result = AutoDeveloper(
         TaskStore(task_database),
