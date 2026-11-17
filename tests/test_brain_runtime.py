@@ -55,6 +55,23 @@ def test_brain_status_composes_components_and_fails_closed(tmp_path):
     assert status["production_status"] == "NO-GO" and status["q10_status"] == "NOT_VERIFIED"
 
 
+def test_brain_runtime_expands_tilde_for_all_database_paths(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+
+    brain = BrainRuntime(
+        root=_root(tmp_path),
+        journal_path="~/state/brain.sqlite3",
+        task_db_path="~/state/tasks.sqlite3",
+        knowledge_db_path="~/knowledge/ebooks.sqlite3",
+    )
+
+    assert brain.journal_path == home / "state" / "brain.sqlite3"
+    assert brain.task_db_path == home / "state" / "tasks.sqlite3"
+    assert brain.knowledge_db_path == home / "knowledge" / "ebooks.sqlite3"
+
+
 def test_brain_plan_never_executes_or_grants_authority(tmp_path):
     brain = BrainRuntime(
         root=_root(tmp_path),
@@ -156,21 +173,23 @@ def test_brain_journal_tightens_existing_wal_and_shm_permissions(tmp_path):
     db = tmp_path / "brain.sqlite3"
     journal = BrainJournal(db)
     first = journal._connect()
-    first.execute("PRAGMA journal_mode=WAL")
-    first.execute("CREATE TABLE IF NOT EXISTS sidecar_probe (value INTEGER)")
-    first.execute("INSERT INTO sidecar_probe VALUES (1)")
-    wal = Path(f"{db}-wal")
-    shm = Path(f"{db}-shm")
-    assert wal.exists() and shm.exists()
-    wal.chmod(0o644)
-    shm.chmod(0o644)
-
-    second = journal._connect()
+    second = None
     try:
+        first.execute("PRAGMA journal_mode=WAL")
+        first.execute("CREATE TABLE IF NOT EXISTS sidecar_probe (value INTEGER)")
+        first.execute("INSERT INTO sidecar_probe VALUES (1)")
+        wal = Path(f"{db}-wal")
+        shm = Path(f"{db}-shm")
+        assert wal.exists() and shm.exists()
+        wal.chmod(0o644)
+        shm.chmod(0o644)
+
+        second = journal._connect()
         assert stat.S_IMODE(os.stat(wal).st_mode) == 0o600
         assert stat.S_IMODE(os.stat(shm).st_mode) == 0o600
     finally:
-        second.close()
+        if second is not None:
+            second.close()
         first.close()
 
 
@@ -186,21 +205,37 @@ def test_brain_journal_rejects_symlinked_wal_sidecar(tmp_path):
     assert target.read_bytes() == b"do not modify"
 
 
-def test_brain_journal_rejects_world_writable_non_sticky_parent(tmp_path):
+def test_brain_journal_creates_new_private_database_parent(tmp_path):
+    import os
+    import stat
+
+    database = tmp_path / "new-parent" / "private-state" / "brain.sqlite3"
+    BrainJournal(database)
+
+    assert stat.S_IMODE(os.stat(database.parent).st_mode) == 0o700
+    assert stat.S_IMODE(os.stat(database).st_mode) == 0o600
+
+
+def test_brain_journal_rejects_existing_world_writable_parent_without_chmod(tmp_path):
+    import stat
+
     parent = tmp_path / "unsafe"
     parent.mkdir()
     parent.chmod(0o777)
-    db = parent / "brain.sqlite3"
 
-    with pytest.raises(PermissionError, match="private"):
-        BrainJournal(db)
+    with pytest.raises(PermissionError, match="existing directory permissions"):
+        BrainJournal(parent / "brain.sqlite3")
+
+    assert stat.S_IMODE(parent.stat().st_mode) == 0o777
+    assert not (parent / "brain.sqlite3").exists()
 
 
-def test_sqlite_security_fails_closed_without_nofollow_support(tmp_path, monkeypatch):
+@pytest.mark.parametrize("attribute", ["geteuid", "O_NOFOLLOW"])
+def test_sqlite_security_fails_closed_without_posix_primitives(tmp_path, monkeypatch, attribute):
     from creator_app import sqlite_security
 
-    monkeypatch.delattr(sqlite_security.os, "O_NOFOLLOW")
-    with pytest.raises(OSError, match="O_NOFOLLOW"):
+    monkeypatch.delattr(sqlite_security.os, attribute, raising=False)
+    with pytest.raises(OSError, match="require POSIX"):
         BrainJournal(tmp_path / "brain.sqlite3")
 
 
@@ -291,22 +326,30 @@ def test_new_wal_sidecars_are_private_under_permissive_umask(tmp_path):
         os.umask(previous_umask)
 
 
-def test_brain_journal_rejects_sticky_world_writable_database_directory(tmp_path):
+def test_brain_journal_rejects_existing_sticky_shared_directory_without_chmod(tmp_path):
+    import stat
+
     parent = tmp_path / "sticky-shared"
     parent.mkdir()
     parent.chmod(0o1777)
 
-    with pytest.raises(PermissionError, match="private"):
+    with pytest.raises(PermissionError, match="existing directory permissions"):
         BrainJournal(parent / "brain.sqlite3")
 
+    assert stat.S_IMODE(parent.stat().st_mode) == 0o1777
 
-def test_brain_journal_rejects_readable_nonwritable_database_directory(tmp_path):
+
+def test_brain_journal_rejects_existing_readable_database_directory_without_chmod(tmp_path):
+    import stat
+
     parent = tmp_path / "readable"
     parent.mkdir()
     parent.chmod(0o755)
 
-    with pytest.raises(PermissionError, match="private"):
+    with pytest.raises(PermissionError, match="existing directory permissions"):
         BrainJournal(parent / "brain.sqlite3")
+
+    assert stat.S_IMODE(parent.stat().st_mode) == 0o755
 
 
 @pytest.mark.parametrize("suffix", ["-journal", "-shm"])
@@ -319,10 +362,49 @@ def test_sqlite_security_rejects_symlinked_journal_and_shm_sidecars(tmp_path, su
     target.write_bytes(b"do not modify")
     Path(f"{database}{suffix}").symlink_to(target)
 
-    with pytest.raises(OSError):
+    import errno
+
+    with pytest.raises(OSError) as excinfo:
         connect_sqlite_database(database, timeout=1)
 
+    assert excinfo.value.errno == errno.ELOOP
     assert target.read_bytes() == b"do not modify"
+
+
+def test_readonly_sqlite_preserves_explicit_isolation_level(tmp_path):
+    from creator_app.sqlite_security import connect_sqlite_database
+
+    database = tmp_path / "readonly-isolation.sqlite3"
+    BrainJournal(database)
+    connection = connect_sqlite_database(database, timeout=1, readonly=True, isolation_level=None)
+    try:
+        assert connection.isolation_level is None
+    finally:
+        connection.close()
+
+
+def test_connect_sqlite_database_expands_tilde_for_direct_callers(tmp_path, monkeypatch):
+    import sqlite3
+
+    from creator_app.sqlite_security import connect_sqlite_database
+
+    home = tmp_path / "home"
+    state = home / "state"
+    state.mkdir(parents=True, mode=0o700)
+    state.chmod(0o700)
+    monkeypatch.setenv("HOME", str(home))
+
+    database = state / "direct.sqlite3"
+    with sqlite3.connect(database) as connection:
+        connection.execute("CREATE TABLE probe (value TEXT)")
+        connection.execute("INSERT INTO probe VALUES ('expanded')")
+
+    database.chmod(0o600)
+    connection = connect_sqlite_database("~/state/direct.sqlite3", timeout=1, readonly=True)
+    try:
+        assert connection.execute("SELECT value FROM probe").fetchone() == ("expanded",)
+    finally:
+        connection.close()
 
 
 def test_sqlite_security_detects_database_path_swap_during_connect(tmp_path, monkeypatch):
@@ -353,3 +435,40 @@ def test_sqlite_security_detects_database_path_swap_during_connect(tmp_path, mon
         sqlite_security.connect_sqlite_database(database, timeout=1)
 
     assert target.read_bytes() == target_before
+
+
+def test_brain_runtime_expands_tilde_journal_path_consistently(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    brain = BrainRuntime(
+        root=_root(tmp_path),
+        journal_path="~/state/brain.sqlite3",
+        task_db_path=tmp_path / "tasks.sqlite3",
+        knowledge_db_path=tmp_path / "missing.sqlite3",
+        evidence_dir=tmp_path / "missing-evidence",
+    )
+
+    brain.record_observation(task="tilde-path", outcome="reported_success")
+
+    assert brain.journal_path == home / "state" / "brain.sqlite3"
+    assert brain.journal_path.is_file()
+    assert brain.journal_summary()["observation_count"] == 1
+
+
+def test_sqlite_database_path_disappearing_during_connect_fails_closed(tmp_path, monkeypatch):
+    import sqlite3
+
+    from creator_app.sqlite_security import connect_sqlite_database
+
+    database = tmp_path / "disappearing.sqlite3"
+    original_connect = sqlite3.connect
+
+    def connect_then_unlink(*args, **kwargs):
+        connection = original_connect(*args, **kwargs)
+        database.unlink()
+        return connection
+
+    monkeypatch.setattr(sqlite3, "connect", connect_then_unlink)
+    with pytest.raises(OSError, match="database path disappeared"):
+        connect_sqlite_database(database, timeout=1)

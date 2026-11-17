@@ -1234,7 +1234,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> DevTeamResult:
         if len(payload.prompt) > resolved_settings.max_prompt_chars:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=422,
                 detail={"error": "PROMPT_TOO_LONG", "message": "Development brief is too long."},
             )
         if not resolved_settings.dev_team_enabled:
@@ -1259,7 +1259,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     ) -> RunResult:
         if len(payload.prompt) > resolved_settings.max_prompt_chars:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=422,
                 detail={"error": "PROMPT_TOO_LONG", "message": "Creative brief is too long."},
             )
         get_agent_spec(payload.agent_id)

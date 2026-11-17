@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -33,6 +32,9 @@ from creator_app.council_authority.identity import IdentityError, IdentityVerifi
 from creator_app.council_authority.omni_issuer import (
     Ed25519OmniIssuer,
     Ed25519OmniProofVerifier,
+)
+from creator_app.http_transport import (
+    open_direct_request as _open_request,
 )
 
 
@@ -239,20 +241,6 @@ def context_from_wire(data: dict[str, Any]) -> OMNIExecutionContext:
     )
 
 
-class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
-
-
-def _open_request(request: urllib.request.Request, timeout: float):
-    opener = urllib.request.build_opener(
-        urllib.request.HTTPHandler(),
-        urllib.request.HTTPSHandler(context=ssl.create_default_context()),
-        _NoRedirectHandler(),
-    )
-    return opener.open(request, timeout=timeout)
-
-
 class OmniIssuerHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
@@ -382,6 +370,8 @@ class HttpIndependentOmniAuthority(IndependentOmniAuthority):
             or parsed_url.password is not None
             or parsed_url.query
             or parsed_url.fragment
+            or "?" in base_url
+            or "#" in base_url
         ):
             raise ValueError("issuer URL must use loopback HTTP or credential-free HTTPS")
         if not service_token or not 0 < timeout_seconds <= 5:

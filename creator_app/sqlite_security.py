@@ -1,15 +1,56 @@
-"""Safe local SQLite path opening for private CK-NEXUS state databases."""
+"""Safe local SQLite path opening for private CK-NEXUS state databases.
+
+The hardened backend requires POSIX geteuid and O_NOFOLLOW primitives. It fails
+closed on platforms without them rather than silently weakening path checks.
+"""
 
 from __future__ import annotations
 
 import os
 import sqlite3
 import stat
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
 _SIDECAR_SUFFIXES = ("-journal", "-wal", "-shm")
 _DEFAULT_ISOLATION = object()
+
+
+def prepare_private_sqlite_parent(path: str | Path) -> Path:
+    """Create a private database directory; never chmod an existing directory."""
+    if not hasattr(os, "geteuid") or not hasattr(os, "O_NOFOLLOW"):
+        raise OSError("secure SQLite paths require POSIX geteuid and O_NOFOLLOW support")
+
+    requested = Path(path).expanduser()
+    # Existing paths may be shared with unrelated files. Do not change
+    # their permissions; require an operator-created private DB directory.
+    with suppress(FileExistsError):
+        requested.parent.mkdir(parents=True, exist_ok=False, mode=0o700)
+
+    parent = requested.parent.resolve(strict=True)
+    flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_DIRECTORY", 0)
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    fd = os.open(parent, flags)
+    try:
+        opened = os.fstat(fd)
+        if not stat.S_ISDIR(opened.st_mode):
+            raise OSError("SQLite database parent must be a real directory")
+        if opened.st_uid != os.geteuid():
+            raise PermissionError("SQLite database directory must belong to the current user")
+        if stat.S_IMODE(opened.st_mode) & 0o077:
+            raise PermissionError(
+                "SQLite database directory must already be private (mode 0700 or stricter); "
+                "existing directory permissions are never changed automatically"
+            )
+        current = os.stat(parent, follow_symlinks=False)
+        if (current.st_dev, current.st_ino) != (opened.st_dev, opened.st_ino):
+            raise OSError("SQLite database directory changed while preparing it")
+        if stat.S_IMODE(current.st_mode) & 0o077:
+            raise PermissionError("SQLite database directory is not private")
+    finally:
+        os.close(fd)
+    return parent / requested.name
 
 
 def _check_private_parent(path: Path) -> Path:
@@ -78,12 +119,13 @@ def connect_sqlite_database(
 ) -> sqlite3.Connection:
     """Open SQLite only from a protected directory and regular private files.
 
-    Parent-directory ownership and permissions prevent other UIDs from
-    replacing checked paths between descriptor validation and SQLite opening.
-    Processes running as the same UID are inside the same local trust boundary.
-    Existing and newly-created journal/WAL/SHM sidecars are checked as well.
+    The database directory must already be private. Existing sidecars and
+    sidecars visible during connection setup are checked. SQLite can create
+    WAL/SHM sidecars later on first use; the private directory prevents other
+    UIDs from replacing them. Processes running as the same UID share the
+    documented local trust boundary.
     """
-    requested = Path(path)
+    requested = Path(path).expanduser()
     database = _check_private_parent(requested)
 
     checked_files: dict[Path, int] = {}
@@ -101,14 +143,18 @@ def connect_sqlite_database(
 
         if readonly:
             uri = database.as_uri() + "?mode=ro"
-            connection = sqlite3.connect(uri, uri=True, timeout=timeout)
+            readonly_kwargs: dict[str, Any] = {"uri": True, "timeout": timeout}
+            if isolation_level is not _DEFAULT_ISOLATION:
+                readonly_kwargs["isolation_level"] = isolation_level
+            connection = sqlite3.connect(uri, **readonly_kwargs)
         elif isolation_level is _DEFAULT_ISOLATION:
             connection = sqlite3.connect(database, timeout=timeout)
         else:
             connection = sqlite3.connect(database, timeout=timeout, isolation_level=isolation_level)
 
-        # SQLite may create WAL/SHM files while opening a WAL-mode database.
-        # Validate those newly-created sidecars before returning the connection.
+        # Validate sidecars visible during connection setup. SQLite may create
+        # WAL/SHM later on first use; the private parent directory is the
+        # cross-UID protection boundary for those later creations.
         for suffix in _SIDECAR_SUFFIXES:
             sidecar = Path(f"{database}{suffix}")
             if sidecar not in checked_files:
@@ -122,7 +168,9 @@ def connect_sqlite_database(
         for checked_path, fd in checked_files.items():
             try:
                 current = os.stat(checked_path, follow_symlinks=False)
-            except FileNotFoundError:
+            except FileNotFoundError as exc:
+                if checked_path == database:
+                    raise OSError("SQLite database path disappeared while connecting") from exc
                 # SQLite may legitimately remove a journal after recovery.
                 continue
             opened = os.fstat(fd)

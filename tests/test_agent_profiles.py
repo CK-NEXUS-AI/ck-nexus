@@ -18,6 +18,15 @@ EXPECTED_AGENTS = {
     "cknexus-sre-recovery.agent.md",
 }
 ALLOWED_TOOLS = {"read", "search", "agent", "edit", "execute"}
+ROLE_SIGNALS = {
+    "cknexus-coordinator.agent.md": ("advisory coordinator", "delegate planning"),
+    "cknexus-planner.agent.md": ("planning specialist", "rollback"),
+    "cknexus-implementer.agent.md": ("implementation specialist", "regression tests"),
+    "cknexus-security-reviewer.agent.md": ("security reviewer", "adversarial"),
+    "cknexus-test-verifier.agent.md": ("test and verification specialist", "reproduce the failure"),
+    "cknexus-evidence-steward.agent.md": ("evidence integrity specialist", "subject commit/tree"),
+    "cknexus-sre-recovery.agent.md": ("sre and recovery specialist", "reconnection"),
+}
 
 
 def _frontmatter(path: Path) -> tuple[str, str]:
@@ -26,13 +35,33 @@ def _frontmatter(path: Path) -> tuple[str, str]:
     _, frontmatter, _body = content.split("---\n", 2)
     name_match = re.search(r"(?m)^name:\s*(.+?)\s*$", frontmatter)
     description_match = re.search(r"(?m)^description:\s*(.+?)\s*$", frontmatter)
-    tools_match = re.search(r"(?m)^tools:\s*\[(.*?)\]\s*$", frontmatter)
     assert name_match is not None
     assert description_match is not None
     assert description_match.group(1).strip().strip("\"'")
-    if tools_match:
-        tools = set(re.findall(r"[\w-]+", tools_match.group(1)))
-        assert tools <= ALLOWED_TOOLS
+
+    lines = frontmatter.splitlines()
+    tool_index = next(
+        (index for index, line in enumerate(lines) if re.match(r"^tools\s*:", line)),
+        None,
+    )
+    if tool_index is not None:
+        value = lines[tool_index].split(":", 1)[1].strip()
+        if value.startswith("[") and value.endswith("]"):
+            tools = re.findall(r"[\w-]+", value[1:-1])
+        elif value:
+            tools = [value.strip("\"'")]
+        else:
+            tools = []
+            for line in lines[tool_index + 1 :]:
+                if line.strip() and not line.startswith((" ", "\t", "-")):
+                    break
+                if line.lstrip().startswith("-"):
+                    item = line.lstrip()[1:].strip().strip("\"'")
+                    assert item, "tools list contains an empty item"
+                    tools.append(item)
+        assert tools, "tools key is present but its value could not be parsed"
+        assert set(tools) <= ALLOWED_TOOLS
+
     return name_match.group(1).strip().strip("\"'"), content
 
 
@@ -42,8 +71,9 @@ def test_expected_custom_agent_profiles_have_valid_metadata() -> None:
     for filename in EXPECTED_AGENTS:
         name, content = _frontmatter(paths[filename])
         assert name
-        assert any(term in content.lower() for term in ("authority", "evidence", "owner"))
-        assert "Q10" in content or "evidence" in content.lower()
+        lowered = content.lower()
+        assert all(signal in lowered for signal in ROLE_SIGNALS[filename])
+        assert "Q10" in content or "evidence" in lowered
 
 
 def test_skills_have_matching_directory_names_and_descriptions() -> None:
@@ -52,3 +82,27 @@ def test_skills_have_matching_directory_names_and_descriptions() -> None:
     for path in paths:
         name, _content = _frontmatter(path)
         assert name == path.parent.name
+
+
+def test_frontmatter_validates_multiline_tool_allowlist(tmp_path):
+    valid = tmp_path / "valid.agent.md"
+    valid.write_text(
+        "---\nname: valid\ndescription: valid profile\ntools:\n  - read\n  - search\n---\nbody\n",
+        encoding="utf-8",
+    )
+    assert _frontmatter(valid)[0] == "valid"
+
+    invalid = tmp_path / "invalid.agent.md"
+    invalid.write_text(
+        (
+            "---\nname: invalid\ndescription: invalid profile\n"
+            "tools:\n  - read\n  - shell\n---\nbody\n"
+        ),
+        encoding="utf-8",
+    )
+    try:
+        _frontmatter(invalid)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("unsupported multiline tool was accepted")

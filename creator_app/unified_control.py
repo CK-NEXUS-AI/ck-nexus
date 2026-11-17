@@ -356,7 +356,7 @@ def install_unified_control(app: FastAPI) -> FastAPI:
         missing = [key for key in required if not str(payload.get(key, "")).strip()]
         if missing:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=422,
                 detail={"error": "MISSING_FIELDS", "fields": missing},
             )
         authorize_development_mutation(payload, x_cknexus_human_approval)
@@ -390,14 +390,14 @@ def install_unified_control(app: FastAPI) -> FastAPI:
     ) -> dict[str, Any]:
         if not str(payload.get("actor", "")).strip():
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=422,
                 detail={"error": "ACTOR_REQUIRED"},
             )
         authorize_development_mutation(payload, x_cknexus_human_approval)
         for field_name in ("human_reviewed", "merged"):
             if field_name in payload and not isinstance(payload[field_name], bool):
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    status_code=422,
                     detail={
                         "error": "BOOLEAN_FIELD_REQUIRED",
                         "field": field_name,
@@ -451,7 +451,7 @@ def install_unified_control(app: FastAPI) -> FastAPI:
         answers = payload.get("answers")
         if not isinstance(answers, dict):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=422,
                 detail={"error": "ANSWERS_REQUIRED"},
             )
         invalid_boolean_fields = [
@@ -461,7 +461,7 @@ def install_unified_control(app: FastAPI) -> FastAPI:
         ]
         if invalid_boolean_fields:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=422,
                 detail={
                     "error": "BOOLEAN_ANSWERS_REQUIRED",
                     "fields": invalid_boolean_fields,
@@ -470,7 +470,7 @@ def install_unified_control(app: FastAPI) -> FastAPI:
         human_confirmed_value = payload.get("human_confirmed", False)
         if not isinstance(human_confirmed_value, bool):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=422,
                 detail={"error": "HUMAN_CONFIRMED_MUST_BE_BOOLEAN"},
             )
         human_confirmed = human_confirmed_value
@@ -496,7 +496,7 @@ def install_unified_control(app: FastAPI) -> FastAPI:
             )
         except ValueError as exc:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                status_code=422,
                 detail={"error": "INVALID_ASSESSMENT", "message": str(exc)},
             ) from exc
         return development_store.save_competency(

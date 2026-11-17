@@ -6,9 +6,11 @@ from __future__ import annotations
 import ipaddress
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
+import time
 from urllib.parse import urlsplit
 
 HELPER = "/usr/local/bin/cknexus-browser"
@@ -42,6 +44,42 @@ def valid_url(value: str) -> bool:
         return False
 
 
+def cleanup_screenshot_artifacts(caller_uid: int) -> None:
+    """Keep at most 10 caller-owned screenshots for 24 hours."""
+    artifacts = []
+    try:
+        entries = os.scandir(tempfile.gettempdir())
+    except OSError:
+        return
+    with entries:
+        for entry in entries:
+            if not entry.name.startswith("cknexus-browser-"):
+                continue
+            try:
+                if not entry.is_dir(follow_symlinks=False):
+                    continue
+                directory = entry.stat(follow_symlinks=False)
+                if directory.st_uid != caller_uid:
+                    continue
+                contents = os.listdir(entry.path)
+                if contents != ["screenshot.png"]:
+                    continue
+                screenshot = os.stat(
+                    os.path.join(entry.path, "screenshot.png"), follow_symlinks=False
+                )
+                if not stat.S_ISREG(screenshot.st_mode) or screenshot.st_uid != caller_uid:
+                    continue
+                artifacts.append((directory.st_mtime, entry.path))
+            except OSError:
+                continue
+
+    artifacts.sort(reverse=True)
+    cutoff = time.time() - 24 * 60 * 60
+    for index, (modified, path) in enumerate(artifacts):
+        if modified < cutoff or index >= 10:
+            shutil.rmtree(path, ignore_errors=True)
+
+
 def main() -> int:
     if len(sys.argv) < 2 or sys.argv[1] not in ACTIONS:
         print("Denied browser action.", file=sys.stderr)
@@ -71,6 +109,7 @@ def main() -> int:
         except (KeyError, ValueError):
             print("Screenshot requires an authenticated sudo caller.", file=sys.stderr)
             return 2
+        cleanup_screenshot_artifacts(caller_uid)
         screenshot_dir = tempfile.mkdtemp(prefix="cknexus-browser-")
         os.chmod(screenshot_dir, 0o700)
         screenshot_path = os.path.join(screenshot_dir, "screenshot.png")

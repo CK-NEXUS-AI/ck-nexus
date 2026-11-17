@@ -5,7 +5,7 @@ description: Use when preparing, validating, reviewing, or reporting CK-NEXUS Q1
 
 # Q10 evidence integrity
 
-1. Read the current canonical gate contract and subject manifest before running tools.
+1. Read `RELEASE_STATUS.md`, `.github/workflows/runtime-subject-candidate.yml`, the current canonical gate contract, and its subject manifest before running tools.
 2. Record exact target commit SHA and tree SHA, source/runtime identity, tool/version, command, exit code, timestamps, output digests, and coverage.
 3. Keep native-required scans distinct from substitute open-source scanners. Substitutes cannot silently satisfy a native-only contract.
 4. Check report completeness, findings, coverage, attack paths, provenance, and exact subject match.

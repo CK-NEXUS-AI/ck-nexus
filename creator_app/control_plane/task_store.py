@@ -11,13 +11,14 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any
 
+from creator_app.sqlite_security import connect_sqlite_database, prepare_private_sqlite_parent
+
 
 class TaskStore:
     """Small local queue; it stores task data, never provider credentials."""
 
     def __init__(self, database: str | Path) -> None:
-        self.database = str(database)
-        Path(self.database).parent.mkdir(parents=True, exist_ok=True)
+        self.database = str(prepare_private_sqlite_parent(database))
         with closing(self._connect()) as connection:
             connection.execute("PRAGMA journal_mode=WAL")
             connection.execute(
@@ -51,7 +52,7 @@ class TaskStore:
         Path(self.database).chmod(0o600)
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.database, timeout=10, isolation_level=None)
+        connection = connect_sqlite_database(self.database, timeout=10, isolation_level=None)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA busy_timeout=10000")
         return connection

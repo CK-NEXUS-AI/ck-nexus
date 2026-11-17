@@ -3,25 +3,14 @@
 from __future__ import annotations
 
 import json
-import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
-
-class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
-
-
-def _open_request(request: urllib.request.Request, timeout: float):
-    opener = urllib.request.build_opener(
-        urllib.request.HTTPHandler(),
-        urllib.request.HTTPSHandler(context=ssl.create_default_context()),
-        _NoRedirectHandler(),
-    )
-    return opener.open(request, timeout=timeout)
+from creator_app.http_transport import (
+    open_direct_request as _open_request,
+)
 
 
 class N8NReadError(RuntimeError):

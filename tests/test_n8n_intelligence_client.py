@@ -30,9 +30,9 @@ def test_client_requires_key_file(tmp_path: Path):
 def test_n8n_transport_does_not_follow_redirects():
     from urllib.request import Request
 
-    from creator_app.n8n_intelligence.client import _NoRedirectHandler
+    from creator_app.http_transport import NoRedirectHandler
 
-    handler = _NoRedirectHandler()
+    handler = NoRedirectHandler()
     request = Request("https://n8n.example.test/api/v1/executions")
     assert (
         handler.redirect_request(

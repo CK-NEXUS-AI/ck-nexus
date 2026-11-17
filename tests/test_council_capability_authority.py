@@ -333,12 +333,20 @@ def test_sqlite_busy_fails_closed_without_consuming_grant(tmp_path, monkeypatch)
 def _signed_identity_token(payload: dict[str, object], secret: bytes = b"i" * 32) -> str:
     import base64
 
-    body = base64.urlsafe_b64encode(
-        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-    ).rstrip(b"=").decode()
-    signature = base64.urlsafe_b64encode(
-        __import__("hmac").new(secret, body.encode(), hashlib.sha256).digest()
-    ).rstrip(b"=").decode()
+    body = (
+        base64.urlsafe_b64encode(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        )
+        .rstrip(b"=")
+        .decode()
+    )
+    signature = (
+        base64.urlsafe_b64encode(
+            __import__("hmac").new(secret, body.encode(), hashlib.sha256).digest()
+        )
+        .rstrip(b"=")
+        .decode()
+    )
     return f"{body}.{signature}"
 
 
@@ -380,3 +388,29 @@ def test_identity_verifier_bounds_issued_token_lifetime_and_claims():
         verifier.issue(service_id=" ", agent_id="agent")
     with pytest.raises(ValueError, match="issuer"):
         IdentityVerifier(b"i" * 32, issuer=" ")
+
+
+def test_authority_store_rejects_symlinked_database(tmp_path):
+    target = tmp_path / "target.sqlite3"
+    target.write_bytes(b"must not be modified")
+    link = tmp_path / "authority.sqlite3"
+    link.symlink_to(target)
+
+    with pytest.raises(OSError):
+        AuthorityStore(str(link))
+
+    assert target.read_bytes() == b"must not be modified"
+
+
+def test_authority_store_rejects_existing_nonprivate_directory_without_chmod(tmp_path):
+    import stat
+
+    parent = tmp_path / "shared"
+    parent.mkdir(mode=0o755)
+    parent.chmod(0o755)
+
+    with pytest.raises(PermissionError, match="existing directory permissions"):
+        AuthorityStore(str(parent / "authority.sqlite3"))
+
+    assert stat.S_IMODE(parent.stat().st_mode) == 0o755
+    assert not (parent / "authority.sqlite3").exists()

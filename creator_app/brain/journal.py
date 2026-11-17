@@ -11,7 +11,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from creator_app.sqlite_security import connect_sqlite_database
+from creator_app.sqlite_security import (
+    connect_sqlite_database,
+    prepare_private_sqlite_parent,
+)
 
 _OUTCOMES = frozenset({"reported_success", "reported_failure", "blocked", "unknown"})
 _REASON_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,80}$")
@@ -38,9 +41,7 @@ class BrainJournal:
 
     def __init__(self, database: str | Path) -> None:
         """Resolve the database path once, then use only private local storage."""
-        requested_path = Path(database).expanduser()
-        requested_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        self.database = requested_path.parent.resolve() / requested_path.name
+        self.database = prepare_private_sqlite_parent(database)
         with closing(self._connect()) as db:
             db.execute("PRAGMA journal_mode=WAL")
             db.execute(

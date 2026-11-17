@@ -1,7 +1,7 @@
 # CK-NEXUS Change Synchronization and Evidence Update Policy
 
 **Policy ID:** CKN-OPS-CHANGE-SYNC-001
-**Status:** Proposed on an isolated documentation branch; not yet merged or adopted by the canonical runtime.
+**Status:** Proposed; adoption requires explicit review and merge.
 **Authority:** CK-NEXUS Core / L3 Authority
 **Default release decision:** NO-GO FOR PRODUCTION
 
@@ -18,7 +18,7 @@ If this policy conflicts with an existing authority contract, the Core/L3 author
 - Creator Workspace is the user-facing workspace.
 - `/development` is the internal development and evidence dashboard.
 - CK-NEXUS Core / L3 Authority owns state, memory, permissions, policy, approvals, execution decisions, and evidence.
-- n8n, MCP, OpenClaw, external agents, and third-party services are adapters/workflow services only; they have no CK-NEXUS policy authority (`authority_level=NONE`).
+- n8n is a historical/retired integration and is not a current runtime dependency. MCP, OpenClaw, external agents, and third-party services are adapters only; they have no CK-NEXUS policy authority (`authority_level=NONE`).
 - External connectivity, code presence, passing test subsets, CI success, or a running service do not establish Production readiness.
 
 ## 3. Required change lifecycle
@@ -41,7 +41,7 @@ For each change:
 9. **Review:** require independent review where the applicable contract requires it; the implementer cannot self-approve.
 10. **Complete:** follow the existing human-review and merge requirements. Development completion never changes Production status automatically.
 
-If any required step cannot be completed, mark the change BLOCKED or synchronization-pending in the appropriate system and state the reason. Never report completion while required evidence or synchronization is missing.
+If any required step cannot be completed, mark the change `BLOCKED` and record the synchronization reason in the applicable metadata or evidence. Do not introduce a `synchronization-pending` or `pending` workflow state. Never report completion while required evidence or synchronization is missing.
 
 ## 4. Immediate synchronization scope
 
@@ -58,11 +58,11 @@ After a change, inspect each affected surface and update it when materially impa
 - Development status and the `/development` dashboard / `/api/dev-status` snapshot.
 - Release Status, Release Checklist, Q10–Q16 evidence, and delivery manifests when affected.
 
-Do not edit unrelated documents merely to create activity. Record that an unaffected surface was checked when that distinction matters. If a dashboard or authority-owned store cannot be updated, explicitly mark synchronization pending; a local Markdown note is not a substitute for a live Core state update.
+Do not edit unrelated documents merely to create activity. Record that an unaffected surface was checked when that distinction matters. If a dashboard or authority-owned store cannot be updated, explicitly mark synchronization `BLOCKED`; a local Markdown note is not a substitute for a live Core state update.
 
 ## 5. Minimum change record
 
-Every consequential change record should contain:
+Every consequential change record must contain:
 
 - `change_id`, UTC timestamp, actor/agent, and assigned scope.
 - Authority/permission and approval reference, or an explicit not-required reason.
@@ -102,7 +102,7 @@ Production remains NO-GO until every mandatory Q10–Q16 gate passes against the
 ## 8. Synchronization failure handling
 
 If implementation succeeds but one or more required surfaces cannot be synchronized:
-- Keep the change in a pending/blocked state in the applicable workflow.
+- Keep the change in the `BLOCKED` state in the applicable workflow.
 - List each stale surface and the reason it was not updated.
 - Preserve the implementation and its evidence; do not silently roll back or overwrite unrelated work.
 - Assign the synchronization follow-up.
