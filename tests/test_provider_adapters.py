@@ -6,9 +6,9 @@ import pytest
 
 from creator_app.credential_broker import CredentialBroker, CredentialId
 from creator_app.providers import (
+    ClaudeProviderAdapter,
     OllamaProviderAdapter,
     OpenAIProviderAdapter,
-    ClaudeProviderAdapter,
     UnsafeLocalProviderUrl,
     validate_loopback_base_url,
 )
