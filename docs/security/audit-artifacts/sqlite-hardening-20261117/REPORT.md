@@ -33,7 +33,7 @@ This PR isolates SQLite hardening from the wider integration bundle in PR #373. 
 
 ## Independent review status
 
-Cubic's previous AI review identified seven issues. The fixes above address the reported cases, but the reviewer has not yet re-reviewed the new commit. A fresh Codex review is also pending. No independent review is claimed complete.
+Cubic's previous AI review identified seven issues. The fixes above address the reported cases; its re-review of the latest pushed commit had inspected all eight files but remained `in_progress` at the time of this evidence update. A fresh read-only Codex CLI review of commit `54510a9` reported no actionable defects; it included one speculative P1 note that the reviewer itself qualified as not a direct issue. This review does not replace hosted CI or the pending Cubic re-review.
 
 ## PR, CI, and release status
 
@@ -42,8 +42,8 @@ Cubic's previous AI review identified seven issues. The fixes above address the 
 | PR #374 | OPEN |
 | Changed files | 8 |
 | GitHub Actions | BLOCKED — billing lock; jobs did not start |
-| Cubic re-review | PENDING |
-| Independent Codex review | PENDING |
+| Cubic re-review | IN PROGRESS — 8/8 files inspected |
+| Independent Codex review | COMPLETE — no actionable findings on `54510a9` |
 | Merge | NOT MERGED |
 | Deployment | NOT DEPLOYED |
 | Q10–Q16 | NOT CLOSED / NOT VERIFIED |

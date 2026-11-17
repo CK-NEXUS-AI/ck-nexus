@@ -78,12 +78,22 @@
       }
     },
     "independent_review": {
-      "codex": "PENDING_FRESH_REVIEW",
-      "cubic": "PRIOR_REVIEW_FOUND_7_ISSUES; fixes pushed for re-review pending",
-      "limitations": [
-        "No concurrent TOCTOU stress test",
-        "Same-UID hostile processes remain inside the documented trust boundary"
-      ]
+      "codex": {
+        "result": "NO_ACTIONABLE_FINDINGS",
+        "reviewed_commit": "54510a991a2b67a58b99976e1a92ade48b284108",
+        "scope": "Eight-file SQLite-only commit diff; read-only Codex CLI review",
+        "summary": "No actionable defects identified. One speculative P1 note was self-qualified by the reviewer as not a direct issue and was not substantiated.",
+        "limitations": [
+          "This review does not replace hosted CI or the pending Cubic re-review."
+        ]
+      },
+      "cubic": {
+        "result": "IN_PROGRESS",
+        "check_run_id": 133737466631,
+        "last_observed": "Reviewed 8 of 8 files; check run remained in_progress",
+        "prior_findings": 7,
+        "prior_findings_addressed_in_commit": "54510a991a2b67a58b99976e1a92ade48b284108"
+      }
     },
     "github_actions": {
       "status": "BLOCKED_BILLING_LOCK",
@@ -102,11 +112,11 @@
   },
   "limitations": [
     "PR #374 is an isolated SQLite hardening candidate; hosted CI jobs cannot start while the GitHub billing lock persists.",
-    "A fresh independent Codex review is pending; Cubic review findings were addressed locally and require re-review on the pushed commit.",
     "Ruff formatter check was not run in this verification pass; Ruff lint check passed.",
     "The deterministic path-swap test is not a concurrent TOCTOU stress test.",
     "WAL/SHM files SQLite creates after the connection is returned are protected from other UIDs by the private directory; hostile same-UID processes remain inside the documented trust boundary.",
     "Production readiness and Q10-Q16 closure are not established.",
-    "No merge or deployment performed."
+    "No merge or deployment performed.",
+    "Cubic re-review of the latest pushed commit was still in progress at the time of this evidence update."
   ]
 }
