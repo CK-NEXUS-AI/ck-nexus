@@ -55,6 +55,23 @@ def test_brain_status_composes_components_and_fails_closed(tmp_path):
     assert status["production_status"] == "NO-GO" and status["q10_status"] == "NOT_VERIFIED"
 
 
+def test_brain_runtime_expands_tilde_for_all_database_paths(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+
+    brain = BrainRuntime(
+        root=_root(tmp_path),
+        journal_path="~/state/brain.sqlite3",
+        task_db_path="~/state/tasks.sqlite3",
+        knowledge_db_path="~/knowledge/ebooks.sqlite3",
+    )
+
+    assert brain.journal_path == home / "state" / "brain.sqlite3"
+    assert brain.task_db_path == home / "state" / "tasks.sqlite3"
+    assert brain.knowledge_db_path == home / "knowledge" / "ebooks.sqlite3"
+
+
 def test_brain_plan_never_executes_or_grants_authority(tmp_path):
     brain = BrainRuntime(
         root=_root(tmp_path),
@@ -336,11 +353,33 @@ def test_readonly_sqlite_preserves_explicit_isolation_level(tmp_path):
 
     database = tmp_path / "readonly-isolation.sqlite3"
     BrainJournal(database)
-    connection = connect_sqlite_database(
-        database, timeout=1, readonly=True, isolation_level=None
-    )
+    connection = connect_sqlite_database(database, timeout=1, readonly=True, isolation_level=None)
     try:
         assert connection.isolation_level is None
+    finally:
+        connection.close()
+
+
+def test_connect_sqlite_database_expands_tilde_for_direct_callers(tmp_path, monkeypatch):
+    import sqlite3
+
+    from creator_app.sqlite_security import connect_sqlite_database
+
+    home = tmp_path / "home"
+    state = home / "state"
+    state.mkdir(parents=True, mode=0o700)
+    state.chmod(0o700)
+    monkeypatch.setenv("HOME", str(home))
+
+    database = state / "direct.sqlite3"
+    with sqlite3.connect(database) as connection:
+        connection.execute("CREATE TABLE probe (value TEXT)")
+        connection.execute("INSERT INTO probe VALUES ('expanded')")
+
+    database.chmod(0o600)
+    connection = connect_sqlite_database("~/state/direct.sqlite3", timeout=1, readonly=True)
+    try:
+        assert connection.execute("SELECT value FROM probe").fetchone() == ("expanded",)
     finally:
         connection.close()
 

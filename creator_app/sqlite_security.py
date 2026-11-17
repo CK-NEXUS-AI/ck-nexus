@@ -12,7 +12,6 @@ _SIDECAR_SUFFIXES = ("-journal", "-wal", "-shm")
 _DEFAULT_ISOLATION = object()
 
 
-
 def prepare_private_sqlite_parent(path: str | Path) -> Path:
     """Create a private database directory or tighten an existing owned one."""
     if not hasattr(os, "geteuid") or not hasattr(os, "O_NOFOLLOW"):
@@ -40,6 +39,7 @@ def prepare_private_sqlite_parent(path: str | Path) -> Path:
     finally:
         os.close(fd)
     return parent / requested.name
+
 
 def _check_private_parent(path: Path) -> Path:
     if not hasattr(os, "geteuid") or not hasattr(os, "O_NOFOLLOW"):
@@ -113,7 +113,7 @@ def connect_sqlite_database(
     UIDs from replacing them. Processes running as the same UID share the
     documented local trust boundary.
     """
-    requested = Path(path)
+    requested = Path(path).expanduser()
     database = _check_private_parent(requested)
 
     checked_files: dict[Path, int] = {}

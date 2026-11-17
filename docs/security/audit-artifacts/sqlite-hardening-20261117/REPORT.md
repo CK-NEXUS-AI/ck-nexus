@@ -19,7 +19,7 @@ This PR isolates SQLite hardening from the wider integration bundle in PR #373. 
 ## Review-driven fixes
 
 - Existing owned database directories are tightened to mode 0700 using an opened directory descriptor; the path/inode is rechecked after tightening.
-- EbookKnowledgeStore construction and read-only queries no longer create missing parent directories. Directory creation/tightening occurs on the write initialization path.
+- search_readonly() and list_documents_readonly() do not create missing parent directories. The regular search() and list_documents() methods initialize the index and may create directories; directory creation/tightening occurs on the write initialization path.
 - Explicit `isolation_level` is forwarded to read-only SQLite connections.
 - BrainRuntime and BrainJournal consistently expand `~` journal paths.
 - The missing-`O_NOFOLLOW` regression test now works on platforms where the attribute is absent.
