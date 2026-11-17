@@ -16,6 +16,7 @@ from creator_app.credential_broker import (
     CredentialUnavailable,
 )
 from creator_app.free_providers import GeminiAdapter, OpenAICompatibleAdapter
+from creator_app.integration_security import open_trusted_request
 from creator_app.provider_router import (
     ProviderCapabilities,
     ProviderKind,
@@ -179,7 +180,7 @@ class ClaudeProviderAdapter:
     ) -> None:
         self.model = model.strip()
         self.timeout_seconds = timeout_seconds
-        self._opener = opener or urlopen
+        self._opener = opener
         self.capabilities = ProviderCapabilities(
             features=frozenset({"text", "reasoning", "coding"}),
             models=(self.model,) if self.model else (),
@@ -209,7 +210,15 @@ class ClaudeProviderAdapter:
         )
 
         def _call() -> str:
-            with self._opener(request, timeout=self.timeout_seconds) as response:
+            if self._opener is None:
+                response_context = open_trusted_request(
+                    request,
+                    trusted_hosts={"api.anthropic.com"},
+                    timeout=self.timeout_seconds,
+                )
+            else:
+                response_context = self._opener(request, timeout=self.timeout_seconds)
+            with response_context as response:
                 body = json.loads(response.read().decode("utf-8"))
             output = "\n".join(
                 str(block.get("text", "")) for block in body.get("content", [])

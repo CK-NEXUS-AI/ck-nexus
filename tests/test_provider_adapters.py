@@ -97,3 +97,35 @@ async def test_claude_adapter_uses_messages_api_and_keeps_key_out_of_adapter(mon
     assert captured["body"]["model"] == "claude-sonnet-4-5"
     assert captured["headers"]["X-api-key"] == "test-claude-secret"
     assert "test-claude-secret" not in repr(adapter.__dict__)
+
+
+@pytest.mark.asyncio
+async def test_claude_default_transport_uses_exact_anthropic_host_allowlist(monkeypatch) -> None:
+    import json
+    from io import BytesIO
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-claude-secret")
+    captured = {}
+
+    class Response(BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.close()
+
+    def trusted_open(request, *, trusted_hosts, timeout):
+        captured["url"] = request.full_url
+        captured["trusted_hosts"] = trusted_hosts
+        captured["timeout"] = timeout
+        return Response(json.dumps({"content": [{"type": "text", "text": "safe"}]}).encode())
+
+    monkeypatch.setattr("creator_app.providers.open_trusted_request", trusted_open)
+    adapter = ClaudeProviderAdapter(timeout_seconds=17)
+
+    assert await adapter.invoke("hello") == "safe"
+    assert captured == {
+        "url": "https://api.anthropic.com/v1/messages",
+        "trusted_hosts": {"api.anthropic.com"},
+        "timeout": 17,
+    }
