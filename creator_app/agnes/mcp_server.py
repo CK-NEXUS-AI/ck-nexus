@@ -986,7 +986,9 @@ def _browser_url_denial(url: str) -> str | None:
 
 
 _BROWSER_ACTIONS = {"status", "open", "text", "title", "url", "screenshot"}
-_SCREENSHOT_PATH_PATTERN = re.compile(r"/tmp/cknexus-browser-mcp-[0-9]+\.png\Z")
+_SCREENSHOT_PATH_PATTERN = re.compile(
+    re.escape(tempfile.gettempdir()) + r"/cknexus-browser-mcp-[0-9]+\.png\Z"
+)
 
 
 def _run_browser_tool(action: str, argument: str | None = None) -> dict[str, Any]:

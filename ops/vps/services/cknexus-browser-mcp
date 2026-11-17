@@ -6,6 +6,7 @@ import ipaddress
 import re
 import subprocess
 import sys
+import tempfile
 from urllib.parse import urlsplit
 
 HELPER = "/usr/local/bin/cknexus-browser"
@@ -17,6 +18,9 @@ ALLOWED_HOSTS = {
     "commodity-reveal-flexible-catalog.trycloudflare.com",
 }
 ACTIONS = {"status", "open", "text", "title", "url", "screenshot"}
+SCREENSHOT_PATH_PATTERN = re.compile(
+    re.escape(tempfile.gettempdir()) + r"/cknexus-browser-mcp-[0-9]+\.png"
+)
 
 
 def valid_url(value: str) -> bool:
@@ -55,9 +59,7 @@ def main() -> int:
         if action == "open" and not valid_url(value):
             print("Denied URL.", file=sys.stderr)
             return 2
-        if action == "screenshot" and not re.fullmatch(
-            r"/tmp/cknexus-browser-mcp-[0-9]+\.png", value
-        ):
+        if action == "screenshot" and not SCREENSHOT_PATH_PATTERN.fullmatch(value):
             print("Denied screenshot path.", file=sys.stderr)
             return 2
     try:
