@@ -10,7 +10,16 @@ from typing import Any
 from creator_app.agnes.execution.omni import OMNIExecutionContext
 from creator_app.agnes.execution.request import SkillExecutionRequest
 from creator_app.council_authority.storage import AuthorityStore
-from creator_app.sqlite_security import validate_configured_sqlite_path
+from creator_app.sqlite_security import configured_sqlite_database_id
+
+
+def _council_authority_database_path(configured_path: str | Path) -> Path | None:
+    database_id = configured_sqlite_database_id(configured_path)
+    if database_id == "council_authority_var_lib":
+        return Path("/var/lib/cknexus/council-authority/evidence.sqlite3")
+    if database_id == "council_authority_user_state":
+        return Path("/root/.local/state/cknexus/council-authority/evidence.sqlite3")
+    return None
 
 
 class CouncilStoreEvidenceVerifier:
@@ -77,7 +86,9 @@ def verify(request: SkillExecutionRequest, context: OMNIExecutionContext) -> boo
     if not database_value:
         return False
     try:
-        database = validate_configured_sqlite_path(database_value)
+        database = _council_authority_database_path(database_value)
+        if database is None:
+            return False
     except (OSError, ValueError):
         return False
     if (

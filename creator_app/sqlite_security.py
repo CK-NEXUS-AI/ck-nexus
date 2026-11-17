@@ -17,35 +17,26 @@ _SIDECAR_SUFFIXES = ("-journal", "-wal", "-shm")
 _DEFAULT_ISOLATION = object()
 
 
-_APPROVED_SQLITE_DATABASES = {
-    "/var/lib/cknexus/control-plane/tasks.db": Path("/var/lib/cknexus/control-plane/tasks.db"),
-    "/root/.local/state/cknexus/control-plane.sqlite3": Path(
-        "/root/.local/state/cknexus/control-plane.sqlite3"
-    ),
-    "/var/lib/cknexus/council-authority/evidence.sqlite3": Path(
-        "/var/lib/cknexus/council-authority/evidence.sqlite3"
-    ),
-    "/root/.local/state/cknexus/council-authority/evidence.sqlite3": Path(
-        "/root/.local/state/cknexus/council-authority/evidence.sqlite3"
-    ),
+_APPROVED_SQLITE_DATABASE_IDS = {
+    "/var/lib/cknexus/control-plane/tasks.db": "control_plane_var_lib",
+    "/root/.local/state/cknexus/control-plane.sqlite3": "control_plane_user_state",
+    "/var/lib/cknexus/council-authority/evidence.sqlite3": "council_authority_var_lib",
+    "/root/.local/state/cknexus/council-authority/evidence.sqlite3": "council_authority_user_state",
 }
 
 
-def validate_configured_sqlite_path(path: str | Path) -> Path:
-    """Select an exact, code-approved database location for service state.
+def configured_sqlite_database_id(path: str | Path) -> str:
+    """Classify an operator-selected path without returning or opening that path.
 
-    Environment and CLI values are selectors only: they must exactly match a
-    known service path. The returned Path is a constant from this module, never
-    constructed from the supplied value. The lower-level opener still checks
-    ownership, mode, no-follow, regular-file, and inode properties.
+    Callers must map the returned identifier to a code-defined ``Path``
+    constant. Unknown values fail closed.
     """
-    configured = os.fspath(path)
-    approved = _APPROVED_SQLITE_DATABASES.get(configured)
-    if approved is None:
+    database_id = _APPROVED_SQLITE_DATABASE_IDS.get(os.fspath(path))
+    if database_id is None:
         raise ValueError(
             "configured SQLite database path is not an approved CK-NEXUS database path"
         )
-    return approved
+    return database_id
 
 
 def prepare_private_sqlite_parent(path: str | Path) -> Path:

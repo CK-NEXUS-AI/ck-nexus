@@ -9,7 +9,16 @@ from pathlib import Path
 
 from creator_app.control_plane.task_store import TaskStore
 from creator_app.n8n_intelligence.proactive import ProactiveTaskSeeder
-from creator_app.sqlite_security import validate_configured_sqlite_path
+from creator_app.sqlite_security import configured_sqlite_database_id
+
+
+def _task_database_path(configured_path: str | Path) -> Path:
+    database_id = configured_sqlite_database_id(configured_path)
+    if database_id == "control_plane_user_state":
+        return Path("/root/.local/state/cknexus/control-plane.sqlite3")
+    if database_id == "control_plane_var_lib":
+        return Path("/var/lib/cknexus/control-plane/tasks.db")
+    raise ValueError("configured path is not a task database")
 
 
 def main() -> int:
@@ -17,7 +26,7 @@ def main() -> int:
         os.getenv("CKNEXUS_TASK_DATABASE", "/root/.local/state/cknexus/control-plane.sqlite3")
     )
     try:
-        database = validate_configured_sqlite_path(database)
+        database = _task_database_path(database)
         result = ProactiveTaskSeeder(TaskStore(database)).run_once()
         print(
             json.dumps(
