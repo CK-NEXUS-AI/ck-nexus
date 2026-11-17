@@ -53,7 +53,7 @@ Cubic's previous AI review identified seven issues. The fixes above address the 
 | PR #374 | OPEN |
 | Changed files | 8 |
 | GitHub Actions | BLOCKED — billing lock; jobs did not start |
-| Cubic re-review | PENDING after commit 658f2fd; previous findings addressed in the pushed revision |
+| Cubic re-review | Latest check PASS on 5a50bbe; two evidence wording/provenance comments remain; no independent sign-off claimed |
 | Independent Codex review | COMPLETE — no actionable findings on `54510a9` |
 | Merge | NOT MERGED |
 | Deployment | NOT DEPLOYED |

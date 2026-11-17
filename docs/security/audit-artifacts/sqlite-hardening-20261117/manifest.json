@@ -1,10 +1,10 @@
 {
   "schema": "cknexus-evidence-manifest/v1",
-  "created_at_utc": "2026-11-17T01:46:02.945938+00:00",
+  "created_at_utc": "2026-11-17T01:50:53.826787+00:00",
   "repository": "CK-NEXUS-AI/ck-nexus",
   "branch": "security/sqlite-hardening-20261117",
   "base_commit": "4d1366cef3cbdd18aa174bdf67308567635c750a",
-  "state": "PR #374 open at 658f2fd; latest Cubic findings addressed in code; targeted VPS tests pass; full suite collection blocked by missing VPS dependencies; hosted CI blocked by confirmed GitHub billing lock",
+  "state": "PR #374 open at head 5a50bbe; code revision 658f2fd has 37 targeted tests passing; latest Cubic check passed but left two evidence wording/provenance comments; hosted CI blocked by confirmed GitHub billing lock",
   "files": [
     {
       "path": "creator_app/sqlite_security.py",
@@ -91,14 +91,20 @@
         ]
       },
       "cubic": {
-        "result": "PENDING_AFTER_PUSH",
-        "reviewed_commit": "658f2fd3b73698a64174f0f29e8b9753f02229da",
-        "previous_findings": "Latest two findings in review run be3f039d-272b-50a7-a0b1-032cf7856b87 addressed in commit 658f2fd; new re-review pending"
+        "result": "CHECK_PASS_WITH_TWO_EVIDENCE_COMMENTS",
+        "reviewed_pr_head": "5a50bbe70809699d2e167c719800d15e8f55c047",
+        "code_revision_with_targeted_tests": "658f2fd3b73698a64174f0f29e8b9753f02229da",
+        "latest_review_run": "d638eda3-7700-5053-ae83-3c4fa6abd6a7",
+        "comments_remaining": [
+          "REPORT.md should describe previous code findings as author-reported fixes, not independently verified.",
+          "manifest.json must distinguish the actual PR head from the code revision that was tested."
+        ],
+        "independent_signoff": "NOT_CLAIMED"
       }
     },
     "github_actions": {
       "status": "BLOCKED_BILLING_LOCK",
-      "evidence": "Latest PR check runs after 658f2fd failed before runner allocation; GitHub check annotations on prior runs explicitly state the account is locked due to a billing issue.",
+      "evidence": "Latest PR check runs after evidence commit 5a50bbe failed before runner allocation; GitHub check annotations on prior runs explicitly state the account is locked due to a billing issue.",
       "tests_started": false
     },
     "pr": {
@@ -109,7 +115,7 @@
       "changed_files": 8,
       "merge_performed": false,
       "production_deployment_performed": false,
-      "head_commit": "658f2fd3b73698a64174f0f29e8b9753f02229da"
+      "head_commit": "5a50bbe70809699d2e167c719800d15e8f55c047"
     },
     "current_revision": {
       "commit": "658f2fd3b73698a64174f0f29e8b9753f02229da",
@@ -124,8 +130,9 @@
   },
   "limitations": [
     "PR #374 remains an isolated SQLite hardening candidate; hosted CI cannot start while the GitHub billing lock persists.",
-    "Full repository test collection on the VPS was blocked by missing project dependencies; only the 37 targeted tests were run on current revision.",
-    "Bandit and pip-audit were not rerun on current revision; previous results are explicitly historical.",
+    "Full repository test collection on the VPS was blocked by missing project dependencies; only the 37 targeted tests were run on code commit 658f2fd.",
+    "Bandit and pip-audit were not rerun on code commit 658f2fd; previous results are explicitly historical.",
+    "Latest Cubic check passed but left two evidence wording/provenance comments; independent sign-off is not claimed.",
     "The deterministic path-swap test is not a concurrent TOCTOU stress test.",
     "WAL/SHM files SQLite creates after connection return are protected from other UIDs by the private directory; hostile same-UID processes remain inside the documented trust boundary.",
     "Production readiness and Q10-Q16 closure are not established.",
