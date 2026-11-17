@@ -1,38 +1,42 @@
 # SQLite Hardening Evidence
 
-Branch: `integration/termux-change-sync-policy-20261117`
-SQLite baseline commit: `0bd62e097ab2397048a858e93a4b6f1c8bcadf82`
-Base parent for the SQLite hardening change: `f7b64885df118cc81183aedce202a5068291d841`
+Repository: `CK-NEXUS-AI/ck-nexus`
+Branch: `security/sqlite-hardening-20261117`
+Base: `origin/main` at `4d1366cef3cbdd18aa174bdf67308567635c750a`
 
-## Verification update
+This candidate isolates the SQLite hardening change from the wider 60-file integration bundle previously proposed in PR #373. It changes **7 files** only: the shared SQLite opener, two database integrations, two test files, and the evidence report/manifest.
 
-- Full VPS pytest suite after the additional regressions: **1,019 passed, 2 skipped** (70.27s; exit 0).
-- Ruff check: PASS.
-- Ruff format check: PASS.
+## Verification on VPS
+
+- Full repository pytest suite on this isolated branch: **1,004 passed, 2 skipped** (59.81s; exit 0).
+- Ruff check on the five changed Python source/test files: PASS.
 - `git diff --check`: PASS.
-- Added direct symlink rejection tests for `-journal` and `-shm`; existing `-wal` symlink regression remains.
-- Added a deterministic path-swap test that replaces the database path with a symlink immediately before `sqlite3.connect`; the helper detects the changed path/inode and fails closed.
-- The path-swap test is a controlled regression test, not a concurrent race stress test. It does not establish protection against hostile processes running under the same UID.
-- Previous security evidence remains: Bandit 0 high / 0 medium / 0 low; pip-audit 0 known vulnerabilities among 84 audited dependencies, with one local package not auditable from PyPI; SQLite `PRAGMA quick_check`: `ok`; `cknexus-creator.service`: active; DB directory/file modes `0700` / `0600`.
+- Regression coverage includes direct rejection of symlinked `-journal` and `-shm` sidecars, existing `-wal` symlink coverage, and a deterministic database-path replacement immediately before `sqlite3.connect`.
+- The path-replacement test confirms detection of that controlled replacement. It is **not** a concurrent race stress test and does not prove protection against hostile processes running under the same UID.
+- Previous source-snapshot security evidence: Bandit 0 high / 0 medium / 0 low; pip-audit 0 known vulnerabilities among 84 audited dependencies, with local package `ck-nexus-creator` not auditable from PyPI. These prior results have not been rerun on this isolated branch.
 
 ## Independent review limitations
 
-The original Codex review covered the original five-file SQLite change snapshot only, not the full repository. The new journal/SHM symlink tests and deterministic path-swap test were added after that review and have **not yet received a fresh independent Codex review**. The same-UID process trust boundary remains unchanged.
+No fresh independent review of this isolated branch has been completed. The earlier Codex review covered only an earlier five-file SQLite snapshot, before the journal/SHM and deterministic path-swap regressions were added. A full review of this isolated seven-file candidate remains required before merge.
 
-## PR and CI status (observed 2026-11-17)
+The same-UID process trust boundary remains unchanged. Do not interpret the controlled path-swap regression as proof against concurrent hostile same-UID processes.
+
+## PR, CI, and release status
 
 | Item | Verified status |
 |---|---|
-| PR #373 | OPEN |
-| PR scope relative to current `origin/main` merge base | 60 files, 10 commits, 2,216 additions, 172 deletions; broader than SQLite hardening alone |
-| GitHub Actions | BLOCKED — billing lock; jobs did not start |
+| Isolated branch | `security/sqlite-hardening-20261117` |
+| Changed files | 7 |
+| GitHub PR | NOT CREATED YET |
+| GitHub Actions | Previously BLOCKED — billing lock; isolated branch checks not yet observed |
+| Independent review | NOT VERIFIED |
 | Merge | NOT MERGED |
 | Deployment | NOT DEPLOYED |
-| Production readiness | NO-GO |
 | Q10–Q16 | NOT CLOSED / NOT VERIFIED |
+| Production readiness | **NO-GO** |
 
-GitHub check-run annotations state: `The job was not started because your account is locked due to a billing issue.` This is an account/billing-level block, not a code-test failure. No alternate account was used to bypass the restriction.
+The prior GitHub check-run annotations stated: `The job was not started because your account is locked due to a billing issue.` This is an account-level block, not a code-test failure. No alternate account has been used to bypass it.
 
 ## SHA-256
 
-The manifest records current hashes and byte sizes for the five original SQLite source/test files. The updated `tests/test_brain_runtime.py` hash reflects the added regression tests.
+The manifest records SHA-256 hashes and byte sizes for the five changed Python source/test files in this isolated branch.

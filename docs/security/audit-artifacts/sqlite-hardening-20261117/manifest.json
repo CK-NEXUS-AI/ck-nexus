@@ -2,9 +2,9 @@
   "schema": "cknexus-evidence-manifest/v1",
   "created_at_utc": "2026-11-17T00:18:07.540153+00:00",
   "repository": "CK-NEXUS-AI/ck-nexus",
-  "branch": "integration/termux-change-sync-policy-20261117",
-  "base_commit": "f7b64885df118cc81183aedce202a5068291d841",
-  "state": "verification evidence updated on PR #373 branch; PR remains open",
+  "branch": "security/sqlite-hardening-20261117",
+  "base_commit": "4d1366cef3cbdd18aa174bdf67308567635c750a",
+  "state": "isolated SQLite-only candidate branch based on origin/main; PR creation pending",
   "files": [
     {
       "path": "creator_app/sqlite_security.py",
@@ -33,10 +33,9 @@
     }
   ],
   "checks": {
-    "pytest": "1019 passed, 2 skipped; 70.27s; exit 0; full suite on VPS after added SQLite sidecar and path-swap tests",
-    "ruff": "pass",
-    "ruff_format": "pass; 5 files",
-    "git_diff_check": "pass",
+    "pytest": "1004 passed, 2 skipped; 59.81s; exit 0; full repository suite on isolated branch based on origin/main",
+    "ruff": "pass on five changed source/test files",
+    "git_diff_check": "pass on isolated branch",
     "bandit": {
       "high": 0,
       "medium": 0,
@@ -61,15 +60,14 @@
       "owner": "cknexus-creator:cknexus-creator"
     },
     "codex_review": {
-      "result": "ACCEPTABLE_FOR_PR",
-      "scope": "five-file snapshot only",
-      "actionable_findings": 0,
+      "result": "NOT_VERIFIED",
+      "scope": "No fresh independent review of the isolated branch; previous review covered only an earlier five-file snapshot.",
+      "actionable_findings": null,
       "limitations": [
-        "Original Codex review covered the original five-file SQLite change snapshot only, not the full repository.",
-        "New journal/SHM symlink and deterministic path-swap tests were added after that review and have not yet received a fresh independent Codex review.",
+        "New journal/SHM symlink and deterministic path-swap tests have not received a fresh independent review.",
+        "Full isolated PR review remains required before merge.",
         "The path-swap regression is deterministic and does not prove resistance to concurrent same-UID hostile processes.",
-        "Same-UID processes are inside the documented trust boundary.",
-        "Not a full repository review."
+        "Same-UID processes remain inside the documented trust boundary."
       ]
     },
     "sqlite_security_regressions": {
@@ -85,18 +83,18 @@
       "tests_started": false
     },
     "pr": {
-      "number": 373,
-      "state": "OPEN",
+      "number": null,
+      "state": "NOT_CREATED_YET",
       "merge_performed": false,
       "production_deployment_performed": false,
-      "scope_at_current_origin_main_merge_base": "60 files; 10 commits; 2216 additions; 172 deletions"
+      "scope": "SQLite hardening only; 7 files changed relative to origin/main"
     }
   },
   "limitations": [
-    "The PR currently spans 60 files and 10 commits relative to the current origin/main merge base; it is broader than SQLite hardening alone.",
-    "Original Codex review covered only the original five-file SQLite snapshot; the newly added tests have not yet received a fresh independent Codex review.",
+    "This is an isolated SQLite-only candidate based on origin/main; GitHub PR creation and hosted CI have not yet been verified.",
+    "GitHub Actions previously reported an account billing lock; no alternate account is used to bypass it.",
+    "No fresh independent review of this isolated branch has been completed.",
     "The deterministic path-swap test verifies detection but is not a concurrent race stress test; same-UID hostile processes remain inside the documented trust boundary.",
-    "GitHub Actions jobs are blocked before start by an account billing lock; no CI test execution has occurred on GitHub.",
     "Production readiness and Q10-Q16 closure are not established.",
     "No merge or deployment performed."
   ]
