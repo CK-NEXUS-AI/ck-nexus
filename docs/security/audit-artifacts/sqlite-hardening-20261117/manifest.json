@@ -89,7 +89,7 @@
       "state": "OPEN",
       "merge_performed": false,
       "production_deployment_performed": false,
-      "scope_at_current_origin_main_merge_base": "60 files; 10 commits; 2216 additions; 172 deletions"
+      "scope_at_current_origin_main_merge_base": "60 files; multi-commit integration bundle broader than SQLite hardening alone"
     }
   },
   "limitations": [

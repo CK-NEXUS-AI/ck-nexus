@@ -24,7 +24,7 @@ The original Codex review covered the original five-file SQLite change snapshot 
 | Item | Verified status |
 |---|---|
 | PR #373 | OPEN |
-| PR scope relative to current `origin/main` merge base | 60 files, 10 commits, 2,216 additions, 172 deletions; broader than SQLite hardening alone |
+| PR scope relative to current `origin/main` merge base | 60 files across a multi-commit integration bundle; broader than SQLite hardening alone |
 | GitHub Actions | BLOCKED — billing lock; jobs did not start |
 | Merge | NOT MERGED |
 | Deployment | NOT DEPLOYED |
