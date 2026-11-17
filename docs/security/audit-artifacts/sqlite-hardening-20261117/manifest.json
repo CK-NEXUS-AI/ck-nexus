@@ -1,15 +1,15 @@
 {
   "schema": "cknexus-evidence-manifest/v1",
-  "created_at_utc": "2026-11-17T01:52:17.372934+00:00",
+  "created_at_utc": "2026-11-17T01:58:24.947695+00:00",
   "repository": "CK-NEXUS-AI/ck-nexus",
   "branch": "security/sqlite-hardening-20261117",
   "base_commit": "4d1366cef3cbdd18aa174bdf67308567635c750a",
-  "state": "PR #374 remains open; code revision 658f2fd has 37 targeted tests passing; latest completed Cubic check passed with two evidence comments; follow-up evidence edits await re-review; hosted CI blocked by confirmed GitHub billing lock",
+  "state": "PR #374 open; code revision 5d7955a has 39 targeted tests passing; existing non-private directories are rejected without chmod; POSIX-only backend scope documented; latest Cubic re-review pending; hosted CI blocked by confirmed GitHub billing lock",
   "files": [
     {
       "path": "creator_app/sqlite_security.py",
-      "sha256": "92a9d2841b2d13abd78674a496b0c02ca7407fc30c7ff82f259ed5e42b1461f1",
-      "bytes": 7243
+      "sha256": "b7d4c1507d9be9701a1484f6ad85b7f1aef259b449753fe7626de8c5d104d90b",
+      "bytes": 7804
     },
     {
       "path": "creator_app/brain/journal.py",
@@ -28,24 +28,29 @@
     },
     {
       "path": "tests/test_brain_runtime.py",
-      "sha256": "d8e800c5042f4f5fca487df373a909ee059a0159d26309e7dc95205aba78216c",
-      "bytes": 14395
+      "sha256": "9cef23d1343aa3fc1dd9c8fe5b43f35ac8f7d311c2219b0090fd9e5fb33e72b6",
+      "bytes": 15098
     },
     {
       "path": "tests/capability_fabric/test_ebook_store.py",
-      "sha256": "5140a511b847feb03c3909aee188cabc962539e42bb5e1d570cd31f501f8c0ab",
-      "bytes": 6178
+      "sha256": "658004540171d3cf7610a35f454f45911eb6b7172e27652f88f9948c04a6d903",
+      "bytes": 6349
+    },
+    {
+      "path": "docs/security/SQLITE_STORAGE_PLATFORM_SCOPE.md",
+      "sha256": "73db4cd54373dc11f5abaa9525a74ad2308b6940eb73243a732e834c2d1508a3",
+      "bytes": 2076
     }
   ],
   "checks": {
     "pytest": {
-      "current_revision": "37 passed; targeted tests/test_brain_runtime.py and tests/capability_fabric/test_ebook_store.py; 2.27s; VPS",
+      "current_revision": "39 passed; targeted tests/test_brain_runtime.py and tests/capability_fabric/test_ebook_store.py; 2.31s; code commit 5d7955a; VPS",
       "full_suite_current_revision": "NOT_RUN_TO_COMPLETION; collection blocked by missing environment dependencies (fastapi, sqlalchemy, mcp, uvicorn, python-dotenv, pydantic, httpx)",
-      "historical_full_suite": "1008 passed, 2 skipped; 70.54s; commit 54510a991a2b67a58b99976e1a92ade48b284108; historical only"
+      "historical_full_suite": "1008 passed, 2 skipped; 70.54s; code commit 54510a991a2b67a58b99976e1a92ade48b284108; historical only"
     },
-    "ruff": "PASS on three changed Python files (Termux, current revision 658f2fd)",
-    "ruff_format": "PASS on three changed Python files (Termux, current revision 658f2fd)",
-    "git_diff_check": "PASS (current revision 658f2fd)",
+    "ruff": "PASS on three changed Python source/test files (Termux, code commit 5d7955a)",
+    "ruff_format": "PASS on three changed Python source/test files (Termux, code commit 5d7955a)",
+    "git_diff_check": "PASS (code commit 5d7955a)",
     "bandit": {
       "current_revision": "NOT_RERUN",
       "historical_result": "PASS",
@@ -65,11 +70,12 @@
       "symlinked_shm": "PASS",
       "symlinked_wal": "PASS (existing regression)",
       "database_path_swap_during_connect": "PASS (deterministic monkeypatched path replacement; not a concurrent race stress test)",
-      "existing_owned_directory_permissions": "PASS (tightened to 0700 through opened directory descriptor)",
+      "existing_owned_directory_permissions": "PASS: newly created DB parent is 0700; existing non-private parent is rejected without changing its mode",
       "readonly_ebook_missing_parent": "PASS (no directory created)",
       "readonly_isolation_level_forwarding": "PASS",
       "tilde_journal_path_consistency": "PASS",
-      "nofollow_missing_flag_test": "PASS (monkeypatch deletion is portable)"
+      "nofollow_missing_flag_test": "PASS (monkeypatch deletion is portable)",
+      "unsupported_posix_primitives": "PASS: fails closed if geteuid or O_NOFOLLOW is absent"
     },
     "historical_runtime_observations": {
       "sqlite_quick_check": "ok (observed on VPS before this candidate revision; not rerun against candidate data)",
@@ -91,20 +97,15 @@
         ]
       },
       "cubic": {
-        "result": "FOLLOWUP_EVIDENCE_REVIEW_PENDING",
-        "latest_completed_check": "PASS, on prior PR head before follow-up evidence edits",
-        "review_run": "d638eda3-7700-5053-ae83-3c4fa6abd6a7",
-        "comments": [
-          "Report wording must identify prior code fixes as author-reported, not independently confirmed.",
-          "Manifest must not misidentify a prior code revision as the current PR head."
-        ],
-        "followup_edits": "Report wording corrected; dynamic PR head SHA removed from manifest so it cannot become stale; current PR head remains available from GitHub.",
+        "result": "PENDING_AFTER_CODE_AND_PLATFORM_FIXES",
+        "previous_review_run": "d638eda3-7700-5053-ae83-3c4fa6abd6a7",
+        "fix_commit": "5d7955a93cab1ebf96dd4d35d4b50ab9753edecb",
         "independent_signoff": "NOT_CLAIMED"
       }
     },
     "github_actions": {
       "status": "BLOCKED_BILLING_LOCK",
-      "evidence": "Latest PR check runs after evidence commit 5a50bbe failed before runner allocation; GitHub check annotations on prior runs explicitly state the account is locked due to a billing issue.",
+      "evidence": "Latest PR check runs failed before runner allocation; earlier GitHub check annotations explicitly state the account is locked due to a billing issue.",
       "tests_started": false
     },
     "pr": {
@@ -115,13 +116,13 @@
       "changed_files": 8,
       "merge_performed": false,
       "production_deployment_performed": false,
-      "head_reference": "Query GitHub PR #374 for the live head; this manifest records the tested code revision separately."
+      "head_reference": "Query GitHub PR #374 for the live head; this manifest records tested code commits separately."
     },
     "current_revision": {
-      "commit": "658f2fd3b73698a64174f0f29e8b9753f02229da",
-      "targeted_pytest": "37 passed",
-      "ruff": "PASS",
-      "ruff_format": "PASS",
+      "commit": "5d7955a93cab1ebf96dd4d35d4b50ab9753edecb",
+      "targeted_pytest": "39 passed; tests/test_brain_runtime.py and tests/capability_fabric/test_ebook_store.py; 2.31s; VPS",
+      "ruff": "PASS on three changed Python source/test files (Termux)",
+      "ruff_format": "PASS on three changed Python source/test files (Termux)",
       "git_diff_check": "PASS",
       "full_suite": "BLOCKED_AT_COLLECTION_BY_MISSING_VPS_DEPENDENCIES",
       "bandit": "NOT_RERUN",
@@ -130,9 +131,11 @@
   },
   "limitations": [
     "PR #374 remains an isolated SQLite hardening candidate; hosted CI cannot start while the GitHub billing lock persists.",
-    "Full repository test collection on the VPS was blocked by missing project dependencies; only the 37 targeted tests were run on code commit 658f2fd.",
-    "Bandit and pip-audit were not rerun on code commit 658f2fd; previous results are explicitly historical.",
-    "Follow-up evidence edits after the latest Cubic review are awaiting re-review; independent sign-off is not claimed.",
+    "Full repository test collection on the VPS was blocked by missing project dependencies; 39 targeted tests passed on code commit 5d7955a.",
+    "Bandit and pip-audit were not rerun on code commit 5d7955a; previous results are explicitly historical.",
+    "The hardened SQLite backend is POSIX-only (Linux/macOS); it fails closed on native Windows until a secure handle/ACL implementation exists.",
+    "Existing non-private DB parent directories are not chmodded; operators must migrate data into a dedicated mode-0700 directory. See docs/security/SQLITE_STORAGE_PLATFORM_SCOPE.md.",
+    "Latest Cubic re-review of code/platform/evidence updates is pending; independent sign-off is not claimed.",
     "The deterministic path-swap test is not a concurrent TOCTOU stress test.",
     "WAL/SHM files SQLite creates after connection return are protected from other UIDs by the private directory; hostile same-UID processes remain inside the documented trust boundary.",
     "Production readiness and Q10-Q16 closure are not established.",

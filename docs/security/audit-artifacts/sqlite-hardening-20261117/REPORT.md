@@ -18,9 +18,9 @@ The results in this section were recorded on the prior code commit 54510a991a2b6
 - Bandit targeted scan on the four changed Python modules: exit 0; no findings reported.
 - pip-audit: no known vulnerabilities reported among auditable packages; local package `ck-nexus-creator` could not be audited from PyPI.
 
-## Current revision verification — 658f2fd
+## Current revision verification — 5d7955a
 
-- Targeted VPS tests: **37 passed** across tests/test_brain_runtime.py and tests/capability_fabric/test_ebook_store.py (2.27s).
+- Targeted VPS tests: **39 passed** across tests/test_brain_runtime.py and tests/capability_fabric/test_ebook_store.py (2.31s).
 - Ruff lint: PASS on the three changed Python files (Termux).
 - Ruff format check: PASS on the three changed Python files (Termux).
 - git diff --check: PASS.
@@ -29,7 +29,7 @@ The results in this section were recorded on the prior code commit 54510a991a2b6
 
 ## Review-driven fixes
 
-- Existing owned database directories are tightened to mode 0700 using an opened directory descriptor; the path/inode is rechecked after tightening.
+- Newly created database directories are mode 0700. Existing non-private directories are rejected without chmod; the application never changes permissions on an existing parent that may contain unrelated files.
 - search_readonly() and list_documents_readonly() do not create missing parent directories. The regular search() and list_documents() methods initialize the index and may create directories; directory creation/tightening occurs on the write initialization path.
 - Explicit `isolation_level` is forwarded to read-only SQLite connections.
 - BrainRuntime and BrainJournal consistently expand `~` journal paths.
@@ -53,7 +53,7 @@ Cubic's previous AI review identified seven issues. The fixes above address the 
 | PR #374 | OPEN |
 | Changed files | 8 |
 | GitHub Actions | BLOCKED — billing lock; jobs did not start |
-| Cubic re-review | Latest completed check PASS; author reports prior code findings addressed in 658f2fd; re-review of follow-up evidence edits pending; no independent sign-off claimed |
+| Cubic re-review | Previous check raised evidence comments; code/platform fixes pushed in 5d7955a; latest re-review pending; no independent sign-off claimed |
 | Independent Codex review | COMPLETE — no actionable findings on `54510a9` |
 | Merge | NOT MERGED |
 | Deployment | NOT DEPLOYED |
