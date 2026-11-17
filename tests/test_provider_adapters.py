@@ -8,6 +8,7 @@ from creator_app.credential_broker import CredentialBroker, CredentialId
 from creator_app.providers import (
     OllamaProviderAdapter,
     OpenAIProviderAdapter,
+    ClaudeProviderAdapter,
     UnsafeLocalProviderUrl,
     validate_loopback_base_url,
 )
@@ -63,3 +64,36 @@ def test_paid_openai_adapter_is_disabled_in_free_only_mode(monkeypatch) -> None:
     broker = CredentialBroker(environment={CredentialId.OPENAI_API_KEY: "sk-test"})
     adapter = OpenAIProviderAdapter(broker, model="gpt-test")
     assert adapter.is_available() is False
+
+
+@pytest.mark.asyncio
+async def test_claude_adapter_uses_messages_api_and_keeps_key_out_of_adapter(monkeypatch) -> None:
+    import json
+    from io import BytesIO
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-claude-secret")
+    captured = {}
+
+    class Response(BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            self.close()
+
+    def opener(request, timeout):
+        captured["url"] = request.full_url
+        captured["headers"] = dict(request.header_items())
+        captured["body"] = json.loads(request.data.decode("utf-8"))
+        captured["timeout"] = timeout
+        return Response(json.dumps({
+            "content": [{"type": "text", "text": "claude test response"}]
+        }).encode("utf-8"))
+
+    adapter = ClaudeProviderAdapter(opener=opener)
+    assert adapter.is_available()
+    assert await adapter.invoke("hello") == "claude test response"
+    assert captured["url"] == "https://api.anthropic.com/v1/messages"
+    assert captured["body"]["model"] == "claude-sonnet-4-5"
+    assert captured["headers"]["X-api-key"] == "test-claude-secret"
+    assert "test-claude-secret" not in repr(adapter.__dict__)
