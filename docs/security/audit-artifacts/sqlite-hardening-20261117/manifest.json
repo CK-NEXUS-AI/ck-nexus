@@ -4,7 +4,7 @@
   "repository": "CK-NEXUS-AI/ck-nexus",
   "branch": "integration/termux-change-sync-policy-20261117",
   "base_commit": "f7b64885df118cc81183aedce202a5068291d841",
-  "state": "uncommitted; not pushed or merged",
+  "state": "verification evidence updated on PR #373 branch; PR remains open",
   "files": [
     {
       "path": "creator_app/sqlite_security.py",
@@ -23,8 +23,8 @@
     },
     {
       "path": "tests/test_brain_runtime.py",
-      "sha256": "642856004fab24c080da08c715b6c61000610823d4bf84820d6ffb008483acdf",
-      "bytes": 10142
+      "sha256": "53267130baf79365c867df77f38d316aa8e9efef3fd0046675f3bb9edfa1c021",
+      "bytes": 11788
     },
     {
       "path": "tests/capability_fabric/test_ebook_store.py",
@@ -33,7 +33,7 @@
     }
   ],
   "checks": {
-    "pytest": "1016 passed, 2 skipped; 61.79s; exit 0",
+    "pytest": "1019 passed, 2 skipped; 70.27s; exit 0; full suite on VPS after added SQLite sidecar and path-swap tests",
     "ruff": "pass",
     "ruff_format": "pass; 5 files",
     "git_diff_check": "pass",
@@ -65,16 +65,38 @@
       "scope": "five-file snapshot only",
       "actionable_findings": 0,
       "limitations": [
-        "race windows not directly tested",
-        "symlinked journal and SHM sidecars not directly tested",
-        "same-UID processes are inside the trust boundary",
-        "not a full repository review"
+        "Original Codex review covered the original five-file SQLite change snapshot only, not the full repository.",
+        "New journal/SHM symlink and deterministic path-swap tests were added after that review and have not yet received a fresh independent Codex review.",
+        "The path-swap regression is deterministic and does not prove resistance to concurrent same-UID hostile processes.",
+        "Same-UID processes are inside the documented trust boundary.",
+        "Not a full repository review."
       ]
+    },
+    "sqlite_security_regressions": {
+      "symlinked_journal": "PASS",
+      "symlinked_shm": "PASS",
+      "symlinked_wal": "PASS (existing regression)",
+      "database_path_swap_during_connect": "PASS (deterministic monkeypatched path swap; post-open identity validation detected replacement)",
+      "scope_note": "Not a concurrent TOCTOU stress test; same-UID trust boundary unchanged."
+    },
+    "github_actions": {
+      "status": "BLOCKED_BILLING_LOCK",
+      "evidence": "GitHub check-run annotations: The job was not started because your account is locked due to a billing issue.",
+      "tests_started": false
+    },
+    "pr": {
+      "number": 373,
+      "state": "OPEN",
+      "merge_performed": false,
+      "production_deployment_performed": false,
+      "scope_at_current_origin_main_merge_base": "60 files; 10 commits; 2216 additions; 172 deletions"
     }
   },
   "limitations": [
-    "Codex review covers only the five listed files, not the entire repository.",
-    "Race windows and symlinked journal/SHM sidecars are not directly tested.",
+    "The PR currently spans 60 files and 10 commits relative to the current origin/main merge base; it is broader than SQLite hardening alone.",
+    "Original Codex review covered only the original five-file SQLite snapshot; the newly added tests have not yet received a fresh independent Codex review.",
+    "The deterministic path-swap test verifies detection but is not a concurrent race stress test; same-UID hostile processes remain inside the documented trust boundary.",
+    "GitHub Actions jobs are blocked before start by an account billing lock; no CI test execution has occurred on GitHub.",
     "Production readiness and Q10-Q16 closure are not established.",
     "No merge or deployment performed."
   ]
