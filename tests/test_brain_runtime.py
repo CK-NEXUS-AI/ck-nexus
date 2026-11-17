@@ -307,3 +307,49 @@ def test_brain_journal_rejects_readable_nonwritable_database_directory(tmp_path)
 
     with pytest.raises(PermissionError, match="private"):
         BrainJournal(parent / "brain.sqlite3")
+
+
+@pytest.mark.parametrize("suffix", ["-journal", "-shm"])
+def test_sqlite_security_rejects_symlinked_journal_and_shm_sidecars(tmp_path, suffix):
+    from creator_app.sqlite_security import connect_sqlite_database
+
+    database = tmp_path / "sidecar-probe.sqlite3"
+    database.touch()
+    target = tmp_path / "sidecar-target"
+    target.write_bytes(b"do not modify")
+    Path(f"{database}{suffix}").symlink_to(target)
+
+    with pytest.raises(OSError):
+        connect_sqlite_database(database, timeout=1)
+
+    assert target.read_bytes() == b"do not modify"
+
+
+def test_sqlite_security_detects_database_path_swap_during_connect(tmp_path, monkeypatch):
+    import sqlite3
+
+    from creator_app import sqlite_security
+
+    database = tmp_path / "race-probe.sqlite3"
+    database.touch()
+    target = tmp_path / "replacement.sqlite3"
+    target_connection = sqlite3.connect(target)
+    target_connection.execute("CREATE TABLE sentinel (value TEXT)")
+    target_connection.execute("INSERT INTO sentinel VALUES ('unchanged')")
+    target_connection.commit()
+    target_connection.close()
+    target_before = target.read_bytes()
+    real_connect = sqlite3.connect
+
+    def replace_path_then_connect(path, *args, **kwargs):
+        assert Path(path) == database
+        database.unlink()
+        database.symlink_to(target)
+        return real_connect(path, *args, **kwargs)
+
+    monkeypatch.setattr(sqlite_security.sqlite3, "connect", replace_path_then_connect)
+
+    with pytest.raises(OSError, match="path changed while connecting"):
+        sqlite_security.connect_sqlite_database(database, timeout=1)
+
+    assert target.read_bytes() == target_before

@@ -1,25 +1,38 @@
 # SQLite Hardening Evidence
 
 Branch: `integration/termux-change-sync-policy-20261117`
-Base: `f7b64885df118cc81183aedce202a5068291d841`
+SQLite baseline commit: `0bd62e097ab2397048a858e93a4b6f1c8bcadf82`
+Base parent for the SQLite hardening change: `f7b64885df118cc81183aedce202a5068291d841`
 
-- Pytest: 1,016 passed, 2 skipped (61.79s)
-- Ruff, format, diff check: PASS
-- Bandit: 0 high / 0 medium / 0 low
-- pip-audit: 0 known vulnerabilities; 1 local package not auditable from PyPI
-- SQLite quick_check: `ok`; service `active`
-- DB directory/file modes: `0700` / `0600`
+## Verification update
+
+- Full VPS pytest suite after the additional regressions: **1,019 passed, 2 skipped** (70.27s; exit 0).
+- Ruff check: PASS.
+- Ruff format check: PASS.
+- `git diff --check`: PASS.
+- Added direct symlink rejection tests for `-journal` and `-shm`; existing `-wal` symlink regression remains.
+- Added a deterministic path-swap test that replaces the database path with a symlink immediately before `sqlite3.connect`; the helper detects the changed path/inode and fails closed.
+- The path-swap test is a controlled regression test, not a concurrent race stress test. It does not establish protection against hostile processes running under the same UID.
+- Previous security evidence remains: Bandit 0 high / 0 medium / 0 low; pip-audit 0 known vulnerabilities among 84 audited dependencies, with one local package not auditable from PyPI; SQLite `PRAGMA quick_check`: `ok`; `cknexus-creator.service`: active; DB directory/file modes `0700` / `0600`.
+
+## Independent review limitations
+
+The original Codex review covered the original five-file SQLite change snapshot only, not the full repository. The new journal/SHM symlink tests and deterministic path-swap test were added after that review and have **not yet received a fresh independent Codex review**. The same-UID process trust boundary remains unchanged.
+
+## PR and CI status (observed 2026-11-17)
+
+| Item | Verified status |
+|---|---|
+| PR #373 | OPEN |
+| PR scope relative to current `origin/main` merge base | 60 files, 10 commits, 2,216 additions, 172 deletions; broader than SQLite hardening alone |
+| GitHub Actions | BLOCKED — billing lock; jobs did not start |
+| Merge | NOT MERGED |
+| Deployment | NOT DEPLOYED |
+| Production readiness | NO-GO |
+| Q10–Q16 | NOT CLOSED / NOT VERIFIED |
+
+GitHub check-run annotations state: `The job was not started because your account is locked due to a billing issue.` This is an account/billing-level block, not a code-test failure. No alternate account was used to bypass the restriction.
 
 ## SHA-256
 
-- `creator_app/sqlite_security.py` — `d61d21395bde2cf797cbdb6cbb191a1401834d752489a74b385ce6d3e78ddec7`
-- `creator_app/brain/journal.py` — `d4080464c2555c26ae64a9a29279a0f9938b3aad69f19c6c8276f4a602136be5`
-- `creator_app/global_knowledge/ebook_store.py` — `183dc0519366cc980b87bec14c0358492a70d1418d1f2b516368b6dc15a94a2e`
-- `tests/test_brain_runtime.py` — `642856004fab24c080da08c715b6c61000610823d4bf84820d6ffb008483acdf`
-- `tests/capability_fabric/test_ebook_store.py` — `333633dd9425ed35a5fb944456a31d4ca872dd0fe3d23b052554a750b241fb4a`
-
-- Codex independent review: no actionable findings; acceptable for PR within POSIX and same-UID trust boundaries.
-
-## Limitations
-
-Codex reviewed the five-file snapshot only, not the full repository. Race windows and symlinked journal/SHM sidecars are not directly tested. This evidence does not certify production readiness or close Q10–Q16. No merge or deployment.
+The manifest records current hashes and byte sizes for the five original SQLite source/test files. The updated `tests/test_brain_runtime.py` hash reflects the added regression tests.
