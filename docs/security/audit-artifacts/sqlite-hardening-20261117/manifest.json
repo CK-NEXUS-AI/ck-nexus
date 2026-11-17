@@ -4,7 +4,7 @@
   "repository": "CK-NEXUS-AI/ck-nexus",
   "branch": "security/sqlite-hardening-20261117",
   "base_commit": "4d1366cef3cbdd18aa174bdf67308567635c750a",
-  "state": "isolated SQLite-only candidate branch based on origin/main; PR creation pending",
+  "state": "PR #374 open; hosted GitHub Actions blocked before job start by billing lock; local verification recorded",
   "files": [
     {
       "path": "creator_app/sqlite_security.py",
@@ -79,22 +79,25 @@
     },
     "github_actions": {
       "status": "BLOCKED_BILLING_LOCK",
-      "evidence": "GitHub check-run annotations: The job was not started because your account is locked due to a billing issue.",
+      "evidence": "PR #374 check-run annotations state: The job was not started because your account is locked due to a billing issue.",
       "tests_started": false
     },
     "pr": {
-      "number": null,
-      "state": "NOT_CREATED_YET",
+      "number": 374,
+      "state": "OPEN",
+      "url": "https://github.com/CK-NEXUS-AI/ck-nexus/pull/374",
+      "base": "main",
+      "changed_files": 7,
+      "head_commit_before_this_evidence_update": "baeee7034190c6824396e686b82c0ed3286c1f4b",
       "merge_performed": false,
-      "production_deployment_performed": false,
-      "scope": "SQLite hardening only; 7 files changed relative to origin/main"
+      "production_deployment_performed": false
     }
   },
   "limitations": [
-    "This is an isolated SQLite-only candidate based on origin/main; GitHub PR creation and hosted CI have not yet been verified.",
-    "GitHub Actions previously reported an account billing lock; no alternate account is used to bypass it.",
-    "No fresh independent review of this isolated branch has been completed.",
+    "PR #374 is a seven-file SQLite-only change based on main; hosted CI cannot start while the GitHub account billing lock persists.",
+    "No fresh independent review of this isolated branch has been completed; independent review is required before merge.",
     "The deterministic path-swap test verifies detection but is not a concurrent race stress test; same-UID hostile processes remain inside the documented trust boundary.",
+    "The original Codex review covered only an earlier five-file SQLite snapshot, before the journal/SHM and path-swap regressions.",
     "Production readiness and Q10-Q16 closure are not established.",
     "No merge or deployment performed."
   ]
