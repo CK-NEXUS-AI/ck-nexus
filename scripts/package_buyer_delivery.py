@@ -51,7 +51,15 @@ def canonical_identity() -> tuple[str, str]:
 
 def tracked_files() -> list[Path]:
     raw = subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT)
-    return [Path(item.decode("utf-8")) for item in raw.split(b"\0") if item]
+    paths: list[Path] = []
+    for item in raw.split(b"\0"):
+        if not item:
+            continue
+        rel = Path(item.decode("utf-8"))
+        if rel.is_absolute() or ".." in rel.parts or "\x00" in str(rel):
+            raise RuntimeError("Git returned an unsafe tracked path")
+        paths.append(rel)
+    return paths
 
 
 def safe_tracked_file(rel: Path) -> bool:
@@ -71,31 +79,37 @@ def copy_tracked_source(destination: Path) -> list[str]:
     for rel in tracked_files():
         if not safe_tracked_file(rel):
             continue
-        src = ROOT / rel
-        if not src.is_file():
+        src = validated_child(ROOT, ROOT / rel)
+        if (ROOT / rel).is_symlink() or not src.is_file():
             continue
-        dst = destination / rel
+        dst = validated_child(destination, destination / rel)
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
         copied.append(rel.as_posix())
     return copied
 
 
-def copy_if_exists(src: Path, dst: Path) -> None:
-    if src.is_file():
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
+def copy_if_exists(
+    src: Path, dst: Path, *, destination_root: Path
+) -> None:
+    safe_src = validated_child(ROOT, src)
+    safe_dst = validated_child(destination_root, dst)
+    if src.is_symlink() or not safe_src.is_file():
+        return
+    safe_dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(safe_src, safe_dst)
 
 
-def write_text(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content.rstrip() + "\n", encoding="utf-8")
+def write_text(root: Path, path: Path, content: str) -> None:
+    safe_path = validated_child(root, path)
+    safe_path.parent.mkdir(parents=True, exist_ok=True)
+    safe_path.write_text(content.rstrip() + "\n", encoding="utf-8")
 
 
 def validated_child(root: Path, path: Path) -> Path:
     resolved_root = root.resolve()
-    resolved_path = path.resolve()
-    if not resolved_path.is_relative_to(resolved_root):
+    resolved_path = Path(path).resolve(strict=False)
+    if resolved_path == resolved_root or not resolved_path.is_relative_to(resolved_root):
         raise RuntimeError(f"Path escapes package root: {path}")
     return resolved_path
 
@@ -120,15 +134,20 @@ def scan_text_tree(root: Path) -> list[dict[str, str]]:
 
 
 def write_sha256(root: Path, output: Path) -> int:
+    safe_root = root.resolve()
+    safe_output = validated_child(safe_root, output)
     rows: list[str] = []
     count = 0
-    for path in sorted(root.rglob("*")):
-        if not path.is_file() or path == output:
+    for candidate in sorted(safe_root.rglob("*")):
+        if candidate.is_symlink():
+            continue
+        path = validated_child(safe_root, candidate)
+        if not path.is_file() or path == safe_output:
             continue
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        rows.append(f"{digest}  {path.relative_to(root).as_posix()}")
+        rows.append(f"{digest}  {path.relative_to(safe_root).as_posix()}")
         count += 1
-    write_text(output, "\n".join(rows))
+    write_text(safe_root, safe_output, "\n".join(rows))
     return count
 
 
@@ -137,8 +156,8 @@ def copy_classified_artifacts(root: Path) -> None:
         p = path.as_posix().lower()
         if not safe_tracked_file(path):
             continue
-        src = ROOT / path
-        if not src.is_file():
+        src = validated_child(ROOT, ROOT / path)
+        if (ROOT / path).is_symlink() or not src.is_file():
             continue
         if (
             "security" in p
@@ -146,16 +165,19 @@ def copy_classified_artifacts(root: Path) -> None:
             or "evidence" in p
             or p.startswith(("creator_app/privacy_firewall/", "creator_app/agnes/"))
         ):
-            copy_if_exists(src, root / "03-SECURITY-AND-VERIFICATION" / path)
+            copy_if_exists(src, root / "03-SECURITY-AND-VERIFICATION" / path, destination_root=root)
         if p.startswith((".github/workflows/", "scripts/")):
-            copy_if_exists(src, root / "04-AUTOMATION-AND-OPS" / path)
+            copy_if_exists(src, root / "04-AUTOMATION-AND-OPS" / path, destination_root=root)
         if p.startswith(("creator_app/web/", "gateway/", "integrations/")):
-            copy_if_exists(src, root / "05-INTERFACES" / path)
+            copy_if_exists(src, root / "05-INTERFACES" / path, destination_root=root)
         if p.startswith("docs/") or p.endswith(".md"):
-            copy_if_exists(src, root / "06-DEVELOPER-DOCS" / path)
+            copy_if_exists(src, root / "06-DEVELOPER-DOCS" / path, destination_root=root)
 
 
-def build_package(output_dir: Path, version: str) -> tuple[Path, str]:
+def build_package(version: str) -> tuple[Path, str]:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", version):
+        raise ValueError("version must be a 1-64 character safe filename token")
+    output_dir = validated_child(ROOT, ROOT / "dist" / "buyer-delivery")
     commit, tree = canonical_identity()
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     delivery_name = f"{DELIVERY_PREFIX}-{version}"
@@ -171,9 +193,10 @@ def build_package(output_dir: Path, version: str) -> tuple[Path, str]:
         copy_if_exists(
             ROOT / "COMMERCIAL_LICENSE_TEMPLATE.md",
             root / "00-LEGAL" / "COMMERCIAL_LICENSE_TEMPLATE.md",
+            destination_root=root,
         )
         write_text(
-            root / "00-LEGAL" / "LEGAL_REVIEW_REQUIRED.md",
+            root, root / "00-LEGAL" / "LEGAL_REVIEW_REQUIRED.md",
             """# Legal review required
 
 This delivery package does not execute a sale, assignment, warranty, or
@@ -201,11 +224,12 @@ No AI-generated document should be treated as signed legal advice.
             THIRD_PARTY_NOTICES,
             "CHANGELOG.md",
         ):
-            copy_if_exists(ROOT / name, root / "01-SYSTEM-DOCS" / name)
+            copy_if_exists(ROOT / name, root / "01-SYSTEM-DOCS" / name, destination_root=root)
 
         copy_if_exists(
             ROOT / "docs" / "RELEASE_CHECKLIST.md",
             root / "01-SYSTEM-DOCS" / "RELEASE_CHECKLIST.md",
+            destination_root=root,
         )
 
         copy_classified_artifacts(root)
@@ -222,29 +246,34 @@ No AI-generated document should be treated as signed legal advice.
             "start.sh",
             "start.ps1",
         ):
-            copy_if_exists(ROOT / name, root / "07-INSTALL-AND-CONFIG" / name)
+            copy_if_exists(
+                ROOT / name,
+                root / "07-INSTALL-AND-CONFIG" / name,
+                destination_root=root,
+            )
 
         copy_if_exists(
             ROOT / THIRD_PARTY_NOTICES,
             root / "09-ASSETS-AND-LICENSES" / THIRD_PARTY_NOTICES,
+            destination_root=root,
         )
 
         commit_history = run("git", "log", "--oneline", "--decorate", "-n", "500")
         branch_summary = run("git", "branch", "-a", "--no-color")
         write_text(
-            root / "10-GIT-REFERENCE" / "commit-history.txt",
+            root, root / "10-GIT-REFERENCE" / "commit-history.txt",
             commit_history,
         )
         write_text(
-            root / "10-GIT-REFERENCE" / "branch-summary.txt",
+            root, root / "10-GIT-REFERENCE" / "branch-summary.txt",
             branch_summary,
         )
         write_text(
-            root / "10-GIT-REFERENCE" / "canonical-commit-reference.txt",
+            root, root / "10-GIT-REFERENCE" / "canonical-commit-reference.txt",
             f"commit={commit}\ntree={tree}\n",
         )
         write_text(
-            root / "10-GIT-REFERENCE" / "GIT_BUNDLE_NOT_INCLUDED.md",
+            root, root / "10-GIT-REFERENCE" / "GIT_BUNDLE_NOT_INCLUDED.md",
             """# Git bundle not included by default
 
 A full Git bundle can contain historical secrets even when the current tree is
@@ -270,11 +299,11 @@ and the seller explicitly approves that history for transfer.
             "personal_data_intended": False,
         }
         write_text(
-            root / "01-SYSTEM-DOCS" / "DELIVERY_STATUS.json",
+            root, root / "01-SYSTEM-DOCS" / "DELIVERY_STATUS.json",
             json.dumps(status, indent=2, sort_keys=True),
         )
         write_text(
-            root / "README-READ-FIRST.md",
+            root, root / "README-READ-FIRST.md",
             f"""# CK-NEXUS Buyer Delivery Package
 
 Delivery identity:
@@ -317,7 +346,7 @@ bundle.
             "secret_scan": "PASS",
         }
         write_text(
-            root / "DELIVERY_MANIFEST.json",
+            root, root / "DELIVERY_MANIFEST.json",
             json.dumps(manifest, indent=2, sort_keys=True),
         )
 
@@ -339,7 +368,7 @@ bundle.
 
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     write_text(
-        archive.with_suffix(".zip.sha256"),
+        output_dir, archive.with_suffix(".zip.sha256"),
         f"{digest}  {archive.name}",
     )
     return archive, digest
@@ -350,17 +379,9 @@ def main() -> int:
         description="Build a sanitized CK-NEXUS full-source buyer delivery ZIP."
     )
     parser.add_argument("--version", default="v0.2.0-buyer-candidate")
-    parser.add_argument(
-        "--output-directory",
-        type=Path,
-        default=ROOT / "dist" / "buyer-delivery",
-    )
     args = parser.parse_args()
 
-    archive, digest = build_package(
-        args.output_directory.resolve(),
-        args.version,
-    )
+    archive, digest = build_package(args.version)
     print(f"archive={archive}")
     print(f"sha256={digest}")
     return 0

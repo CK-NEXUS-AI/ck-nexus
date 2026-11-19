@@ -44,8 +44,7 @@ jobs:
         run: |
           rm -rf dist/buyer-delivery
           python scripts/package_buyer_delivery.py \
-            --version v0.2.0-buyer-candidate \
-            --output-directory dist/buyer-delivery
+            --version v0.2.0-buyer-candidate
 
       - name: Validate archive and exclusions
         shell: bash
