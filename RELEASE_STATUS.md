@@ -1,11 +1,39 @@
-> **Evidence subject:** Q10 scanner PASS เฉพาะ commit `22edd1f` (run 41231931695).
-> Q11–Q16 ยัง NOT_VERIFIED บน main ปัจจุบัน `f4c4447` และต้องรันใหม่.
+# Release evidence snapshot — 2026-11-19 (PR #380 code baseline)
+
+**Code-bearing baseline after PR #380:** `0d7b0d1c0efee01d6307b418c848cd0c84411ea0`
+
+**Source tree at that baseline:** `8cc361ab7c0e9e35944277e4dd3fdb7e8a99b13a`
+
+**Release-status maintenance after PR #381:** documentation-only merge commit `be8050e4e95bec0721473c8a16f64ac82defa353`, tree `95ae8ef312e6a717fabad79ae9cfcd36d3d13387`. PR #381 changed this status document only; it did not change runtime code.
+
+**Before any Q10–Q16 run:** recalculate the exact candidate commit, source tree, and runtime/deployment subject from the latest `main`. The hashes above are a dated evidence snapshot, not an evergreen pointer to the latest branch head.
+
+## Release decision
+
+**NO-GO FOR PRODUCTION.** PR #380 added public feedback intake/triage, updated the CK-NEXUS product homepage, and hardened the `/api/dev-status` snapshot path. These changes do not close any Q10–Q16 release gate and do not authorize Production promotion.
+
+- The prior Q10–Q16 evidence below is bound to older commits/runtime subjects. It is historical and is **not evidence for a new release candidate**.
+- Recompute the exact release/runtime subject and rerun every mandatory gate Q10–Q16 against the latest candidate before any release claim.
+- GitHub CI on PR #380 merge commit `0d7b0d1c0efee01d6307b418c848cd0c84411ea0`: **PASS** (run `44449966729`). CodeQL on the same commit: **PASS** (run `44449965823`). PR #381 documentation-only update CI and CodeQL also passed (runs `44450632654` and `44450631300`). These results are not Production approval.
+- SonarCloud analysis on PR #380 and PR #381 failed/cancelled and remains unresolved. It was not one of the repository's three required branch-protection checks (`test`, `preflight`, `attack-regression`); do not describe it as passed.
+- Termux local Python test execution was blocked because the Android/aarch64 environment could not build the required `cryptography` package (Rust target unsupported). GitHub CI passed; local Termux test execution is not claimed.
+- The public feedback feature is merged into source only. It has **not** been deployed or exposed as a live beta service.
+- Interactive public beta remains blocked until per-tester authentication, session ownership, and tenant isolation are implemented and independently tested. Do not share the global `CKNEXUS_ACCESS_TOKEN` with testers.
+- The VPS hostname `vps3680569.trouble-free.net` did not resolve from Termux during this verification, so SSH/runtime reachability and service health are **NOT VERIFIED**. No deployment or server mutation was attempted.
+- PRs #380 and #381 received approvals from the repository owner's secondary account. These satisfy GitHub's configured approval count but are **not independent third-party audits**.
+
+The sections below are retained as historical evidence and must not be interpreted as closure for the latest candidate.
+
+---
+
+> **Historical evidence subject:** Q10 scanner PASS เฉพาะ commit `22edd1f` (run 41231931695).
+> ณ วันที่บันทึกเดิม Q11–Q16 ยัง NOT_VERIFIED บน main ในขณะนั้น `f4c4447` และต้องรันใหม่บน main ปัจจุบัน.
 
 # Release Status — CK-NEXUS Q10-Q16 Closure
 
 Decision: **NO-GO FOR PRODUCTION CLAIMS**
 
-Canonical main: 22edd1f07147f7223cf02abba056c6ce4a3beee0 (verified current main; tree 3a742e8b91001efb3558fc2cdb9a617fbc4e6c9a)
+Historical canonical main at the original rebaseline: 22edd1f07147f7223cf02abba056c6ce4a3beee0 (tree 3a742e8b91001efb3558fc2cdb9a617fbc4e6c9a)
 Closure branch: release/q10-q16-closure (historical evidence line; not rebased to current main)
 Previous closure head: a55a8d36b0a1b61b426c5d59ab44ebd841eb8d53 (historical)
 Previous frozen runtime/security source SHA: ad2fac7aa0752117dde065c7ad9b0b8d41136aa2 (superseded for current main)
@@ -14,7 +42,7 @@ Previous frozen runtime/deployment subject: 772662ac4ed60e785f30370c0c66bfdf8f79
 Unified application subject: `dff89dc7fa9cd6e40480c3344f688a75383ec798929efe23f3a29c79d1186cec`
 Closure contract: `docs/Q10_Q16_CLOSURE_CONTRACT.md`
 
-## Current main rebaseline status — 2026-10-31
+## Historical main rebaseline status — 2026-10-31
 
 Live repository verification found current canonical main 22edd1f07147f7223cf02abba056c6ce4a3beee0, tree 3a742e8b91001efb3558fc2cdb9a617fbc4e6c9a. Recomputing the runbook runtime/deployment path set on current main yields c8e6dca69fd241e6f555ae9ccd880cdd3b34c8d7b2417c94b3ca89dce9b95ef9, not the previous frozen subject 772662ac... . PR #330 added services/email_gateway/attachments.py to the runtime path set and changed the subject. The old Q11–Q16 evidence remains historical only and is not evidence for current main.
 
@@ -39,7 +67,7 @@ This status follows the rotated closure authority recorded by commit `a55a8d36..
 - Authority note: Q10-Q12 frozen authorities below follow the rotated closure authority (`a55a8d36...`); production-claims verdict stays NO-GO until gates move beyond PASS_CANDIDATE.
 - Outstanding: remaining Post-P0 backlog PRs require rebase onto current main; #243/#250 CI unstable.
 
-## Current release candidate
+## Historical release candidate record (as of 2026-10-31)
 
 Unified Control and production hardening are converged on the closure branch but are **not merged to `main`**. The production image remains fail-closed and production eligibility is false while Q10, Q11, and Q12 are unresolved.
 

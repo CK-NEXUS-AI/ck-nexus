@@ -131,8 +131,8 @@ Useful references:
 - [Credential Broker and Provider Router](docs/R7_CREDENTIAL_BROKER_PROVIDER_CUTOVER.md)
 - [Canonical R9–R11 Implementation](docs/R9_R11_CANONICAL_IMPLEMENTATION.md)
 - [Plans and reports](docs/plans/)
-- [Repository Issues](https://github.com/CK-NEXUS-AI/ck-nexus/issues)
-- [Repository Actions](https://github.com/CK-NEXUS-AI/ck-nexus/actions)
+- [Repository Issues](https://github.com/spinlnw10-art/ck-nexus/issues)
+- [Repository Actions](https://github.com/spinlnw10-art/ck-nexus/actions)
 
 ---
 
