@@ -98,27 +98,26 @@ def main() -> int:
         Gate(
             "Q13",
             "PostgreSQL disaster recovery",
-            "PASS_CANDIDATE",
-            "Existing release evidence; must be revalidated for the final subject.",
+            "BLOCKED",
+            "Historical evidence is not bound to this exact release subject; rerun the authorized staging backup/restore gate.",
         ),
         Gate(
             "Q14",
             "Observability/operator delivery",
-            "PASS",
-            "Existing release evidence; must be revalidated for the final subject.",
+            "BLOCKED",
+            "Historical evidence is not bound to this exact release subject; rerun staging failure injection and capture operator-alert receipt.",
         ),
         Gate(
             "Q15",
             "Clean-machine deployment",
-            "PASS_CANDIDATE",
-            "Existing release evidence; must be revalidated for the final subject.",
+            "BLOCKED",
+            "Historical evidence is not bound to this exact release subject; verify installation on a fresh supported machine.",
         ),
         Gate(
             "Q16",
             "Production image/package",
-            "PASS_CANDIDATE",
-            "Existing release evidence; final package remains ineligible while "
-            "Q10-Q12 are blocked.",
+            "BLOCKED",
+            "Final release is ineligible until Q10-Q15 pass on the same immutable subject and final package checks are verified.",
         ),
     ]
 
