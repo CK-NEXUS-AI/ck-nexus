@@ -171,7 +171,7 @@ class GeminiProviderAdapter:
         self,
         broker: CredentialBroker,
         *,
-        model: str = "gemini-2.5-flash",
+        model: str = "gemini-3.1-flash-lite",
         timeout_seconds: int = 90,
         opener: Callable[..., Any] | None = None,
     ) -> None:
@@ -239,7 +239,7 @@ def build_provider_router(settings: Settings, broker: CredentialBroker) -> Provi
     providers.append(
         GeminiProviderAdapter(
             broker,
-            model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+            model=os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite"),
             timeout_seconds=settings.provider_timeout_seconds,
         )
     )

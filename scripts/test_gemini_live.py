@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 
 
 def main() -> int:
-    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+    model = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite").strip()
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     result = {
         "schema_version": 1,

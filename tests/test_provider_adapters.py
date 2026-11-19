@@ -89,7 +89,7 @@ def test_gemini_adapter_uses_broker_and_parses_response() -> None:
     broker = CredentialBroker(
         environment={CredentialId.GEMINI_API_KEY: "gemini-test-secret"}
     )
-    adapter = GeminiProviderAdapter(broker, model="gemini-2.5-flash", opener=opener)
+    adapter = GeminiProviderAdapter(broker, model="gemini-3.1-flash-lite", opener=opener)
     assert adapter.is_available()
     assert asyncio.run(adapter.invoke("hello")) == "Gemini connected"
     assert captured["key_header"] == "gemini-test-secret"
@@ -100,5 +100,5 @@ def test_gemini_adapter_uses_broker_and_parses_response() -> None:
 def test_gemini_adapter_is_unavailable_without_key() -> None:
     from creator_app.providers import GeminiProviderAdapter
 
-    adapter = GeminiProviderAdapter(CredentialBroker(), model="gemini-2.5-flash")
+    adapter = GeminiProviderAdapter(CredentialBroker(), model="gemini-3.1-flash-lite")
     assert adapter.is_available() is False

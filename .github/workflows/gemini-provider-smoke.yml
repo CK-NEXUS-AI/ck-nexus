@@ -33,7 +33,7 @@ jobs:
       - name: Run Gemini live smoke test
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: gemini-2.5-flash
+          GEMINI_MODEL: gemini-3.1-flash-lite
           GEMINI_EVIDENCE_PATH: gemini-live-evidence.json
         run: python scripts/test_gemini_live.py
       - name: Publish sanitized result
