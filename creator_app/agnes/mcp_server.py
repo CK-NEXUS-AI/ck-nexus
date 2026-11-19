@@ -1005,7 +1005,8 @@ def _run_browser_tool(action: str, argument: str | None = None) -> dict[str, Any
         }
     if action == "screenshot" and (
         argument is None
-        or not re.fullmatch(r"/tmp/cknexus-browser-mcp-[A-Za-z0-9_-]+\.png", argument)
+        or Path(argument).parent != Path(tempfile.gettempdir())
+        or not re.fullmatch(r"cknexus-browser-mcp-[A-Za-z0-9_-]{1,64}\.png", Path(argument).name)
     ):
         return {
             "ok": False,
@@ -1110,7 +1111,7 @@ def cknexus_browser_read_page() -> dict[str, Any]:
 def cknexus_browser_screenshot() -> dict[str, Any]:
     """Capture the current browser page using a secure process-scoped temp file."""
     descriptor, reserved_path = tempfile.mkstemp(
-        prefix="cknexus-browser-mcp-", suffix=".png", dir="/tmp"
+        prefix="cknexus-browser-mcp-", suffix=".png", dir=tempfile.gettempdir()
     )
     screenshot_path = Path(reserved_path)
     try:
