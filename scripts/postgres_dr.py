@@ -74,10 +74,11 @@ def _libpq_connection(url: str) -> Iterator[tuple[str, dict[str, str]]]:
     with tempfile.TemporaryDirectory(prefix="cknexus-pgpass-") as directory:
         passfile = Path(directory) / "pgpass"
         fields = (host, str(port), database, username or "*", password)
-        passfile.write_text(
-            ":".join(escape_pgpass(value) for value in fields) + "\n", encoding="utf-8"
-        )
-        passfile.chmod(0o600)
+        # codeql[py/clear-text-storage-sensitive-data] libpq requires a passfile;
+        # it lives in a mode-0700 TemporaryDirectory and is created mode 0600.
+        descriptor = os.open(passfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            handle.write(":".join(escape_pgpass(value) for value in fields) + "\n")
         env["PGPASSFILE"] = str(passfile)
         yield safe_url, env
 
@@ -130,6 +131,8 @@ def backup(source_url: str, output_dir: Path, rpo_seconds: int) -> dict[str, obj
     output_dir.mkdir(parents=True, exist_ok=False)
     dump = output_dir / "postgres.dump"
     started = time.time()
+    # codeql[py/path-injection] output_dir is an explicit local-operator CLI path,
+    # not request data; the backup gate supplies a fresh TemporaryDirectory path.
     with _libpq_connection(source_url) as (safe_source_url, env), dump.open("wb") as fh:
         proc = subprocess.run(
             [pg_dump, "--dbname", safe_source_url, "--format=custom", "--no-owner", "--no-acl"],
