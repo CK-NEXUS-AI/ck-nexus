@@ -59,9 +59,10 @@ jobs:
         run: |
           tree=$(git rev-parse HEAD^{tree})
           manifest=$(git ls-tree -r HEAD -- creator_app services tests scripts main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
-          .venv/bin/python - "$HEAD_SHA" "$tree" "$manifest" "$RUN_ID" "$Q10_AUDIT_RC" <<'PY'
+          release_subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          .venv/bin/python - "$HEAD_SHA" "$tree" "$manifest" "$release_subject" "$RUN_ID" "$Q10_AUDIT_RC" <<'PY'
           import json,sys
-          source_sha,tree,manifest,run_id,rc=sys.argv[1:]
+          source_sha,tree,manifest,release_subject,run_id,rc=sys.argv[1:]
           raw=json.load(open('q10-pip-audit.json',encoding='utf-8'))
           deps=raw.get('dependencies',[]) if isinstance(raw,dict) else raw
           vulns=sum(len(x.get('vulns',[])) for x in deps if isinstance(x,dict))
@@ -72,6 +73,7 @@ jobs:
               'source_sha':source_sha,
               'source_tree':tree,
               'subject_manifest_sha256':manifest,
+              'release_subject_manifest_sha256':release_subject,
               'github_run_id':int(run_id),
               'dependency_install':'uv sync --all-extras --dev --frozen',
               'auditor':'pip-audit',
@@ -88,6 +90,7 @@ jobs:
           assert passed
           PY
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: q10-candidate-${{ github.sha }}
           path: |
