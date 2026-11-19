@@ -143,10 +143,10 @@ def backup(source_url: str, output_dir: Path, rpo_seconds: int) -> dict[str, obj
     # a fresh private temporary directory rather than request-controlled input.
     with _libpq_connection(source_url) as env, dump.open("wb") as fh:
         proc = subprocess.run(
-                [pg_dump, "--format=custom", "--no-owner", "--no-acl"],
-                env=env,
-                stdout=fh,
-                stderr=subprocess.PIPE,
+            [pg_dump, "--format=custom", "--no-owner", "--no-acl"],
+            env=env,
+            stdout=fh,
+            stderr=subprocess.PIPE,
             check=False,
         )
     if proc.returncode != 0:
