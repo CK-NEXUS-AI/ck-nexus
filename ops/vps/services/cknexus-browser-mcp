@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import ipaddress
+import os
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -54,28 +56,83 @@ def main() -> int:
         print("Denied URL.", file=sys.stderr)
         return 2
     if action == "screenshot":
-        screenshot = Path(sys.argv[2])
+        target = Path(sys.argv[2])
         if (
-            screenshot.parent != Path(tempfile.gettempdir())
-            or not re.fullmatch(r"cknexus-browser-mcp-[A-Za-z0-9_-]{1,64}\.png", screenshot.name)
+            target.parent != Path(tempfile.gettempdir())
+            or not re.fullmatch(r"cknexus-browser-mcp-[A-Za-z0-9_-]{1,64}\.png", target.name)
         ):
             print("Denied screenshot path.", file=sys.stderr)
             return 2
-    args = [HELPER, action]
-    if len(sys.argv) == 3:
-        args.append(sys.argv[2])
-    try:
-        result = subprocess.run(
-            [HELPER, action, *args[2:]],
-            capture_output=True,
-            text=True,
-            timeout=32,
-            check=False,
-            shell=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        print("Browser helper unavailable or timed out.", file=sys.stderr)
-        return 3
+        sudo_uid = os.environ.get("SUDO_UID", "")
+        if not sudo_uid.isdigit():
+            print("Denied screenshot target owner.", file=sys.stderr)
+            return 2
+        target_fd = -1
+        try:
+            try:
+                target_fd = os.open(
+                    target,
+                    os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0),
+                )
+            except OSError:
+                print("Denied unsafe screenshot target.", file=sys.stderr)
+                return 2
+            target_stat = os.fstat(target_fd)
+            if (
+                not stat.S_ISREG(target_stat.st_mode)
+                or target_stat.st_uid != int(sudo_uid)
+                or stat.S_IMODE(target_stat.st_mode) != 0o600
+                or target_stat.st_nlink != 1
+            ):
+                print("Denied unsafe screenshot target.", file=sys.stderr)
+                return 2
+            # Capture into a root-private directory, then copy through the already
+            # opened no-follow user file descriptor. Never let the helper follow a
+            # caller-controlled /tmp pathname as root.
+            with tempfile.TemporaryDirectory(
+                prefix="cknexus-browser-root-", dir=tempfile.gettempdir()
+            ) as private_dir:
+                capture = Path(private_dir) / "capture.png"
+                result = subprocess.run(
+                    [HELPER, action, str(capture)],
+                    capture_output=True,
+                    text=True,
+                    timeout=32,
+                    check=False,
+                    shell=False,
+                )
+                if result.returncode == 0:
+                    with capture.open("rb") as source:
+                        os.ftruncate(target_fd, 0)
+                        os.lseek(target_fd, 0, os.SEEK_SET)
+                        while chunk := source.read(1024 * 1024):
+                            view = memoryview(chunk)
+                            while view:
+                                written = os.write(target_fd, view)
+                                view = view[written:]
+                    os.fsync(target_fd)
+        except (OSError, subprocess.TimeoutExpired):
+            print("Browser helper unavailable or screenshot copy failed.", file=sys.stderr)
+            return 3
+        finally:
+            if target_fd >= 0:
+                os.close(target_fd)
+    else:
+        args = [HELPER, action]
+        if len(sys.argv) == 3:
+            args.append(sys.argv[2])
+        try:
+            result = subprocess.run(
+                args,
+                capture_output=True,
+                text=True,
+                timeout=32,
+                check=False,
+                shell=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            print("Browser helper unavailable or timed out.", file=sys.stderr)
+            return 3
     if result.stdout:
         print(result.stdout[:14000], end="" if result.stdout.endswith("\n") else "\n")
     if result.returncode and result.stderr:
