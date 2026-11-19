@@ -120,18 +120,22 @@
     }
   },
   "follow_up_verification_at_pr_head": {
-    "pr_head": "59bb346b65e8f33297e67d0f6d9f53298493151e",
+    "pr_head": "9b127cede42cb03f3303117ab672ba8bfa0851d2",
     "runs": {
       "Q10": {
         "run_id": 44598573684,
         "result": "SUCCESS_WORKFLOW_ONLY"
       },
       "Q11": {
-        "run_id": 44598573958,
-        "result": "FAILURE",
+        "run_id": 44600885319,
+        "result": "FAILURE_INVALID_API_KEY",
         "source_sha": "aac0b538516cd7777159f65fb7d0e0e588f1a5f2",
+        "source_tree": "6a8c2beb71bc2e0f3c04adfb5e62c830b52fff23",
         "release_subject_sha256": "aeedb59ed7b07e77cc57a899ab5445a8506817ce2cd34fd728269db12eb0f735",
-        "provenance_matches_pr_head": false
+        "runtime_subject_recomputed": "aeedb59ed7b07e77cc57a899ab5445a8506817ce2cd34fd728269db12eb0f735",
+        "source_tree_subject_match": true,
+        "diagnostic": "OpenAI Responses API HTTP 401 invalid_api_key",
+        "required_action": "Replace GitHub Actions OPENAI_API_KEY with a valid authorized project key; rerun exact-subject Q11."
       },
       "Q12": {
         "run_id": 44598573516,
