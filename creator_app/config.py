@@ -330,10 +330,10 @@ class Settings:
     def validate_startup(self) -> None:
         """Fail closed for production-only authentication invariants.
 
-        Development remains usable for local evidence collection. Staging and production
-        must never silently expose protected routes because a secret was omitted.
+        Local development and test environments remain usable. Every deployment mode
+        must fail closed rather than silently expose protected routes when a secret is omitted.
         """
-        if self.environment not in {"staging", "production"}:
+        if self.environment not in {"development", "dev", "test", "testing"}:
             return
 
         missing: list[str] = []
