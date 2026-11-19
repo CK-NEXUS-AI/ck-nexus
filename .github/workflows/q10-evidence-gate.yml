@@ -155,6 +155,19 @@ jobs:
           dependency_rc = os.getenv('DEPENDENCY_RC', '')
           secret_rc = os.getenv('SECRET_RC', '')
           attack_rc = os.getenv('ATTACK_RC', '')
+          attack_results = attack.get('results', []) if isinstance(attack, dict) else []
+          attack_report_valid = (
+              isinstance(attack, dict)
+              and isinstance(attack.get('tests_total'), int)
+              and attack.get('tests_total', 0) > 0
+              and attack.get('tests_failed') == 0
+              and attack.get('tests_passed') == attack.get('tests_total')
+              and len(attack_results) == attack.get('tests_total')
+              and all(
+                  isinstance(item, dict) and item.get('passed') is True
+                  for item in attack_results
+              )
+          )
           completed = datetime.now(UTC).isoformat()
           checks = {
               'pip_audit_exit_code': dependency_rc,
@@ -164,8 +177,16 @@ jobs:
               'bandit_low_findings': low_findings,
               'secret_scan_exit_code': secret_rc,
               'security_attack_regression_exit_code': attack_rc,
+              'attack_regression_report_valid': attack_report_valid,
           }
-          passed = dependency_rc == '0' and vulnerabilities == 0 and high_findings == 0 and secret_rc == '0' and attack_rc == '0'
+          passed = (
+              dependency_rc == '0'
+              and vulnerabilities == 0
+              and high_findings == 0
+              and secret_rc == '0'
+              and attack_rc == '0'
+              and attack_report_valid
+          )
           report = {
               'schema_version': 1,
               'gate': 'Q10_OPEN_SOURCE_LAYERED_SECURITY',
