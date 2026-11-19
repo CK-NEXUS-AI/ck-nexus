@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
@@ -30,9 +31,21 @@ def main() -> int:
     try:
         with urlopen(request, timeout=45) as response:
             body = json.loads(response.read().decode("utf-8"))
-    except Exception as exc:
-        # Never print the request, headers, URL, or credential-bearing exception text.
-        print(f"Q11 GEMINI FAIL: request failed ({type(exc).__name__})")
+    except HTTPError as exc:
+        # Report only Google's structured status; never print headers, URL, or key.
+        google_status = "UNKNOWN"
+        try:
+            error_body = json.loads(exc.read().decode("utf-8"))
+            google_status = str((error_body.get("error") or {}).get("status") or "UNKNOWN")
+        except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+            pass
+        print(f"Q11 GEMINI FAIL: http_status={exc.code} google_status={google_status}")
+        return 1
+    except (URLError, TimeoutError, OSError) as exc:
+        print(f"Q11 GEMINI FAIL: transport_error={type(exc).__name__}")
+        return 1
+    except (ValueError, KeyError) as exc:
+        print(f"Q11 GEMINI FAIL: response_error={type(exc).__name__}")
         return 1
 
     candidates = body.get("candidates") or []
