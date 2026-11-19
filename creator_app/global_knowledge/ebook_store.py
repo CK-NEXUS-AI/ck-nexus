@@ -8,6 +8,7 @@ physically deleting its provenance or content.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sqlite3
 from contextlib import closing
@@ -61,15 +62,15 @@ class EbookKnowledgeStore:
     """Bounded local store with deterministic citations and source revocation."""
 
     def __init__(self, path: str | Path) -> None:
-        """Resolve the database path once, then use only private local storage."""
-        requested_path = Path(path).expanduser()
-        resolved_parent = requested_path.parent.resolve()
-        allowed_roots = tuple(root.resolve() for root in _ALLOWED_DB_ROOTS)
-        if not any(
-            resolved_parent == root or root in resolved_parent.parents for root in allowed_roots
-        ):
-            raise ValueError("knowledge database path is outside approved local storage roots")
-        self.path = resolved_parent / requested_path.name
+        """Accept only the fixed database filename under a code-defined storage root."""
+        requested_path = os.fspath(path)
+        for configured_root in _ALLOWED_DB_ROOTS:
+            trusted_root = configured_root.expanduser().resolve()
+            approved_path = trusted_root / "ebooks.sqlite3"
+            if requested_path == os.fspath(approved_path):
+                self.path = approved_path
+                return
+        raise ValueError("knowledge database path is outside approved local storage roots")
 
     def initialize(self) -> None:
         self.path = prepare_private_sqlite_parent(self.path)
