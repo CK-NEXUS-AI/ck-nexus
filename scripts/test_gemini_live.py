@@ -42,7 +42,7 @@ def main() -> int:
         headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
     )
     try:
-        with urlopen(request, timeout=45) as response:
+        with urlopen(request, timeout=90) as response:
             body = json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
         result["result"] = "FAIL"
