@@ -11,7 +11,16 @@ HOST = "127.0.0.1"
 PORT = int(os.environ.get("CK_GATEWAY_PORT", "8790"))
 SCANNER_HEALTH = "http://127.0.0.1:8787/health"
 QWEN_KEY = os.environ.get("DASHSCOPE_API_KEY", "").strip()
-QWEN_BASE = os.environ.get("DASHSCOPE_BASE_URL", "").rstrip("/")
+_DASHSCOPE_BASES = {
+    "https://dashscope-intl.aliyuncs.com/compatible-mode/v1":
+        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    "https://dashscope.aliyuncs.com/compatible-mode/v1":
+        "https://dashscope.aliyuncs.com/compatible-mode/v1",
+}
+QWEN_BASE = _DASHSCOPE_BASES.get(
+    os.environ.get("DASHSCOPE_BASE_URL", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1").rstrip("/"),
+    "",
+)
 QWEN_MODEL = os.environ.get("QWEN_MODEL", "qwen3.6-plus").strip()
 QWEN_OK = bool(QWEN_KEY and QWEN_BASE)
 MAX_BODY = 65536
@@ -35,7 +44,12 @@ def qwen_chat(payload, timeout=30):
         method="POST",
         headers={"Authorization": f"Bearer {QWEN_KEY}", "Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+
+    opener = urllib.request.build_opener(_NoRedirect())
+    with opener.open(req, timeout=timeout) as r:
         return json.loads(r.read())
 
 

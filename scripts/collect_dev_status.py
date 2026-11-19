@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import HTTPSHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = Path(os.getenv("CKNEXUS_DEV_STATUS_FILE", ROOT / "data/dev_status.json"))
@@ -232,10 +232,25 @@ def probe_qwen_daily() -> dict[str, Any]:
                 "status": "error",
             }
         key = os.getenv("DASHSCOPE_API_KEY", "").strip()
-        base = os.getenv(
+        configured_base = os.getenv(
             "DASHSCOPE_BASE_URL",
             "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
         ).rstrip("/")
+        approved_bases = {
+            "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+            "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        }
+        if configured_base not in approved_bases:
+            return failed(
+                "authenticated Qwen daily probe",
+                RuntimeError("DASHSCOPE_BASE_URL is not an approved HTTPS DashScope endpoint"),
+            )
+        # Use a literal allowlisted endpoint after validating the configuration.
+        base = (
+            "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+            if configured_base == "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+            else "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        )
         model = os.getenv("QWEN_MODEL", "").strip()
         if not key or not model:
             return failed(
@@ -274,7 +289,13 @@ def probe_qwen_daily() -> dict[str, Any]:
         try:
             # The endpoint is allowlisted as HTTPS above; use an HTTPS-only handler
             # with normal certificate verification instead of a generic URL opener.
-            opener = build_opener(HTTPSHandler(context=ssl.create_default_context()))
+            class _NoRedirect(HTTPRedirectHandler):
+                def redirect_request(self, req, fp, code, msg, headers, newurl):
+                    return None
+
+            opener = build_opener(
+                HTTPSHandler(context=ssl.create_default_context()), _NoRedirect()
+            )
             with opener.open(req, timeout=15) as response:
                 payload = json.loads(response.read(65536))
                 success = response.status == 200 and bool(payload.get("choices"))
