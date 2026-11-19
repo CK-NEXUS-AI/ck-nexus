@@ -7,13 +7,12 @@ import json
 import os
 import shutil
 import subprocess
-import tempfile
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 REQUIRED_TABLES = ("agnes_idempotency", "creator_runs", "email_journal", "email_outbox")
 
@@ -40,8 +39,8 @@ def _identity(url: str) -> DbIdentity:
 
 
 @contextmanager
-def _libpq_connection(url: str) -> Iterator[tuple[str, dict[str, str]]]:
-    """Keep database passwords out of argv by using a private temporary pgpass file."""
+def _libpq_connection(url: str) -> Iterator[dict[str, str]]:
+    """Keep database passwords out of argv and disk using libpq PGPASSWORD."""
     parsed = urlsplit(url)
     query = parse_qsl(parsed.query, keep_blank_values=True)
     query_passwords = [value for key, value in query if key.lower() == "password"]
@@ -50,37 +49,46 @@ def _libpq_connection(url: str) -> Iterator[tuple[str, dict[str, str]]]:
         if parsed.password is not None
         else (query_passwords[-1] if query_passwords else None)
     )
-    safe_query = urlencode([(key, value) for key, value in query if key.lower() != "password"])
     username = unquote(parsed.username) if parsed.username is not None else None
-    host = parsed.hostname or "*"
+    host = parsed.hostname or ""
     port = parsed.port or 5432
-    database = unquote(parsed.path.lstrip("/")) or "*"
-    host_literal = f"[{host}]" if ":" in host else host
-    authority = f"{quote(username, safe='')}@" if username is not None else ""
-    authority += host_literal
-    if parsed.port is not None:
-        authority += f":{parsed.port}"
-    safe_url = urlunsplit((parsed.scheme, authority, parsed.path, safe_query, parsed.fragment))
+    database = unquote(parsed.path.lstrip("/"))
     env = os.environ.copy()
-    env.pop("CKNEXUS_DATABASE_URL", None)
-    env.pop("CKNEXUS_RESTORE_DATABASE_URL", None)
-    if password is None:
-        yield safe_url, env
-        return
-
-    def escape_pgpass(value: str) -> str:
-        return value.replace("\\", "\\\\").replace(":", "\\:")
-
-    with tempfile.TemporaryDirectory(prefix="cknexus-pgpass-") as directory:
-        passfile = Path(directory) / "pgpass"
-        fields = (host, str(port), database, username or "*", password)
-        # codeql[py/clear-text-storage-sensitive-data] libpq requires a passfile;
-        # it lives in a mode-0700 TemporaryDirectory and is created mode 0600.
-        descriptor = os.open(passfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            handle.write(":".join(escape_pgpass(value) for value in fields) + "\n")
-        env["PGPASSFILE"] = str(passfile)
-        yield safe_url, env
+    for name in (
+        "CKNEXUS_DATABASE_URL",
+        "CKNEXUS_RESTORE_DATABASE_URL",
+        "PGHOSTADDR",
+        "PGSERVICE",
+        "PGSERVICEFILE",
+        "PGPASSFILE",
+        "PGPASSWORD",
+    ):
+        env.pop(name, None)
+    env.update(PGHOST=host, PGPORT=str(port), PGDATABASE=database)
+    if username is not None:
+        env["PGUSER"] = username
+    else:
+        env.pop("PGUSER", None)
+    if password is not None:
+        # libpq reads PGPASSWORD from the child environment.
+        env["PGPASSWORD"] = password
+    libpq_env = {
+        "sslmode": "PGSSLMODE",
+        "sslrootcert": "PGSSLROOTCERT",
+        "sslcert": "PGSSLCERT",
+        "sslkey": "PGSSLKEY",
+        "connect_timeout": "PGCONNECT_TIMEOUT",
+        "application_name": "PGAPPNAME",
+        "options": "PGOPTIONS",
+        "target_session_attrs": "PGTARGETSESSIONATTRS",
+        "gssencmode": "PGGSSENCMODE",
+        "channel_binding": "PGCHANNELBINDING",
+    }
+    for key, value in query:
+        env_name = libpq_env.get(key.lower())
+        if env_name:
+            env[env_name] = value
+    yield env
 
 
 def _same_database(a: DbIdentity, b: DbIdentity) -> bool:
@@ -131,16 +139,17 @@ def backup(source_url: str, output_dir: Path, rpo_seconds: int) -> dict[str, obj
     output_dir.mkdir(parents=True, exist_ok=False)
     dump = output_dir / "postgres.dump"
     started = time.time()
-    # codeql[py/path-injection] output_dir is an explicit local-operator CLI path,
-    # not request data; the backup gate supplies a fresh TemporaryDirectory path.
-    with _libpq_connection(source_url) as (safe_source_url, env), dump.open("wb") as fh:
-        proc = subprocess.run(
-            [pg_dump, "--dbname", safe_source_url, "--format=custom", "--no-owner", "--no-acl"],
-            env=env,
-            stdout=fh,
-            stderr=subprocess.PIPE,
-            check=False,
-        )
+    # output_dir is an operator-selected local path; the automated gate supplies
+    # a fresh private temporary directory rather than request-controlled input.
+    with _libpq_connection(source_url) as env:
+        with dump.open("wb") as fh:
+            proc = subprocess.run(
+                [pg_dump, "--format=custom", "--no-owner", "--no-acl"],
+                env=env,
+                stdout=fh,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
     if proc.returncode != 0:
         dump.unlink(missing_ok=True)
         raise RuntimeError(f"pg_dump failed with exit code {proc.returncode}")
@@ -192,12 +201,10 @@ def restore(
     integrity = verify_dump(backup_dir)
     dump = backup_dir / "postgres.dump"
     started = time.time()
-    with _libpq_connection(target_url) as (safe_target_url, env):
+    with _libpq_connection(target_url) as env:
         proc = subprocess.run(
             [
                 pg_restore,
-                "--dbname",
-                safe_target_url,
                 "--clean",
                 "--if-exists",
                 "--no-owner",
@@ -216,7 +223,7 @@ def restore(
             "WHERE schemaname='public' ORDER BY tablename;"
         )
         verify = subprocess.run(
-            [psql, safe_target_url, "-Atqc", table_sql],
+            [psql, "-Atqc", table_sql],
             env=env,
             text=True,
             capture_output=True,

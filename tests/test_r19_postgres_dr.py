@@ -73,27 +73,28 @@ def test_verify_dump_rejects_checksum_mismatch(tmp_path: Path):
         postgres_dr.verify_dump(tmp_path)
 
 
-def test_libpq_connection_removes_password_from_url_and_uses_private_pgpass(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_libpq_connection_uses_environment_without_writing_password_to_disk(
+    monkeypatch: pytest.MonkeyPatch,
 ):
-    monkeypatch.setenv("CKNEXUS_DATABASE_URL", "postgresql://env-user:env-secret@db.example/source")
-    url = "postgresql://ck-user:p%3Ass%5Cword@db.example:5433/source_restore?sslmode=require"
-    with postgres_dr._libpq_connection(url) as (safe_url, env):
-        assert "p%3Ass" not in safe_url
-        assert "@db.example" in safe_url and "p%3A" not in safe_url
-        assert safe_url == "postgresql://ck-user@db.example:5433/source_restore?sslmode=require"
+    monkeypatch.setenv("CKNEXUS_DATABASE_URL", "postgresql://env-user:placeholder@db.example/source")
+    monkeypatch.setenv("PGPASSFILE", "/tmp/old-passfile")
+    url = "postgresql://ck-user:unit-test-value@db.example:5433/source_restore?sslmode=require"
+    with postgres_dr._libpq_connection(url) as env:
+        assert env["PGHOST"] == "db.example"
+        assert env["PGPORT"] == "5433"
+        assert env["PGDATABASE"] == "source_restore"
+        assert env["PGUSER"] == "ck-user"
+        assert env["PGPASSWORD"] == "unit-test-value"
+        assert env["PGSSLMODE"] == "require"
         assert "CKNEXUS_DATABASE_URL" not in env
-        passfile = Path(env["PGPASSFILE"])
-        assert passfile.exists()
-        assert passfile.stat().st_mode & 0o777 == 0o600
-        assert passfile.read_text(encoding="utf-8") == (
-            "db.example:5433:source_restore:ck-user:p\\:ss\\\\word\n"
-        )
-    assert not passfile.exists()
+        assert "CKNEXUS_RESTORE_DATABASE_URL" not in env
+        assert "PGPASSFILE" not in env
 
 
 def test_libpq_connection_preserves_passwordless_url():
     url = "postgresql://reader@db.example:5432/catalog?sslmode=verify-full"
-    with postgres_dr._libpq_connection(url) as (safe_url, env):
-        assert safe_url == url
+    with postgres_dr._libpq_connection(url) as env:
+        assert env["PGHOST"] == "db.example"
+        assert env["PGDATABASE"] == "catalog"
+        assert "PGPASSWORD" not in env
         assert "PGPASSFILE" not in env
