@@ -11,9 +11,12 @@ from creator_app.config import Settings
 
 def test_development_dashboard_page_and_assets_are_served(tmp_path: Path) -> None:
     settings = Settings(
-        database_path=tmp_path / "development-dashboard.db", mock_ai=True,
-        access_token="status-token", rate_limit_per_minute=50,
-        dev_team_enabled=True, dev_team_web_search_enabled=False,
+        database_path=tmp_path / "development-dashboard.db",
+        mock_ai=True,
+        access_token="status-token",
+        rate_limit_per_minute=50,
+        dev_team_enabled=True,
+        dev_team_web_search_enabled=False,
     )
     with TestClient(create_app(settings)) as client:
         page = client.get("/development")
@@ -103,21 +106,39 @@ def test_dev_status_api_reads_fresh_stale_and_missing_snapshot(tmp_path: Path, m
     import json
     from datetime import datetime, timedelta
 
-    status_file = tmp_path / "dev_status.json"
-    monkeypatch.setenv("CKNEXUS_DEV_STATUS_FILE", str(status_file))
+    import creator_app.api as api_module
+
+    status_file = tmp_path / "data" / "dev_status.json"
+    status_file.parent.mkdir(parents=True)
+    attacker_file = tmp_path / "attacker-controlled.json"
+    monkeypatch.setenv("CKNEXUS_DEV_STATUS_FILE", str(attacker_file))
     settings = Settings(
-        database_path=tmp_path / "dev-status-api.db", mock_ai=True,
-        access_token="status-token", rate_limit_per_minute=50,
-        dev_team_enabled=True, dev_team_web_search_enabled=False,
+        database_path=tmp_path / "dev-status-api.db",
+        mock_ai=True,
+        access_token="status-token",
+        rate_limit_per_minute=50,
+        dev_team_enabled=True,
+        dev_team_web_search_enabled=False,
     )
-    with TestClient(create_app(settings)) as client:
+    app = create_app(settings)
+    monkeypatch.setattr(api_module, "__file__", str(tmp_path / "creator_app" / "api.py"))
+    with TestClient(app) as client:
         assert client.get("/api/dev-status").status_code == 401
         headers = {"Authorization": "Bearer status-token"}
         missing = client.get("/api/dev-status", headers=headers)
         assert missing.status_code == 200 and missing.json()["stale"] is True
-        fresh = {"collected_at": datetime.now(UTC).isoformat(),
-                 "items": {"git": {"value": {"head": "abc123"}, "source": "git",
-                 "collected_at": datetime.now(UTC).isoformat(), "status": "ok"}}}
+        assert not attacker_file.exists()
+        fresh = {
+            "collected_at": datetime.now(UTC).isoformat(),
+            "items": {
+                "git": {
+                    "value": {"head": "abc123"},
+                    "source": "git",
+                    "collected_at": datetime.now(UTC).isoformat(),
+                    "status": "ok",
+                }
+            },
+        }
         status_file.write_text(json.dumps(fresh), encoding="utf-8")
         response = client.get("/api/dev-status", headers=headers)
         assert response.status_code == 200 and response.json()["stale"] is False
@@ -129,8 +150,9 @@ def test_dev_status_api_reads_fresh_stale_and_missing_snapshot(tmp_path: Path, m
         status_file.write_text(json.dumps(fresh), encoding="utf-8")
         future = client.get("/api/dev-status", headers=headers)
         assert future.status_code == 200 and future.json()["stale"] is True
-        status_file.write_text(json.dumps({"collected_at": datetime.now(UTC).isoformat()}),
-                               encoding="utf-8")
+        status_file.write_text(
+            json.dumps({"collected_at": datetime.now(UTC).isoformat()}), encoding="utf-8"
+        )
         invalid_shape = client.get("/api/dev-status", headers=headers)
         assert invalid_shape.status_code == 200 and invalid_shape.json()["stale"] is True
 
