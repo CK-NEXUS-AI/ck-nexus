@@ -1002,11 +1002,10 @@ def _run_browser_tool(action: str, argument: str | None = None) -> dict[str, Any
             "secret_values_exposed": False,
         }
     command = ["sudo", "-n", _BROWSER_WRAPPER, action]
-    if argument is not None:
-        command.append(argument)
     try:
         completed = subprocess.run(
             command,
+            input=argument if action == "open" else None,
             capture_output=True,
             text=True,
             timeout=35,
