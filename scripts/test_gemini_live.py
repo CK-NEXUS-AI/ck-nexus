@@ -69,7 +69,7 @@ def main() -> int:
 
 
 def write_result(result: dict[str, object], exit_code: int) -> int:
-    path = Path(os.getenv("GEMINI_EVIDENCE_PATH", "gemini-live-evidence.json"))
+    path = Path("gemini-live-evidence.json")
     path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(
         f"{result['gate']} {result['result']} "
