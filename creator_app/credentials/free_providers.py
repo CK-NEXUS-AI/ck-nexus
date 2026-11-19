@@ -55,7 +55,7 @@ AUTO_DISCOVER_PROVIDERS: tuple[FreeProvider, ...] = (
         "gemini",
         "GEMINI_API_KEY",
         "https://generativelanguage.googleapis.com/v1beta/openai",
-        "gemini-2.5-flash",
+        "gemini-3.1-flash-lite",
     ),
     FreeProvider(
         "moonshot", "MOONSHOT_API_KEY", "https://api.moonshot.cn/v1", "kimi-k2-0711-preview"
