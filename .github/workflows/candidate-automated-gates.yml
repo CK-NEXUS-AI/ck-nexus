@@ -269,15 +269,17 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
         run: |
           tree=$(git rev-parse HEAD^{tree})
-          python - "$HEAD_SHA" "$tree" "$RUN_ID" <<'PY'
+          manifest=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          python - "$HEAD_SHA" "$tree" "$manifest" "$RUN_ID" <<'PY'
           import json,sys
-          sha,tree,run_id=sys.argv[1:]
+          sha,tree,manifest,run_id=sys.argv[1:]
           raw=json.load(open('Q13_POSTGRES_DR.json'))
           raw.update({
               'schema_version':2,
               'gate':'Q13',
               'source_sha':sha,
               'source_tree':tree,
+              'release_subject_manifest_sha256':manifest,
               'github_run_id':int(run_id),
               'environment_class':'ephemeral-isolated-staging',
               'production_data_used':False,
@@ -349,14 +351,16 @@ jobs:
           finish=$(date +%s)
           duration=$((finish-Q15_INSTALL_STARTED))
           tree=$(git rev-parse HEAD^{tree})
-          .venv/bin/python - "$HEAD_SHA" "$tree" "$RUN_ID" "$duration" <<'PY'
+          manifest=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          .venv/bin/python - "$HEAD_SHA" "$tree" "$manifest" "$RUN_ID" "$duration" <<'PY'
           import json,os,platform,sys
-          sha,tree,run_id,duration=sys.argv[1:]
+          sha,tree,manifest,run_id,duration=sys.argv[1:]
           evidence={
               'schema_version':2,
               'gate':'Q15',
               'source_sha':sha,
               'source_tree':tree,
+              'release_subject_manifest_sha256':manifest,
               'github_run_id':int(run_id),
               'host_class':'fresh-github-hosted-vm',
               'os':platform.platform(),

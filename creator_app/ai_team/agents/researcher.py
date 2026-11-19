@@ -49,26 +49,31 @@ class ResearcherAgent(Agent):
     def process(self, request: TeamRequest, context: dict[str, Any] | None = None) -> TaskResult:
         start = time.time()
         context = context or {}
+        self.raise_if_cancelled(context)
 
         desc = request.description.lower()
         output_lines: list[str] = []
         artifacts: list[str] = []
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("search", "find", "discover")):
             output_lines.append("🔍 กำลังค้นหาข้อมูล...")
             output_lines.append(self._search_info(request))
             artifacts.append("research:search")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("compare", "versus", "vs", "alternative")):
             output_lines.append("⚖️ กำลังเปรียบเทียบ...")
             output_lines.append(self._compare_options(request))
             artifacts.append("research:comparison")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("tool", "library", "framework", "package")):
             output_lines.append("🛠️ กำลังค้นหาเครื่องมือ...")
             output_lines.append(self._find_tools(request))
             artifacts.append("research:tools")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("best practice", "pattern", "standard")):
             output_lines.append("📚 กำลังค้นหา Best Practices...")
             output_lines.append(self._find_best_practices(request))

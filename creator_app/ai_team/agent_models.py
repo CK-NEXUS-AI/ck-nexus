@@ -25,6 +25,7 @@ class TaskStatus(Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     BLOCKED = "blocked"
+    CANCELLED = "cancelled"
 
 
 class RequestPriority(Enum):

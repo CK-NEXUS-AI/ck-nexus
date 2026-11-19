@@ -56,31 +56,37 @@ class DesignerAgent(Agent):
     def process(self, request: TeamRequest, context: dict[str, Any] | None = None) -> TaskResult:
         start = time.time()
         context = context or {}
+        self.raise_if_cancelled(context)
 
         desc = request.description.lower()
         output_lines: list[str] = []
         artifacts: list[str] = []
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("design", "ui", "interface")):
             output_lines.append("🎨 กำลังออกแบบ UI...")
             output_lines.append(self._design_ui(request))
             artifacts.append("design:ui")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("ux", "experience", "usability")):
             output_lines.append("✨ กำลังออกแบบ UX...")
             output_lines.append(self._design_ux(request))
             artifacts.append("design:ux")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("responsive", "mobile", "desktop")):
             output_lines.append("📱 กำลังออกแบบ responsive...")
             output_lines.append(self._design_responsive(request))
             artifacts.append("design:responsive")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("accessibility", "wcag", "aria")):
             output_lines.append("♿ กำลังตรวจสอบ accessibility...")
             output_lines.append(self._check_accessibility(request))
             artifacts.append("design:accessibility")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("style", "color", "theme", "font")):
             output_lines.append("🎭 กำลังจัดรูปแบบ...")
             output_lines.append(self._style_system(request))

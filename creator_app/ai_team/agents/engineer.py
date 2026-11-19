@@ -63,31 +63,37 @@ class EngineerAgent(Agent):
         """ประมวลผล — วิเคราะห์และเขียนโค้ด/ออกแบบระบบ."""
         start = time.time()
         context = context or {}
+        self.raise_if_cancelled(context)
 
         desc = request.description.lower()
         artifacts: list[str] = []
         output_lines: list[str] = []
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("write", "code", "create", "build", "implement")):
             output_lines.append("💻 กำลังเขียนโค้ด...")
             output_lines.append(self._analyze_and_code(request))
             artifacts.append("code:implementation")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("bug", "fix", "error", "crash")):
             output_lines.append("🐛 กำลังแก้ไขบั๊ก...")
             output_lines.append(self._debug_and_fix(request))
             artifacts.append("code:bugfix")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("test", "verify", "validate")):
             output_lines.append("🧪 กำลังเขียนเทส...")
             output_lines.append(self._write_tests(request))
             artifacts.append("code:tests")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("design", "architecture", "structure", "refactor")):
             output_lines.append("🏗️ กำลังออกแบบสถาปัตยกรรม...")
             output_lines.append(self._design_architecture(request))
             artifacts.append("code:architecture")
 
+        self.raise_if_cancelled(context)
         if any(kw in desc for kw in ("optimize", "performance", "speed", "fast")):
             output_lines.append("⚡ กำลังปรับปรุงประสิทธิภาพ...")
             output_lines.append(self._optimize_performance(request))

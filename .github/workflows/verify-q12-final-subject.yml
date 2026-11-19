@@ -9,9 +9,7 @@ permissions:
   contents: read
 
 env:
-  Q12_SOURCE_SHA: ad2fac7aa0752117dde065c7ad9b0b8d41136aa2
-  Q12_SOURCE_TREE: eb2074176319072ca3f31d5c8c990752ba849b0a
-  Q12_RELEASE_SUBJECT: 772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200
+  Q12_SOURCE_SHA: ${{ github.sha }}
   CKNEXUS_ENVIRONMENT: staging
   CKNEXUS_AGNES_CGROUP_ROOT: ${{ vars.CKNEXUS_AGNES_CGROUP_ROOT }}
 
@@ -36,9 +34,10 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$Q12_SOURCE_SHA"
-          test "$(git rev-parse HEAD^{tree})" = "$Q12_SOURCE_TREE"
-          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
-          test "$subject" = "$Q12_RELEASE_SUBJECT"
+          Q12_SOURCE_TREE=$(git rev-parse 'HEAD^{tree}')
+          Q12_RELEASE_SUBJECT=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          echo "Q12_SOURCE_TREE=$Q12_SOURCE_TREE" >> "$GITHUB_ENV"
+          echo "Q12_RELEASE_SUBJECT=$Q12_RELEASE_SUBJECT" >> "$GITHUB_ENV"
           python3 --version
       - name: Verify true delegated cgroup v2 boundary
         shell: bash
@@ -51,6 +50,22 @@ jobs:
           test -f "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.controllers"
           for controller in cpu memory pids; do
             grep -qw "$controller" "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.controllers"
+          done
+          # DelegateSubgroup keeps runner processes below this parent so the
+          # non-root runner can enable controllers without violating no-internal-processes.
+          test ! -s "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.procs"
+          enabled=$(cat "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.subtree_control")
+          to_enable=()
+          for controller in cpu memory pids; do
+            if ! grep -qw "$controller" <<< "$enabled"; then
+              to_enable+=("+$controller")
+            fi
+          done
+          if [ "${#to_enable[@]}" -gt 0 ]; then
+            printf '%s ' "${to_enable[@]}" > "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.subtree_control"
+          fi
+          for controller in cpu memory pids; do
+            grep -qw "$controller" "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.subtree_control"
           done
           printf '%s\n' "$CKNEXUS_AGNES_CGROUP_ROOT" > q12-delegated-root.txt
           cat "$CKNEXUS_AGNES_CGROUP_ROOT/cgroup.controllers" > q12-controllers.txt

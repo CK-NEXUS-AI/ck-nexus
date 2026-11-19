@@ -13,6 +13,7 @@ from creator_app.ai_team.agent_models import (
     TaskStatus,
     TeamRequest,
 )
+from creator_app.ai_team.cancellation import raise_if_cancelled
 
 
 @dataclass
@@ -51,6 +52,12 @@ class Agent(ABC):
         self.capabilities = tuple(capabilities)
         self.knowledge = AgentKnowledge()
         self._active = True
+
+    @staticmethod
+    def raise_if_cancelled(context: dict[str, Any] | None) -> None:
+        """Check the request cancellation event at a worker-safe checkpoint."""
+        event = context.get("cancellation_event") if context else None
+        raise_if_cancelled(event)
 
     @abstractmethod
     def process(self, request: TeamRequest, context: dict[str, Any] | None = None) -> TaskResult:

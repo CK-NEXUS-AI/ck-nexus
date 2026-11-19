@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import secrets
@@ -34,7 +35,8 @@ class TaskStore:
                     attempts INTEGER NOT NULL DEFAULT 0,
                     checkpoint_json TEXT,
                     result_json TEXT,
-                    error_text TEXT
+                    error_text TEXT,
+                    idempotency_key TEXT
                 )
                 """
             )
@@ -44,6 +46,14 @@ class TaskStore:
             }
             if "lease_token" not in columns:
                 connection.execute("ALTER TABLE control_plane_tasks ADD COLUMN lease_token TEXT")
+            if "idempotency_key" not in columns:
+                connection.execute(
+                    "ALTER TABLE control_plane_tasks ADD COLUMN idempotency_key TEXT"
+                )
+            connection.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_control_plane_tasks_idempotency "
+                "ON control_plane_tasks(idempotency_key) WHERE idempotency_key IS NOT NULL"
+            )
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_control_plane_tasks_queue "
                 "ON control_plane_tasks(state, created_at)"
@@ -60,49 +70,135 @@ class TaskStore:
     def _json(value: Any) -> str:
         return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
-    def enqueue(self, job_id: str, payload: dict[str, Any]) -> None:
-        if not job_id.strip():
-            raise ValueError("job_id must not be empty")
-        now = time.time()
-        try:
-            with closing(self._connect()) as connection:
-                connection.execute(
-                    "INSERT INTO control_plane_tasks "
-                    "(job_id,payload_json,state,created_at,updated_at) VALUES (?,?, 'queued',?,?)",
-                    (job_id, self._json(payload), now, now),
-                )
-        except sqlite3.IntegrityError as exc:
-            raise ValueError(f"job_id already exists: {job_id}") from exc
+    @classmethod
+    def _idempotency_payload(cls, payload_json: str) -> str:
+        """Compare request content without the transport-assigned job identity."""
+        payload = json.loads(payload_json)
+        if isinstance(payload, dict):
+            payload.pop("job_id", None)
+        return cls._json(payload)
 
-    def enqueue_many(self, tasks: list[tuple[str, dict[str, Any]]]) -> None:
-        """Atomically enqueue a bounded batch of tasks or insert none of them."""
-        if not tasks:
-            raise ValueError("tasks must not be empty")
-        seen: set[str] = set()
-        rows: list[tuple[str, str, float, float]] = []
+    @staticmethod
+    def _validate_idempotency_key(idempotency_key: str | None) -> str | None:
+        if idempotency_key is None:
+            return None
+        if not isinstance(idempotency_key, str) or not idempotency_key.strip():
+            raise ValueError("idempotency_key must not be empty")
+        key = idempotency_key.strip()
+        if len(key) > 200:
+            raise ValueError("idempotency_key must not exceed 200 characters")
+        # Persist only a digest so caller-supplied keys are not retained verbatim.
+        return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+    def enqueue(
+        self,
+        job_id: str,
+        payload: dict[str, Any],
+        *,
+        idempotency_key: str | None = None,
+    ) -> str:
+        """Enqueue once; replay an identical idempotency key to its original job."""
+        if not isinstance(job_id, str) or not job_id.strip():
+            raise ValueError("job_id must not be empty")
+        if not isinstance(payload, dict):
+            raise ValueError("task payload must be an object")
+        key = self._validate_idempotency_key(idempotency_key)
+        payload_json = self._json(payload)
         now = time.time()
-        for job_id, payload in tasks:
-            if not isinstance(job_id, str) or not job_id.strip():
-                raise ValueError("job_id must not be empty")
-            if job_id in seen:
-                raise ValueError(f"job_id duplicated in batch: {job_id}")
-            if not isinstance(payload, dict):
-                raise ValueError("task payload must be an object")
-            seen.add(job_id)
-            rows.append((job_id, self._json(payload), now, now))
         with closing(self._connect()) as connection:
             connection.execute("BEGIN IMMEDIATE")
+            if key is not None:
+                existing = connection.execute(
+                    "SELECT job_id, payload_json FROM control_plane_tasks WHERE idempotency_key=?",
+                    (key,),
+                ).fetchone()
+                if existing is not None:
+                    if self._idempotency_payload(existing["payload_json"]) != (
+                        self._idempotency_payload(payload_json)
+                    ):
+                        connection.rollback()
+                        raise ValueError("idempotency_key payload conflict")
+                    connection.commit()
+                    return str(existing["job_id"])
             try:
-                connection.executemany(
+                connection.execute(
                     "INSERT INTO control_plane_tasks "
-                    "(job_id,payload_json,state,created_at,updated_at) "
-                    "VALUES (?, ?, 'queued', ?, ?)",
-                    rows,
+                    "(job_id,payload_json,state,created_at,updated_at,idempotency_key) "
+                    "VALUES (?,?, 'queued',?,?,?)",
+                    (job_id, payload_json, now, now, key),
                 )
                 connection.commit()
             except sqlite3.IntegrityError as exc:
                 connection.rollback()
-                raise ValueError("job_id already exists in batch") from exc
+                raise ValueError(f"job_id already exists: {job_id}") from exc
+        return job_id
+
+    def enqueue_many(
+        self,
+        tasks: list[tuple[str, dict[str, Any]] | tuple[str, dict[str, Any], str | None]],
+    ) -> list[str]:
+        """Atomically enqueue a batch; keyed replays reuse original job identities."""
+        if not tasks:
+            raise ValueError("tasks must not be empty")
+        seen_job_ids: set[str] = set()
+        seen_keys: set[str] = set()
+        normalized: list[tuple[str, str, str | None]] = []
+        for item in tasks:
+            if not isinstance(item, tuple) or len(item) not in {2, 3}:
+                raise ValueError("each task must be (job_id, payload[, idempotency_key])")
+            job_id, payload = item[0], item[1]
+            key = self._validate_idempotency_key(item[2] if len(item) == 3 else None)
+            if not isinstance(job_id, str) or not job_id.strip():
+                raise ValueError("job_id must not be empty")
+            if not isinstance(payload, dict):
+                raise ValueError("task payload must be an object")
+            if job_id in seen_job_ids:
+                raise ValueError(f"job_id duplicated in batch: {job_id}")
+            if key is not None and key in seen_keys:
+                raise ValueError(f"idempotency_key duplicated in batch: {key}")
+            seen_job_ids.add(job_id)
+            if key is not None:
+                seen_keys.add(key)
+            normalized.append((job_id, self._json(payload), key))
+
+        now = time.time()
+        effective_ids: list[str] = []
+        with closing(self._connect()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                for job_id, payload_json, key in normalized:
+                    if key is not None:
+                        existing = connection.execute(
+                            "SELECT job_id, payload_json FROM control_plane_tasks "
+                            "WHERE idempotency_key=?",
+                            (key,),
+                        ).fetchone()
+                        if existing is not None:
+                            if self._idempotency_payload(existing["payload_json"]) != (
+                                self._idempotency_payload(payload_json)
+                            ):
+                                raise ValueError("idempotency_key payload conflict")
+                            effective_ids.append(str(existing["job_id"]))
+                            continue
+                    existing_job = connection.execute(
+                        "SELECT 1 FROM control_plane_tasks WHERE job_id=?", (job_id,)
+                    ).fetchone()
+                    if existing_job is not None:
+                        raise ValueError(f"job_id already exists: {job_id}")
+                    connection.execute(
+                        "INSERT INTO control_plane_tasks "
+                        "(job_id,payload_json,state,created_at,updated_at,idempotency_key) "
+                        "VALUES (?,?,'queued',?,?,?)",
+                        (job_id, payload_json, now, now, key),
+                    )
+                    effective_ids.append(job_id)
+                connection.commit()
+            except (sqlite3.IntegrityError, ValueError) as exc:
+                connection.rollback()
+                if isinstance(exc, sqlite3.IntegrityError):
+                    raise ValueError("job_id or idempotency_key already exists") from exc
+                raise
+        return effective_ids
 
     def peek_next(self) -> dict[str, Any] | None:
         """Return the oldest queued task without claiming or mutating it."""
