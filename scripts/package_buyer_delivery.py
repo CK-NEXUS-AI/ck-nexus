@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -155,7 +156,20 @@ def copy_classified_artifacts(root: Path) -> None:
             copy_if_exists(src, root / "06-DEVELOPER-DOCS" / path)
 
 
+def validate_output_directory(path: Path) -> Path:
+    """Keep buyer archives inside the repository-controlled output tree."""
+    trusted_root = os.path.realpath(ROOT)
+    resolved_path = os.path.realpath(path.expanduser())
+    if not (
+        resolved_path == trusted_root
+        or resolved_path.startswith(trusted_root + os.sep)
+    ):
+        raise ValueError("buyer delivery output directory is outside the repository root")
+    return Path(resolved_path)
+
+
 def build_package(output_dir: Path, version: str) -> tuple[Path, str]:
+    output_dir = validate_output_directory(output_dir)
     commit, tree = canonical_identity()
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     delivery_name = f"{DELIVERY_PREFIX}-{version}"
@@ -358,7 +372,7 @@ def main() -> int:
     args = parser.parse_args()
 
     archive, digest = build_package(
-        args.output_directory.resolve(),
+        args.output_directory,
         args.version,
     )
     print(f"archive={archive}")
