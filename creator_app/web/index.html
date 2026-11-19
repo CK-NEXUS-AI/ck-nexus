@@ -48,19 +48,20 @@
       <section class="view-panel active" id="workspace-view" aria-labelledby="workspace-title">
         <header class="hero">
           <div>
-            <p class="eyebrow reveal-item">UNIVERSAL COGNITIVE OPERATING SYSTEM</p>
+            <p class="eyebrow reveal-item">GOVERNED AUTONOMOUS AI OPERATING SYSTEM</p>
             <h1 id="workspace-title" aria-label="ระบบ AI ที่คิดเป็นระบบและลงมือทำอย่างมีหลักฐาน">
-              <span class="reveal-line"><span>AI ที่คิดเป็นระบบ</span></span>
-              <span class="reveal-line"><span>และลงมือทำอย่างมีหลักฐาน</span></span>
+              <span class="reveal-line"><span>One platform.</span></span>
+              <span class="reveal-line"><span>Governed intelligence.</span></span>
             </h1>
             <p class="hero-copy reveal-item">
-              CK-NEXUS รวม Core Authority, Agnes orchestration และเครื่องมือทำงานไว้ในแพลตฟอร์มเดียว
-              เริ่มจาก Creative Workspace แล้วขยายสู่การทำงานอัตโนมัติที่มีนโยบายและหลักฐานกำกับ
+              CK-NEXUS คือแพลตฟอร์ม AI แบบ self-hosted สำหรับ orchestration, governed tool execution,
+              persistent knowledge และ evidence-based operations. Agnes คือชั้นประสานงานและดำเนินงาน
+              ส่วน Creator Workspace และ /development เป็นหน้าการใช้งานของแพลตฟอร์มเดียวกัน
             </p>
           </div>
-          <div class="hero-index reveal-item" aria-label="ผลิตภัณฑ์รุ่นหนึ่ง">
+          <div class="hero-index reveal-item" aria-label="สถานะการเปิดใช้งาน">
             <span>01</span>
-            <p>ONE PLATFORM<br />ONE AUTHORITY</p>
+            <p>ONE PLATFORM<br />ONE CANONICAL RUNTIME</p>
           </div>
         </header>
 
@@ -72,26 +73,121 @@
           <div class="architecture-grid">
             <article class="architecture-card authority-card">
               <span class="architecture-index">01 / AUTHORITY</span>
-              <h2>CK-NEXUS CORE</h2>
-              <p>กำกับ state, memory, permissions, policy และ evidence เป็นแหล่งอำนาจหลักเพียงแห่งเดียว</p>
+              <h2>CK-NEXUS CORE · L3</h2>
+              <p>เจ้าของ state, memory, permissions, policy, approvals และ execution decisions</p>
             </article>
             <article class="architecture-card agnes-card">
               <span class="architecture-index">02 / ORCHESTRATION</span>
               <h2>AGNES</h2>
-              <p>วางแผน ประสาน specialist และดำเนินงานภายใต้ขอบเขตที่ Core อนุญาต</p>
+              <p>AI orchestration layer สำหรับวางแผน ประสาน agents และทำงานตามขอบเขตที่อนุมัติ</p>
             </article>
             <article class="architecture-card workspace-card">
-              <span class="architecture-index">03 / WORKSPACE</span>
+              <span class="architecture-index">03 / USER INTERFACE</span>
               <h2>CREATOR WORKSPACE</h2>
-              <p>พื้นที่ทำงานสำหรับสร้างเนื้อหา เรียกใช้ความสามารถ และตรวจผลลัพธ์</p>
+              <p>พื้นที่ผู้ใช้สำหรับเข้าถึงความสามารถและตรวจผลลัพธ์ของ CK-NEXUS</p>
             </article>
             <article class="architecture-card integration-card">
-              <span class="architecture-index">04 / ADAPTERS</span>
-              <h2>INTEGRATIONS</h2>
-              <p>เชื่อมต่อบริการภายนอกในฐานะ adapter โดยไม่รับอำนาจด้าน policy หรือ release</p>
+              <span class="architecture-index">04 / INTERNAL EVIDENCE</span>
+              <h2>/DEVELOPMENT</h2>
+              <p>แดชบอร์ดภายในสำหรับดูสถานะการพัฒนาและหลักฐาน ไม่ใช่ผลิตภัณฑ์แยก</p>
             </article>
           </div>
-          <p class="architecture-note"><span class="note-mark">●</span> NO EVIDENCE → NO DONE <span>สถานะ Release และ Production ยึดหลักฐานจากระบบกลางเท่านั้น</span></p>
+          <p class="architecture-note"><span class="note-mark">●</span> NO EVIDENCE → NO DONE <span>External tools are adapters only. CK-NEXUS Core remains the policy and release authority.</span></p>
+        </section>
+
+        <section class="release-banner reveal-item" aria-labelledby="release-heading">
+          <div class="release-mark" aria-hidden="true">!</div>
+          <div>
+            <p class="eyebrow">CURRENT RELEASE DECISION</p>
+            <h2 id="release-heading">NO-GO FOR PRODUCTION</h2>
+            <p>ฟีเจอร์ที่ทำเสร็จ, ชุดทดสอบที่ผ่าน หรือ CI ที่สำเร็จ ไม่ใช่การอนุมัติ Production
+              ต้องผ่าน Q10–Q16 บน release commit เดียวกันและมีการตรวจสอบตามข้อกำหนดก่อน</p>
+          </div>
+          <a href="/development" class="release-link">VIEW EVIDENCE <span aria-hidden="true">↗</span></a>
+        </section>
+
+        <section class="platform-overview reveal-item" aria-label="ความสามารถหลักของ CK-NEXUS">
+          <div class="overview-heading">
+            <p class="eyebrow">ONE PLATFORM / CAPABILITY AREAS</p>
+            <h2>Built for governed operations.</h2>
+          </div>
+          <div class="capability-grid">
+            <article><span>01</span><h3>Agnes orchestration</h3><p>แปลคำขอ วางแผนงาน และประสาน specialist roles</p></article>
+            <article><span>02</span><h3>Governed execution</h3><p>สิทธิ์ การอนุมัติ sandbox, idempotency และ kill switch</p></article>
+            <article><span>03</span><h3>Brain, memory & knowledge</h3><p>จัดการ context, ค้นคืนความรู้ และเรียนรู้จากหลักฐาน</p></article>
+            <article><span>04</span><h3>Skills & integrations</h3><p>เชื่อมต่อ tools และ providers ผ่าน adapters ที่ได้รับอนุญาต</p></article>
+            <article><span>05</span><h3>Operations & evidence</h3><p>สถานะระบบ บันทึก audit ผลทดสอบ และ release gates</p></article>
+            <article><span>06</span><h3>User workspace</h3><p>หน้าทำงานสำหรับเข้าถึงความสามารถของแพลตฟอร์มเดียวกัน</p></article>
+          </div>
+        </section>
+
+        <section class="start-here reveal-item" aria-labelledby="start-heading">
+          <div class="overview-heading">
+            <p class="eyebrow">DOCUMENTATION / OPERATOR PATH</p>
+            <h2 id="start-heading">Start here.</h2>
+          </div>
+          <div class="start-links">
+            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/CK_NEXUS_UNIFIED_ARCHITECTURE.md"><span>01</span><strong>Understand the system</strong><small>Unified Architecture</small></a>
+            <a href="https://github.com/spinlnw10-art/ck-nexus#quick-start"><span>02</span><strong>Run the application</strong><small>Quick start / Canonical Runtime</small></a>
+            <a href="/development"><span>03</span><strong>Development evidence</strong><small>Internal dashboard · /api/dev-status</small></a>
+            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/INTEGRATION_HUB.md"><span>04</span><strong>Configure integrations</strong><small>Integration Hub</small></a>
+            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/SECURITY_AUDIT.md"><span>05</span><strong>Security and tests</strong><small>Security Audit / Test Report</small></a>
+            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/Q10_Q16_CLOSURE_CONTRACT.md"><span>06</span><strong>Q10–Q16 closure gates</strong><small>Mandatory release evidence</small></a>
+            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/CK-NEXUS-AGNES-MASTER-UPGRADE.md"><span>07</span><strong>Agnes orchestration</strong><small>Agnes Master Upgrade</small></a>
+            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/DEVELOPMENT_COUNCIL.md"><span>08</span><strong>Agent governance</strong><small>Development Council</small></a>
+            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/RELEASE_STATUS.md"><span>09</span><strong>Release decision</strong><small>Current NO-GO status and evidence</small></a>
+            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/RELEASE_CHECKLIST.md"><span>10</span><strong>Release checklist</strong><small>Pre-release verification steps</small></a>
+            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/TEST_REPORT.md"><span>11</span><strong>Test report</strong><small>Test coverage and recorded results</small></a>
+            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/SELLER_CHECKLIST.md"><span>12</span><strong>Customer delivery</strong><small>Seller checklist</small></a>
+          </div>
+        </section>
+
+        <section class="runtime-reference reveal-item" aria-labelledby="runtime-heading">
+          <div class="overview-heading">
+            <p class="eyebrow">CANONICAL APPLICATION RUNTIME</p>
+            <h2 id="runtime-heading">Runtime interfaces.</h2>
+          </div>
+          <div class="runtime-table">
+            <div><code>GET /health</code><span>Application health / readiness</span></div>
+            <div><code>GET /api/status</code><span>Redacted application status</span></div>
+            <div><code>GET /docs</code><span>OpenAPI reference for the running build</span></div>
+            <div><code>/development</code><span>Internal development and evidence dashboard</span></div>
+            <div><code>GET /api/dev-status</code><span>Authenticated development snapshot</span></div>
+          </div>
+          <p class="runtime-note">Canonical entry point: <code>python3 -m creator_app.unified</code>. The running build's OpenAPI document defines the actual API surface.</p>
+        </section>
+
+        <section class="quickstart-panel reveal-item" aria-labelledby="quickstart-heading">
+          <div class="overview-heading">
+            <p class="eyebrow">PYTHON 3.11+ / LOCAL DEVELOPMENT</p>
+            <h2 id="quickstart-heading">Run the canonical application.</h2>
+          </div>
+          <p class="quickstart-copy">Linux / macOS:</p>
+          <pre><code>cp .env.example .env.local
+python3 -m venv .venv
+. .venv/bin/activate
+python3 -m pip install -e ".[dev]"
+python3 -m creator_app.unified</code></pre>
+          <p class="quickstart-copy">Windows PowerShell:</p>
+          <pre><code>Copy-Item .env.example .env.local
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m creator_app.unified</code></pre>
+          <p class="runtime-note">Open <code>http://127.0.0.1:8000</code>. Use <code>.env.local</code> for local secrets; never commit it.</p>
+        </section>
+
+        <section class="operating-rules reveal-item" aria-labelledby="rules-heading">
+          <div class="overview-heading">
+            <p class="eyebrow">SECURITY / AUTHORITY BOUNDARIES</p>
+            <h2 id="rules-heading">Operate safely. Verify every claim.</h2>
+          </div>
+          <ul>
+            <li>Keep Production status at NO-GO until all mandatory gates pass on the exact release commit.</li>
+            <li>Keep MCP bound to <code>127.0.0.1:8765</code>; do not expose it directly to the public Internet.</li>
+            <li>Keep credentials server-side. Never place keys, tokens, or private keys in source, browser code, screenshots, or logs.</li>
+            <li>Reconcile repository, runtime, test, and release evidence before deployment.</li>
+            <li>External tools are adapters only; CK-NEXUS Core retains policy and release authority.</li>
+          </ul>
         </section>
 
         <div class="workspace-grid reveal-item">
