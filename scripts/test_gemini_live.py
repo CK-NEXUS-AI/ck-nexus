@@ -4,6 +4,7 @@ import json
 import os
 from datetime import UTC, datetime
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 
@@ -43,6 +44,11 @@ def main() -> int:
     try:
         with urlopen(request, timeout=45) as response:
             body = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        result["result"] = "FAIL"
+        result["http_status"] = exc.code
+        result["diagnostic"] = f"Gemini API returned HTTP {exc.code}"
+        return write_result(result, 1)
     except Exception as exc:
         result["result"] = "FAIL"
         result["diagnostic"] = f"request failed ({type(exc).__name__})"
