@@ -97,9 +97,19 @@ def main() -> int:
         return 2
     if action == "screenshot":
         return _capture_screenshot()
-    args = [HELPER, action]
-    if action == "open":
-        args.append(sys.argv[2])
+    if action == "status":
+        args = [HELPER, "status"]
+    elif action == "open":
+        args = [HELPER, "open", sys.argv[2]]
+    elif action == "text":
+        args = [HELPER, "text"]
+    elif action == "title":
+        args = [HELPER, "title"]
+    elif action == "url":
+        args = [HELPER, "url"]
+    else:
+        print("Denied browser action.", file=sys.stderr)
+        return 2
     try:
         result = subprocess.run(
             args,
