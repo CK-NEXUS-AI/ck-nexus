@@ -370,7 +370,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                         content={
                             "error": "ACCESS_CONTROL_NOT_CONFIGURED",
-                            "message": "Protected routes are disabled until server authentication is configured.",
+                            "message": (
+                                "Protected routes are disabled until server authentication is configured."
+                            ),
                         },
                         headers=security_headers,
                     )
