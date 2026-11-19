@@ -84,9 +84,12 @@ jobs:
               "sentinel_observed": "CK-NEXUS-P0-SMOKE-PASS" in output,
               "result": result,
               "production_promotion_allowed": False,
-              "diagnostic": output[:500].replace(os.getenv("OPENAI_API_KEY", "\\0"), "[REDACTED]") if output else "No smoke output",
+          secret = os.getenv("OPENAI_API_KEY", "").strip()
+          diagnostic = output[:500].replace(secret, "[REDACTED]") if secret else output[:500]
+          evidence["credential_configured"] = bool(secret)
+          evidence["diagnostic"] = diagnostic or "No smoke output"
           }
-          Path("Q11_OPENAI_LIVE.json").write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\\n", encoding="utf-8")
+          Path("Q11_OPENAI_LIVE.json").write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
           print(json.dumps({k: v for k, v in evidence.items() if k != "diagnostic"}, indent=2, sort_keys=True))
           PY
 
