@@ -36,6 +36,9 @@ jobs:
               print(f'GEMINI_CATALOG=FAIL credential_configured=true error={type(exc).__name__}')
               raise SystemExit(1)
           models = data.get('models') or []
+          candidates = [m for m in models if 'flash-lite' in m.get('name', '').lower() or '3.1' in m.get('name', '').lower()]
+          for model in candidates:
+              print(f"AVAILABLE_MODEL={model.get('name', '')} METHODS={','.join(model.get('supportedGenerationMethods') or [])}")
           target = next((m for m in models if m.get('name', '').endswith('/models/gemini-3.1-flash-lite')), None)
           if target is None:
               print(f'GEMINI_CATALOG=FAIL credential_configured=true model_found=false models_returned={len(models)}')
