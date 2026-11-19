@@ -9,10 +9,10 @@ import shutil
 import subprocess
 import tempfile
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterator
 from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
 
 REQUIRED_TABLES = ("agnes_idempotency", "creator_runs", "email_journal", "email_outbox")
@@ -209,7 +209,8 @@ def restore(
         if proc.returncode != 0:
             raise RuntimeError(f"pg_restore failed with exit code {proc.returncode}")
         table_sql = (
-            "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' ORDER BY tablename;"
+            "SELECT tablename FROM pg_catalog.pg_tables "
+            "WHERE schemaname='public' ORDER BY tablename;"
         )
         verify = subprocess.run(
             [psql, safe_target_url, "-Atqc", table_sql],
