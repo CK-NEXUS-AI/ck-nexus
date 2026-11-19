@@ -6,15 +6,18 @@
 
 - Repository: [`spinlnw10-art/ck-nexus`](https://github.com/spinlnw10-art/ck-nexus)
 - Active candidate: [PR #387](https://github.com/spinlnw10-art/ck-nexus/pull/387), branch `fix/q10-gate-medium-and-report-20261119`
-- Candidate commit: `b9b66d5b103850bcfbf5932965eb53d0da4ce462`; source tree: `ed6edd13bf84d30170ea5ed1fed72bb3c0b58ee3`
-- PR state: **OPEN / BLOCKED / NOT MERGED**. The branch worktree was clean at the time of verification.
-- Exact-commit Q10 scanner: **PASS** (workflow run [44509880235](https://github.com/spinlnw10-art/ck-nexus/actions/runs/44509880235)); report SHA-256 `888bf963d5ac323ebf394a30fc1a828e433580a8edc9bdfa73df30acbca46967`; artifact ID `14520973588`.
-- Q10 details: 0 Bandit HIGH, 0 MEDIUM, 521 LOW; dependency vulnerabilities 0; secret scan exit 0; attack regression 19/19. The report explicitly retains `security_review_status=REQUIRED` and `production_promotion_allowed=false`.
-- Termux verification: PostgreSQL DR + cgroup targeted tests **14 passed**; PostgreSQL DR suite **9 passed**; `compileall` and `git diff --check` passed. Pytest emitted an environment warning for unsupported `asyncio_mode`; no test failed.
-- Current PR checks: `preflight`, `test`, `attack-regression`, and CodeQL language analysis jobs **PASS**; CodeQL security check **FAIL** with one HIGH `py/path-injection` annotation in `scripts/postgres_dr.py:144`; SonarCloud Code Analysis **CANCELLED** (not a pass).
-- Bandit LOW triage: 414 findings are in test paths and 107 in production/scripts paths. Production/script findings include B603 (39) and B607 (20); these categories overlap on Git subprocess call sites. Initial static review indicates fixed argv/no `shell=True` for the reviewed calls, but this is **not a completed security disposition**; call-site input boundaries and executable resolution still require review.
-- PostgreSQL credential handling now supplies libpq settings through the child environment rather than command-line arguments or a temporary passfile. `PGPASSWORD` exists in the child environment while the DB client runs; same-UID process inspection remains a documented limitation.
-- **Release decision: NO-GO FOR PRODUCTION.** No merge, deployment, CodeQL dismissal, or secret change was performed. Q10 scanner PASS is not whole-gate approval.
+- Candidate commit: `e116b0bb33f3941d90daf466a86a5be3b567f18e`; source tree: `3b2faed1560d628d71f4c107c2387f40e2721baa`
+- PR state: **OPEN / BLOCKED / NOT MERGED**. Git worktree clean after push.
+- PostgreSQL DR path-injection remediation: the DR gate now calls backup/restore helpers in-process and creates its backup path under a private `TemporaryDirectory`; the caller-controlled `--output-dir` / `--backup-dir` CLI entry points were removed. The DR gate workflow remains the documented entry point.
+- Local Termux verification: **15 targeted tests passed**, including the new in-process/temp-path regression; `compileall`, Ruff, `git diff --check`, and SHA256SUMS entries for the three changed Python files passed. Pytest emitted an unsupported `asyncio_mode` configuration warning; no test failed.
+- Current PR checks on `e116b0b`: `preflight`, `test`, `attack-regression`, CodeQL security, and CodeQL language analysis **PASS**; SonarCloud Code Analysis **CANCELLED** (not a pass).
+- CodeQL run [135520938072](https://github.com/spinlnw10-art/ck-nexus/runs/135520938072) completed successfully with no annotations on this candidate. The repository API still reports existing open code-scanning alerts whose latest instances are attached to `main` baseline `944d7cb70a5d59d53c8fb379752bbee2085f7c8c`; those alerts were not dismissed and require separate main-branch triage.
+- Exact-commit Q10 scanner: **PASS** (workflow run [44512977859](https://github.com/spinlnw10-art/ck-nexus/actions/runs/44512977859)); scanned source SHA `e116b0bb33f3941d90daf466a86a5be3b567f18e`, tree `3b2faed1560d628d71f4c107c2387f40e2721baa`, subject manifest SHA-256 `14b756638e1bf3259f1204b71b335f3ccd324a99e4fb261175008c192493e39b`.
+- Q10 artifact ID `14523448460`, artifact digest `sha256:32fe60d6c748c73f153773ca755e8a8052bdad96bcc9f5f14e37779b7b968917`; report SHA-256 `a50249db520c766bed9947f9a8a81fda651f73425ac60e7367a6a1bbfac89454`.
+- Q10 results: Bandit **0 HIGH / 0 MEDIUM / 518 LOW** (414 test-path, 104 production/script-path findings); dependency vulnerabilities **0**; secret scan exit **0**; attack regression **19/19**. Production/script Bandit groups include B603 (37), B607 (20), B105 (23), B404 (22), B110 (1), B112 (1). LOW findings remain subject to review; B603/B607 are not blanket-approved as false positives.
+- Q10 explicitly retains `security_review_status=REQUIRED` and `production_promotion_allowed=false`. SonarCloud cancellation remains unresolved and needs account-side investigation.
+- `main` remains at `944d7cb70a5d59d53c8fb379752bbee2085f7c8c`; the README and this status update are on the PR branch, not the default homepage.
+- **Release decision: NO-GO FOR PRODUCTION.** No merge, deployment, code-scanning alert dismissal, or secret change was performed. Q10 PASS and CodeQL PASS do not constitute whole-gate or Production approval.
 
 
 **Code-bearing baseline after PR #380:** `0d7b0d1c0efee01d6307b418c848cd0c84411ea0`
