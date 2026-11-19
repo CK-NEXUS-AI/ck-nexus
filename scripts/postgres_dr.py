@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 import os
@@ -249,45 +248,5 @@ def restore(
     }
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="CK-NEXUS PostgreSQL backup/isolated restore drill"
-    )
-    sub = parser.add_subparsers(dest="command", required=True)
-    b = sub.add_parser("backup")
-    b.add_argument("--output-dir", required=True)
-    b.add_argument(
-        "--rpo-seconds", type=int, default=int(os.getenv("CKNEXUS_RPO_TARGET_SECONDS", "3600"))
-    )
-    r = sub.add_parser("restore")
-    r.add_argument("--backup-dir", required=True)
-    r.add_argument(
-        "--rto-seconds", type=int, default=int(os.getenv("CKNEXUS_RTO_TARGET_SECONDS", "900"))
-    )
-    args = parser.parse_args()
-    try:
-        if args.command == "backup":
-            result = backup(
-                os.getenv("CKNEXUS_DATABASE_URL", ""), Path(args.output_dir), args.rpo_seconds
-            )
-        else:
-            result = restore(
-                os.getenv("CKNEXUS_DATABASE_URL", ""),
-                os.getenv("CKNEXUS_RESTORE_DATABASE_URL", ""),
-                Path(args.backup_dir),
-                args.rto_seconds,
-            )
-        print(json.dumps(result, sort_keys=True))
-        return 0 if result.get("status") == "PASS" else 1
-    except DRBlocked as exc:
-        print(json.dumps({"status": "BLOCKED", "reason": str(exc)}, sort_keys=True))
-        return 2
-    except Exception as exc:
-        print(
-            json.dumps({"status": "FAIL", "reason": f"{type(exc).__name__}:{exc}"}, sort_keys=True)
-        )
-        return 1
-
-
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit("Use scripts/gate_postgres_dr.py; direct filesystem paths are not accepted.")

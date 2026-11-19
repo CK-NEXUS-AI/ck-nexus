@@ -98,3 +98,43 @@ def test_libpq_connection_preserves_passwordless_url():
         assert env["PGDATABASE"] == "catalog"
         assert "PGPASSWORD" not in env
         assert "PGPASSFILE" not in env
+
+
+def test_postgres_dr_gate_uses_internal_temp_path_and_in_process_helpers(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    from scripts import gate_postgres_dr
+
+    monkeypatch.setenv("CKNEXUS_DATABASE_URL", "postgresql://source:secret@db.example/source")
+    monkeypatch.setenv(
+        "CKNEXUS_RESTORE_DATABASE_URL",
+        "postgresql://target:secret@db.example/source_restore",
+    )
+    monkeypatch.setenv("CKNEXUS_ENVIRONMENT", "staging")
+    monkeypatch.setenv("CKNEXUS_RESTORE_TARGET_CLASS", "isolated-dr")
+    monkeypatch.setenv("CKNEXUS_ALLOW_DESTRUCTIVE_RESTORE", "YES")
+    monkeypatch.setattr(gate_postgres_dr.shutil, "which", lambda name: f"/usr/bin/{name}")
+    calls: dict[str, Path] = {}
+
+    def fake_backup(source_url: str, output_dir: Path, rpo_seconds: int) -> dict[str, object]:
+        assert source_url.startswith("postgresql://source:")
+        assert output_dir.name == "backup"
+        assert "cknexus-r19-dr-" in str(output_dir.parent)
+        output_dir.mkdir()
+        calls["backup"] = output_dir
+        return {"status": "PASS", "sha256": "a" * 64}
+
+    def fake_restore(
+        source_url: str, target_url: str, backup_dir: Path, rto_seconds: int
+    ) -> dict[str, object]:
+        assert backup_dir == calls["backup"]
+        assert backup_dir.is_dir()
+        return {"status": "PASS", "duration_seconds": 1.25}
+
+    monkeypatch.setattr(gate_postgres_dr.postgres_dr, "backup", fake_backup)
+    monkeypatch.setattr(gate_postgres_dr.postgres_dr, "restore", fake_restore)
+
+    assert gate_postgres_dr.main() == 0
+    output = __import__("json").loads(capsys.readouterr().out)
+    assert output["status"] == "PASS"
+    assert output["backup_sha256"] == "a" * 64
