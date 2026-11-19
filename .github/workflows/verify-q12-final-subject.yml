@@ -1,17 +1,15 @@
 name: Verify Q12 final release subject on delegated self-hosted Linux
 
 on:
-  push:
-    branches: [verify/q12-final-subject]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 env:
-  Q12_SOURCE_SHA: 512837c8b1a3e6e8e844252a1b0781d8de011b07
-  Q12_SOURCE_TREE: 43f9cb9691a0d028a1ef396a0a475c5cd80c4a99
-  Q12_RELEASE_SUBJECT: 96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f
+  Q12_SOURCE_SHA: d6c05ea17a93da6d1ec45f51f13b4c729dc99cc5
+  Q12_SOURCE_TREE: 3b0f56f3e85e60ce45f63cdad8e00f2b76243423
+  Q12_RELEASE_SUBJECT: d6f6399860a2afaa57cb747b0dbef1af23f7eb81e546cc76fa9dfb98c076bd00
   CKNEXUS_ENVIRONMENT: staging
   CKNEXUS_AGNES_CGROUP_ROOT: ${{ vars.CKNEXUS_AGNES_CGROUP_ROOT }}
 
