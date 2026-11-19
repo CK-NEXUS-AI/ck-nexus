@@ -1661,3 +1661,13 @@ footer { border-top: 1px solid var(--line); }
   .capability-grid article { min-height: 125px; }
   .runtime-table > div { grid-template-columns: 1fr; gap: 2px; }
 }
+
+.quickstart-panel, .operating-rules { margin: 0 0 64px; }
+.quickstart-copy { margin: 18px 0 8px; color: var(--muted); font-size: 11px; font-weight: 700; }
+.quickstart-panel pre { overflow-x: auto; margin: 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--text); font-size: 11px; line-height: 1.9; }
+.quickstart-panel pre code { color: inherit; white-space: pre; }
+.operating-rules ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 26px; margin: 0; padding: 0; list-style: none; }
+.operating-rules li { position: relative; padding: 12px 14px 12px 28px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--muted); font-size: 11px; line-height: 1.8; }
+.operating-rules li::before { position: absolute; top: 17px; left: 12px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); content: ""; }
+.operating-rules code { color: var(--home-cyan); font-size: 10px; }
+@media (max-width: 560px) { .operating-rules ul { grid-template-columns: 1fr; } }

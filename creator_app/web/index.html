@@ -132,7 +132,13 @@
             <a href="/development"><span>03</span><strong>Development evidence</strong><small>Internal dashboard · /api/dev-status</small></a>
             <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/INTEGRATION_HUB.md"><span>04</span><strong>Configure integrations</strong><small>Integration Hub</small></a>
             <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/SECURITY_AUDIT.md"><span>05</span><strong>Security and tests</strong><small>Security Audit / Test Report</small></a>
-            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/Q10_Q16_CLOSURE_CONTRACT.md"><span>06</span><strong>Prepare a release</strong><small>Release Status / Q10–Q16 Contract</small></a>
+            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/Q10_Q16_CLOSURE_CONTRACT.md"><span>06</span><strong>Q10–Q16 closure gates</strong><small>Mandatory release evidence</small></a>
+            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/CK-NEXUS-AGNES-MASTER-UPGRADE.md"><span>07</span><strong>Agnes orchestration</strong><small>Agnes Master Upgrade</small></a>
+            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/DEVELOPMENT_COUNCIL.md"><span>08</span><strong>Agent governance</strong><small>Development Council</small></a>
+            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/RELEASE_STATUS.md"><span>09</span><strong>Release decision</strong><small>Current NO-GO status and evidence</small></a>
+            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/RELEASE_CHECKLIST.md"><span>10</span><strong>Release checklist</strong><small>Pre-release verification steps</small></a>
+            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/TEST_REPORT.md"><span>11</span><strong>Test report</strong><small>Test coverage and recorded results</small></a>
+            <a href="https://github.com/spinlnw10-art/ck-nexus/blob/main/docs/SELLER_CHECKLIST.md"><span>12</span><strong>Customer delivery</strong><small>Seller checklist</small></a>
           </div>
         </section>
 
@@ -149,6 +155,39 @@
             <div><code>GET /api/dev-status</code><span>Authenticated development snapshot</span></div>
           </div>
           <p class="runtime-note">Canonical entry point: <code>python3 -m creator_app.unified</code>. The running build's OpenAPI document defines the actual API surface.</p>
+        </section>
+
+        <section class="quickstart-panel reveal-item" aria-labelledby="quickstart-heading">
+          <div class="overview-heading">
+            <p class="eyebrow">PYTHON 3.11+ / LOCAL DEVELOPMENT</p>
+            <h2 id="quickstart-heading">Run the canonical application.</h2>
+          </div>
+          <p class="quickstart-copy">Linux / macOS:</p>
+          <pre><code>cp .env.example .env.local
+python3 -m venv .venv
+. .venv/bin/activate
+python3 -m pip install -e ".[dev]"
+python3 -m creator_app.unified</code></pre>
+          <p class="quickstart-copy">Windows PowerShell:</p>
+          <pre><code>Copy-Item .env.example .env.local
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m creator_app.unified</code></pre>
+          <p class="runtime-note">Open <code>http://127.0.0.1:8000</code>. Use <code>.env.local</code> for local secrets; never commit it.</p>
+        </section>
+
+        <section class="operating-rules reveal-item" aria-labelledby="rules-heading">
+          <div class="overview-heading">
+            <p class="eyebrow">SECURITY / AUTHORITY BOUNDARIES</p>
+            <h2 id="rules-heading">Operate safely. Verify every claim.</h2>
+          </div>
+          <ul>
+            <li>Keep Production status at NO-GO until all mandatory gates pass on the exact release commit.</li>
+            <li>Keep MCP bound to <code>127.0.0.1:8765</code>; do not expose it directly to the public Internet.</li>
+            <li>Keep credentials server-side. Never place keys, tokens, or private keys in source, browser code, screenshots, or logs.</li>
+            <li>Reconcile repository, runtime, test, and release evidence before deployment.</li>
+            <li>External tools are adapters only; CK-NEXUS Core retains policy and release authority.</li>
+          </ul>
         </section>
 
         <div class="workspace-grid reveal-item">
