@@ -70,7 +70,7 @@ jobs:
           rc = int(rc_text) if rc_text.isdigit() else 2
           output = Path("q11-output.txt").read_text(encoding="utf-8") if Path("q11-output.txt").exists() else ""
           secret = os.getenv("OPENAI_API_KEY", "").strip()
-          diagnostic = output[:500].replace(secret, "[REDACTED]") if secret else output[:500]
+          diagnostic = output[-1500:].replace(secret, "[REDACTED]") if secret else output[-1500:]
           sentinel = "CK-NEXUS-P0-SMOKE-PASS" in output
           result = "PASS" if rc == 0 and sentinel else ("BLOCKED" if rc == 2 else "FAIL")
           evidence = {
