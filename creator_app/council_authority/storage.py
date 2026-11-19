@@ -95,7 +95,9 @@ class AuthorityStore:
     def evidence_quality(
         self, refs: list[str], *, task_id: str | None = None, allowed_kinds: list[str] | None = None
     ) -> float:
-        if not refs:
+        # Evidence used for an authorization decision must always be scoped to
+        # an explicit task. Unscoped evidence is never acceptable at the L3 gate.
+        if not refs or not isinstance(task_id, str) or not task_id.strip():
             return 0.0
         vals = []
         with self._db() as db:
@@ -103,7 +105,7 @@ class AuthorityStore:
                 row = db.execute("SELECT * FROM evidence WHERE ref=?", (ref,)).fetchone()
                 if not row or not row["verified"] or row["revoked"]:
                     continue
-                if task_id and row["task_id"] not in (None, task_id):
+                if row["task_id"] != task_id:
                     continue
                 if allowed_kinds and row["kind"] not in allowed_kinds:
                     continue
@@ -171,8 +173,13 @@ class AuthorityStore:
         }
 
     def consume_grant(
-        self, grant_id: str, *, agent_id: str, capability_id: str, params_hash: str
+        self, grant_id: str, *, agent_id: str, capability_id: str, params_hash: str,
+        task_id: str | None = None
     ) -> bool:
+        # A grant without an independently supplied task scope is not consumable.
+        # This prevents an unscoped grant from being replayed across task boundaries.
+        if not isinstance(task_id, str) or not task_id.strip():
+            return False
         # Explicitly close every connection and rollback every failed transaction.
         # Expiry and used-state checks happen under the same write lock as consume.
         with self._lock:
@@ -187,6 +194,7 @@ class AuthorityStore:
                     and row["agent_id"] == agent_id
                     and row["capability_id"] == capability_id
                     and row["params_hash"] == params_hash
+                    and row["task_id"] == task_id
                 )
                 if not ok:
                     db.execute("ROLLBACK")

@@ -51,7 +51,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, out)
             if self.path == "/v1/grants/consume":
                 ok = self.server.authority.consume_grant(
-                    ident, body["executionGrant"], body.get("params", {})
+                    ident,
+                    body["executionGrant"],
+                    body.get("params", {}),
+                    expected_task_id=body.get("expectedTaskId"),
                 )
                 return self._json(200 if ok else 403, {"ok": ok})
             if self.path == "/v1/evidence/seed":
@@ -85,6 +88,7 @@ class Handler(BaseHTTPRequestHandler):
                     body["decisionId"],
                     body["domain"],
                     proposals,
+                    task_id=body.get("taskId"),
                     high_risk=body.get("highRisk", False),
                 )
                 return self._json(200, out)

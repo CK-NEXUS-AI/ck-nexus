@@ -8,9 +8,10 @@ class CapabilityClient {
     const data = await res.json(); if (!res.ok) { const e=new Error(data.message||data.error||'authority denied'); e.code=data.error||`HTTP_${res.status}`; throw e; } return data;
   }
   async invoke(capabilityId, params = {}, ctx = {}) {
+    if (ctx.taskId !== undefined && (typeof ctx.taskId !== 'string' || !ctx.taskId.trim())) throw Object.assign(new Error('taskId must be a non-empty string'), {code:'INVALID_TASK_SCOPE'});
     const decision = await this._post('/v1/enforce', { capabilityId, params, ctx });
     const handler = this.handlers.get(capabilityId); if (!handler) throw Object.assign(new Error('no local handler registered'), {code:'NO_HANDLER'});
-    const consumed = await this._post('/v1/grants/consume', { executionGrant: decision.executionGrant, params });
+    const consumed = await this._post('/v1/grants/consume', { executionGrant: decision.executionGrant, params, expectedTaskId: ctx.taskId });
     if (!consumed.ok) throw Object.assign(new Error('execution grant rejected'), {code:'GRANT_REJECTED'});
     return handler(params, { ...ctx, executionGrant: decision.executionGrant });
   }

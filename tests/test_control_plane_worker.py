@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 
 import pytest
@@ -7,9 +8,23 @@ import pytest
 from creator_app.control_plane.task_store import TaskStore
 from creator_app.control_plane.verification import ControlPlaneVerifier
 from creator_app.control_plane.worker import RepairWorker
+from creator_app.council_authority.identity import IdentityVerifier
+
+_TEST_SECRET = "test_secret_key_must_be_at_least_32_bytes_long_ok"
 
 
-def test_worker_executes_verifies_and_finishes(tmp_path):
+@pytest.fixture(autouse=True)
+def _isolate_identity_secret(monkeypatch):
+    monkeypatch.setenv("CK_IDENTITY_SECRET", _TEST_SECRET)
+
+
+def _test_approver_token():
+    return IdentityVerifier(os.environ["CK_IDENTITY_SECRET"].encode()).issue(
+        service_id="test-authority", agent_id="test-approver", role="admin"
+    )
+
+
+def test_worker_waits_for_approval_without_task_bound_grant(tmp_path):
     store = TaskStore(tmp_path / "queue.sqlite3")
     store.enqueue("job-1", {"handler": "echo", "description": "safe canary"})
     worker = RepairWorker(
@@ -19,16 +34,18 @@ def test_worker_executes_verifies_and_finishes(tmp_path):
             "echo": lambda payload: {
                 "ok": True,
                 "evidence_refs": ["evidence://job-1"],
+                "evidence_reference": "evidence://job-1",
+                "approver_token": _test_approver_token(),
             }
         },
         worker_id="worker-1",
     )
     result = worker.run_once()
-    assert result.state == "completed"
-    assert result.release_evidence is True
+    assert result.state == "awaiting_approval"
+    assert result.release_evidence is False
     assert result.production_status == "NO-GO"
     assert result.external_mutation_authorized is False
-    assert store.get("job-1")["state"] == "completed"
+    assert store.get("job-1")["state"] == "awaiting_approval"
 
 
 def test_worker_handler_failure_is_bounded_and_failed(tmp_path):
@@ -99,6 +116,8 @@ def test_worker_has_no_production_authority(tmp_path):
             "echo": lambda payload: {
                 "ok": True,
                 "evidence_refs": ["evidence://job-1"],
+                "evidence_reference": "evidence://job-1",
+                "approver_token": _test_approver_token(),
             }
         },
         worker_id="worker-1",
@@ -165,6 +184,8 @@ def test_worker_cannot_finish_after_lease_expiry(tmp_path):
             "echo": lambda payload: {
                 "ok": True,
                 "evidence_refs": ["evidence://job-1"],
+                "evidence_reference": "evidence://job-1",
+                "approver_token": _test_approver_token(),
             }
         },
         worker_id="worker-1",
@@ -174,3 +195,36 @@ def test_worker_cannot_finish_after_lease_expiry(tmp_path):
     result = worker.run_once()
     assert result.state == "failed"
     assert store.get("job-1")["state"] == "running"
+
+
+def test_worker_dispatches_successful_completion_with_task_bound_grant(tmp_path, monkeypatch):
+    store = TaskStore(tmp_path / "queue.sqlite3")
+    store.enqueue("job-complete", {"handler": "echo"})
+    captured = {}
+
+    def finish(job_id, **kwargs):
+        captured["job_id"] = job_id
+        captured.update(kwargs)
+
+    monkeypatch.setattr(store, "finish", finish)
+    grant = {"grant_id": "test-grant", "signature": "test-signature"}
+    worker = RepairWorker(
+        store=store,
+        verifier=ControlPlaneVerifier(max_repairs=0),
+        handlers={
+            "echo": lambda _payload: {
+                "ok": True,
+                "evidence_refs": ["evidence://job-complete"],
+                "evidence_reference": "evidence://job-complete",
+                "execution_grant": grant,
+            }
+        },
+        worker_id="worker-complete",
+    )
+
+    result = worker.run_once()
+
+    assert result.state == "completed"
+    assert captured["job_id"] == "job-complete"
+    assert captured["success"] is True
+    assert captured["execution_grant"] == grant

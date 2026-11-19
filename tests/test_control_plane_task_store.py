@@ -1,12 +1,27 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 
 import pytest
 
 from creator_app.control_plane.task_store import TaskStore
+from creator_app.council_authority.identity import IdentityVerifier
+
+_TEST_SECRET = "test_secret_key_must_be_at_least_32_bytes_long_ok"
+
+
+@pytest.fixture(autouse=True)
+def _isolate_identity_secret(monkeypatch):
+    monkeypatch.setenv("CK_IDENTITY_SECRET", _TEST_SECRET)
+
+
+def _test_approver_token():
+    return IdentityVerifier(os.environ["CK_IDENTITY_SECRET"].encode()).issue(
+        service_id="test-authority", agent_id="test-approver", role="admin"
+    )
 
 
 def test_task_store_persists_checkpoint_and_result(tmp_path) -> None:
@@ -28,16 +43,23 @@ def test_task_store_persists_checkpoint_and_result(tmp_path) -> None:
         worker_id="worker-a",
         lease_token=token,
     )
-    store.finish(
-        "job-1", success=True, result={"passed": 8}, worker_id="worker-a", lease_token=token
-    )
+    with pytest.raises(PermissionError, match="task-bound Core/L3 capability grant"):
+        store.finish(
+            "job-1",
+            success=True,
+            result={"passed": 8},
+            evidence_reference="evidence://job-1",
+            approver_token=_test_approver_token(),
+            worker_id="worker-a",
+            lease_token=token,
+        )
 
     reopened = TaskStore(db_path)
     item = reopened.get("job-1")
     assert item is not None
-    assert item["state"] == "completed"
+    assert item["state"] == "running"
     assert json.loads(item["checkpoint_json"]) == {"stage": "tests", "completed": ["unit"]}
-    assert json.loads(item["result_json"]) == {"passed": 8}
+    assert item["result_json"] is None
 
 
 def test_expired_running_job_returns_to_queue(tmp_path) -> None:
@@ -110,6 +132,8 @@ def test_expired_lease_cannot_write_checkpoint_or_finish(tmp_path) -> None:
             "job-expired",
             success=True,
             result={"late": True},
+            evidence_reference="evidence://job-expired",
+            approver_token=_test_approver_token(),
             worker_id="worker-a",
             lease_token=claimed["lease_token"],
         )
@@ -139,7 +163,12 @@ def test_stale_worker_cannot_write_after_job_is_reclaimed(tmp_path) -> None:
         )
     with pytest.raises(ValueError, match="valid lease"):
         store.finish(
-            "job-fenced", success=True, worker_id="worker-a", lease_token=first["lease_token"]
+            "job-fenced",
+            success=True,
+            evidence_reference="evidence://job-fenced",
+            approver_token=_test_approver_token(),
+            worker_id="worker-a",
+            lease_token=first["lease_token"],
         )
 
 
@@ -162,7 +191,14 @@ def test_lease_token_fences_stale_worker_even_when_worker_id_is_reused(tmp_path)
             "job-lease-token", {"stage": "stale"}, worker_id="worker-a", lease_token=old_token
         )
     with pytest.raises(ValueError, match="valid lease"):
-        store.finish("job-lease-token", success=True, worker_id="worker-a", lease_token=old_token)
+        store.finish(
+            "job-lease-token",
+            success=True,
+            evidence_reference="evidence://job-lease-token",
+            approver_token=_test_approver_token(),
+            worker_id="worker-a",
+            lease_token=old_token,
+        )
 
 
 def test_legacy_database_migrates_lease_token_and_status_hides_token(tmp_path) -> None:
@@ -217,11 +253,228 @@ def test_has_open_tasks_tracks_queued_and_running_states(tmp_path: Path):
     assert claimed is not None
     assert store.has_open_tasks() is True
 
+    with pytest.raises(PermissionError, match="task-bound Core/L3 capability grant"):
+        store.finish(
+            "open-task",
+            success=True,
+            result={},
+            evidence_reference="evidence://open-task",
+            approver_token=_test_approver_token(),
+            worker_id="test-worker",
+            lease_token=claimed["lease_token"],
+        )
+    assert store.has_open_tasks() is True
+
+
+def test_task_bound_l3_grant_completes_and_consumes_atomically(tmp_path) -> None:
+    import hashlib
+    import hmac
+
+    from creator_app.council_authority.storage import AuthorityStore
+
+    db_path = tmp_path / "shared-authority-tasks.sqlite3"
+    secret = b"completion-grant-secret-32-bytes-minimum"
+    store = TaskStore(db_path, grant_secret=secret)
+    authority = AuthorityStore(str(db_path))
+    job_id = "job-l3-complete"
+    evidence_ref = "evidence://job-l3-complete"
+    store.enqueue(job_id, {"description": "verified completion"})
+    claimed = store.claim_next("worker-l3", lease_seconds=60)
+    assert claimed is not None
+    authority.seed_evidence(
+        ref=evidence_ref,
+        kind="test_report",
+        digest=hashlib.sha256(b"verified").hexdigest(),
+        task_id=job_id,
+        quality=1.0,
+        verified=True,
+    )
+    params_hash = TaskStore._completion_params_hash(
+        job_id, evidence_ref, {"verified": True, "evidence_reference": evidence_ref}
+    )
+    grant = authority.create_grant(
+        agent_id="OWNER",
+        capability_id="control_plane.task.complete",
+        params_hash=params_hash,
+        task_id=job_id,
+        ttl_seconds=60,
+    )
+    signature = hmac.new(
+        secret, json.dumps(grant, sort_keys=True, separators=(",", ":")).encode(), hashlib.sha256
+    ).hexdigest()
+    signed_grant = {**grant, "signature": signature}
+
     store.finish(
-        "open-task",
+        job_id,
         success=True,
-        result={},
-        worker_id="test-worker",
+        result={"verified": True},
+        evidence_reference=evidence_ref,
+        execution_grant=signed_grant,
+        worker_id="worker-l3",
         lease_token=claimed["lease_token"],
     )
+
+    task = store.get(job_id)
+    assert task is not None and task["state"] == "completed"
+    completed_result = json.loads(task["result_json"])
+    assert completed_result["evidence_reference"] == evidence_ref
+    assert completed_result["approver_id"] == "OWNER"
+    checkpoint = json.loads(task["checkpoint_json"])
+    assert checkpoint["state"] == "completed"
+    assert checkpoint["evidence_reference"] == evidence_ref
+    assert checkpoint["approver_id"] == "OWNER"
+    with authority._db() as db:
+        row = db.execute(
+            "SELECT used FROM grants WHERE grant_id=?", (grant["grant_id"],)
+        ).fetchone()
+    assert row["used"] == 1
+
+
+@pytest.mark.parametrize(
+    ("evidence_task_id", "verified"),
+    [("another-task", True), ("job-l3-denied", False)],
+)
+def test_l3_completion_grant_rejects_wrong_task_or_unverified_evidence(
+    tmp_path, evidence_task_id, verified
+) -> None:
+    import hashlib
+    import hmac
+
+    from creator_app.council_authority.storage import AuthorityStore
+
+    db_path = tmp_path / "shared-authority.sqlite3"
+    secret = b"completion-grant-secret-32-bytes-minimum"
+    store = TaskStore(db_path, grant_secret=secret)
+    authority = AuthorityStore(str(db_path))
+    job_id = "job-l3-denied"
+    evidence_ref = "evidence://unverified"
+    store.enqueue(job_id, {"description": "must stay running"})
+    claimed = store.claim_next("worker-l3", lease_seconds=60)
+    assert claimed is not None
+    authority.seed_evidence(
+        ref=evidence_ref,
+        kind="test_report",
+        digest=hashlib.sha256(b"bad").hexdigest(),
+        task_id=evidence_task_id,
+        quality=1.0,
+        verified=verified,
+    )
+    params_hash = TaskStore._completion_params_hash(
+        job_id,
+        evidence_ref,
+        {"verified": True, "evidence_reference": evidence_ref},
+    )
+    grant = authority.create_grant(
+        agent_id="OWNER",
+        capability_id="control_plane.task.complete",
+        params_hash=params_hash,
+        task_id=job_id,
+        ttl_seconds=60,
+    )
+    signature = hmac.new(
+        secret, json.dumps(grant, sort_keys=True, separators=(",", ":")).encode(), hashlib.sha256
+    ).hexdigest()
+    with pytest.raises(PermissionError, match="task-bound Core/L3 capability grant"):
+        store.finish(
+            job_id,
+            success=True,
+            result={"verified": True},
+            evidence_reference=evidence_ref,
+            execution_grant={**grant, "signature": signature},
+            worker_id="worker-l3",
+            lease_token=claimed["lease_token"],
+        )
+    task = store.get(job_id)
+    assert task is not None and task["state"] == "running" and task["result_json"] is None
+    with authority._db() as db:
+        row = db.execute(
+            "SELECT used FROM grants WHERE grant_id=?", (grant["grant_id"],)
+        ).fetchone()
+    assert row["used"] == 0
+
+
+def test_pending_approval_resumes_only_with_task_bound_l3_grant(tmp_path) -> None:
+    import hashlib
+    import hmac
+
+    from creator_app.council_authority.storage import AuthorityStore
+
+    db_path = tmp_path / "pending-approval.sqlite3"
+    secret = b"completion-grant-secret-32-bytes-minimum"
+    store = TaskStore(db_path, grant_secret=secret)
+    authority = AuthorityStore(str(db_path))
+    job_id = "job-pending-approval"
+    evidence_ref = "evidence://pending-approval"
+    store.enqueue(job_id, {"description": "await owner approval"})
+    claimed = store.claim_next("worker", lease_seconds=60)
+    assert claimed is not None
+    store.request_approval(
+        job_id,
+        result={"tests_ok": True},
+        evidence_reference=evidence_ref,
+        worker_id="worker",
+        lease_token=claimed["lease_token"],
+    )
+    pending = store.get(job_id)
+    assert pending is not None and pending["state"] == "awaiting_approval"
+    assert store.has_open_tasks() is True
+
+    authority.seed_evidence(
+        ref=evidence_ref,
+        kind="test_report",
+        digest=hashlib.sha256(b"ok").hexdigest(),
+        task_id=job_id,
+        quality=1.0,
+        verified=True,
+    )
+    grant = authority.create_grant(
+        agent_id="OWNER",
+        capability_id="control_plane.task.complete",
+        params_hash=TaskStore._completion_params_hash(
+            job_id, evidence_ref, {"tests_ok": True, "evidence_reference": evidence_ref}
+        ),
+        task_id=job_id,
+        ttl_seconds=60,
+    )
+    signature = hmac.new(
+        secret, json.dumps(grant, sort_keys=True, separators=(",", ":")).encode(), hashlib.sha256
+    ).hexdigest()
+    store.approve_pending_completion(
+        job_id,
+        execution_grant={**grant, "signature": signature},
+        evidence_reference=evidence_ref,
+    )
+    completed = store.get(job_id)
+    assert completed is not None and completed["state"] == "completed"
+    completed_result = json.loads(completed["result_json"])
+    assert completed_result["approver_id"] == "OWNER"
+    checkpoint = json.loads(completed["checkpoint_json"])
+    assert checkpoint["state"] == "completed"
+    assert checkpoint["evidence_reference"] == evidence_ref
+    assert checkpoint["approver_id"] == "OWNER"
     assert store.has_open_tasks() is False
+
+
+def test_old_task_database_migrates_to_approval_state_without_data_loss(tmp_path) -> None:
+    db_path = tmp_path / "legacy.sqlite3"
+    with sqlite3.connect(db_path) as db:
+        db.execute("""CREATE TABLE control_plane_tasks (
+            job_id TEXT PRIMARY KEY, payload_json TEXT NOT NULL,
+            state TEXT NOT NULL CHECK (state IN ('queued','running','completed','failed')),
+            created_at REAL NOT NULL, updated_at REAL NOT NULL, worker_id TEXT,
+            lease_until REAL, lease_token TEXT, attempts INTEGER NOT NULL DEFAULT 0,
+            checkpoint_json TEXT, result_json TEXT, error_text TEXT
+        )""")
+        db.execute(
+            "INSERT INTO control_plane_tasks("
+            "job_id,payload_json,state,created_at,updated_at"
+            ") VALUES('legacy','{}','queued',1,1)"
+        )
+    store = TaskStore(db_path)
+    item = store.get("legacy")
+    assert item is not None and item["state"] == "queued"
+    with store._connect() as db:
+        schema = db.execute(
+            "SELECT sql FROM sqlite_master WHERE name='control_plane_tasks'"
+        ).fetchone()[0]
+    assert "awaiting_approval" in schema

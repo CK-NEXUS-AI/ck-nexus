@@ -86,11 +86,12 @@ def test_successful_run_requires_tests_and_keeps_head_unchanged(tmp_path: Path):
     result = AutoDeveloper(
         store, repo=repo, evidence_dir=tmp_path / "evidence", runner=runner
     ).run_once()
-    assert result.state == "verified"
+    assert result.state == "awaiting_approval"
+    assert result.reason == "approval_required"
     assert result.tests_ok is True
     assert opencode_commands and "--dir" in opencode_commands[0]
     assert "--auto" not in opencode_commands[0]
-    assert store.get("n8n-job-1")["state"] == "completed"
+    assert store.get("n8n-job-1")["state"] == "awaiting_approval"
     evidence = json.loads(Path(result.evidence_path).read_text(encoding="utf-8"))
     assert evidence["head_unchanged"] is True
     assert evidence["index_clean"] is True
@@ -134,7 +135,9 @@ def test_dirty_primary_repo_uses_isolated_git_worktree(tmp_path: Path):
         runner=runner,
     ).run_once()
 
-    assert result.state == "verified"
+    assert result.state == "awaiting_approval"
+    assert result.reason == "approval_required"
+    assert store.get("n8n-job-1")["state"] == "awaiting_approval"
     assert (repo / "user-change.txt").read_text(encoding="utf-8") == "preserve me\n"
     assert (repo / "creator_app" / "n8n_intelligence" / "analysis.py").read_text(
         encoding="utf-8"

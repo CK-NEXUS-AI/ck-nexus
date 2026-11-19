@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
+import os
 import time
 from dataclasses import dataclass
 
@@ -68,6 +69,37 @@ class IdentityVerifier:
             raise IdentityError("invalid token issuer")
         if int(data.get("exp", 0)) <= int(time.time()):
             raise IdentityError("service token expired")
-        return CallerIdentity(
-            str(data["service_id"]), str(data["agent_id"]), str(data.get("role", "agent"))
-        )
+        service_id = data.get("service_id")
+        agent_id = data.get("agent_id")
+        role = data.get("role", "agent")
+        if (
+            not isinstance(service_id, str) or not service_id.strip()
+            or not isinstance(agent_id, str) or not agent_id.strip()
+            or not isinstance(role, str) or not role.strip()
+        ):
+            raise IdentityError("service identity claims must be non-empty strings")
+        return CallerIdentity(service_id, agent_id, role)
+
+
+def verify_token(token: str) -> CallerIdentity:
+    """Verify an approver token using the configured Core/L3 identity secret.
+
+    Missing or weak secrets fail closed; no development fallback is accepted.
+    Only identities carrying the authority's admin role may approve task completion.
+    """
+    secret = os.environ.get("CK_IDENTITY_SECRET")
+    if not isinstance(secret, str) or len(secret.encode("utf-8")) < 32:
+        raise IdentityError("CK_IDENTITY_SECRET is missing or too short")
+    if not isinstance(token, str) or not token:
+        raise IdentityError("approver token is required")
+    try:
+        identity = IdentityVerifier(secret.encode("utf-8")).verify(token)
+    except IdentityError:
+        raise
+    except Exception as exc:
+        raise IdentityError("invalid approver token") from exc
+    if identity.role != "admin":
+        raise IdentityError("approver identity must have admin role")
+    if not identity.agent_id.strip() or not identity.service_id.strip():
+        raise IdentityError("approver identity claims are incomplete")
+    return identity
