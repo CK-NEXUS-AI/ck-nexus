@@ -201,6 +201,8 @@ def restore(
         proc = subprocess.run(
             [
                 pg_restore,
+                "--dbname",
+                _identity(target_url).database,
                 "--clean",
                 "--if-exists",
                 "--no-owner",
