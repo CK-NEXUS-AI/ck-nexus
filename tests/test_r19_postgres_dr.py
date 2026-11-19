@@ -78,6 +78,10 @@ def test_libpq_connection_uses_environment_without_writing_password_to_disk(
 ):
     monkeypatch.setenv("CKNEXUS_DATABASE_URL", "postgresql://env-user:placeholder@db.example/source")
     monkeypatch.setenv("PGPASSFILE", "/tmp/old-passfile")
+    monkeypatch.setenv("PGSSLMODE", "disable")
+    monkeypatch.setenv("PGOPTIONS", "-c statement_timeout=0")
+    monkeypatch.setenv("PGSSLROOTCERT", "/tmp/untrusted-root.crt")
+    monkeypatch.setenv("PGHOSTADDR", "192.0.2.1")
     url = "postgresql://ck-user:unit-test-value@db.example:5433/source_restore?sslmode=require"
     with postgres_dr._libpq_connection(url) as env:
         assert env["PGHOST"] == "db.example"
@@ -86,16 +90,23 @@ def test_libpq_connection_uses_environment_without_writing_password_to_disk(
         assert env["PGUSER"] == "ck-user"
         assert env["PGPASSWORD"] == "unit-test-value"
         assert env["PGSSLMODE"] == "require"
+        assert "PGOPTIONS" not in env
+        assert "PGSSLROOTCERT" not in env
+        assert "PGHOSTADDR" not in env
         assert "CKNEXUS_DATABASE_URL" not in env
         assert "CKNEXUS_RESTORE_DATABASE_URL" not in env
         assert "PGPASSFILE" not in env
 
 
-def test_libpq_connection_preserves_passwordless_url():
+def test_libpq_connection_preserves_passwordless_url(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("PGSSLMODE", "disable")
+    monkeypatch.setenv("PGOPTIONS", "-c search_path=public")
     url = "postgresql://reader@db.example:5432/catalog?sslmode=verify-full"
     with postgres_dr._libpq_connection(url) as env:
         assert env["PGHOST"] == "db.example"
         assert env["PGDATABASE"] == "catalog"
+        assert env["PGSSLMODE"] == "verify-full"
+        assert "PGOPTIONS" not in env
         assert "PGPASSWORD" not in env
         assert "PGPASSFILE" not in env
 

@@ -53,16 +53,14 @@ def _libpq_connection(url: str) -> Iterator[dict[str, str]]:
     port = parsed.port or 5432
     database = unquote(parsed.path.lstrip("/"))
     env = os.environ.copy()
-    for name in (
-        "CKNEXUS_DATABASE_URL",
-        "CKNEXUS_RESTORE_DATABASE_URL",
-        "PGHOSTADDR",
-        "PGSERVICE",
-        "PGSERVICEFILE",
-        "PGPASSFILE",
-        "PGPASSWORD",
-    ):
-        env.pop(name, None)
+    # Do not let inherited libpq variables silently override the connection URL
+    # (for example PGSSLMODE=disable or PGOPTIONS changing session behavior).
+    for name in tuple(env):
+        if name.startswith("PG") or name in {
+            "CKNEXUS_DATABASE_URL",
+            "CKNEXUS_RESTORE_DATABASE_URL",
+        }:
+            env.pop(name, None)
     env.update(PGHOST=host, PGPORT=str(port), PGDATABASE=database)
     if username is not None:
         env["PGUSER"] = username
