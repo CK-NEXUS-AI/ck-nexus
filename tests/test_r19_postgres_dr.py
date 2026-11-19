@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from pathlib import Path
+import io
 
 import pytest
 
@@ -56,18 +56,18 @@ def test_restore_boundary_accepts_isolated_target():
     assert target.database == "prod_restore"
 
 
-def test_verify_dump_checksum(tmp_path: Path):
-    dump = tmp_path / "postgres.dump"
-    dump.write_bytes(b"safe fixture")
-    digest = hashlib.sha256(dump.read_bytes()).hexdigest()
-    (tmp_path / "SHA256SUMS").write_text(f"{digest}  postgres.dump\n")
-    result = postgres_dr.verify_dump(tmp_path)
-    assert result["status"] == "PASS"
-    assert result["sha256"] == digest
+def test_hash_stream_rewinds_and_returns_checksum_and_size():
+    stream = io.BytesIO(b"safe fixture")
+    digest, size = postgres_dr._hash_stream(stream)
+    assert digest == hashlib.sha256(b"safe fixture").hexdigest()
+    assert size == len(b"safe fixture")
+    assert stream.tell() == 0
 
 
-def test_verify_dump_rejects_checksum_mismatch(tmp_path: Path):
-    (tmp_path / "postgres.dump").write_bytes(b"changed")
-    (tmp_path / "SHA256SUMS").write_text("0" * 64 + "  postgres.dump\n")
-    with pytest.raises(postgres_dr.DRBlocked, match="checksum"):
-        postgres_dr.verify_dump(tmp_path)
+def test_database_connection_string_is_passed_through_environment_not_argv(monkeypatch):
+    monkeypatch.setenv("PGHOST", "db.example")
+    env = postgres_dr._database_environment("postgresql://user:secret@db.example/app")
+    assert env["PGDATABASE"] == "app"
+    assert env["PGHOST"] == "db.example"
+    assert env["PGUSER"] == "user"
+    assert env["PGPASSWORD"] == "secret"

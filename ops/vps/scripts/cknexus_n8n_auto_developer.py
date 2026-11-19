@@ -26,23 +26,15 @@ def build_parser():
         ),
     )
     p.add_argument("--timeout", type=int, default=int(os.getenv("CKNEXUS_AUTO_DEV_TIMEOUT", "180")))
-    p.add_argument(
-        "--workspace-root",
-        type=Path,
-        default=Path(
-            os.getenv("CKNEXUS_AUTO_DEV_WORKSPACES", "/var/lib/cknexus/n8n-intelligence/worktrees")
-        ),
-    )
     return p
 
 
-def run(repo, task_database, evidence_dir, timeout, workspace_root=None):
+def run(repo, task_database, evidence_dir, timeout):
     result = AutoDeveloper(
         TaskStore(task_database),
         repo=repo,
         evidence_dir=evidence_dir,
         timeout_seconds=timeout,
-        workspace_root=workspace_root,
     ).run_once()
     print(
         json.dumps(
@@ -65,7 +57,7 @@ def run(repo, task_database, evidence_dir, timeout, workspace_root=None):
 def main():
     a = build_parser().parse_args()
     try:
-        return run(a.repo, a.task_database, a.evidence_dir, a.timeout, a.workspace_root)
+        return run(a.repo, a.task_database, a.evidence_dir, a.timeout)
     except Exception:
         print(json.dumps({"ok": False, "error": "auto_developer_initialization_failed"}))
         return 1

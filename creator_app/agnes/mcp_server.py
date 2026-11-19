@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -984,18 +985,64 @@ def _browser_url_denial(url: str) -> str | None:
     return None
 
 
+_BROWSER_ACTIONS = {"status", "open", "text", "title", "url", "screenshot"}
+_SCREENSHOT_PATH_PATTERN = re.compile(
+    re.escape(tempfile.gettempdir()) + r"/cknexus-browser-mcp-[0-9]+\.png\Z"
+)
+
+
 def _run_browser_tool(action: str, argument: str | None = None) -> dict[str, Any]:
-    """Invoke the root-owned allowlisting wrapper; never pass shell text."""
-    command = ["sudo", "-n", _BROWSER_WRAPPER, action]
-    if argument is not None:
-        command.append(argument)
+    """Invoke the fixed privileged wrapper; open URLs are sent over stdin, not argv."""
+    selected_action = action if action in _BROWSER_ACTIONS else None
+    if selected_action is None:
+        return {
+            "ok": False,
+            "error_code": "BROWSER_ACTION_DENIED",
+            "message": "Browser action is not allowed.",
+            "execution_state": "NOT_EXECUTED",
+            "secret_values_exposed": False,
+        }
+    input_value = None
+    if selected_action == "open":
+        if argument is None or _browser_url_denial(argument):
+            return {
+                "ok": False,
+                "error_code": "BROWSER_URL_DENIED",
+                "message": "Only approved HTTPS hosts are allowed.",
+                "execution_state": "NOT_EXECUTED",
+                "secret_values_exposed": False,
+            }
+        input_value = argument + "\n"
+    elif selected_action == "screenshot":
+        if argument is None or not _SCREENSHOT_PATH_PATTERN.fullmatch(argument):
+            return {
+                "ok": False,
+                "error_code": "SCREENSHOT_PATH_DENIED",
+                "message": "Screenshot path is outside the approved temporary-file pattern.",
+                "execution_state": "NOT_EXECUTED",
+                "secret_values_exposed": False,
+            }
+        input_value = argument + "\n"
+    elif argument is not None:
+        return {
+            "ok": False,
+            "error_code": "BROWSER_ARGUMENT_DENIED",
+            "message": "This browser action does not accept an argument.",
+            "execution_state": "NOT_EXECUTED",
+            "secret_values_exposed": False,
+        }
+
+    command = ["sudo", "-n", _BROWSER_WRAPPER, selected_action]
     try:
         completed = subprocess.run(
             command,
+            input=input_value,
             capture_output=True,
             text=True,
             timeout=35,
             check=False,
+            shell=False,
+            close_fds=True,
         )
     except (OSError, subprocess.TimeoutExpired):
         return {
@@ -1013,7 +1060,7 @@ def _run_browser_tool(action: str, argument: str | None = None) -> dict[str, Any
             "execution_state": "NOT_EXECUTED",
             "secret_values_exposed": False,
         }
-    if action == "text":
+    if selected_action == "text":
         payload: Any = completed.stdout[:12000]
     else:
         try:
@@ -1022,7 +1069,7 @@ def _run_browser_tool(action: str, argument: str | None = None) -> dict[str, Any
             payload = {"result": completed.stdout[:4000]}
     return {
         "ok": True,
-        "action": action,
+        "action": selected_action,
         "result": payload,
         "execution_state": "READ_ONLY_BROWSER_ACTION",
         "external_mutation_authorized": False,
