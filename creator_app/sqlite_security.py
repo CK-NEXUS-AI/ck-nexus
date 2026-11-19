@@ -17,6 +17,28 @@ _SIDECAR_SUFFIXES = ("-journal", "-wal", "-shm")
 _DEFAULT_ISOLATION = object()
 
 
+_APPROVED_SQLITE_DATABASE_IDS = {
+    "/var/lib/cknexus/control-plane/tasks.db": "control_plane_var_lib",
+    "/root/.local/state/cknexus/control-plane.sqlite3": "control_plane_user_state",
+    "/var/lib/cknexus/council-authority/evidence.sqlite3": "council_authority_var_lib",
+    "/root/.local/state/cknexus/council-authority/evidence.sqlite3": "council_authority_user_state",
+}
+
+
+def configured_sqlite_database_id(path: str | Path) -> str:
+    """Classify an operator-selected path without returning or opening that path.
+
+    Callers must map the returned identifier to a code-defined ``Path``
+    constant. Unknown values fail closed.
+    """
+    database_id = _APPROVED_SQLITE_DATABASE_IDS.get(os.fspath(path))
+    if database_id is None:
+        raise ValueError(
+            "configured SQLite database path is not an approved CK-NEXUS database path"
+        )
+    return database_id
+
+
 def prepare_private_sqlite_parent(path: str | Path) -> Path:
     """Create a private database directory; never chmod an existing directory."""
     if not hasattr(os, "geteuid") or not hasattr(os, "O_NOFOLLOW"):
@@ -168,7 +190,9 @@ def connect_sqlite_database(
         for checked_path, fd in checked_files.items():
             try:
                 current = os.stat(checked_path, follow_symlinks=False)
-            except FileNotFoundError:
+            except FileNotFoundError as exc:
+                if checked_path == database:
+                    raise OSError("SQLite database path disappeared while connecting") from exc
                 # SQLite may legitimately remove a journal after recovery.
                 continue
             opened = os.fstat(fd)

@@ -432,6 +432,24 @@ def test_sqlite_security_detects_database_path_swap_during_connect(tmp_path, mon
     assert target.read_bytes() == target_before
 
 
+def test_sqlite_database_path_disappearing_during_connect_fails_closed(tmp_path, monkeypatch):
+    import sqlite3
+
+    from creator_app.sqlite_security import connect_sqlite_database
+
+    database = tmp_path / "disappearing.sqlite3"
+    original_connect = sqlite3.connect
+
+    def connect_then_unlink(*args, **kwargs):
+        connection = original_connect(*args, **kwargs)
+        database.unlink()
+        return connection
+
+    monkeypatch.setattr(sqlite3, "connect", connect_then_unlink)
+    with pytest.raises(OSError, match="database path disappeared"):
+        connect_sqlite_database(database, timeout=1)
+
+
 def test_brain_runtime_expands_tilde_journal_path_consistently(tmp_path, monkeypatch):
     home = tmp_path / "home"
     home.mkdir()
