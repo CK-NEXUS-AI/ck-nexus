@@ -1,0 +1,74 @@
+name: Dependency security remediation
+
+on:
+  push:
+    branches: [fix/q10-dependency-vulnerabilities-20261119]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-and-audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install pinned uv
+        run: python -m pip install --upgrade pip 'uv==0.12.4'
+      - name: Upgrade only affected dependency families
+        run: >-
+          uv lock
+          --upgrade-package certifi
+          --upgrade-package filelock
+          --upgrade-package mcp
+          --upgrade-package msgpack
+          --upgrade-package opentelemetry-api
+          --upgrade-package pyjwt
+          --upgrade-package urllib3
+      - name: Frozen environment and quality checks
+        run: |
+          uv lock --check
+          uv sync --all-extras --dev --frozen
+          .venv/bin/python -m compileall -q main.py creator_app services scripts
+          .venv/bin/ruff check main.py creator_app services tests scripts
+          .venv/bin/pytest -q --ignore=tests/test_agnes_execution_kernel_phase2.py --ignore=tests/test_agnes_execution_kernel_phase3.py
+      - name: Audit complete installed dependency set
+        shell: bash
+        run: |
+          set +e
+          .venv/bin/pip-audit --local --skip-editable --progress-spinner off --format json --output q10-pip-audit.json
+          rc=$?
+          echo "Q10_AUDIT_RC=$rc" >> "$GITHUB_ENV"
+          set -e
+          .venv/bin/python - <<'PY'
+          import json
+          data=json.load(open('q10-pip-audit.json',encoding='utf-8'))
+          deps=data.get('dependencies',[]) if isinstance(data,dict) else data
+          rows=[]
+          for dep in deps:
+              if not isinstance(dep,dict):
+                  continue
+              for vuln in dep.get('vulns',[]):
+                  rows.append((dep.get('name'),dep.get('version'),vuln.get('id'),','.join(vuln.get('fix_versions',[]))))
+          print('vulnerabilities=',len(rows))
+          for row in rows:
+              print('\t'.join(str(x or '') for x in row))
+          PY
+      - name: Upload dependency remediation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-remediation-${{ github.sha }}
+          path: |
+            pyproject.toml
+            uv.lock
+            q10-pip-audit.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Require zero dependency vulnerabilities
+        run: test "${Q10_AUDIT_RC:-1}" = '0'

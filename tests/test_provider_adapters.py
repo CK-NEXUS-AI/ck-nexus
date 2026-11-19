@@ -56,3 +56,51 @@ async def test_openai_adapter_uses_broker_without_exposing_key() -> None:
     assert result == "provider result"
     assert captured["api_key"] == "sk-provider-secret"
     assert "sk-provider-secret" not in repr(adapter.__dict__)
+
+
+def test_gemini_provider_adapter_uses_broker_key_and_parses_text() -> None:
+    import asyncio
+    import json
+
+    from creator_app.credential_broker import CredentialId
+    from creator_app.providers import GeminiProviderAdapter
+
+    captured = {}
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps({
+                "candidates": [{
+                    "content": {"parts": [{"text": "Gemini connected"}]}
+                }]
+            }).encode()
+
+    def opener(request, timeout):
+        captured["url"] = request.full_url
+        captured["key_header"] = request.get_header("X-goog-api-key")
+        captured["timeout"] = timeout
+        return Response()
+
+    broker = CredentialBroker(
+        environment={CredentialId.GEMINI_API_KEY: "gemini-test-secret"}
+    )
+    adapter = GeminiProviderAdapter(broker, model="gemini-3.5-flash-lite", opener=opener)
+    assert adapter.is_available()
+    assert asyncio.run(adapter.invoke("hello")) == "Gemini connected"
+    assert captured["key_header"] == "gemini-test-secret"
+    assert "gemini-test-secret" not in captured["url"]
+    assert captured["timeout"] == 90
+
+
+def test_gemini_provider_adapter_is_unavailable_without_key() -> None:
+    from creator_app.credential_broker import CredentialBroker
+    from creator_app.providers import GeminiProviderAdapter
+
+    adapter = GeminiProviderAdapter(CredentialBroker(), model="gemini-3.5-flash-lite")
+    assert adapter.is_available() is False

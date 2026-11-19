@@ -1,0 +1,33 @@
+name: CK-NEXUS Gemini provider smoke
+
+on:
+  push:
+    branches: [fix/q10-dependency-vulnerabilities-20261119]
+    paths:
+      - '.github/workflows/gemini-provider-smoke.yml'
+      - 'scripts/test_gemini_live.py'
+      - 'creator_app/providers.py'
+      - 'creator_app/credential_broker.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Compile provider and smoke script
+        run: python -m py_compile creator_app/providers.py creator_app/credential_broker.py scripts/test_gemini_live.py
+      - name: Run Gemini live smoke test
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-3.5-flash-lite
+        run: python scripts/test_gemini_live.py
