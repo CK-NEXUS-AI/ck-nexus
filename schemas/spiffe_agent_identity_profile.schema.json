@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ck-nexus:schema:spiffe-agent-identity-profile:v1",
+  "title": "CK-NEXUS SPIFFE Agent Identity Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["agent_id", "spiffe_id", "trust_domain", "svid_type", "attestation", "identity_status"],
+  "properties": {
+    "agent_id": {"type": "string", "minLength": 1},
+    "spiffe_id": {"type": "string", "pattern": "^spiffe://[^/]+/.+"},
+    "trust_domain": {"type": "string", "minLength": 1},
+    "svid_type": {"enum": ["X509-SVID", "JWT-SVID"]},
+    "attestation": {"enum": ["VERIFIED", "FAILED", "UNKNOWN", "EXPIRED"]},
+    "identity_status": {"enum": ["ACTIVE", "REJECTED", "QUARANTINED"]},
+    "expires_at": {"type": ["string", "null"], "format": "date-time"},
+    "evidence_ref": {"type": ["string", "null"]},
+    "policy_binding": {"type": ["string", "null"]}
+  }
+}
