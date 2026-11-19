@@ -2,6 +2,9 @@ name: Verify Q11 final release subject
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - verify/q11-final-subject
 
 permissions:
   contents: read
