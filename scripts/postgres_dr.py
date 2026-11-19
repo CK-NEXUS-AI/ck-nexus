@@ -7,10 +7,13 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 import time
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from urllib.parse import urlsplit
+from typing import Iterator
+from urllib.parse import parse_qsl, quote, unquote, urlencode, urlsplit, urlunsplit
 
 REQUIRED_TABLES = ("agnes_idempotency", "creator_runs", "email_journal", "email_outbox")
 
@@ -34,6 +37,49 @@ def _identity(url: str) -> DbIdentity:
     if not parsed.hostname or not database:
         raise DRBlocked("database URL must include host and database name")
     return DbIdentity(parsed.hostname, parsed.port, database)
+
+
+@contextmanager
+def _libpq_connection(url: str) -> Iterator[tuple[str, dict[str, str]]]:
+    """Keep database passwords out of argv by using a private temporary pgpass file."""
+    parsed = urlsplit(url)
+    query = parse_qsl(parsed.query, keep_blank_values=True)
+    query_passwords = [value for key, value in query if key.lower() == "password"]
+    password = (
+        unquote(parsed.password)
+        if parsed.password is not None
+        else (query_passwords[-1] if query_passwords else None)
+    )
+    safe_query = urlencode([(key, value) for key, value in query if key.lower() != "password"])
+    username = unquote(parsed.username) if parsed.username is not None else None
+    host = parsed.hostname or "*"
+    port = parsed.port or 5432
+    database = unquote(parsed.path.lstrip("/")) or "*"
+    host_literal = f"[{host}]" if ":" in host else host
+    authority = f"{quote(username, safe='')}@" if username is not None else ""
+    authority += host_literal
+    if parsed.port is not None:
+        authority += f":{parsed.port}"
+    safe_url = urlunsplit((parsed.scheme, authority, parsed.path, safe_query, parsed.fragment))
+    env = os.environ.copy()
+    env.pop("CKNEXUS_DATABASE_URL", None)
+    env.pop("CKNEXUS_RESTORE_DATABASE_URL", None)
+    if password is None:
+        yield safe_url, env
+        return
+
+    def escape_pgpass(value: str) -> str:
+        return value.replace("\\", "\\\\").replace(":", "\\:")
+
+    with tempfile.TemporaryDirectory(prefix="cknexus-pgpass-") as directory:
+        passfile = Path(directory) / "pgpass"
+        fields = (host, str(port), database, username or "*", password)
+        passfile.write_text(
+            ":".join(escape_pgpass(value) for value in fields) + "\n", encoding="utf-8"
+        )
+        passfile.chmod(0o600)
+        env["PGPASSFILE"] = str(passfile)
+        yield safe_url, env
 
 
 def _same_database(a: DbIdentity, b: DbIdentity) -> bool:
@@ -78,21 +124,16 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def _run(
-    cmd: list[str], *, env: dict[str, str] | None = None, stdin=None
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, env=env, stdin=stdin, text=True, capture_output=True, check=False)
-
-
 def backup(source_url: str, output_dir: Path, rpo_seconds: int) -> dict[str, object]:
     pg_dump = _require_tool("pg_dump")
     _identity(source_url)
     output_dir.mkdir(parents=True, exist_ok=False)
     dump = output_dir / "postgres.dump"
     started = time.time()
-    with dump.open("wb") as fh:
+    with _libpq_connection(source_url) as (safe_source_url, env), dump.open("wb") as fh:
         proc = subprocess.run(
-            [pg_dump, "--dbname", source_url, "--format=custom", "--no-owner", "--no-acl"],
+            [pg_dump, "--dbname", safe_source_url, "--format=custom", "--no-owner", "--no-acl"],
+            env=env,
             stdout=fh,
             stderr=subprocess.PIPE,
             check=False,
@@ -148,24 +189,35 @@ def restore(
     integrity = verify_dump(backup_dir)
     dump = backup_dir / "postgres.dump"
     started = time.time()
-    proc = _run(
-        [
-            pg_restore,
-            "--dbname",
-            target_url,
-            "--clean",
-            "--if-exists",
-            "--no-owner",
-            "--no-acl",
-            str(dump),
-        ]
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(f"pg_restore failed with exit code {proc.returncode}")
-    table_sql = (
-        "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' ORDER BY tablename;"
-    )
-    verify = _run([psql, target_url, "-Atqc", table_sql])
+    with _libpq_connection(target_url) as (safe_target_url, env):
+        proc = subprocess.run(
+            [
+                pg_restore,
+                "--dbname",
+                safe_target_url,
+                "--clean",
+                "--if-exists",
+                "--no-owner",
+                "--no-acl",
+                str(dump),
+            ],
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"pg_restore failed with exit code {proc.returncode}")
+        table_sql = (
+            "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' ORDER BY tablename;"
+        )
+        verify = subprocess.run(
+            [psql, safe_target_url, "-Atqc", table_sql],
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
     if verify.returncode != 0:
         raise RuntimeError(
             f"post-restore verification query failed with exit code {verify.returncode}"
@@ -193,14 +245,11 @@ def main() -> int:
     )
     sub = parser.add_subparsers(dest="command", required=True)
     b = sub.add_parser("backup")
-    b.add_argument("--source-url", default=os.getenv("CKNEXUS_DATABASE_URL", ""))
     b.add_argument("--output-dir", required=True)
     b.add_argument(
         "--rpo-seconds", type=int, default=int(os.getenv("CKNEXUS_RPO_TARGET_SECONDS", "3600"))
     )
     r = sub.add_parser("restore")
-    r.add_argument("--source-url", default=os.getenv("CKNEXUS_DATABASE_URL", ""))
-    r.add_argument("--target-url", default=os.getenv("CKNEXUS_RESTORE_DATABASE_URL", ""))
     r.add_argument("--backup-dir", required=True)
     r.add_argument(
         "--rto-seconds", type=int, default=int(os.getenv("CKNEXUS_RTO_TARGET_SECONDS", "900"))
@@ -208,10 +257,15 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.command == "backup":
-            result = backup(args.source_url, Path(args.output_dir), args.rpo_seconds)
+            result = backup(
+                os.getenv("CKNEXUS_DATABASE_URL", ""), Path(args.output_dir), args.rpo_seconds
+            )
         else:
             result = restore(
-                args.source_url, args.target_url, Path(args.backup_dir), args.rto_seconds
+                os.getenv("CKNEXUS_DATABASE_URL", ""),
+                os.getenv("CKNEXUS_RESTORE_DATABASE_URL", ""),
+                Path(args.backup_dir),
+                args.rto_seconds,
             )
         print(json.dumps(result, sort_keys=True))
         return 0 if result.get("status") == "PASS" else 1
