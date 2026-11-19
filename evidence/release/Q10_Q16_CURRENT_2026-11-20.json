@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "verification_date": "2026-11-20",
+  "timezone": "Asia/Bangkok",
+  "repository": "spinlnw10-art/ck-nexus",
+  "pull_request": 387,
+  "candidate": {
+    "commit": "e4e804aa44ce71f5b4eea718266a07fd362b0a98",
+    "tree": "e32c8d433a1f4a3e1aabd6f7e7e5225ea0fac08a",
+    "runtime_subject_sha256": "aeedb59ed7b07e77cc57a899ab5445a8506817ce2cd34fd728269db12eb0f735"
+  },
+  "decision": "NO_GO",
+  "gates": {
+    "Q10": {"state": "SCANNER_PASS_WHOLE_GATE_NOT_VERIFIED", "run_id": 44591666442, "bandit_high": 0, "bandit_medium": 0, "bandit_low": 520, "pip_audit_vulnerabilities": 0, "pip_audit_dependencies": 89, "secret_scan": "PASS", "tracked_files": 875, "attack_regression": "19/19_PASS", "independent_security_review": "REQUIRED", "production_promotion_allowed": false},
+    "Q11": {"state": "BLOCKED", "run_id": 44591665765, "provider": "OpenAI Responses API", "http_status": 401, "error_code": "invalid_api_key"},
+    "Q12": {"state": "BLOCKED", "run_id": 44591665760, "runner": "cknexus-q12", "runner_status": "offline", "actual_kernel_enforcement": false, "delegation_ready": false, "historical_pass_subject_is_current": false},
+    "Q13": {"state": "PASS_CANDIDATE", "run_id": 44591665667, "production_gate_closed": false},
+    "Q14": {"state": "PASS_COMPONENT_PROVENANCE_RECONCILIATION_REQUIRED", "run_id": 44591665756, "production_gate_closed": false},
+    "Q15": {"state": "PASS_CANDIDATE", "run_id": 44591665667, "production_host_verification": "PENDING_VPS"},
+    "Q16_IMAGE": {"state": "PASS_CANDIDATE", "run_id": 44591665933},
+    "Q16_RUNTIME_LICENSES": {"state": "PASS_CANDIDATE", "run_id": 44591665714}
+  },
+  "historical_q12_passes": [
+    {"run_id": 35421281024, "date": "2026-09-19", "subject_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f"},
+    {"run_id": 37416992838, "date": "2026-10-06", "subject_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f"}
+  ],
+  "related": {
+    "gemini_live_smoke_run": 44586906717,
+    "gemini_smoke_satisfies_q11": false,
+    "sonarcloud": "FAILED_OR_CANCELLED_DETAILS_NOT_VERIFIED",
+    "vps": "OFFLINE"
+  },
+  "controls": {
+    "merge": false,
+    "deploy": false,
+    "release_tag": false,
+    "secrets_read_or_changed": false,
+    "historical_evidence_overwritten": false
+  }
+}
