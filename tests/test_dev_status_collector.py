@@ -147,3 +147,45 @@ def test_collect_does_not_use_non_readonly_github_credentials(monkeypatch) -> No
     assert not any(args[:2] == ["gh", "pr"] for args in calls)
     assert not any(args[:2] == ["gh", "issue"] for args in calls)
     assert not any(args[:2] == ["gh", "run"] for args in calls)
+
+
+
+def test_qwen_probe_uses_direct_tls_connection_without_redirect_handlers(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(collector, "OUTPUT", tmp_path / "dev_status.json")
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "test-secret")
+    monkeypatch.setenv("QWEN_MODEL", "qwen-test")
+    monkeypatch.setenv(
+        "DASHSCOPE_BASE_URL",
+        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    )
+    calls = {}
+
+    class FakeResponse:
+        status = 200
+
+        def read(self, limit):
+            assert limit == 65536
+            return b'{"choices":[{"message":{"content":"OK"}}]}'
+
+    class FakeConnection:
+        def __init__(self, host, *, port, timeout, context):
+            calls.update(host=host, port=port, timeout=timeout, context=context)
+
+        def request(self, method, path, *, body, headers):
+            calls.update(method=method, path=path, body=body, headers=headers)
+
+        def getresponse(self):
+            return FakeResponse()
+
+        def close(self):
+            calls["closed"] = True
+
+    monkeypatch.setattr(collector.http.client, "HTTPSConnection", FakeConnection)
+    result = collector.probe_qwen_daily()
+    assert result["status"] == "ok"
+    assert calls["host"] == "dashscope-intl.aliyuncs.com"
+    assert calls["port"] == 443
+    assert calls["method"] == "POST"
+    assert calls["path"] == "/compatible-mode/v1/chat/completions"
+    assert calls["headers"]["Authorization"] == "Bearer test-secret"
+    assert calls["closed"] is True
