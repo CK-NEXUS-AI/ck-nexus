@@ -16,7 +16,7 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = Path(os.getenv("CKNEXUS_DEV_STATUS_FILE", ROOT / "data/dev_status.json"))
+OUTPUT = ROOT / "data/dev_status.json"
 TIMEOUT = 20
 SECRET_PATTERNS = (
     re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~+/-]+=*"),
