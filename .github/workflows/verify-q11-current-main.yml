@@ -69,7 +69,10 @@ jobs:
           rc_text = os.getenv("RC", "")
           rc = int(rc_text) if rc_text.isdigit() else 2
           output = Path("q11-output.txt").read_text(encoding="utf-8") if Path("q11-output.txt").exists() else ""
-          result = "PASS" if rc == 0 and "CK-NEXUS-P0-SMOKE-PASS" in output else ("BLOCKED" if rc == 2 else "FAIL")
+          secret = os.getenv("OPENAI_API_KEY", "").strip()
+          diagnostic = output[:500].replace(secret, "[REDACTED]") if secret else output[:500]
+          sentinel = "CK-NEXUS-P0-SMOKE-PASS" in output
+          result = "PASS" if rc == 0 and sentinel else ("BLOCKED" if rc == 2 else "FAIL")
           evidence = {
               "schema_version": 1,
               "gate": "Q11",
@@ -78,16 +81,13 @@ jobs:
               "release_subject_manifest_sha256": os.environ["Q11_RELEASE_SUBJECT"],
               "github_run_id": int(os.environ["RUN_ID"]),
               "checked_at": datetime.now(UTC).isoformat(),
-              "credential_configured": bool(os.getenv("OPENAI_API_KEY", "").strip()),
+              "credential_configured": bool(secret),
               "credential_exposed": False,
               "model": os.getenv("OPENAI_SMOKE_MODEL", "gpt-5-mini"),
-              "sentinel_observed": "CK-NEXUS-P0-SMOKE-PASS" in output,
+              "sentinel_observed": sentinel,
               "result": result,
               "production_promotion_allowed": False,
-          secret = os.getenv("OPENAI_API_KEY", "").strip()
-          diagnostic = output[:500].replace(secret, "[REDACTED]") if secret else output[:500]
-          evidence["credential_configured"] = bool(secret)
-          evidence["diagnostic"] = diagnostic or "No smoke output"
+              "diagnostic": diagnostic or "No smoke output",
           }
           Path("Q11_OPENAI_LIVE.json").write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
           print(json.dumps({k: v for k, v in evidence.items() if k != "diagnostic"}, indent=2, sort_keys=True))
