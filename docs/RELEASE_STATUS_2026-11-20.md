@@ -12,6 +12,17 @@
 
 **NO-GO — keep the candidate unmerged and undeployed.** The current CI and several component checks pass, but Q10 independent review and Q11 are unresolved, Q12 is blocked by the unavailable Linux runner, and Q13–Q16 are not all fully closed on one exact candidate. VPS-dependent work is intentionally left open for a later return of VPS access.
 
+## Earlier Q-gate evidence found in the repository
+
+These records are retained as historical candidate evidence. They do not certify the current PR #387 candidate because their source and subject differ from `e4e804a…` / `aeedb59…`.
+
+| Gate | Recorded state | Evidence | Scope note |
+|---|---|---|---|
+| Q01–Q04 | **NOT VERIFIED IN CURRENT EVIDENCE SET** | No corresponding current tracked Q01–Q04 evidence record was identified in this inspection | No status is inferred or fabricated. Recover the original signed records if these gates are required. |
+| Q05 | **PASS (historical candidate)** | Run `34926729111`; 598 tests passed / 0 failed; compile, Ruff, secret scan and Bandit-reviewed lane passed | Source `cd84d0d…`, tree `b0785a2…`, subject `bc77d4e…`; stale when subject changes. |
+| Q08 | **PASS (historical candidate)** | Run `34926729111`; PostgreSQL and Redis live checks passed; concurrency single-winner, replay and live backend round trip verified | Same historical source/subject as Q05; rerun on final release subject if required. |
+| Q09 | **PASS_CANDIDATE (historical candidate)** | Run `34926729111`; frozen sync, governance regression, live idempotency, PostgreSQL/Redis binding and quality lanes passed | Same historical source/subject; trusted identity required and unknown risk denied. Candidate evidence only. |
+
 ## Gate matrix
 
 | Gate | Current state | Latest evidence | Remaining condition |

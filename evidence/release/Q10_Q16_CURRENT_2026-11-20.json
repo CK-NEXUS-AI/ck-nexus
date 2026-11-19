@@ -11,18 +11,71 @@
   },
   "decision": "NO_GO",
   "gates": {
-    "Q10": {"state": "SCANNER_PASS_WHOLE_GATE_NOT_VERIFIED", "run_id": 44591666442, "bandit_high": 0, "bandit_medium": 0, "bandit_low": 520, "pip_audit_vulnerabilities": 0, "pip_audit_dependencies": 89, "secret_scan": "PASS", "tracked_files": 875, "attack_regression": "19/19_PASS", "independent_security_review": "REQUIRED", "production_promotion_allowed": false},
-    "Q11": {"state": "BLOCKED", "run_id": 44591665765, "provider": "OpenAI Responses API", "http_status": 401, "error_code": "invalid_api_key"},
-    "Q12": {"state": "BLOCKED", "run_id": 44591665760, "runner": "cknexus-q12", "runner_status": "offline", "actual_kernel_enforcement": false, "delegation_ready": false, "historical_pass_subject_is_current": false},
-    "Q13": {"state": "PASS_CANDIDATE", "run_id": 44591665667, "production_gate_closed": false},
-    "Q14": {"state": "PASS_COMPONENT_PROVENANCE_RECONCILIATION_REQUIRED", "run_id": 44591665756, "production_gate_closed": false},
-    "Q15": {"state": "PASS_CANDIDATE", "run_id": 44591665667, "production_host_verification": "PENDING_VPS"},
-    "Q16_IMAGE": {"state": "PASS_CANDIDATE", "run_id": 44591665933},
-    "Q16_RUNTIME_LICENSES": {"state": "PASS_CANDIDATE", "run_id": 44591665714}
+    "Q10": {
+      "state": "SCANNER_PASS_WHOLE_GATE_NOT_VERIFIED",
+      "run_id": 44591666442,
+      "bandit_high": 0,
+      "bandit_medium": 0,
+      "bandit_low": 520,
+      "pip_audit_vulnerabilities": 0,
+      "pip_audit_dependencies": 89,
+      "secret_scan": "PASS",
+      "tracked_files": 875,
+      "attack_regression": "19/19_PASS",
+      "independent_security_review": "REQUIRED",
+      "production_promotion_allowed": false
+    },
+    "Q11": {
+      "state": "BLOCKED",
+      "run_id": 44591665765,
+      "provider": "OpenAI Responses API",
+      "http_status": 401,
+      "error_code": "invalid_api_key"
+    },
+    "Q12": {
+      "state": "BLOCKED",
+      "run_id": 44591665760,
+      "runner": "cknexus-q12",
+      "runner_status": "offline",
+      "actual_kernel_enforcement": false,
+      "delegation_ready": false,
+      "historical_pass_subject_is_current": false
+    },
+    "Q13": {
+      "state": "PASS_CANDIDATE",
+      "run_id": 44591665667,
+      "production_gate_closed": false
+    },
+    "Q14": {
+      "state": "PASS_COMPONENT_PROVENANCE_RECONCILIATION_REQUIRED",
+      "run_id": 44591665756,
+      "production_gate_closed": false
+    },
+    "Q15": {
+      "state": "PASS_CANDIDATE",
+      "run_id": 44591665667,
+      "production_host_verification": "PENDING_VPS"
+    },
+    "Q16_IMAGE": {
+      "state": "PASS_CANDIDATE",
+      "run_id": 44591665933
+    },
+    "Q16_RUNTIME_LICENSES": {
+      "state": "PASS_CANDIDATE",
+      "run_id": 44591665714
+    }
   },
   "historical_q12_passes": [
-    {"run_id": 35421281024, "date": "2026-09-19", "subject_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f"},
-    {"run_id": 37416992838, "date": "2026-10-06", "subject_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f"}
+    {
+      "run_id": 35421281024,
+      "date": "2026-09-19",
+      "subject_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f"
+    },
+    {
+      "run_id": 37416992838,
+      "date": "2026-10-06",
+      "subject_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f"
+    }
   ],
   "related": {
     "gemini_live_smoke_run": 44586906717,
@@ -36,5 +89,34 @@
     "release_tag": false,
     "secrets_read_or_changed": false,
     "historical_evidence_overwritten": false
+  },
+  "earlier_gates": {
+    "Q01-Q04": {
+      "state": "NOT_VERIFIED_IN_CURRENT_EVIDENCE_SET",
+      "note": "No corresponding current tracked evidence record identified; no status inferred."
+    },
+    "Q05": {
+      "state": "PASS_HISTORICAL_CANDIDATE",
+      "run_id": 34926729111,
+      "source_sha": "cd84d0d3953032b05aa0304a5f9fda1dc0e26f18",
+      "source_tree": "b0785a2a65910af107a56af7c5b8de6a4647dab3",
+      "subject_sha256": "bc77d4edf8615762fbb38331ea954f0ed5e3c44b3bc4a6df676410048685c45a",
+      "tests_passed": 598,
+      "tests_failed": 0
+    },
+    "Q08": {
+      "state": "PASS_HISTORICAL_CANDIDATE",
+      "run_id": 34926729111,
+      "source_sha": "cd84d0d3953032b05aa0304a5f9fda1dc0e26f18",
+      "subject_sha256": "bc77d4edf8615762fbb38331ea954f0ed5e3c44b3bc4a6df676410048685c45a",
+      "postgresql_live": "PASS",
+      "redis_live": "PASS"
+    },
+    "Q09": {
+      "state": "PASS_CANDIDATE_HISTORICAL",
+      "run_id": 34926729111,
+      "source_sha": "cd84d0d3953032b05aa0304a5f9fda1dc0e26f18",
+      "subject_sha256": "bc77d4edf8615762fbb38331ea954f0ed5e3c44b3bc4a6df676410048685c45a"
+    }
   }
 }
