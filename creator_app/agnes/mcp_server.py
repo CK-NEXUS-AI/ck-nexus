@@ -1110,16 +1110,11 @@ def cknexus_browser_read_page() -> dict[str, Any]:
 @mcp.tool()
 def cknexus_browser_screenshot() -> dict[str, Any]:
     """Capture the current browser page using a secure process-scoped temp file."""
-    descriptor, reserved_path = tempfile.mkstemp(
-        prefix="cknexus-browser-mcp-", suffix=".png", dir=tempfile.gettempdir()
-    )
-    screenshot_path = Path(reserved_path)
     try:
-        descriptor = os.open(
-            screenshot_path,
-            os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0),
-            0o600,
+        descriptor, reserved_path = tempfile.mkstemp(
+            prefix="cknexus-browser-mcp-", suffix=".png", dir=tempfile.gettempdir()
         )
+        os.close(descriptor)
     except OSError:
         return {
             "ok": False,
@@ -1128,7 +1123,7 @@ def cknexus_browser_screenshot() -> dict[str, Any]:
             "execution_state": "NOT_EXECUTED",
             "secret_values_exposed": False,
         }
-    os.close(descriptor)
+    screenshot_path = Path(reserved_path)
     try:
         return _run_browser_tool("screenshot", str(screenshot_path))
     finally:
