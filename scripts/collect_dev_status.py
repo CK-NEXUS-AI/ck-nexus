@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Read-only CK-NEXUS development status collector. Python stdlib only."""
+
 from __future__ import annotations
 
 import http.client
@@ -83,8 +84,13 @@ def item(value: Any, source: str, status: str = "ok") -> dict[str, Any]:
 
 
 def failed(source: str, exc: Exception) -> dict[str, Any]:
-    return {"value": None, "source": source, "collected_at": now(), "status": "error",
-            "error": redact(f"{type(exc).__name__}: {exc}")}
+    return {
+        "value": None,
+        "source": source,
+        "collected_at": now(),
+        "status": "error",
+        "error": redact(f"{type(exc).__name__}: {exc}"),
+    }
 
 
 def collect() -> dict[str, Any]:
@@ -105,18 +111,47 @@ def collect() -> dict[str, Any]:
             counts = command(["git", "rev-list", "--left-right", "--count", "HEAD...@{upstream}"])
             ahead, behind = map(int, counts.split())
             ahead_behind = {"ahead": ahead, "behind": behind}
-        data["git"] = item({"head": head, "branch": branch, "dirty": dirty, **ahead_behind},
-                           "git rev-parse/status/rev-list")
+        data["git"] = item(
+            {"head": head, "branch": branch, "dirty": dirty, **ahead_behind},
+            "git rev-parse/status/rev-list",
+        )
     except Exception as exc:
         data["git"] = failed("git", exc)
 
     calls = {
-        "open_prs": ["gh", "pr", "list", "--state", "open", "--limit", "500",
-                     "--json", "number,title,isDraft,mergeStateStatus,statusCheckRollup,url"],
-        "open_issues": ["gh", "issue", "list", "--state", "open", "--limit", "500",
-                        "--json", "number,title,url"],
-        "main_ci": ["gh", "run", "list", "--branch", "main", "--limit", "20",
-                    "--json", "databaseId,name,status,conclusion,createdAt,headSha,url"],
+        "open_prs": [
+            "gh",
+            "pr",
+            "list",
+            "--state",
+            "open",
+            "--limit",
+            "500",
+            "--json",
+            "number,title,isDraft,mergeStateStatus,statusCheckRollup,url",
+        ],
+        "open_issues": [
+            "gh",
+            "issue",
+            "list",
+            "--state",
+            "open",
+            "--limit",
+            "500",
+            "--json",
+            "number,title,url",
+        ],
+        "main_ci": [
+            "gh",
+            "run",
+            "list",
+            "--branch",
+            "main",
+            "--limit",
+            "20",
+            "--json",
+            "databaseId,name,status,conclusion,createdAt,headSha,url",
+        ],
     }
     for key, args in calls.items():
         if key in {"open_prs", "open_issues", "main_ci"} and not (
@@ -185,8 +220,9 @@ def collect() -> dict[str, Any]:
     try:
         release = (ROOT / "RELEASE_STATUS.md").read_text(encoding="utf-8")
         decision = re.search(r"^Decision:\s*\*\*(.*?)\*\*", release, re.M)
-        data["production_status"] = item(decision.group(1) if decision else None,
-                                         "RELEASE_STATUS.md: Decision")
+        data["production_status"] = item(
+            decision.group(1) if decision else None, "RELEASE_STATUS.md: Decision"
+        )
         if not decision:
             data["production_status"]["status"] = "error"
     except Exception as exc:
@@ -242,10 +278,10 @@ def probe_qwen_daily() -> dict[str, Any]:
                 RuntimeError("credentials or model not configured; no result cached"),
             )
         parsed = urlparse(base)
-        allowed_host = (
-            parsed.hostname in {"dashscope-intl.aliyuncs.com", "dashscope.aliyuncs.com"}
-            or bool(parsed.hostname and parsed.hostname.endswith(".maas.aliyuncs.com"))
-        )
+        allowed_host = parsed.hostname in {
+            "dashscope-intl.aliyuncs.com",
+            "dashscope.aliyuncs.com",
+        } or bool(parsed.hostname and parsed.hostname.endswith(".maas.aliyuncs.com"))
         if (
             parsed.scheme != "https"
             or not allowed_host
