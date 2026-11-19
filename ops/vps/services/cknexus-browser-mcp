@@ -26,7 +26,11 @@ ACTIONS = {"status", "open", "text", "title", "url", "screenshot"}
 
 
 def valid_url(value: str) -> bool:
-    if not value or len(value) > 2048:
+    if (
+        not value
+        or len(value) > 2048
+        or any(ord(char) < 0x20 or ord(char) == 0x7F for char in value)
+    ):
         return False
     try:
         parsed = urlsplit(value)
@@ -100,7 +104,7 @@ def main() -> int:
     if action == "status":
         args = [HELPER, "status"]
     elif action == "open":
-        args = [HELPER, "open", sys.argv[2]]
+        args = [HELPER, "open"]
     elif action == "text":
         args = [HELPER, "text"]
     elif action == "title":
@@ -113,6 +117,7 @@ def main() -> int:
     try:
         result = subprocess.run(
             args,
+            input=sys.argv[2] if action == "open" else None,
             capture_output=True,
             text=True,
             timeout=32,

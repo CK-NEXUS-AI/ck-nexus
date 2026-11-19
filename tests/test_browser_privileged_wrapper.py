@@ -88,3 +88,32 @@ def test_privileged_screenshot_rejects_caller_supplied_path(monkeypatch):
         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not run")),
     )
     assert wrapper.main() == 2
+
+
+def test_open_url_is_sent_via_stdin_not_command_line(monkeypatch, capsys):
+    wrapper = _load_wrapper()
+    url = "https://github.com/CK-NEXUS-AI/ck-nexus"
+    monkeypatch.setattr(wrapper.sys, "argv", [str(WRAPPER_PATH), "open", url])
+    observed = {}
+
+    class Result:
+        returncode = 0
+        stdout = '{"ok":true}'
+        stderr = ""
+
+    def fake_run(args, **kwargs):
+        observed["args"] = args
+        observed["kwargs"] = kwargs
+        return Result()
+
+    monkeypatch.setattr(wrapper.subprocess, "run", fake_run)
+    assert wrapper.main() == 0
+    capsys.readouterr()
+    assert observed["args"] == [wrapper.HELPER, "open"]
+    assert observed["kwargs"]["input"] == url
+    assert observed["kwargs"]["shell"] is False
+
+
+def test_open_rejects_control_characters():
+    wrapper = _load_wrapper()
+    assert not wrapper.valid_url("https://github.com\n;id")
