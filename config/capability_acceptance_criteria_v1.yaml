@@ -1,0 +1,177 @@
+version: 1
+status: development
+authority_effect: none
+
+global_definition_of_done:
+  - scope_documented
+  - search_first_dedup_completed
+  - contract_defined
+  - implementation_present
+  - unit_tests_pass
+  - integration_tests_pass_if_applicable
+  - security_privacy_review_complete
+  - exact_evidence_recorded
+  - documentation_matches_runtime
+  - independent_verification_if_required
+  - canonical_adoption_after_review
+  - no_q10_or_production_auto_promotion
+
+capabilities:
+  prompt_mode_registry:
+    priority: P0
+    acceptance:
+      - machine_readable_registry
+      - explicit_output_contracts
+      - unknown_mode_fails_closed
+      - mode_cannot_override_runtime_policy
+      - no_implicit_external_publish
+
+  provider_capability_pricing_registry:
+    priority: P0
+    acceptance:
+      - pricing_scope_distinguishes_consumer_and_api
+      - pricing_state_has_source_and_checked_at
+      - stale_state_detectable
+      - unknown_pricing_fails_safe
+      - credentials_use_broker_only
+
+  research_source_verification:
+    priority: P0
+    acceptance:
+      - factual_claims_link_source_objects
+      - source_freshness_recorded
+      - fact_analysis_inference_opinion_separated
+      - conflicts_preserved
+      - missing_support_not_promoted
+
+  originality_provenance_gate:
+    priority: P0
+    acceptance:
+      - publishable_draft_has_lineage
+      - transformations_recorded
+      - missing_required_provenance_blocks_gate
+      - no_false_ownership_claim
+
+  fact_claim_verification_gate:
+    priority: P0
+    acceptance:
+      - claim_status_machine_readable
+      - unsupported_claim_blocks_publish_ready
+      - conflicting_evidence_preserved
+      - human_override_if_any_is_audited
+
+  multi_provider_router:
+    priority: P1
+    acceptance:
+      - policy_based_routing
+      - bounded_failover
+      - circuit_breaker_aware
+      - no_secret_logs
+      - routing_decision_evidence
+
+  multimodal_capability_layer:
+    priority: P1
+    acceptance:
+      - vendor_neutral_capability_taxonomy
+      - adapters_declare_supported_modalities
+      - unsupported_modality_fails_closed
+      - media_provenance_and_limits
+      - tested_adapter_before_support_claim
+
+  seo_aeo_geo_discovery:
+    priority: P1
+    acceptance:
+      - search_intent_explicit
+      - observed_data_separated_from_inference
+      - no_ranking_guarantees
+      - source_backed_research
+      - originality_quality_gate
+
+  creator_workflow_orchestrator:
+    priority: P1
+    acceptance:
+      - stage_contracts
+      - required_gates_not_skipped
+      - publish_draft_not_equal_publish
+      - resumable_workflow
+      - failure_reason_and_evidence
+
+  analytics_feedback_loop:
+    priority: P1
+    acceptance:
+      - metric_source_and_window_recorded
+      - missing_data_not_zero_filled
+      - correlation_not_presented_as_causation
+      - proposal_only_learning
+      - connector_consent_enforced
+
+  content_strategy_engine:
+    priority: P2
+    acceptance:
+      - audience_objectives_metrics_explicit
+      - external_facts_source_backed
+      - revision_history_preserved
+      - no_invented_audience_research
+
+  script_copy_generation:
+    priority: P2
+    acceptance:
+      - platform_output_contract
+      - factual_claims_routed_to_verification
+      - no_fabricated_statistics_or_testimonials
+      - required_structure_tests
+
+  repurpose_engine:
+    priority: P2
+    acceptance:
+      - core_message_preserved
+      - source_provenance_preserved
+      - platform_native_variants
+      - unsupported_new_claims_blocked
+
+  content_calendar_scheduler:
+    priority: P2
+    acceptance:
+      - timezone_explicit
+      - draft_schedule_without_publish_authority
+      - idempotent_jobs
+      - reminders_separate_from_publish
+      - publish_requires_connector_authority
+
+  hook_creative_pattern_library:
+    priority: P2
+    acceptance:
+      - patterns_are_templates_not_guarantees
+      - category_context_provenance
+      - no_fabricated_performance_percentages
+      - measured_ranking_only
+      - selection_reason_visible
+
+  publishing_connector_fabric:
+    priority: P2
+    acceptance:
+      - connector_scopes_declared
+      - dry_run_when_supported
+      - explicit_publish_authority
+      - idempotency_key
+      - complete_audit_record
+      - no_secrets_in_evidence
+
+  privacy_consent_engine:
+    priority: P2
+    acceptance:
+      - source_purpose_classification
+      - scoped_revocable_consent
+      - retention_deletion_model
+      - fail_closed_external_disclosure
+      - revoke_expiry_redaction_tests
+
+  learning_optimization_layer:
+    priority: P2
+    acceptance:
+      - proposal_only_default
+      - evidence_linked_proposals
+      - no_self_approval
+      - no_q10_production_mutation
+      - rejected_proposals_traceable
+      - benchmark_before_adoption
