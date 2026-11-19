@@ -204,6 +204,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     limiter = SlidingWindowRateLimiter(resolved_settings.rate_limit_per_minute)
     public_feedback_limiter = SlidingWindowRateLimiter(5, window_seconds=60)
+    access_auth_limiter = SlidingWindowRateLimiter(10, window_seconds=60)
     feedback_store = PublicFeedbackStore(
         resolved_settings.database_path.with_name("cknexus_public_feedback.sqlite3")
     )
@@ -281,6 +282,66 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 },
             )
         return connector_fabric
+
+    @app.middleware("http")
+    async def enforce_public_beta_boundary(request: Request, call_next):
+        """Expose only the feedback surface and health probes in staging/production."""
+        if resolved_settings.environment not in {"development", "dev", "test", "testing"}:
+            path = request.url.path
+            public_paths = {
+                "/",
+                "/feedback",
+                "/api/public-feedback",
+                "/health",
+                "/health/live",
+                "/health/ready",
+            }
+            public_static_paths = {
+                "/static/app.js",
+                "/static/styles.css",
+                "/static/feedback.js",
+                "/static/feedback.css",
+            }
+            is_public = path in public_paths or path in public_static_paths
+            if not is_public:
+                expected = resolved_settings.access_token.strip()
+                supplied = ""
+                authorization = request.headers.get("authorization", "")
+                if authorization.startswith("Bearer "):
+                    supplied = authorization.removeprefix("Bearer ").strip()
+                security_headers = {
+                    "Cache-Control": "no-store",
+                    "X-Content-Type-Options": "nosniff",
+                    "X-Frame-Options": "DENY",
+                    "Referrer-Policy": "no-referrer",
+                }
+                if not expected:
+                    return JSONResponse(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        content={
+                            "error": "ACCESS_CONTROL_NOT_CONFIGURED",
+                            "message": (
+                                "Protected routes are disabled until "
+                                "server authentication is configured."
+                            ),
+                        },
+                        headers=security_headers,
+                    )
+                if not supplied or not hmac.compare_digest(supplied, expected):
+                    client_key = request.client.host if request.client else "unknown"
+                    retry_after = access_auth_limiter.check(client_key)
+                    if retry_after:
+                        return JSONResponse(
+                            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                            content={"error": "AUTH_RATE_LIMITED"},
+                            headers={**security_headers, "Retry-After": str(retry_after)},
+                        )
+                    return JSONResponse(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        content={"error": "UNAUTHORIZED"},
+                        headers=security_headers,
+                    )
+        return await call_next(request)
 
     @app.middleware("http")
     async def request_observability(request: Request, call_next):

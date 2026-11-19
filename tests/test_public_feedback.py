@@ -91,3 +91,91 @@ def test_feedback_duplicate_and_honeypot_are_safe(tmp_path: Path):
 def test_feedback_admin_fails_closed_without_admin_token(tmp_path: Path):
     with make_client(tmp_path, token="") as client:
         assert client.get("/api/internal/public-feedback").status_code == 503
+
+
+def test_staging_exposes_only_feedback_and_health_without_auth(tmp_path: Path):
+    settings = Settings(
+        environment="staging",
+        database_path=tmp_path / "staging.db",
+        mock_ai=True,
+        access_token="staging-admin-token",
+    )
+    with TestClient(create_app(settings)) as client:
+        assert client.get("/").status_code == 200
+        assert client.get("/feedback").status_code == 200
+        # Only assets required by the public landing and feedback pages are public.
+        for asset in (
+            "/static/app.js",
+            "/static/styles.css",
+            "/static/feedback.js",
+            "/static/feedback.css",
+        ):
+            assert client.get(asset).status_code == 200
+        assert client.get("/health").status_code == 200
+        assert (
+            client.post(
+                "/api/public-feedback",
+                json=payload(),
+            ).status_code
+            == 202
+        )
+
+        # Internal pages, APIs, provider discovery, and execution routes stay closed.
+        assert client.get("/development").status_code == 401
+        assert client.get("/docs").status_code == 401
+        assert client.get("/api/status").status_code == 401
+        assert client.get("/api/providers/scan").status_code == 401
+        assert client.get("/api/assistants/scan").status_code == 401
+        assert client.get("/api/agents").status_code == 401
+        assert client.post("/api/agnes/execute", json={}).status_code == 401
+
+        admin = {"Authorization": "Bearer staging-admin-token"}
+        assert client.get("/api/agents", headers=admin).status_code == 200
+        assert client.get("/development", headers=admin).status_code == 200
+
+
+def test_staging_blocks_direct_access_to_private_static_assets(tmp_path: Path):
+    settings = Settings(
+        environment="staging",
+        database_path=tmp_path / "staging-private-assets.db",
+        mock_ai=True,
+        access_token="staging-admin-token",
+    )
+    with TestClient(create_app(settings)) as client:
+        for private_asset in (
+            "/static/development.html",
+            "/static/development.js",
+            "/static/approval.html",
+            "/static/full-system.html",
+            "/static/assistants.html",
+            "/static/signup.html",
+        ):
+            assert client.get(private_asset).status_code == 401
+
+
+def test_staging_requires_access_token_at_startup(tmp_path: Path):
+    settings = Settings(
+        environment="staging",
+        database_path=tmp_path / "staging-no-token.db",
+        mock_ai=True,
+        access_token="",
+    )
+    try:
+        create_app(settings)
+    except RuntimeError as exc:
+        assert "CKNEXUS_ACCESS_TOKEN" in str(exc)
+    else:
+        raise AssertionError("staging startup must fail without CKNEXUS_ACCESS_TOKEN")
+
+
+def test_staging_rate_limits_invalid_authentication(tmp_path: Path):
+    settings = Settings(
+        environment="staging",
+        database_path=tmp_path / "staging-rate-limit.db",
+        mock_ai=True,
+        access_token="staging-admin-token",
+    )
+    with TestClient(create_app(settings)) as client:
+        statuses = [client.get("/api/agents").status_code for _ in range(11)]
+        assert statuses[:10] == [401] * 10
+        assert statuses[10] == 429
