@@ -83,11 +83,15 @@ def test_screenshot_reserves_and_removes_private_temp_file(tmp_path, monkeypatch
     assert not Path(observed["path"]).exists()
 
 
-def test_screenshot_fails_closed_if_temp_path_already_exists(tmp_path, monkeypatch):
+def test_screenshot_fails_closed_if_temp_reservation_fails(tmp_path, monkeypatch):
     monkeypatch.setattr(mcp_server.tempfile, "gettempdir", lambda: str(tmp_path))
-    existing = tmp_path / "cknexus-browser-mcp.png"
+    existing = tmp_path / "cknexus-browser-mcp-collision.png"
     existing.write_text("do not overwrite", encoding="utf-8")
-    monkeypatch.setenv("CKNEXUS_BROWSER_SCREENSHOT_PATH", str(existing))
+
+    def fail_reservation(*_args, **_kwargs):
+        raise FileExistsError("temporary file reservation failed")
+
+    monkeypatch.setattr(mcp_server.tempfile, "mkstemp", fail_reservation)
     monkeypatch.setattr(
         mcp_server,
         "_run_browser_tool",
