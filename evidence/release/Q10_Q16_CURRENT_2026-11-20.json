@@ -118,5 +118,43 @@
       "source_sha": "cd84d0d3953032b05aa0304a5f9fda1dc0e26f18",
       "subject_sha256": "bc77d4edf8615762fbb38331ea954f0ed5e3c44b3bc4a6df676410048685c45a"
     }
+  },
+  "follow_up_verification_at_pr_head": {
+    "pr_head": "59bb346b65e8f33297e67d0f6d9f53298493151e",
+    "runs": {
+      "Q10": {
+        "run_id": 44598573684,
+        "result": "SUCCESS_WORKFLOW_ONLY"
+      },
+      "Q11": {
+        "run_id": 44598573958,
+        "result": "FAILURE",
+        "source_sha": "aac0b538516cd7777159f65fb7d0e0e588f1a5f2",
+        "release_subject_sha256": "aeedb59ed7b07e77cc57a899ab5445a8506817ce2cd34fd728269db12eb0f735",
+        "provenance_matches_pr_head": false
+      },
+      "Q12": {
+        "run_id": 44598573516,
+        "result": "BLOCKED_STATE_RECORDED_NOT_Q12_PASS"
+      },
+      "candidate_automated_gates": {
+        "run_id": 44598573416,
+        "result": "SUCCESS_CANDIDATE_ONLY"
+      },
+      "Q14": {
+        "run_id": 44598573512,
+        "result": "SUCCESS_COMPONENT_ONLY"
+      },
+      "Q16_image": {
+        "run_id": 44598573668,
+        "result": "SUCCESS_CANDIDATE_ONLY"
+      },
+      "Q16_runtime_licenses": {
+        "run_id": 44598573994,
+        "result": "SUCCESS_CANDIDATE_ONLY"
+      },
+      "sonarcloud": "FAIL"
+    },
+    "release_decision": "NO_GO"
   }
 }

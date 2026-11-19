@@ -12,6 +12,22 @@
 
 **NO-GO — keep the candidate unmerged and undeployed.** The current CI and several component checks pass, but Q10 independent review and Q11 are unresolved, Q12 is blocked by the unavailable Linux runner, and Q13–Q16 are not all fully closed on one exact candidate. VPS-dependent work is intentionally left open for a later return of VPS access.
 
+## Follow-up verification at the inspected PR head
+
+After the baseline candidate snapshot above, PR #387 advanced to head 59bb346b65e8f33297e67d0f6d9f53298493151e. GitHub Actions runs on that PR head reported:
+
+| Check | Run | Result | Interpretation |
+|---|---:|---|---|
+| Q10 Open-Source Layered Security Gate | [44598573684](https://github.com/spinlnw10-art/ck-nexus/actions/runs/44598573684) | **SUCCESS** | Workflow success only; retain the independent-review requirement. |
+| Q11 final release subject | [44598573958](https://github.com/spinlnw10-art/ck-nexus/actions/runs/44598573958) | **FAILURE** | Log environment carried Q11_SOURCE_SHA=aac0b538516cd7777159f65fb7d0e0e588f1a5f2 and Q11_RELEASE_SUBJECT=aeedb59ed7b07e77cc57a899ab5445a8506817ce2cd34fd728269db12eb0f735; source provenance does not match the inspected PR head. |
+| Q12 blocked-state recorder | [44598573516](https://github.com/spinlnw10-art/ck-nexus/actions/runs/44598573516) | **SUCCESS (RECORDER ONLY)** | It successfully recorded the blocked state for the rotated subject. This is not a Q12 execution/pass. |
+| Candidate automated gates | [44598573416](https://github.com/spinlnw10-art/ck-nexus/actions/runs/44598573416) | **SUCCESS** | Q13/Q15 and related candidate components ran; candidate evidence only, not final release closure. |
+| Q14 final release subject | [44598573512](https://github.com/spinlnw10-art/ck-nexus/actions/runs/44598573512) | **SUCCESS** | Component workflow success; final provenance/package reconciliation remains required. |
+| Candidate production image | [44598573668](https://github.com/spinlnw10-art/ck-nexus/actions/runs/44598573668) | **SUCCESS** | Candidate artifact only, not a deployed production image. |
+| Candidate runtime licenses | [44598573994](https://github.com/spinlnw10-art/ck-nexus/actions/runs/44598573994) | **SUCCESS** | Candidate inventory only; bind to the final package after the subject is frozen. |
+
+The PR checks also show SonarCloud Code Analysis FAIL. These follow-up runs do not change the release verdict: **NO-GO**. In particular, do not interpret a successful Q12 blocked-state recorder, candidate image build, or candidate component workflow as proof that the mandatory gate passed.
+
 ## Earlier Q-gate evidence found in the repository
 
 These records are retained as historical candidate evidence. They do not certify the current PR #387 candidate because their source and subject differ from `e4e804a…` / `aeedb59…`.
