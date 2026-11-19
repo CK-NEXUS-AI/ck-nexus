@@ -93,7 +93,6 @@ def test_feedback_admin_fails_closed_without_admin_token(tmp_path: Path):
         assert client.get("/api/internal/public-feedback").status_code == 503
 
 
-
 def test_staging_exposes_only_feedback_and_health_without_auth(tmp_path: Path):
     settings = Settings(
         environment="staging",
