@@ -111,15 +111,6 @@ def test_staging_exposes_only_feedback_and_health_without_auth(tmp_path: Path):
             "/static/feedback.css",
         ):
             assert client.get(asset).status_code == 200
-        for private_asset in (
-            "/static/development.html",
-            "/static/development.js",
-            "/static/approval.html",
-            "/static/full-system.html",
-            "/static/assistants.html",
-            "/static/signup.html",
-        ):
-            assert client.get(private_asset).status_code == 401
         assert client.get("/health").status_code == 200
         assert (
             client.post(
@@ -141,6 +132,25 @@ def test_staging_exposes_only_feedback_and_health_without_auth(tmp_path: Path):
         admin = {"Authorization": "Bearer staging-admin-token"}
         assert client.get("/api/agents", headers=admin).status_code == 200
         assert client.get("/development", headers=admin).status_code == 200
+
+
+def test_staging_blocks_direct_access_to_private_static_assets(tmp_path: Path):
+    settings = Settings(
+        environment="staging",
+        database_path=tmp_path / "staging-private-assets.db",
+        mock_ai=True,
+        access_token="staging-admin-token",
+    )
+    with TestClient(create_app(settings)) as client:
+        for private_asset in (
+            "/static/development.html",
+            "/static/development.js",
+            "/static/approval.html",
+            "/static/full-system.html",
+            "/static/assistants.html",
+            "/static/signup.html",
+        ):
+            assert client.get(private_asset).status_code == 401
 
 
 def test_staging_requires_access_token_at_startup(tmp_path: Path):
