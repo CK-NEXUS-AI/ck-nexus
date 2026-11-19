@@ -21,14 +21,18 @@ EVIDENCE_FILES = (
 )
 
 EXPECTED_BRANCHES = {
-    "Q10": {"release/q10-q16-closure", "verify/q10-dependency-audit"},
+    "Q10": {
+        "release/q10-q16-closure",
+        "verify/q10-dependency-audit",
+        "fix/release-q10-lock-20261119",
+    },
     "Q11": {"verify/q11-final-subject"},
     "Q12": {"verify/q12-final-subject"},
-    "Q13": {"release/q10-q16-closure"},
+    "Q13": {"release/q10-q16-closure", "fix/release-q10-lock-20261119"},
     "Q14": {"verify/q14-final-subject"},
-    "Q15": {"release/q10-q16-closure"},
-    "Q16_PRODUCTION_IMAGE": {"release/q10-q16-closure"},
-    "Q16_RUNTIME_LICENSES": {"release/q10-q16-closure"},
+    "Q15": {"release/q10-q16-closure", "fix/release-q10-lock-20261119"},
+    "Q16_PRODUCTION_IMAGE": {"release/q10-q16-closure", "fix/release-q10-lock-20261119"},
+    "Q16_RUNTIME_LICENSES": {"release/q10-q16-closure", "fix/release-q10-lock-20261119"},
 }
 
 
@@ -119,6 +123,11 @@ def verify(
             "artifact_not_expired": artifact.get("expired") is False,
             "artifact_digest_match": artifact.get("digest") == artifact_digest,
             "artifact_run_match": workflow_run.get("id") == run_id,
+            "candidate_head_sha_match": (
+                workflow_run.get("head_sha") == evidence.get("source_sha")
+                if gate in {"Q10", "Q13", "Q15", "Q16_PRODUCTION_IMAGE", "Q16_RUNTIME_LICENSES"}
+                else True
+            ),
             "run_repository_match": (run.get("repository") or {}).get("full_name") == repository,
             "branch_allowed": allowed_branches is None or actual_branch in allowed_branches,
         }
