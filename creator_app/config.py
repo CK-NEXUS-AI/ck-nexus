@@ -333,7 +333,7 @@ class Settings:
         Development and staging remain usable for local evidence collection. Production
         must never silently expose protected routes because a secret was omitted.
         """
-        if self.environment != "production":
+        if self.environment not in {"staging", "production"}:
             return
 
         missing: list[str] = []
