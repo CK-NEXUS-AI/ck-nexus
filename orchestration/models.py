@@ -150,6 +150,9 @@ class ExecutionContext:
     timeout_seconds: int
     approval_state: str = "pending"
     idempotency_key: str | None = None
+    input_trust: str = "trusted"
+    input_taints: frozenset[str] = field(default_factory=frozenset)
+    trusted_confirmation: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,6 +164,9 @@ class ToolRequest:
     required_permission: str | None = None
     credential_scope: str | None = None
     requires_approval: bool = False
+    side_effecting: bool = False
+    memory_write: bool = False
+    cross_agent_handoff: bool = False
 
 
 @dataclass(frozen=True, slots=True)

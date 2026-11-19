@@ -22,7 +22,16 @@ class FakeExecutor:
         return {"tool": request.tool, "ok": True}
 
 
-def context(pattern, *, approval="pending", permissions=(), idempotency="idem-1"):
+def context(
+    pattern,
+    *,
+    approval="pending",
+    permissions=(),
+    idempotency="idem-1",
+    input_trust="trusted",
+    input_taints=(),
+    trusted_confirmation=False,
+):
     return ExecutionContext(
         execution_id=str(uuid.uuid4()),
         tenant_id="tenant-1",
@@ -38,6 +47,9 @@ def context(pattern, *, approval="pending", permissions=(), idempotency="idem-1"
         timeout_seconds=pattern.timeout_seconds,
         approval_state=approval,
         idempotency_key=idempotency,
+        input_trust=input_trust,
+        input_taints=frozenset(input_taints),
+        trusted_confirmation=trusted_confirmation,
     )
 
 
@@ -107,3 +119,69 @@ def test_kill_switch_blocks_execution():
         context(pattern), pattern, ToolRequest("s1", "engineering", "test")
     )
     assert decision.code == "KILL_SWITCH"
+
+
+def test_untrusted_read_only_request_remains_allowed():
+    pattern = PatternRegistry.from_file().get("product_idea_exploration")
+    decision = GuardrailEvaluator().evaluate(
+        context(pattern, input_trust="untrusted", input_taints=("untrusted:external_sender",)),
+        pattern,
+        ToolRequest("s1", "research", "web_search"),
+    )
+    assert decision.code == "ALLOW"
+
+
+def test_untrusted_input_cannot_trigger_side_effect_even_if_owner_approved():
+    pattern = PatternRegistry.from_file().get("credential_anomaly_monitor")
+    decision = GuardrailEvaluator().evaluate(
+        context(
+            pattern,
+            approval="approved",
+            input_trust="untrusted",
+            input_taints=("untrusted:external_sender",),
+        ),
+        pattern,
+        ToolRequest("s1", "security_reviewer", "alert_write", side_effecting=True),
+    )
+    assert decision.code == "UNTRUSTED_INPUT_CONTROL"
+
+
+def test_untrusted_input_cannot_write_memory_without_trusted_confirmation():
+    pattern = PatternRegistry.from_file().get("knowledge_synthesis")
+    decision = GuardrailEvaluator().evaluate(
+        context(pattern, input_taints=("untrusted:retrieved_content",)),
+        pattern,
+        ToolRequest("s1", "research", "knowledge_search", memory_write=True),
+    )
+    assert decision.code == "UNTRUSTED_INPUT_CONTROL"
+
+
+def test_untrusted_input_cannot_cross_agent_handoff_without_trusted_confirmation():
+    pattern = PatternRegistry.from_file().get("product_idea_exploration")
+    decision = GuardrailEvaluator().evaluate(
+        context(pattern, input_taints=("untrusted:tool_output",)),
+        pattern,
+        ToolRequest("s1", "research", "idea_engine", cross_agent_handoff=True),
+    )
+    assert decision.code == "UNTRUSTED_INPUT_CONTROL"
+
+
+def test_trusted_confirmation_does_not_bypass_existing_approval_gate():
+    pattern = PatternRegistry.from_file().get("credential_anomaly_monitor")
+    decision = GuardrailEvaluator().evaluate(
+        context(
+            pattern,
+            approval="pending",
+            input_taints=("untrusted:external_sender",),
+            trusted_confirmation=True,
+        ),
+        pattern,
+        ToolRequest(
+            "s1",
+            "security_reviewer",
+            "alert_write",
+            side_effecting=True,
+            requires_approval=True,
+        ),
+    )
+    assert decision.code == "APPROVAL_REQUIRED"
