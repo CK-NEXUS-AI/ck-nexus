@@ -13,10 +13,10 @@ class TestTeamDirector:
     """ทดสอบ TeamDirector — หัวหน้าทีม."""
 
     def test_create_team(self):
-        """สร้างทีมได้ 7 คน."""
+        """สร้างทีมได้ 8 คน รวม Sentinel ผู้ตรวจหลักฐาน."""
         team = TeamDirector()
         info = team.list_team()
-        assert info["total_members"] == 7
+        assert info["total_members"] == 8
         names = [m["name"] for m in info["members"]]
         assert "Director" in names
         assert "Engineer" in names
@@ -25,6 +25,7 @@ class TestTeamDirector:
         assert "Researcher" in names
         assert "Designer" in names
         assert "Connector" in names
+        assert "Sentinel" in names
 
     def test_process_request_code(self):
         """สั่งงานเขียนโค้ด → Engineer รับงาน."""
@@ -81,7 +82,7 @@ class TestTeamDirector:
         team = TeamDirector()
         status = team.team_status()
         assert "agents" in status
-        assert len(status["agents"]) == 7  # Director + 6 agents
+        assert len(status["agents"]) == 8  # Director + 7 agents
         assert "knowledge_stats" in status
 
     def test_add_agent(self):

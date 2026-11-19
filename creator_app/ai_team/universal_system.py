@@ -2,7 +2,7 @@
 
 รวม 6 ระบบเป็นหนึ่งเดียว:
 1. ตัวแทนอัจฉริยะ — Auto-Tool Selection, Tool Chaining, Fallback
-2. ทีมผู้เชี่ยวชาญ — 7 บทบาท ทำงานร่วมกัน
+2. ทีมผู้เชี่ยวชาญ — 8 บทบาท ทำงานร่วมกัน
 3. ศูนย์กลางข้อมูล — Unified Search, Smart Sync, Data Pipelines
 4. ตัวสร้างระบบ — CLI, Skills, Plugins, Workflows
 5. ปลอดภัยและโปร่งใส — Secret Shield, Permission Gate, Audit Log

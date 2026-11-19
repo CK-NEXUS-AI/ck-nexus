@@ -236,7 +236,7 @@ class TestUniversalSystem:
     def test_list_capabilities(self):
         system = UniversalSystem()
         caps = system.list_capabilities()
-        assert caps["team_members"] == 7
+        assert caps["team_members"] == 8
         assert caps["tools"] > 0
         assert caps["data_sources"] > 0
 
