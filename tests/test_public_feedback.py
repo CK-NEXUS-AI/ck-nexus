@@ -60,7 +60,7 @@ def test_feedback_rejects_secrets_and_missing_consent(tmp_path: Path):
     with make_client(tmp_path) as client:
         secret = client.post(
             "/api/public-feedback",
-            json=payload(message="พบปัญหาและ token=sk-12345678901234567890 ไม่ควรแสดง"),
+            json=payload(message="พบปัญหาและ token=" + "sk-" + "x" * 24 + " ไม่ควรแสดง"),
         )
         assert secret.status_code == 422
         no_consent = client.post("/api/public-feedback", json=payload(consent=False))
