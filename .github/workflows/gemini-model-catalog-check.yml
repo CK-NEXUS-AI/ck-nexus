@@ -1,0 +1,48 @@
+name: CK-NEXUS Gemini model catalog check
+
+on:
+  push:
+    branches: [feat/gemini-provider-20261119]
+    paths:
+      - '.github/workflows/gemini-model-catalog-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  catalog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Check Gemini key and model catalog (read-only)
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python - <<'PY'
+          import json, os, sys
+          from urllib.request import Request, urlopen
+          key = os.environ.get('GEMINI_API_KEY', '').strip()
+          if not key:
+              print('GEMINI_CATALOG=BLOCKED credential_configured=false')
+              raise SystemExit(2)
+          req = Request(
+              'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000',
+              headers={'x-goog-api-key': key},
+          )
+          try:
+              with urlopen(req, timeout=25) as response:
+                  data = json.loads(response.read().decode('utf-8'))
+          except Exception as exc:
+              print(f'GEMINI_CATALOG=FAIL credential_configured=true error={type(exc).__name__}')
+              raise SystemExit(1)
+          models = data.get('models') or []
+          target = next((m for m in models if m.get('name', '').endswith('/models/gemini-3.1-flash-lite')), None)
+          if target is None:
+              print(f'GEMINI_CATALOG=FAIL credential_configured=true model_found=false models_returned={len(models)}')
+              raise SystemExit(1)
+          methods = target.get('supportedGenerationMethods') or []
+          supported = 'generateContent' in methods
+          print(f'GEMINI_CATALOG={"PASS" if supported else "FAIL"} credential_configured=true model_found=true generateContent={str(supported).lower()}')
+          if not supported:
+              raise SystemExit(1)
+          PY
