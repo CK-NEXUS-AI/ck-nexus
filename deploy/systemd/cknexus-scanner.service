@@ -1,0 +1,44 @@
+[Unit]
+Description=CK-NEXUS Scanner API (least privilege, localhost only)
+After=network.target
+ConditionPathIsExecutable=/usr/bin/python3
+ConditionPathIsDirectory=/opt/actions-runner/_work/ck-nexus/ck-nexus
+
+[Service]
+Type=simple
+User=cknexus-scanner
+Group=cknexus-scanner
+WorkingDirectory=/
+Environment=CKNEXUS_SCAN_ROOT=/opt/actions-runner/_work/ck-nexus/ck-nexus
+Environment=CKNEXUS_SCAN_EVIDENCE_DIR=/opt/cknexus/evidence/scans
+Environment=CKNEXUS_SCANNER_TOKEN_FILE=%d/scanner_token
+LoadCredential=scanner_token:/etc/cknexus-scanner/token
+ExecStart=/usr/bin/python3 /opt/actions-runner/_work/ck-nexus/ck-nexus/services/cknexus_scanner_api.py
+Restart=on-failure
+RestartSec=5
+UMask=0077
+
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+ProtectProc=invisible
+ProcSubset=pid
+ReadWritePaths=/opt/cknexus/evidence/scans
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
