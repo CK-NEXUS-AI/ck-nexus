@@ -148,8 +148,8 @@ jobs:
               'dependency_vulnerabilities': vulns,
               'bandit_high_severity_exit_code': bandit_rc,
               'secret_scan_exit_code': secret_rc,
-              'security_attack_regression_exit_code': attack_rc,\n              'attack_regression_report_valid': attack_report_valid,
-              'security_attack_regression_report_valid': attack_report_valid,
+              'security_attack_regression_exit_code': attack_rc,
+              'attack_regression_report_valid': attack_report_valid,
           }
           passed = (
               audit_rc == 0
@@ -205,6 +205,7 @@ jobs:
               'bandit_high_severity_exit_code': bandit_rc,
               'secret_scan_exit_code': secret_rc,
               'security_attack_regression_exit_code': attack_rc,
+              'attack_regression_report_valid': attack_report_valid,
               'gate_result': 'NOT_VERIFIED',
               'production_promotion_allowed': False,
           }
