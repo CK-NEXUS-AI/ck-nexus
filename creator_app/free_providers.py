@@ -219,7 +219,12 @@ class GeminiAdapter:
         self._quota = quota_tracker
         self.capabilities = ProviderCapabilities(
             features=frozenset({"text", "vision"}),
-            models=("gemini-3.1-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"),
+            models=(
+                "gemini-3.1-flash-lite",
+                "gemini-2.0-flash",
+                "gemini-1.5-flash",
+                "gemini-1.5-pro",
+            ),
         )
 
     def _get_key(self) -> str:
