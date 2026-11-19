@@ -20,6 +20,8 @@ on:
       - 'main.py'
       - 'pyproject.toml'
       - 'uv.lock'
+      - 'scripts/release_subject.py'
+      - 'tests/test_release_subject.py'
       - '.github/workflows/runtime-subject-candidate.yml'
 
 permissions:
@@ -38,7 +40,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          subject=$(python scripts/release_subject.py --scope runtime --ref HEAD)
           tree=$(git rev-parse HEAD^{tree})
           printf 'subject=%s\n' "$subject" >> "$GITHUB_OUTPUT"
           printf 'tree=%s\n' "$tree" >> "$GITHUB_OUTPUT"

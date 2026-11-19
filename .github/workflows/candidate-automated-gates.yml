@@ -114,7 +114,7 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
         run: |
           tree=$(git rev-parse HEAD^{tree})
-          manifest=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          manifest=$(python scripts/release_subject.py --scope runtime --ref HEAD)
           .venv/bin/python - "$HEAD_SHA" "$tree" "$manifest" "$RUN_ID" "$Q10_AUDIT_RC" "$Q10_BANDIT_RC" "$Q10_SECRET_SCAN_RC" "$Q10_ATTACK_REGRESSION_RC" <<'PY'
           import hashlib, json, sys
           from datetime import UTC, datetime

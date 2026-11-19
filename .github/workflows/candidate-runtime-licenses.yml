@@ -88,7 +88,7 @@ jobs:
           HEAD_SHA: ${{ github.sha }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          subject=$(python scripts/release_subject.py --scope runtime --ref HEAD)
           python - "$HEAD_SHA" "$subject" "$RUN_ID" <<'PY'
           import json,sys
           sha,subject,run_id=sys.argv[1:]

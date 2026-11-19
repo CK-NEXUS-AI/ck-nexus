@@ -81,7 +81,7 @@ jobs:
           (github.event_name == 'pull_request' && startsWith(github.base_ref, 'release/'))
         shell: bash
         run: |
-          m=$(git ls-tree -r HEAD -- creator_app services tests scripts main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          m=$(python scripts/release_subject.py --scope application --ref HEAD)
           .venv/bin/python - "$m" <<'PY'
           import json,sys
           m=sys.argv[1]

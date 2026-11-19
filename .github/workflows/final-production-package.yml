@@ -46,7 +46,7 @@ jobs:
         id: gate
         shell: bash
         run: |
-          subject=$(git ls-tree -r HEAD -- app creator_app services gateway orchestration idea_engine migrations deploy observability Dockerfile docker-compose.prod.yml main.py pyproject.toml uv.lock | sha256sum | awk '{print $1}')
+          subject=$(python scripts/release_subject.py --scope runtime --ref HEAD)
           python - "$subject" "$EXPECTED_RELEASE_SUBJECT" "$GITHUB_OUTPUT" <<'PY'
           import json,sys
           from pathlib import Path
