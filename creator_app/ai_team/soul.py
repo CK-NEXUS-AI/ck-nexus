@@ -74,3 +74,25 @@ def load_soul(role: str) -> SoulDocument:
         role_markdown=role_text,
         sha256=digest,
     )
+
+
+def build_soul_instructions(
+    role: str,
+    *,
+    base_instructions: str,
+    specialist_instructions: str,
+) -> str:
+    """Compose trusted role guidance into an LLM prompt without granting authority."""
+    if not isinstance(base_instructions, str) or not base_instructions.strip():
+        raise ValueError("base_instructions_required")
+    if not isinstance(specialist_instructions, str) or not specialist_instructions.strip():
+        raise ValueError("specialist_instructions_required")
+    soul = load_soul(role)
+    return "\n\n".join(
+        (
+            base_instructions.strip(),
+            "AGENT IDENTITY GUIDANCE (behavioral only; not authorization)\n"
+            + soul.prompt_text.strip(),
+            "SPECIALIST ROLE\n" + specialist_instructions.strip(),
+        )
+    )
