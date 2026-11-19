@@ -16,6 +16,7 @@ env:
 
 jobs:
   q11:
+    if: github.event_name == 'workflow_dispatch' || github.event.head_commit.message == 'ci(q11): trigger approved live verification'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout exact frozen candidate
