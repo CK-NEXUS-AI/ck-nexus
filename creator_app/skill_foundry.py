@@ -7,9 +7,8 @@ from dataclasses import asdict, dataclass
 from enum import StrEnum
 from typing import Any
 
-from creator_app.agnes_ledger import AppendOnlyLedger
 from creator_app.agnes.execution.evidence import redact
-
+from creator_app.agnes_ledger import AppendOnlyLedger
 
 _SKILL_ID = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
 _SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
@@ -43,7 +42,7 @@ class SkillSource:
     title: str
     uri: str
     permission_basis: str
-    content_sha256: str
+    source_record_sha256: str
 
     def __post_init__(self) -> None:
         if not all(
@@ -60,8 +59,8 @@ class SkillSource:
             raise ValueError("source uri must use https, http or urn")
         if self.permission_basis not in _ALLOWED_PERMISSION_BASES:
             raise PermissionError("source permission basis is not an approved category")
-        if not _SHA256.fullmatch(self.content_sha256):
-            raise ValueError("source content_sha256 must be a lowercase SHA-256 digest")
+        if not _SHA256.fullmatch(self.source_record_sha256):
+            raise ValueError("source_record_sha256 must be a lowercase SHA-256 digest")
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,8 +105,7 @@ class SkillContract:
         if self.rollback_version is not None and not _SEMVER.fullmatch(self.rollback_version):
             raise ValueError("rollback_version must use semantic versioning")
         if not all(
-            value.strip()
-            for value in (self.title, self.purpose, self.owner, self.license_basis)
+            value.strip() for value in (self.title, self.purpose, self.owner, self.license_basis)
         ):
             raise ValueError("title, purpose, owner and license_basis are required")
         if not self.inputs_schema or not self.outputs_schema:
@@ -131,10 +129,7 @@ class SkillContract:
             "human_before_external_effect",
         }:
             raise ValueError("unsupported approval policy")
-        if (
-            self.risk_class in {"external_write", "high_impact"}
-            and self.approval_policy == "none"
-        ):
+        if self.risk_class in {"external_write", "high_impact"} and self.approval_policy == "none":
             raise PermissionError("external/high-impact skills require human approval")
         if not self.evidence_requirements:
             raise ValueError("at least one evidence requirement is required")
@@ -184,8 +179,54 @@ class SkillFoundry:
         payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
-    def register_draft(self, draft: SkillDraft) -> dict[str, Any]:
+    def _find_registered_draft(self, *, skill_id: str, version: str) -> dict[str, Any] | None:
+        integrity = self._ledger.verify()
+        if not integrity.valid:
+            raise RuntimeError("skill foundry ledger integrity check failed")
+        if not self._ledger.path.exists():
+            return None
+        with self._ledger.path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                record = json.loads(line)
+                payload = record.get("payload", {})
+                contract = payload.get("contract", {})
+                if (
+                    record.get("event_type") == "skill_foundry.draft_registered"
+                    and contract.get("skill_id") == skill_id
+                    and contract.get("version") == version
+                ):
+                    return payload
+        return None
+
+    def register_draft(
+        self, draft: SkillDraft, *, context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         payload = redact(asdict(draft))
+        if context is not None:
+            allowed_context = {
+                "tenant_id",
+                "research_artifact_id",
+                "idea_node_id",
+                "source_ids",
+                "claim_ids",
+            }
+            if set(context) != allowed_context:
+                raise ValueError("registration context must contain the complete lineage scope")
+            if not all(
+                isinstance(context[key], str) and context[key].strip()
+                for key in ("tenant_id", "research_artifact_id", "idea_node_id")
+            ):
+                raise ValueError("registration context identity fields are required")
+            for key in ("source_ids", "claim_ids"):
+                values = context[key]
+                if (
+                    not isinstance(values, (list, tuple))
+                    or not values
+                    or any(not isinstance(value, str) or not value.strip() for value in values)
+                    or len(values) != len(set(values))
+                ):
+                    raise ValueError("registration context requires unique source and claim IDs")
+            payload["registration_context"] = redact(context)
         payload["state"] = SkillDraftState.QUARANTINED.value
         payload["draft_sha256"] = self._canonical_hash(payload)
         return self._ledger.append("skill_foundry.draft_registered", payload)
@@ -216,6 +257,15 @@ class SkillFoundry:
         ]
         if missing_evidence:
             raise ValueError("every evaluation result requires a SHA-256 evidence reference")
+        registered = self._find_registered_draft(skill_id=skill_id, version=version)
+        if registered is None:
+            raise ValueError("evaluation requires a matching registered skill draft")
+        registered_cases = registered.get("evaluation_cases", [])
+        supplied_cases = [asdict(case) for case in cases]
+        if sorted(registered_cases, key=lambda item: item["case_id"]) != sorted(
+            supplied_cases, key=lambda item: item["case_id"]
+        ):
+            raise ValueError("evaluation cases must match the registered draft exactly")
         passed = all(result.passed for result in results)
         payload = {
             "skill_id": skill_id,
@@ -227,18 +277,98 @@ class SkillFoundry:
                 asdict(result) for result in sorted(results, key=lambda item: item.case_id)
             ],
             "state": (
-                SkillDraftState.EVALUATED.value
-                if passed
-                else SkillDraftState.QUARANTINED.value
+                SkillDraftState.EVALUATED.value if passed else SkillDraftState.QUARANTINED.value
             ),
             "promotion_allowed": False,
         }
         payload["evaluation_sha256"] = self._canonical_hash(payload)
         return self._ledger.append("skill_foundry.evaluation_recorded", redact(payload))
 
-    def _has_matching_evaluation(
-        self, *, skill_id: str, version: str, evaluation_ref: str
-    ) -> bool:
+    def record_research_link(
+        self,
+        *,
+        tenant_id: str,
+        research_artifact_id: str,
+        idea_node_id: str,
+        skill_id: str,
+        version: str,
+        source_ids: tuple[str, ...],
+        claim_ids: tuple[str, ...],
+        registration_event_hash: str,
+    ) -> dict[str, Any]:
+        if not all(
+            value.strip()
+            for value in (
+                tenant_id,
+                research_artifact_id,
+                idea_node_id,
+                skill_id,
+                version,
+                registration_event_hash,
+            )
+        ):
+            raise ValueError(
+                "tenant, research, idea, skill and registration references are required"
+            )
+        if (
+            not _SEMVER.fullmatch(version)
+            or not _SHA256.fullmatch(registration_event_hash)
+            or not source_ids
+            or not claim_ids
+            or any(not item.strip() for item in (*source_ids, *claim_ids))
+            or len(source_ids) != len(set(source_ids))
+            or len(claim_ids) != len(set(claim_ids))
+        ):
+            raise ValueError(
+                "research link requires version, registration hash, sources and claims"
+            )
+        integrity = self._ledger.verify()
+        if not integrity.valid:
+            raise RuntimeError("skill foundry ledger integrity check failed")
+        registration_found = False
+        if self._ledger.path.exists():
+            with self._ledger.path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    record = json.loads(line)
+                    payload = record.get("payload", {})
+                    if (
+                        record.get("hash") == registration_event_hash
+                        and record.get("event_type") == "skill_foundry.draft_registered"
+                        and payload.get("contract", {}).get("skill_id") == skill_id
+                        and payload.get("contract", {}).get("version") == version
+                        and payload.get("registration_context", {})
+                        == {
+                            "tenant_id": tenant_id,
+                            "research_artifact_id": research_artifact_id,
+                            "idea_node_id": idea_node_id,
+                            "source_ids": sorted(set(source_ids)),
+                            "claim_ids": sorted(set(claim_ids)),
+                        }
+                        and sorted(
+                            item["source_id"]
+                            for item in payload.get("contract", {}).get("source_lineage", [])
+                        )
+                        == sorted(set(source_ids))
+                    ):
+                        registration_found = True
+                        break
+        if not registration_found:
+            raise ValueError("research link must reference a matching registered draft")
+        payload = {
+            "tenant_id": tenant_id,
+            "research_artifact_id": research_artifact_id,
+            "idea_node_id": idea_node_id,
+            "skill_id": skill_id,
+            "version": version,
+            "source_ids": sorted(set(source_ids)),
+            "claim_ids": sorted(set(claim_ids)),
+            "registration_event_hash": registration_event_hash,
+            "activation_allowed": False,
+        }
+        payload["lineage_sha256"] = self._canonical_hash(payload)
+        return self._ledger.append("skill_foundry.research_linked", redact(payload))
+
+    def _has_matching_evaluation(self, *, skill_id: str, version: str, evaluation_ref: str) -> bool:
         integrity = self._ledger.verify()
         if not integrity.valid:
             raise RuntimeError("skill foundry ledger integrity check failed")

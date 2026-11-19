@@ -13,6 +13,7 @@ from creator_app.ai_team.agent_models import (
     TaskStatus,
     TeamRequest,
 )
+from creator_app.ai_team.soul import SoulDocument, load_soul
 
 
 @dataclass
@@ -49,6 +50,7 @@ class Agent(ABC):
         self.expertise = tuple(expertise)
         self.description = description or f"{self.name} — {self.role.value}"
         self.capabilities = tuple(capabilities)
+        self.soul: SoulDocument = load_soul(role.value)
         self.knowledge = AgentKnowledge()
         self._active = True
 
@@ -56,6 +58,10 @@ class Agent(ABC):
     def process(self, request: TeamRequest, context: dict[str, Any] | None = None) -> TaskResult:
         """ประมวลผลงาน — แต่ละ Agent จะมีวิธีต่างกัน."""
         ...
+
+    def soul_guidance(self) -> str:
+        """Return loaded identity guidance; authorization remains Policy Kernel-owned."""
+        return self.soul.prompt_text
 
     def can_handle(self, keywords: tuple[str, ...]) -> bool:
         """ตรวจสอบว่า Agent นี้สามารถจัดการกับคำสำคัญได้หรือไม่."""
@@ -91,6 +97,7 @@ class Agent(ABC):
             "expertise": list(self.expertise),
             "capabilities": [c.name for c in self.capabilities],
             "description": self.description,
+            "soul": self.soul.as_metadata(),
             "knowledge": {
                 "total_tasks": self.knowledge.total_tasks,
                 "success_rate": self.knowledge.success_rate,

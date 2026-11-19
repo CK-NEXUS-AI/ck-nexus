@@ -25,7 +25,7 @@ def _source() -> SkillSource:
         title="Approved example workflow",
         uri="urn:ck-nexus:example:workflow-01",
         permission_basis="user_provided",
-        content_sha256=hashlib.sha256(b"synthetic approved workflow").hexdigest(),
+        source_record_sha256=hashlib.sha256(b"synthetic approved workflow").hexdigest(),
     )
 
 
@@ -104,9 +104,27 @@ def test_evaluation_requires_exact_coverage_and_evidence(tmp_path: Path):
         )
 
 
+def test_evaluation_rejects_unregistered_skill(tmp_path: Path):
+    foundry = SkillFoundry(AppendOnlyLedger(tmp_path / "foundry.jsonl"))
+    cases = _cases()
+    results = tuple(
+        EvaluationResult(case.case_id, True, hashlib.sha256(case.case_id.encode()).hexdigest())
+        for case in cases
+    )
+
+    with pytest.raises(ValueError, match="registered skill draft"):
+        foundry.record_evaluation(
+            skill_id="research.thai_market_summary",
+            version="0.1.0",
+            cases=cases,
+            results=results,
+        )
+
+
 def test_failed_evaluation_remains_quarantined(tmp_path: Path):
     ledger = AppendOnlyLedger(tmp_path / "foundry.jsonl")
     foundry = SkillFoundry(ledger)
+    foundry.register_draft(_draft())
     cases = _cases()
     results = tuple(
         EvaluationResult(
@@ -132,6 +150,7 @@ def test_failed_evaluation_remains_quarantined(tmp_path: Path):
 def test_passed_evaluation_still_cannot_promote_automatically(tmp_path: Path):
     ledger = AppendOnlyLedger(tmp_path / "foundry.jsonl")
     foundry = SkillFoundry(ledger)
+    foundry.register_draft(_draft())
     cases = _cases()
     results = tuple(
         EvaluationResult(case.case_id, True, hashlib.sha256(case.case_id.encode()).hexdigest())
@@ -152,6 +171,7 @@ def test_passed_evaluation_still_cannot_promote_automatically(tmp_path: Path):
 def test_review_request_is_not_activation(tmp_path: Path):
     ledger = AppendOnlyLedger(tmp_path / "foundry.jsonl")
     foundry = SkillFoundry(ledger)
+    foundry.register_draft(_draft())
     cases = _cases()
     results = tuple(
         EvaluationResult(case.case_id, True, hashlib.sha256(case.case_id.encode()).hexdigest())
@@ -186,8 +206,7 @@ def test_review_rejects_unrelated_evaluation_reference(tmp_path: Path):
 def test_contract_rejects_high_impact_without_human_approval():
     draft = _draft()
     values = {
-        field: getattr(draft.contract, field)
-        for field in draft.contract.__dataclass_fields__
+        field: getattr(draft.contract, field) for field in draft.contract.__dataclass_fields__
     }
     values["risk_class"] = "high_impact"
     values["approval_policy"] = "none"
@@ -199,8 +218,7 @@ def test_contract_rejects_high_impact_without_human_approval():
 def test_contract_rejects_globally_forbidden_capability():
     draft = _draft()
     values = {
-        field: getattr(draft.contract, field)
-        for field in draft.contract.__dataclass_fields__
+        field: getattr(draft.contract, field) for field in draft.contract.__dataclass_fields__
     }
     values["required_capabilities"] = ("research_read", "credential_export")
     values["forbidden_capabilities"] = ("external_send", "production_deploy")
@@ -227,7 +245,7 @@ def test_source_requires_permission_provenance_and_sha256():
             title="Unverified source",
             uri="https://example.invalid/post",
             permission_basis="user_provided",
-            content_sha256="not-a-hash",
+            source_record_sha256="not-a-hash",
         )
 
 

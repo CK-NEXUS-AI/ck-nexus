@@ -104,7 +104,11 @@ class TeamDirector:
         # Director วางแผน
         plan_result = self.director.process(
             request,
-            context={"agents": list(self.agents.values())},
+            context={
+                "agents": list(self.agents.values()),
+                "soul_guidance": self.director.soul_guidance(),
+                "soul_metadata": self.director.soul.as_metadata(),
+            },
         )
         plan = plan_result.metadata.get("plan")
         if plan is None:
@@ -129,6 +133,8 @@ class TeamDirector:
                 "completed_steps": completed_steps,
                 "step_results": step_results,
                 "knowledge_context": knowledge_context,
+                "soul_guidance": agent.soul_guidance(),
+                "soul_metadata": agent.soul.as_metadata(),
             }
 
             result = agent.process(request, context=agent_context)
@@ -173,6 +179,7 @@ class TeamDirector:
                 "role": self.director.role.value,
                 "description": self.director.description,
                 "expertise": list(self.director.expertise),
+                "soul": self.director.soul.as_metadata(),
             }
         )
         for agent in self.agents.values():
@@ -182,6 +189,7 @@ class TeamDirector:
                     "role": agent.role.value,
                     "description": agent.description,
                     "expertise": list(agent.expertise),
+                    "soul": agent.soul.as_metadata(),
                 }
             )
         return {
@@ -252,7 +260,14 @@ class TeamDirector:
                 context=f"Automated peer request from {message.sender}",
                 metadata={"conversation_id": message.conversation_id},
             )
-            result = agent.process(request, context={"message": message.as_dict()})
+            result = agent.process(
+                request,
+                context={
+                    "message": message.as_dict(),
+                    "soul_guidance": agent.soul_guidance(),
+                    "soul_metadata": agent.soul.as_metadata(),
+                },
+            )
             agent.record_result(result)
             return result.output
 
