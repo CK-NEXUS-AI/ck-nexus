@@ -1,4 +1,10 @@
-import http.client
+"""Legacy DevX proxy disabled until an authenticated upstream contract exists.
+
+The live VPS has no listener on ports 5690/5691 and no systemd unit references
+this proxy. Do not restore generic path/header forwarding without a reviewed
+route allowlist and authenticated upstream contract.
+"""
+
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
@@ -6,34 +12,15 @@ class H(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass
 
-    def f(self):
-        if self.headers.get("X-CK-NEXUS-Mode", "") != "SANDBOX":
-            self.send_response(403)
-            self.end_headers()
-            return
-        n = int(self.headers.get("Content-Length", "0"))
-        body = self.rfile.read(n) if n else None
-        c = http.client.HTTPConnection("127.0.0.1", 5691, timeout=100)
-        h = {
-            "X-CK-NEXUS-Mode": "SANDBOX",
-            "Content-Type": self.headers.get("Content-Type", "application/json"),
-        }
-        c.request(self.command, self.path, body=body, headers=h)
-        r = c.getresponse()
-        data = r.read()
-        self.send_response(r.status)
-        for k, v in r.getheaders():
-            if k.lower() not in ("transfer-encoding", "connection"):
-                self.send_header(k, v)
-        self.end_headers()
-        self.wfile.write(data)
-        c.close()
+    def _disabled(self):
+        self.send_error(410, "legacy development proxy disabled")
 
     def do_GET(self):
-        self.f()
+        self._disabled()
 
     def do_POST(self):
-        self.f()
+        self._disabled()
 
 
-ThreadingHTTPServer(("0.0.0.0", 5690), H).serve_forever()
+if __name__ == "__main__":
+    ThreadingHTTPServer(("127.0.0.1", 5690), H).serve_forever()

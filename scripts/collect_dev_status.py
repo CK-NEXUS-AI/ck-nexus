@@ -282,13 +282,9 @@ def probe_qwen_daily() -> dict[str, Any]:
         except (HTTPError, URLError, TimeoutError, OSError) as exc:
             result = {"last_success": None, "last_failure": now(),
                       "detail": type(exc).__name__}
-        state_file.parent.mkdir(parents=True, exist_ok=True)
-        tmp = state_file.with_suffix(".tmp")
-        tmp.write_text(
-            json.dumps({"date": today, "result": result, "collected_at": now()}, ensure_ascii=False)
+        _write_owner_only_atomic(
+            state_file, {"date": today, "result": result, "collected_at": now()}
         )
-        os.chmod(tmp, 0o640)
-        os.replace(tmp, state_file)
         if result.get("last_success"):
             return item(result, "authenticated DashScope chat completion (max_tokens=8)")
         return {
@@ -301,20 +297,27 @@ def probe_qwen_daily() -> dict[str, Any]:
         return failed("authenticated Qwen daily probe", exc)
 
 
-def write_atomic(payload: dict[str, Any]) -> None:
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    safe = redact(payload)
-    fd, tmp_name = tempfile.mkstemp(prefix=".dev_status.", suffix=".tmp", dir=OUTPUT.parent)
+def _write_owner_only_atomic(
+    path: Path, payload: dict[str, Any], *, indent: int | None = None
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            json.dump(safe, stream, ensure_ascii=False, indent=2)
+            json.dump(payload, stream, ensure_ascii=False, indent=indent)
             stream.flush()
             os.fsync(stream.fileno())
-        os.chmod(tmp_name, 0o640)
-        os.replace(tmp_name, OUTPUT)
+            os.fchmod(stream.fileno(), 0o600)
+        os.replace(tmp_name, path)
     finally:
         if os.path.exists(tmp_name):
             os.unlink(tmp_name)
+
+
+def write_atomic(payload: dict[str, Any]) -> None:
+    _write_owner_only_atomic(OUTPUT, redact(payload), indent=2)
 
 
 if __name__ == "__main__":

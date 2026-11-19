@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import stat
 import subprocess
 from pathlib import Path
 from unittest.mock import Mock
@@ -147,3 +148,58 @@ def test_collect_does_not_use_non_readonly_github_credentials(monkeypatch) -> No
     assert not any(args[:2] == ["gh", "pr"] for args in calls)
     assert not any(args[:2] == ["gh", "issue"] for args in calls)
     assert not any(args[:2] == ["gh", "run"] for args in calls)
+
+
+def test_atomic_status_snapshot_is_owner_only(tmp_path, monkeypatch) -> None:
+    output = tmp_path / "dev_status.json"
+    monkeypatch.setattr(collector, "OUTPUT", output)
+    collector.write_atomic({"schema_version": 1, "items": {"health": {"status": "ok"}}})
+
+    assert output.exists()
+    assert stat.S_IMODE(output.stat().st_mode) == 0o600
+
+
+def test_qwen_probe_writes_owner_only_state_without_path_chmod(tmp_path, monkeypatch) -> None:
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self, _limit):
+            return b'{"choices":[{"message":{"content":"OK"}}]}'
+
+    def reject_path_chmod(*_args, **_kwargs):
+        raise AssertionError("path-based chmod must not be used")
+
+    monkeypatch.setattr(collector, "OUTPUT", tmp_path / "dev_status.json")
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "test-key")
+    monkeypatch.setenv("QWEN_MODEL", "qwen-test")
+    monkeypatch.delenv("DASHSCOPE_BASE_URL", raising=False)
+    monkeypatch.setattr(collector, "urlopen", lambda _request, timeout: Response())
+    monkeypatch.setattr(collector.os, "chmod", reject_path_chmod)
+
+    result = collector.probe_qwen_daily()
+
+    state_file = tmp_path / "qwen_probe_state.json"
+    assert result["status"] == "ok"
+    assert state_file.exists()
+    assert stat.S_IMODE(state_file.stat().st_mode) == 0o600
+
+
+def test_atomic_status_snapshot_uses_fd_permissions_not_path_chmod(tmp_path, monkeypatch) -> None:
+    output = tmp_path / "dev_status.json"
+
+    def reject_path_chmod(*_args, **_kwargs):
+        raise AssertionError("path-based chmod must not be used")
+
+    monkeypatch.setattr(collector, "OUTPUT", output)
+    monkeypatch.setattr(collector.os, "chmod", reject_path_chmod)
+
+    collector.write_atomic({"schema_version": 1, "items": {"health": {"status": "ok"}}})
+
+    assert output.exists()
+    assert stat.S_IMODE(output.stat().st_mode) == 0o600
