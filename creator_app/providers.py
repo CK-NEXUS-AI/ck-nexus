@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -159,6 +160,68 @@ class OpenAIProviderAdapter:
         return output
 
 
+class GeminiProviderAdapter:
+    """Google Gemini text adapter using the server-side API key header."""
+
+    name = "gemini"
+    kind = ProviderKind.CLOUD
+
+    def __init__(
+        self,
+        broker: CredentialBroker,
+        *,
+        model: str = "gemini-2.5-flash",
+        timeout_seconds: int = 90,
+        opener: Callable[..., Any] | None = None,
+    ) -> None:
+        self.broker = broker
+        self.model = model.strip()
+        self.timeout_seconds = timeout_seconds
+        self._opener = opener or urlopen
+        self.capabilities = ProviderCapabilities(
+            features=frozenset({"text"}),
+            models=(self.model,) if self.model else (),
+        )
+
+    def is_available(self) -> bool:
+        return bool(self.model) and self.broker.is_configured(
+            CredentialId.GEMINI_API_KEY, consumer="provider.gemini"
+        )
+
+    async def invoke(self, prompt: str) -> str:
+        try:
+            lease = self.broker.acquire(
+                CredentialId.GEMINI_API_KEY, consumer="provider.gemini"
+            )
+        except CredentialUnavailable as exc:
+            raise RuntimeError("Gemini credential is not configured.") from exc
+        api_key = lease.reveal(consumer="provider.gemini")
+        payload = json.dumps(
+            {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
+        ).encode("utf-8")
+        request = Request(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent",
+            data=payload,
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": api_key,
+            },
+        )
+
+        def _call() -> str:
+            with self._opener(request, timeout=self.timeout_seconds) as response:
+                body = json.loads(response.read().decode("utf-8"))
+            candidates = body.get("candidates") or []
+            parts = (candidates[0].get("content") or {}).get("parts") or []
+            output = "".join(str(part.get("text") or "") for part in parts).strip()
+            if not output:
+                raise RuntimeError("Gemini response did not contain text output.")
+            return output
+
+        return await asyncio.to_thread(_call)
+
+
 def build_provider_router(settings: Settings, broker: CredentialBroker) -> ProviderRouter:
     providers = []
     if settings.mock_ai:
@@ -172,6 +235,13 @@ def build_provider_router(settings: Settings, broker: CredentialBroker) -> Provi
                 timeout_seconds=settings.provider_timeout_seconds,
             )
         )
+    providers.append(
+        GeminiProviderAdapter(
+            broker,
+            model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+            timeout_seconds=settings.provider_timeout_seconds,
+        )
+    )
     providers.append(
         OpenAIProviderAdapter(
             broker,
