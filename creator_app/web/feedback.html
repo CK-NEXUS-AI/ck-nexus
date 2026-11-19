@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="ทดลองใช้ CK-NEXUS และส่งรีวิวหรือรายงานปัญหาเพื่อช่วยปรับปรุงระบบ" />
+  <title>CK-NEXUS Public Beta Feedback</title>
+  <link rel="stylesheet" href="/static/feedback.css" />
+  <script src="/static/feedback.js" defer></script>
+</head>
+<body>
+  <main class="shell">
+    <a class="back" href="/">← CK-NEXUS</a>
+    <p class="eyebrow">PUBLIC BETA / USER VOICE</p>
+    <h1>ช่วยทดลองและพัฒนา CK-NEXUS</h1>
+    <p class="intro">ทดลองใช้งานแล้วส่งรีวิว แจ้งปัญหา หรือเสนอสิ่งที่อยากให้เพิ่ม ทีมงานจะตรวจสอบรายงานและทดสอบซ้ำก่อนยืนยันว่าเป็นปัญหาจริง</p>
+    <section class="notice">
+      <strong>ก่อนส่งรายงาน</strong>
+      <ul>
+        <li>อย่าส่งรหัสผ่าน API key หรือข้อมูลส่วนตัวที่เป็นความลับ</li>
+        <li>อย่าแนบข้อมูลของบุคคลอื่น</li>
+        <li>การส่งรายงานไม่ได้หมายความว่าปัญหานั้นได้รับการยืนยันแล้ว</li>
+      </ul>
+    </section>
+    <form id="feedback-form">
+      <label>ประเภท
+        <select name="kind" required>
+          <option value="review">รีวิวการใช้งาน</option>
+          <option value="bug">แจ้งปัญหา / ข้อผิดพลาด</option>
+          <option value="idea">ข้อเสนอแนะ / ฟีเจอร์ใหม่</option>
+          <option value="other">อื่น ๆ</option>
+        </select>
+      </label>
+      <label>คะแนนความพึงพอใจ
+        <select name="rating">
+          <option value="">ไม่ระบุ</option><option value="5">5 - ดีมาก</option><option value="4">4 - ดี</option><option value="3">3 - ปานกลาง</option><option value="2">2 - ควรปรับปรุง</option><option value="1">1 - มีปัญหามาก</option>
+        </select>
+      </label>
+      <label>หัวข้อ <input name="title" minlength="4" maxlength="120" required placeholder="สรุปสั้น ๆ ว่าพบอะไร" /></label>
+      <label>รายละเอียด <textarea name="message" minlength="20" maxlength="3000" required rows="6" placeholder="เกิดอะไรขึ้น ใช้งานส่วนไหน และพบผลลัพธ์อย่างไร"></textarea></label>
+      <label>ขั้นตอนที่ทำให้พบปัญหา (ถ้ามี) <textarea name="steps" maxlength="1500" rows="3" placeholder="1. เปิดหน้า... 2. กด... 3. พบว่า..."></textarea></label>
+      <label>ผลลัพธ์ที่คาดหวัง (ถ้ามี) <textarea name="expected" maxlength="1000" rows="2"></textarea></label>
+      <label class="trap" aria-hidden="true">Website <input name="website" tabindex="-1" autocomplete="off" /></label>
+      <label class="consent"><input type="checkbox" name="consent" required /> ยินยอมให้ CK-NEXUS เก็บข้อความรายงานนี้เพื่อวิเคราะห์และปรับปรุงระบบ โดยไม่เก็บอีเมลหรือ IP address ไว้ในรายงาน</label>
+      <button type="submit" id="submit">ส่งรายงาน</button>
+      <p id="result" role="status" aria-live="polite"></p>
+    </form>
+    <footer>CK-NEXUS · Public Beta · รายงานจะถูกเก็บไม่เกิน 180 วัน</footer>
+  </main>
+</body>
+</html>

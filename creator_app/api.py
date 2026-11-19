@@ -54,6 +54,7 @@ from creator_app.observability import (
     correlation_id,
 )
 from creator_app.providers import build_provider_router
+from creator_app.public_feedback import PublicFeedbackRequest, PublicFeedbackStore
 from creator_app.rate_limit import SlidingWindowRateLimiter
 from creator_app.runtime import CreatorRuntime, MissingCredentialError, ProviderRuntimeError
 from creator_app.runtime_binding import close_all as close_runtime_bindings
@@ -202,6 +203,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         database_path=email_database_path,
     )
     limiter = SlidingWindowRateLimiter(resolved_settings.rate_limit_per_minute)
+    public_feedback_limiter = SlidingWindowRateLimiter(5, window_seconds=60)
+    feedback_store = PublicFeedbackStore(
+        resolved_settings.database_path.with_name("cknexus_public_feedback.sqlite3")
+    )
     metrics_registry = MetricsRegistry()
     structured_logger = StructuredLogger()
 
@@ -212,6 +217,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         store.initialize()
+        feedback_store.initialize()
         if resolved_settings.email_gateway_enabled:
             email_repository.initialize()
         if runtime_binding_required:
@@ -233,6 +239,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.credential_broker = credential_broker
     app.state.provider_router = provider_router
     app.state.store = store
+    app.state.public_feedback_store = feedback_store
     app.state.service = service
     app.state.dev_team = dev_team
     app.state.agnes = agnes
@@ -604,6 +611,57 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         _: None = Depends(require_email_webhook_token),
     ) -> dict[str, object]:
         return {"journal_id": journal_id, "events": email_repository.trace_audit(journal_id)}
+
+    async def require_feedback_admin(authorization: str | None = Header(default=None)) -> None:
+        expected = resolved_settings.access_token
+        if not expected:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "error": "FEEDBACK_ADMIN_NOT_CONFIGURED",
+                    "message": "Set CKNEXUS_ACCESS_TOKEN before accessing feedback reports.",
+                },
+            )
+        supplied = ""
+        if authorization and authorization.startswith("Bearer "):
+            supplied = authorization.removeprefix("Bearer ").strip()
+        if not supplied or not hmac.compare_digest(supplied, expected):
+            raise HTTPException(status_code=401, detail={"error": "UNAUTHORIZED"})
+
+    @app.post("/api/public-feedback", status_code=202)
+    async def submit_public_feedback(payload: PublicFeedbackRequest, request: Request):
+        client_key = request.client.host if request.client else "unknown"
+        retry_after = public_feedback_limiter.check(client_key)
+        if retry_after:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "RATE_LIMITED",
+                    "message": "Please wait before sending another report.",
+                },
+                headers={"Retry-After": str(retry_after)},
+            )
+        try:
+            return feedback_store.submit(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/internal/public-feedback")
+    async def list_public_feedback(
+        limit: int = Query(default=50, ge=1, le=100),
+        _: None = Depends(require_feedback_admin),
+    ):
+        return {"reports": feedback_store.list_reports(limit=limit)}
+
+    @app.post("/api/internal/public-feedback/{feedback_id}/triage")
+    async def triage_public_feedback(
+        feedback_id: str = Path(min_length=8, max_length=48, pattern=r"^fb_[a-f0-9]{32}$"),
+        _: None = Depends(require_feedback_admin),
+    ):
+        result = feedback_store.triage(feedback_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Feedback report not found")
+        return result
 
     @app.get("/health")
     async def health():
@@ -1325,10 +1383,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/dev-status", dependencies=[Depends(require_access_token)])
     async def development_status_snapshot() -> JSONResponse:
         """Serve the collector snapshot only; never execute host commands in a request."""
-        status_path = FilePath(os.getenv(
-            "CKNEXUS_DEV_STATUS_FILE",
-            str(FilePath.cwd() / "data" / "dev_status.json"),
-        ))
+        status_path = FilePath(
+            os.getenv(
+                "CKNEXUS_DEV_STATUS_FILE",
+                str(FilePath.cwd() / "data" / "dev_status.json"),
+            )
+        )
         try:
             payload = json.loads(status_path.read_text(encoding="utf-8"))
             if (
@@ -1358,8 +1418,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         except (OSError, ValueError, TypeError, json.JSONDecodeError):
             return JSONResponse(
-                {"available": False, "stale": True, "age_seconds": None, "items": {},
-                 "error": "STATUS_SNAPSHOT_UNAVAILABLE"},
+                {
+                    "available": False,
+                    "stale": True,
+                    "age_seconds": None,
+                    "items": {},
+                    "error": "STATUS_SNAPSHOT_UNAVAILABLE",
+                },
                 headers={"Cache-Control": "no-store"},
             )
 
@@ -1376,6 +1441,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return FileResponse(WEB_DIR / "full-system.html")
 
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
+
+    @app.get("/feedback", include_in_schema=False)
+    async def public_feedback_page() -> FileResponse:
+        return FileResponse(WEB_DIR / "feedback.html")
 
     @app.get("/", include_in_schema=False)
     async def index() -> FileResponse:
