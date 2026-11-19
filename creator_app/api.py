@@ -286,7 +286,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.middleware("http")
     async def enforce_public_beta_boundary(request: Request, call_next):
         """Expose only the feedback surface and health probes in staging/production."""
-        if resolved_settings.environment in {"staging", "production"}:
+        if resolved_settings.environment not in {"development", "dev", "test", "testing"}:
             path = request.url.path
             public_paths = {
                 "/",
