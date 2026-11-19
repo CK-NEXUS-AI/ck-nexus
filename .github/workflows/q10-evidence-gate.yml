@@ -183,6 +183,7 @@ jobs:
               dependency_rc == '0'
               and vulnerabilities == 0
               and high_findings == 0
+              and medium_findings == 0
               and secret_rc == '0'
               and attack_rc == '0'
               and attack_report_valid
