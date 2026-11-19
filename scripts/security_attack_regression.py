@@ -214,23 +214,30 @@ def main() -> int:
         )
     )
 
+    # Keep open and resolved findings distinct so old evidence remains auditable
+    # without allowing a closed issue to be reintroduced as a current blocker.
     known_open_findings = [
-        {
-            "issue": 65,
-            "title": "DNS-rebinding/TOCTOU SSRF peer binding",
-            "status": "OPEN_REMEDIATION_REQUIRED",
-        },
         {
             "issue": 66,
             "title": "Attachment content/magic validation",
             "status": "OPEN_HARDENING_REQUIRED",
         },
     ]
+    resolved_findings = [
+        {
+            "issue": 65,
+            "title": "DNS-rebinding/TOCTOU SSRF peer binding",
+            "status": "RESOLVED",
+            "resolved_by_pr": 70,
+            "main_sha": "980af3aeee69562bd26ca6af3aeaf6278aa8c139",
+            "supersedes_status": "OPEN_REMEDIATION_REQUIRED",
+        },
+    ]
 
     passed = sum(1 for item in results if item["passed"])
     failed = len(results) - passed
     evidence = {
-        "schema_version": 1,
+        "schema_version": 2,
         "suite": "CK-NEXUS Security Attack Regression V1",
         "base_url": BASE_URL,
         "tests_total": len(results),
@@ -238,6 +245,7 @@ def main() -> int:
         "tests_failed": failed,
         "results": results,
         "known_open_findings": known_open_findings,
+        "resolved_findings": resolved_findings,
         "release_evidence": False,
         "production_promotion": False,
     }
