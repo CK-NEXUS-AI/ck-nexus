@@ -76,7 +76,7 @@ jobs:
             sleep 0.5
           done
           if [ "$ready" -eq 1 ]; then
-            CKNEXUS_SECURITY_EVIDENCE=../security-attack-regression.json .venv/bin/python scripts/security_attack_regression.py
+            CKNEXUS_SECURITY_EVIDENCE=security-attack-regression.json .venv/bin/python scripts/security_attack_regression.py
             rc=$?
           else
             cat /tmp/cknexus-q10-runtime.log || true
@@ -133,14 +133,32 @@ jobs:
           except Exception:
               attack = {'error': 'security_attack_regression_report_missing_or_invalid'}
           completed = datetime.now(UTC).isoformat()
+          attack_results = attack.get('results', []) if isinstance(attack, dict) else []
+          attack_report_valid = (
+              isinstance(attack, dict)
+              and isinstance(attack.get('tests_total'), int)
+              and attack.get('tests_total', 0) > 0
+              and attack.get('tests_failed') == 0
+              and attack.get('tests_passed') == attack.get('tests_total')
+              and len(attack_results) == attack.get('tests_total')
+              and all(isinstance(item, dict) and item.get('passed') is True for item in attack_results)
+          )
           checks = {
               'pip_audit_exit_code': audit_rc,
               'dependency_vulnerabilities': vulns,
               'bandit_high_severity_exit_code': bandit_rc,
               'secret_scan_exit_code': secret_rc,
               'security_attack_regression_exit_code': attack_rc,
+              'attack_regression_report_valid': attack_report_valid,
           }
-          passed = audit_rc == 0 and vulns == 0 and bandit_rc == 0 and secret_rc == 0 and attack_rc == 0
+          passed = (
+              audit_rc == 0
+              and vulns == 0
+              and bandit_rc == 0
+              and secret_rc == 0
+              and attack_rc == 0
+              and attack_report_valid
+          )
           report = {
               'schema_version': 1,
               'gate': 'Q10_OPEN_SOURCE_LAYERED_SECURITY',
@@ -187,6 +205,7 @@ jobs:
               'bandit_high_severity_exit_code': bandit_rc,
               'secret_scan_exit_code': secret_rc,
               'security_attack_regression_exit_code': attack_rc,
+              'attack_regression_report_valid': attack_report_valid,
               'gate_result': 'NOT_VERIFIED',
               'production_promotion_allowed': False,
           }

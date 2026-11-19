@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """Read-only CK-NEXUS development status collector. Python stdlib only."""
+
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import re
+import ssl
 import subprocess
 import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = Path(os.getenv("CKNEXUS_DEV_STATUS_FILE", ROOT / "data/dev_status.json"))
@@ -83,8 +84,13 @@ def item(value: Any, source: str, status: str = "ok") -> dict[str, Any]:
 
 
 def failed(source: str, exc: Exception) -> dict[str, Any]:
-    return {"value": None, "source": source, "collected_at": now(), "status": "error",
-            "error": redact(f"{type(exc).__name__}: {exc}")}
+    return {
+        "value": None,
+        "source": source,
+        "collected_at": now(),
+        "status": "error",
+        "error": redact(f"{type(exc).__name__}: {exc}"),
+    }
 
 
 def collect() -> dict[str, Any]:
@@ -105,18 +111,47 @@ def collect() -> dict[str, Any]:
             counts = command(["git", "rev-list", "--left-right", "--count", "HEAD...@{upstream}"])
             ahead, behind = map(int, counts.split())
             ahead_behind = {"ahead": ahead, "behind": behind}
-        data["git"] = item({"head": head, "branch": branch, "dirty": dirty, **ahead_behind},
-                           "git rev-parse/status/rev-list")
+        data["git"] = item(
+            {"head": head, "branch": branch, "dirty": dirty, **ahead_behind},
+            "git rev-parse/status/rev-list",
+        )
     except Exception as exc:
         data["git"] = failed("git", exc)
 
     calls = {
-        "open_prs": ["gh", "pr", "list", "--state", "open", "--limit", "500",
-                     "--json", "number,title,isDraft,mergeStateStatus,statusCheckRollup,url"],
-        "open_issues": ["gh", "issue", "list", "--state", "open", "--limit", "500",
-                        "--json", "number,title,url"],
-        "main_ci": ["gh", "run", "list", "--branch", "main", "--limit", "20",
-                    "--json", "databaseId,name,status,conclusion,createdAt,headSha,url"],
+        "open_prs": [
+            "gh",
+            "pr",
+            "list",
+            "--state",
+            "open",
+            "--limit",
+            "500",
+            "--json",
+            "number,title,isDraft,mergeStateStatus,statusCheckRollup,url",
+        ],
+        "open_issues": [
+            "gh",
+            "issue",
+            "list",
+            "--state",
+            "open",
+            "--limit",
+            "500",
+            "--json",
+            "number,title,url",
+        ],
+        "main_ci": [
+            "gh",
+            "run",
+            "list",
+            "--branch",
+            "main",
+            "--limit",
+            "20",
+            "--json",
+            "databaseId,name,status,conclusion,createdAt,headSha,url",
+        ],
     }
     for key, args in calls.items():
         if key in {"open_prs", "open_issues", "main_ci"} and not (
@@ -185,8 +220,9 @@ def collect() -> dict[str, Any]:
     try:
         release = (ROOT / "RELEASE_STATUS.md").read_text(encoding="utf-8")
         decision = re.search(r"^Decision:\s*\*\*(.*?)\*\*", release, re.M)
-        data["production_status"] = item(decision.group(1) if decision else None,
-                                         "RELEASE_STATUS.md: Decision")
+        data["production_status"] = item(
+            decision.group(1) if decision else None, "RELEASE_STATUS.md: Decision"
+        )
         if not decision:
             data["production_status"]["status"] = "error"
     except Exception as exc:
@@ -242,10 +278,10 @@ def probe_qwen_daily() -> dict[str, Any]:
                 RuntimeError("credentials or model not configured; no result cached"),
             )
         parsed = urlparse(base)
-        allowed_host = (
-            parsed.hostname in {"dashscope-intl.aliyuncs.com", "dashscope.aliyuncs.com"}
-            or bool(parsed.hostname and parsed.hostname.endswith(".maas.aliyuncs.com"))
-        )
+        allowed_host = parsed.hostname in {
+            "dashscope-intl.aliyuncs.com",
+            "dashscope.aliyuncs.com",
+        } or bool(parsed.hostname and parsed.hostname.endswith(".maas.aliyuncs.com"))
         if (
             parsed.scheme != "https"
             or not allowed_host
@@ -267,21 +303,39 @@ def probe_qwen_daily() -> dict[str, Any]:
                 "max_tokens": 8,
             }
         ).encode()
-        req = Request(base + "/chat/completions", data=body, headers={
-            "Authorization": "Bearer " + key, "Content-Type": "application/json"})
+        # Use a direct TLS connection: no URL-handler scheme changes or redirects.
+        connection = http.client.HTTPSConnection(
+            parsed.hostname, port=443, timeout=15, context=ssl.create_default_context()
+        )
         started = time.monotonic()
         try:
-            with urlopen(req, timeout=15) as response:
-                payload = json.loads(response.read(65536))
-                success = response.status == 200 and bool(payload.get("choices"))
-                result = {"last_success": now() if success else None,
-                          "last_failure": None if success else now(),
-                          "http_status": response.status,
-                          "latency_seconds": round(time.monotonic() - started, 2),
-                          "model": model}
-        except (HTTPError, URLError, TimeoutError, OSError) as exc:
-            result = {"last_success": None, "last_failure": now(),
-                      "detail": type(exc).__name__}
+            connection.request(
+                "POST",
+                parsed.path + "/chat/completions",
+                body=body,
+                headers={
+                    "Authorization": "Bearer " + key,
+                    "Content-Type": "application/json",
+                },
+            )
+            response = connection.getresponse()
+            payload = json.loads(response.read(65536))
+            success = response.status == 200 and bool(payload.get("choices"))
+            result = {
+                "last_success": now() if success else None,
+                "last_failure": None if success else now(),
+                "http_status": response.status,
+                "latency_seconds": round(time.monotonic() - started, 2),
+                "model": model,
+            }
+        except (http.client.HTTPException, TimeoutError, OSError, ValueError) as exc:
+            result = {
+                "last_success": None,
+                "last_failure": now(),
+                "detail": type(exc).__name__,
+            }
+        finally:
+            connection.close()
         state_file.parent.mkdir(parents=True, exist_ok=True)
         tmp = state_file.with_suffix(".tmp")
         tmp.write_text(

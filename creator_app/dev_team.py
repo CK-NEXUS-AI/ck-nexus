@@ -8,6 +8,7 @@ from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
 
+from creator_app.ai_team.soul import build_soul_instructions
 from creator_app.config import Settings
 from creator_app.council_debate import (
     DebatePolicy,
@@ -83,6 +84,15 @@ class DevAdvisorSpec:
             "web_search": self.web_search,
             "side_effects": "none",
         }
+
+
+_ADVISOR_SOUL_ROLES = {
+    "architect": "director",
+    "research": "researcher",
+    "designer": "designer",
+    "builder": "engineer",
+    "reviewer": "guardian",
+}
 
 
 DEV_ADVISORS: dict[str, DevAdvisorSpec] = {
@@ -316,7 +326,11 @@ class DevTeamRuntime:
             specialists[advisor.id] = Agent(
                 name=advisor.name,
                 handoff_description=advisor.role,
-                instructions=f"{TEAM_BASE_INSTRUCTIONS}\n\nSPECIALIST ROLE\n{advisor.instructions}",
+                instructions=build_soul_instructions(
+                    _ADVISOR_SOUL_ROLES[advisor.id],
+                    base_instructions=TEAM_BASE_INSTRUCTIONS,
+                    specialist_instructions=advisor.instructions,
+                ),
                 model=self._model_for(advisor.id),
                 tools=tools,
             )
@@ -346,7 +360,11 @@ class DevTeamRuntime:
 
         orchestrator = Agent(
             name="CK-NEXUS Lead Orchestrator",
-            instructions=f"{TEAM_BASE_INSTRUCTIONS}\n\n{ORCHESTRATOR_INSTRUCTIONS}",
+            instructions=build_soul_instructions(
+                "director",
+                base_instructions=TEAM_BASE_INSTRUCTIONS,
+                specialist_instructions=ORCHESTRATOR_INSTRUCTIONS,
+            ),
             model=self.settings.openai_model,
             tools=orchestrator_tools,
         )
@@ -394,11 +412,14 @@ class DevTeamRuntime:
 
             synthesizer = agent_type(
                 name="CK-NEXUS Debate Synthesizer",
-                instructions=(
-                    f"{TEAM_BASE_INSTRUCTIONS}\n\n"
-                    "Synthesize the debate without erasing material disagreement. "
-                    "You have no verification, approval, merge, deployment, or "
-                    "Production authority."
+                instructions=build_soul_instructions(
+                    "analyst",
+                    base_instructions=TEAM_BASE_INSTRUCTIONS,
+                    specialist_instructions=(
+                        "Synthesize the debate without erasing material disagreement. "
+                        "You have no verification, approval, merge, deployment, or "
+                        "Production authority."
+                    ),
                 ),
                 model=self.settings.openai_model,
             )
