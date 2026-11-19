@@ -296,7 +296,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "/health/live",
                 "/health/ready",
             }
-            is_public = path in public_paths or path.startswith("/static/")
+            public_static_paths = {
+                "/static/app.js",
+                "/static/styles.css",
+                "/static/feedback.js",
+                "/static/feedback.css",
+            }
+            is_public = path in public_paths or path in public_static_paths
             if not is_public:
                 expected = resolved_settings.access_token.strip()
                 supplied = ""

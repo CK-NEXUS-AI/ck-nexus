@@ -103,12 +103,31 @@ def test_staging_exposes_only_feedback_and_health_without_auth(tmp_path: Path):
     with TestClient(create_app(settings)) as client:
         assert client.get("/").status_code == 200
         assert client.get("/feedback").status_code == 200
-        assert client.get("/static/feedback.css").status_code == 200
+        # Only assets required by the public landing and feedback pages are public.
+        for asset in (
+            "/static/app.js",
+            "/static/styles.css",
+            "/static/feedback.js",
+            "/static/feedback.css",
+        ):
+            assert client.get(asset).status_code == 200
+        for private_asset in (
+            "/static/development.html",
+            "/static/development.js",
+            "/static/approval.html",
+            "/static/full-system.html",
+            "/static/assistants.html",
+            "/static/signup.html",
+        ):
+            assert client.get(private_asset).status_code == 401
         assert client.get("/health").status_code == 200
-        assert client.post(
-            "/api/public-feedback",
-            json=payload(),
-        ).status_code == 202
+        assert (
+            client.post(
+                "/api/public-feedback",
+                json=payload(),
+            ).status_code
+            == 202
+        )
 
         # Internal pages, APIs, provider discovery, and execution routes stay closed.
         assert client.get("/development").status_code == 401
