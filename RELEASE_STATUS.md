@@ -1,5 +1,22 @@
 # Release evidence snapshot — 2026-11-19 (PR #380 code baseline)
 
+## Live repository status — 2026-11-19 (PR #387 candidate; not merged)
+
+> This section records the latest verified state of the open security-fix PR. It is a **PR-branch snapshot**, not a claim that these changes are on `main`, deployed, or Production-approved.
+
+- Repository: [`spinlnw10-art/ck-nexus`](https://github.com/spinlnw10-art/ck-nexus)
+- Active candidate: [PR #387](https://github.com/spinlnw10-art/ck-nexus/pull/387), branch `fix/q10-gate-medium-and-report-20261119`
+- Candidate commit: `b9b66d5b103850bcfbf5932965eb53d0da4ce462`; source tree: `ed6edd13bf84d30170ea5ed1fed72bb3c0b58ee3`
+- PR state: **OPEN / BLOCKED / NOT MERGED**. The branch worktree was clean at the time of verification.
+- Exact-commit Q10 scanner: **PASS** (workflow run [44509880235](https://github.com/spinlnw10-art/ck-nexus/actions/runs/44509880235)); report SHA-256 `888bf963d5ac323ebf394a30fc1a828e433580a8edc9bdfa73df30acbca46967`; artifact ID `14520973588`.
+- Q10 details: 0 Bandit HIGH, 0 MEDIUM, 521 LOW; dependency vulnerabilities 0; secret scan exit 0; attack regression 19/19. The report explicitly retains `security_review_status=REQUIRED` and `production_promotion_allowed=false`.
+- Termux verification: PostgreSQL DR + cgroup targeted tests **14 passed**; PostgreSQL DR suite **9 passed**; `compileall` and `git diff --check` passed. Pytest emitted an environment warning for unsupported `asyncio_mode`; no test failed.
+- Current PR checks: `preflight`, `test`, `attack-regression`, and CodeQL language analysis jobs **PASS**; CodeQL security check **FAIL** with one HIGH `py/path-injection` annotation in `scripts/postgres_dr.py:144`; SonarCloud Code Analysis **CANCELLED** (not a pass).
+- Bandit LOW triage: 414 findings are in test paths and 107 in production/scripts paths. Production/script findings include B603 (39) and B607 (20); these categories overlap on Git subprocess call sites. Initial static review indicates fixed argv/no `shell=True` for the reviewed calls, but this is **not a completed security disposition**; call-site input boundaries and executable resolution still require review.
+- PostgreSQL credential handling now supplies libpq settings through the child environment rather than command-line arguments or a temporary passfile. `PGPASSWORD` exists in the child environment while the DB client runs; same-UID process inspection remains a documented limitation.
+- **Release decision: NO-GO FOR PRODUCTION.** No merge, deployment, CodeQL dismissal, or secret change was performed. Q10 scanner PASS is not whole-gate approval.
+
+
 **Code-bearing baseline after PR #380:** `0d7b0d1c0efee01d6307b418c848cd0c84411ea0`
 
 **Source tree at that baseline:** `8cc361ab7c0e9e35944277e4dd3fdb7e8a99b13a`
