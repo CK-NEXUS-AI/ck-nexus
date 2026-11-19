@@ -6,6 +6,12 @@ from pathlib import Path
 import pytest
 
 from creator_app.brain import BrainJournal, BrainRuntime
+from creator_app.global_knowledge import ebook_store as ebook_store_module
+
+
+@pytest.fixture(autouse=True)
+def _allow_test_database_root(tmp_path, monkeypatch):
+    monkeypatch.setattr(ebook_store_module, "_ALLOWED_DB_ROOTS", (tmp_path,))
 
 
 def _root(tmp_path: Path) -> Path:

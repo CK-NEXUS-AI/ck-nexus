@@ -25,6 +25,13 @@ from creator_app.sqlite_security import (
     prepare_private_sqlite_parent,
 )
 
+_ALLOWED_DB_ROOTS = (
+    Path("/var/lib/cknexus-knowledge"),
+    Path.home() / "data" / "knowledge",
+    Path.home() / "knowledge",
+)
+
+
 _SEARCH_SQL = """SELECT c.chunk_id, c.source_sha256, d.title, d.filename,
     c.chapter_id, c.chapter_order, c.chunk_order, c.text, c.rights_basis
     FROM ebook_chunks c
@@ -56,7 +63,13 @@ class EbookKnowledgeStore:
     def __init__(self, path: str | Path) -> None:
         """Resolve the database path once, then use only private local storage."""
         requested_path = Path(path).expanduser()
-        self.path = requested_path.parent.resolve() / requested_path.name
+        resolved_parent = requested_path.parent.resolve()
+        allowed_roots = tuple(root.resolve() for root in _ALLOWED_DB_ROOTS)
+        if not any(
+            resolved_parent == root or root in resolved_parent.parents for root in allowed_roots
+        ):
+            raise ValueError("knowledge database path is outside approved local storage roots")
+        self.path = resolved_parent / requested_path.name
 
     def initialize(self) -> None:
         self.path = prepare_private_sqlite_parent(self.path)

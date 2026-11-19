@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from creator_app.global_knowledge import ebook_store as ebook_store_module
 from creator_app.global_knowledge.ebook_ingest import (
     EbookChapter,
     EbookDocument,
@@ -10,6 +11,11 @@ from creator_app.global_knowledge.ebook_ingest import (
     chunk_epub,
 )
 from creator_app.global_knowledge.ebook_store import EbookKnowledgeStore
+
+
+@pytest.fixture(autouse=True)
+def _allow_test_database_root(tmp_path, monkeypatch):
+    monkeypatch.setattr(ebook_store_module, "_ALLOWED_DB_ROOTS", (tmp_path,))
 
 
 def _document() -> EbookDocument:
@@ -30,6 +36,11 @@ def _document() -> EbookDocument:
         ),
         total_characters=77,
     )
+
+
+def test_database_path_outside_approved_root_is_rejected(tmp_path) -> None:
+    with pytest.raises(ValueError, match="outside approved local storage roots"):
+        EbookKnowledgeStore(tmp_path.parent / "outside.sqlite3")
 
 
 def test_store_ingests_once_and_returns_citable_search_hits(tmp_path) -> None:
