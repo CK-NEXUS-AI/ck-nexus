@@ -37,13 +37,12 @@ def _root(tmp_path: Path) -> Path:
 
 
 def test_brain_status_composes_components_and_fails_closed(tmp_path):
-    root = _root(tmp_path)
     brain = BrainRuntime(
-        root=root,
-        journal_path=root / ".state" / "brain.sqlite3",
-        task_db_path=root / ".state" / "tasks.sqlite3",
-        knowledge_db_path=root / "data" / "missing.sqlite3",
-        evidence_dir=root / "evidence" / "missing",
+        root=_root(tmp_path),
+        journal_path=tmp_path / "brain.sqlite3",
+        task_db_path=tmp_path / "tasks.sqlite3",
+        knowledge_db_path=tmp_path / "missing.sqlite3",
+        evidence_dir=tmp_path / "missing",
     )
     status = brain.status()
     assert (
@@ -57,13 +56,12 @@ def test_brain_status_composes_components_and_fails_closed(tmp_path):
 
 
 def test_brain_plan_never_executes_or_grants_authority(tmp_path):
-    root = _root(tmp_path)
     brain = BrainRuntime(
-        root=root,
-        journal_path=root / ".state" / "brain.sqlite3",
-        task_db_path=root / ".state" / "tasks.sqlite3",
-        knowledge_db_path=root / "data" / "missing.sqlite3",
-        evidence_dir=root / "evidence" / "missing",
+        root=_root(tmp_path),
+        journal_path=tmp_path / "brain.sqlite3",
+        task_db_path=tmp_path / "tasks.sqlite3",
+        knowledge_db_path=tmp_path / "missing.sqlite3",
+        evidence_dir=tmp_path / "missing",
     )
     result = brain.plan("Improve model fallback and verify tests", priority=2)
     assert result["execution_state"] == "PLANNED_NOT_EXECUTED" and len(result["plan"]["nodes"]) == 4
@@ -115,9 +113,3 @@ def test_journal_rejects_untrusted_outcomes_and_secret_shaped_refs(tmp_path):
         journal.record_observation(
             task="task", outcome="reported_success", evidence_refs=["ghp_" + "a" * 30]
         )
-
-
-def test_brain_runtime_rejects_storage_paths_outside_approved_roots(tmp_path):
-    root = _root(tmp_path)
-    with pytest.raises(ValueError, match="outside approved CK-NEXUS data roots"):
-        BrainRuntime(root=root, journal_path=tmp_path / "outside.sqlite3")

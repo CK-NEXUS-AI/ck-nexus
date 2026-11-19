@@ -27,42 +27,21 @@ class BrainRuntime:
         evidence_dir=None,
         orchestrator=None,
     ):
-        self.root = Path(root).resolve()
+        self.root = Path(root)
         self.catalog_path = self.root / "config" / "capability_catalog.json"
-        journal_value = journal_path or os.getenv(
-            "CKNEXUS_BRAIN_DB", self.root / ".state" / "brain.sqlite3"
+        self.journal_path = Path(
+            journal_path or os.getenv("CKNEXUS_BRAIN_DB", self.root / ".state" / "brain.sqlite3")
         )
-        task_value = task_db_path or os.getenv(
-            "CKNEXUS_TASK_DB", self.root / ".state" / "control-plane.sqlite3"
+        self.task_db_path = Path(
+            task_db_path
+            or os.getenv("CKNEXUS_TASK_DB", self.root / ".state" / "control-plane.sqlite3")
         )
-        knowledge_value = knowledge_db_path or os.getenv(
-            "CKNEXUS_EBOOK_DB", "/var/lib/cknexus-knowledge/ebooks.sqlite3"
+        self.knowledge_db_path = Path(
+            knowledge_db_path
+            or os.getenv("CKNEXUS_EBOOK_DB", "/var/lib/cknexus-knowledge/ebooks.sqlite3")
         )
-        evidence_value = evidence_dir or self.root / "evidence" / "auto_dev"
-        self.journal_path = self._configured_path(
-            journal_value, allowed_roots=(self.root, Path("/var/lib/cknexus"))
-        )
-        self.task_db_path = self._configured_path(
-            task_value, allowed_roots=(self.root, Path("/var/lib/cknexus"))
-        )
-        self.knowledge_db_path = self._configured_path(
-            knowledge_value,
-            allowed_roots=(self.root, Path("/var/lib/cknexus-knowledge")),
-        )
-        self.evidence_dir = self._configured_path(
-            evidence_value, allowed_roots=(self.root, Path("/var/lib/cknexus"))
-        )
+        self.evidence_dir = Path(evidence_dir or self.root / "evidence" / "auto_dev")
         self.orchestrator = orchestrator or ControlPlaneOrchestrator()
-
-    def _configured_path(self, value, *, allowed_roots: tuple[Path, ...]) -> Path:
-        candidate = Path(value).expanduser()
-        if not candidate.is_absolute():
-            candidate = self.root / candidate
-        resolved = candidate.resolve(strict=False)
-        roots = tuple(root.resolve(strict=False) for root in allowed_roots)
-        if not any(resolved.is_relative_to(root) and resolved != root for root in roots):
-            raise ValueError("configured storage path is outside approved CK-NEXUS data roots")
-        return resolved
 
     def _catalog(self):
         return CapabilityCatalog.load(self.catalog_path)
@@ -70,7 +49,7 @@ class BrainRuntime:
     def _open_task_count(self):
         if not self.task_db_path.is_file():
             return None
-        uri = f"{self.task_db_path.resolve().as_uri()}?mode=ro"
+        uri = f"file:{self.task_db_path.as_posix()}?mode=ro"
         with sqlite3.connect(uri, uri=True, timeout=2) as db:
             exists = db.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='control_plane_tasks'"

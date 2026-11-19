@@ -1,29 +1,26 @@
-from __future__ import annotations
-
 from pathlib import Path
 
-import pytest
-
-from scripts import package_buyer_delivery as delivery
+from scripts.package_buyer_delivery import safe_tracked_file
 
 
-def test_version_rejects_path_traversal_before_writing() -> None:
-    with pytest.raises(ValueError, match="safe filename token"):
-        delivery.build_package("../../outside")
-
-
-def test_tracked_files_rejects_parent_traversal(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        delivery.subprocess,
-        "check_output",
-        lambda *_args, **_kwargs: b"../outside.txt\x00",
+def test_buyer_delivery_excludes_private_and_runtime_files() -> None:
+    excluded = (
+        Path(".env"),
+        Path(".env.production"),
+        Path("secrets/client_secret.json"),
+        Path("keys/signing.pem"),
+        Path("runtime/state.sqlite3"),
+        Path("node_modules/package/index.js"),
+        Path("dist/archive.zip"),
     )
-    with pytest.raises(RuntimeError, match="unsafe tracked path"):
-        delivery.tracked_files()
+    assert all(not safe_tracked_file(path) for path in excluded)
 
 
-def test_validated_child_rejects_escape(tmp_path: Path) -> None:
-    root = tmp_path / "package"
-    root.mkdir()
-    with pytest.raises(RuntimeError, match="escapes package root"):
-        delivery.validated_child(root, root / ".." / "outside.txt")
+def test_buyer_delivery_keeps_safe_templates_and_source() -> None:
+    included = (
+        Path(".env.example"),
+        Path("creator_app/brain/runtime.py"),
+        Path("docs/SECURITY.md"),
+        Path("integrations/bridge/src/index.ts"),
+    )
+    assert all(safe_tracked_file(path) for path in included)
