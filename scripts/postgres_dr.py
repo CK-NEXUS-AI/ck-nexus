@@ -213,7 +213,10 @@ def restore(
             check=False,
         )
         if proc.returncode != 0:
-            raise RuntimeError(f"pg_restore failed with exit code {proc.returncode}")
+            detail = " ".join((proc.stderr or "").split())[:1200]
+            raise RuntimeError(
+                f"pg_restore failed with exit code {proc.returncode}: {detail}"
+            )
         table_sql = (
             "SELECT tablename FROM pg_catalog.pg_tables "
             "WHERE schemaname='public' ORDER BY tablename;"
