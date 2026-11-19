@@ -141,15 +141,14 @@ def backup(source_url: str, output_dir: Path, rpo_seconds: int) -> dict[str, obj
     started = time.time()
     # output_dir is an operator-selected local path; the automated gate supplies
     # a fresh private temporary directory rather than request-controlled input.
-    with _libpq_connection(source_url) as env:
-        with dump.open("wb") as fh:
-            proc = subprocess.run(
+    with _libpq_connection(source_url) as env, dump.open("wb") as fh:
+        proc = subprocess.run(
                 [pg_dump, "--format=custom", "--no-owner", "--no-acl"],
                 env=env,
                 stdout=fh,
                 stderr=subprocess.PIPE,
-                check=False,
-            )
+            check=False,
+        )
     if proc.returncode != 0:
         dump.unlink(missing_ok=True)
         raise RuntimeError(f"pg_dump failed with exit code {proc.returncode}")
