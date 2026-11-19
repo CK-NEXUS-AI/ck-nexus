@@ -108,7 +108,6 @@ def test_dev_status_api_reads_fresh_stale_and_missing_snapshot(tmp_path: Path, m
 
     import creator_app.api as api_module
 
-    monkeypatch.setattr(api_module, "__file__", str(tmp_path / "creator_app" / "api.py"))
     status_file = tmp_path / "data" / "dev_status.json"
     status_file.parent.mkdir(parents=True)
     attacker_file = tmp_path / "attacker-controlled.json"
@@ -121,7 +120,9 @@ def test_dev_status_api_reads_fresh_stale_and_missing_snapshot(tmp_path: Path, m
         dev_team_enabled=True,
         dev_team_web_search_enabled=False,
     )
-    with TestClient(create_app(settings)) as client:
+    app = create_app(settings)
+    monkeypatch.setattr(api_module, "__file__", str(tmp_path / "creator_app" / "api.py"))
+    with TestClient(app) as client:
         assert client.get("/api/dev-status").status_code == 401
         headers = {"Authorization": "Bearer status-token"}
         missing = client.get("/api/dev-status", headers=headers)
