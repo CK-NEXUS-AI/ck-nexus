@@ -1,0 +1,157 @@
+{
+  "schema": "cknexus-evidence-manifest/v1",
+  "created_at_utc": "2026-11-17T03:00:30+00:00",
+  "repository": "spinlnw10-art/ck-nexus",
+  "branch": "security/sqlite-hardening-20261117",
+  "base_commit": "4d1366cef3cbdd18aa174bdf67308567635c750a",
+  "state": "PR #374 remains open; tested code commit 998c80b838bff7b6696d3f01fd7ba2d227ddcfa7 is pushed; 39 targeted tests pass; Ruff lint and format pass on all six changed Python files; four GitHub workflows pass; SonarCloud Code Analysis is cancelled; one required approval is outstanding; billing-lock status is NOT VERIFIED; no merge or deployment.",
+  "files": [
+    {
+      "path": "creator_app/sqlite_security.py",
+      "sha256": "b7d4c1507d9be9701a1484f6ad85b7f1aef259b449753fe7626de8c5d104d90b",
+      "bytes": 7804
+    },
+    {
+      "path": "creator_app/brain/journal.py",
+      "sha256": "bf60e8f16d595ec4cdf5bdb094976087610df40a31160b0b88e06b06780a9793",
+      "bytes": 9853
+    },
+    {
+      "path": "creator_app/brain/runtime.py",
+      "sha256": "78923bfc86779b34eba836f3e2096a6e1888628ed70462b7f3c1f90986b05aa4",
+      "bytes": 7755
+    },
+    {
+      "path": "creator_app/global_knowledge/ebook_store.py",
+      "sha256": "28fdcf2ad1a9c00289a0f832d90698cf9d6ef287c6619eb7579b8ff9b87b1ac2",
+      "bytes": 11361
+    },
+    {
+      "path": "tests/test_brain_runtime.py",
+      "sha256": "9cef23d1343aa3fc1dd9c8fe5b43f35ac8f7d311c2219b0090fd9e5fb33e72b6",
+      "bytes": 15098
+    },
+    {
+      "path": "tests/capability_fabric/test_ebook_store.py",
+      "sha256": "7917c2290ca55a31711d1885c13942745fb8ff40ea2f18ad5c0810571cc67237",
+      "bytes": 6426
+    },
+    {
+      "path": "docs/security/SQLITE_STORAGE_PLATFORM_SCOPE.md",
+      "sha256": "9bd33478f906ca333b5c8a4ba90c76a93a0f9ee6c456e4c78bd9cbad8b9b85b8",
+      "bytes": 2248
+    }
+  ],
+  "checks": {
+    "pytest": {
+      "current_revision": "39 passed, 1 warning, 3.00s; tests/test_brain_runtime.py and tests/capability_fabric/test_ebook_store.py; exact code commit 998c80b838bff7b6696d3f01fd7ba2d227ddcfa7; VPS; defusedxml 0.7.1 installed only in a temporary /tmp virtual environment.",
+      "full_suite_current_revision": "NOT_RUN_TO_COMPLETION; system environment lacks FastAPI, SQLAlchemy, MCP, Uvicorn, python-dotenv, Pydantic, and httpx; only the two targeted test files were run.",
+      "historical_full_suite": "1008 passed, 2 skipped; 70.54s; code commit 54510a991a2b67a58b99976e1a92ade48b284108; historical only"
+    },
+    "ruff": "PASS on all six changed Python source/test files (VPS, exact code commit 998c80b838bff7b6696d3f01fd7ba2d227ddcfa7)",
+    "ruff_format": "PASS on all six changed Python source/test files (VPS, exact code commit 998c80b838bff7b6696d3f01fd7ba2d227ddcfa7)",
+    "git_diff_check": "PASS on commit 998c80b838bff7b6696d3f01fd7ba2d227ddcfa7 (HEAD^..HEAD)",
+    "bandit": {
+      "current_revision": "NOT_RERUN",
+      "historical_result": "PASS",
+      "historical_scope": "Four changed Python source modules on prior code revision 54510a9",
+      "historical_findings": "No findings reported; exit 0"
+    },
+    "pip_audit": {
+      "current_revision": "NOT_RERUN",
+      "historical_result": "PASS_WITH_UNAUDITED_LOCAL_PACKAGE",
+      "historical_known_vulnerabilities": "None reported among auditable packages on prior code revision 54510a9",
+      "historical_skipped_dependencies": [
+        "ck-nexus-creator: not found on PyPI"
+      ]
+    },
+    "sqlite_security_regressions": {
+      "symlinked_journal": "PASS",
+      "symlinked_shm": "PASS",
+      "symlinked_wal": "PASS (existing regression)",
+      "database_path_swap_during_connect": "PASS (deterministic monkeypatched path replacement; not a concurrent race stress test)",
+      "existing_owned_directory_permissions": "PASS: newly created DB parent is 0700; existing non-private parent is rejected without changing its mode",
+      "readonly_ebook_missing_parent": "PASS (no directory created)",
+      "readonly_isolation_level_forwarding": "PASS",
+      "tilde_journal_path_consistency": "PASS",
+      "nofollow_missing_flag_test": "PASS (monkeypatch deletion is portable)",
+      "unsupported_posix_primitives": "PASS: fails closed if geteuid or O_NOFOLLOW is absent",
+      "dangling_symlink_absence_assertion": "PASS in targeted pytest suite on code commit 998c80b838bff7b6696d3f01fd7ba2d227ddcfa7"
+    },
+    "historical_runtime_observations": {
+      "sqlite_quick_check": "ok (observed on VPS before this candidate revision; not rerun against candidate data)",
+      "service": "cknexus-creator.service active (observed on VPS; not a deployment of this PR)",
+      "database_permissions": {
+        "directory": "0700",
+        "file": "0600",
+        "owner": "cknexus-creator:cknexus-creator"
+      }
+    },
+    "independent_review": {
+      "codex": {
+        "result": "NO_ACTIONABLE_FINDINGS",
+        "reviewed_commit": "54510a991a2b67a58b99976e1a92ade48b284108",
+        "scope": "Eight-file SQLite-only commit diff; read-only Codex CLI review",
+        "summary": "No actionable defects identified. One speculative P1 note was self-qualified by the reviewer as not a direct issue and was not substantiated.",
+        "limitations": [
+          "This review does not replace hosted CI or the pending Cubic re-review."
+        ]
+      },
+      "cubic": {
+        "result": "FIVE_FINDINGS_ON_PR_HEAD_46cdd053; FIXES_PUSHED_IN_998c80b; RE_REVIEW_PENDING",
+        "previous_review_run": "d638eda3-7700-5053-ae83-3c4fa6abd6a7",
+        "fix_commit": "5d7955a93cab1ebf96dd4d35d4b50ab9753edecb",
+        "independent_signoff": "NOT_CLAIMED"
+      }
+    },
+    "github_actions": {
+      "status": "PARTIAL_SUCCESS; FOUR_WORKFLOWS_PASS; SONARCLOUD_CANCELLED; CODERABBIT_SKIPPED",
+      "evidence": "On code commit 998c80b838bff7b6696d3f01fd7ba2d227ddcfa7: CK-NEXUS CI run 44006591546 PASS; Security Attack Regression 44006591579 PASS; Research Stack Integration 44006591586 PASS; AI Factory Preflight 44006591603 PASS; SonarCloud Code Analysis check 133783603128 CANCELLED with generic failed-analysis summary; CodeRabbit SKIPPED.",
+      "tests_started": true
+    },
+    "pr": {
+      "number": 374,
+      "state": "OPEN",
+      "url": "https://github.com/spinlnw10-art/ck-nexus/pull/374",
+      "base": "main",
+      "changed_files": 9,
+      "merge_performed": false,
+      "production_deployment_performed": false,
+      "head_reference": "Pushed code/test commit 998c80b838bff7b6696d3f01fd7ba2d227ddcfa7; evidence-only follow-up may advance the live PR head.",
+      "review_decision": "REVIEW_REQUIRED",
+      "merge_state": "BLOCKED",
+      "required_approving_reviews": 1,
+      "approvals_received": 0,
+      "required_status_checks": [
+        "test",
+        "preflight",
+        "attack-regression"
+      ]
+    },
+    "current_revision": {
+      "commit": "998c80b838bff7b6696d3f01fd7ba2d227ddcfa7",
+      "targeted_pytest": "39 passed, 1 warning, 3.00s; tests/test_brain_runtime.py and tests/capability_fabric/test_ebook_store.py; exact code commit 998c80b838bff7b6696d3f01fd7ba2d227ddcfa7; VPS; defusedxml 0.7.1 installed only in a temporary /tmp virtual environment.",
+      "ruff": "PASS on all six changed Python source/test files (VPS, exact code commit 998c80b838bff7b6696d3f01fd7ba2d227ddcfa7)",
+      "ruff_format": "PASS on all six changed Python source/test files (VPS, exact code commit 998c80b838bff7b6696d3f01fd7ba2d227ddcfa7)",
+      "git_diff_check": "PASS on commit 998c80b838bff7b6696d3f01fd7ba2d227ddcfa7 (HEAD^..HEAD)",
+      "full_suite": "NOT_RUN_TO_COMPLETION_MISSING_SYSTEM_DEPENDENCIES",
+      "bandit": "NOT_RERUN",
+      "pip_audit": "NOT_RERUN"
+    }
+  },
+  "limitations": [
+    "PR #374 remains open; tested code/test commit 998c80b838bff7b6696d3f01fd7ba2d227ddcfa7 is pushed; no merge or deployment performed.",
+    "Targeted pytest: 39 passed, 1 warning on the exact pushed code commit; full repository test suite not run to completion because the system environment lacks multiple project dependencies.",
+    "Ruff lint, Ruff format, and git diff check pass on the exact pushed code commit.",
+    "Four GitHub workflows passed on the pushed commit; SonarCloud Code Analysis was cancelled with a generic failed-analysis summary; CodeRabbit was skipped.",
+    "Branch protection requires one approving review; zero approvals are recorded and the PR review decision is REVIEW_REQUIRED.",
+    "Latest Cubic review identified five findings on prior head 46cdd053; fixes were pushed in 998c80b; a fresh Cubic re-review is pending.",
+    "The personal GitHub billing-lock state after transfer is NOT VERIFIED. Four GitHub workflows now run and pass; a pre-transfer check annotation had cited a billing issue.",
+    "Bandit and pip-audit were not rerun on the current code commit; previous results remain historical.",
+    "The hardened SQLite backend is POSIX-only (Linux/macOS); it fails closed on native Windows until a secure handle/ACL implementation exists.",
+    "Only the leaf DB parent managed by prepare_private_sqlite_parent is mode 0700; ancestors created with parents=True retain umask-derived modes. Existing non-private leaf directories are rejected without chmod.",
+    "The deterministic path-swap test is not a concurrent TOCTOU stress test.",
+    "WAL/SHM files SQLite creates after connection return are protected from other UIDs by the private directory; hostile same-UID processes remain inside the documented trust boundary.",
+    "Production readiness and Q10-Q16 closure are not established."
+  ]
+}

@@ -8,8 +8,10 @@ physically deleting its provenance or content.
 from __future__ import annotations
 
 import json
+import os
 import re
 import sqlite3
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,6 +21,17 @@ from creator_app.global_knowledge.ebook_ingest import (
     EbookIngestError,
     EbookRightsBasis,
 )
+from creator_app.sqlite_security import (
+    connect_sqlite_database,
+    prepare_private_sqlite_parent,
+)
+
+_ALLOWED_DB_ROOTS = (
+    Path("/var/lib/cknexus-knowledge"),
+    Path.home() / "data" / "knowledge",
+    Path.home() / "knowledge",
+)
+
 
 _SEARCH_SQL = """SELECT c.chunk_id, c.source_sha256, d.title, d.filename,
     c.chapter_id, c.chapter_order, c.chunk_order, c.text, c.rights_basis
@@ -49,11 +62,19 @@ class EbookKnowledgeStore:
     """Bounded local store with deterministic citations and source revocation."""
 
     def __init__(self, path: str | Path) -> None:
-        self.path = Path(path)
+        """Accept only the fixed database filename under a code-defined storage root."""
+        requested_path = os.fspath(path)
+        for configured_root in _ALLOWED_DB_ROOTS:
+            trusted_root = configured_root.expanduser().resolve()
+            approved_path = trusted_root / "ebooks.sqlite3"
+            if requested_path == os.fspath(approved_path):
+                self.path = approved_path
+                return
+        raise ValueError("knowledge database path is outside approved local storage roots")
 
     def initialize(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as conn:
+        self.path = prepare_private_sqlite_parent(self.path)
+        with closing(self._connect()) as conn, conn:
             conn.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS ebook_documents (
@@ -98,7 +119,7 @@ class EbookKnowledgeStore:
             raise EbookIngestError("chunk source hash does not match the document")
         rights_basis = next(iter(rights)).value
         self.initialize()
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             conn.execute("BEGIN IMMEDIATE")
             existing = conn.execute(
                 "SELECT rights_basis, parser_version FROM ebook_documents WHERE source_sha256 = ?",
@@ -160,13 +181,13 @@ class EbookKnowledgeStore:
             raise ValueError("query contains no searchable terms")
         params = [json.dumps(terms, ensure_ascii=False), limit]
         self.initialize()
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             rows = conn.execute(_SEARCH_SQL, params).fetchall()
         return tuple(EbookSearchHit(*row) for row in rows)
 
     def list_documents(self) -> tuple[dict[str, object], ...]:
         self.initialize()
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             rows = conn.execute(
                 """SELECT source_sha256, filename, title, language, rights_basis,
                           parser_version, total_characters, ingested_at, revoked,
@@ -198,13 +219,12 @@ class EbookKnowledgeStore:
         terms = re.findall(r"[^\W_]+", normalized, flags=re.UNICODE)
         if not terms:
             raise ValueError("query contains no searchable terms")
-        if not self.path.is_file():
-            return ()
         params = [json.dumps(terms, ensure_ascii=False), limit]
-        uri = self.path.resolve().as_uri() + "?mode=ro"
         try:
-            with sqlite3.connect(uri, uri=True, timeout=3.0) as conn:
+            with closing(connect_sqlite_database(self.path, timeout=3.0, readonly=True)) as conn:
                 rows = conn.execute(_SEARCH_SQL, params).fetchall()
+        except FileNotFoundError:
+            return ()
         except sqlite3.OperationalError as exc:
             raise RuntimeError(
                 "knowledge index is unavailable or has an incompatible schema"
@@ -213,11 +233,8 @@ class EbookKnowledgeStore:
 
     def list_documents_readonly(self) -> tuple[dict[str, object], ...]:
         """List documents from an existing index without initializing or mutating it."""
-        if not self.path.is_file():
-            return ()
-        uri = self.path.resolve().as_uri() + "?mode=ro"
         try:
-            with sqlite3.connect(uri, uri=True, timeout=3.0) as conn:
+            with closing(connect_sqlite_database(self.path, timeout=3.0, readonly=True)) as conn:
                 rows = conn.execute(
                     """SELECT source_sha256, filename, title, language, rights_basis,
                               parser_version, total_characters, ingested_at, revoked,
@@ -225,6 +242,8 @@ class EbookKnowledgeStore:
                                WHERE c.source_sha256 = d.source_sha256) AS chunk_count
                        FROM ebook_documents d ORDER BY ingested_at, title"""
                 ).fetchall()
+        except FileNotFoundError:
+            return ()
         except sqlite3.OperationalError as exc:
             raise RuntimeError(
                 "knowledge index is unavailable or has an incompatible schema"
@@ -247,7 +266,7 @@ class EbookKnowledgeStore:
         if not re.fullmatch(r"[a-f0-9]{64}", source_sha256):
             raise ValueError("source_sha256 must be a lowercase SHA-256 hex digest")
         self.initialize()
-        with self._connect() as conn:
+        with closing(self._connect()) as conn, conn:
             result = conn.execute(
                 "UPDATE ebook_documents SET revoked = 1 WHERE source_sha256 = ? AND revoked = 0",
                 (source_sha256,),
@@ -255,7 +274,11 @@ class EbookKnowledgeStore:
         return result.rowcount == 1
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.path, timeout=5.0)
-        conn.execute("PRAGMA foreign_keys = ON")
-        conn.execute("PRAGMA busy_timeout = 5000")
+        conn = connect_sqlite_database(self.path, timeout=5.0)
+        try:
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.execute("PRAGMA busy_timeout = 5000")
+        except BaseException:
+            conn.close()
+            raise
         return conn

@@ -11,6 +11,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
+from creator_app.sqlite_security import (
+    connect_sqlite_database,
+    prepare_private_sqlite_parent,
+)
+
 _OUTCOMES = frozenset({"reported_success", "reported_failure", "blocked", "unknown"})
 _REASON_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,80}$")
 _REF_RE = re.compile(r"^[A-Za-z0-9_.:/-]{1,200}$")
@@ -35,8 +40,8 @@ class BrainJournal:
     """SQLite append-only observations and unapproved improvement candidates."""
 
     def __init__(self, database: str | Path) -> None:
-        self.database = Path(database)
-        self.database.parent.mkdir(parents=True, exist_ok=True)
+        """Resolve the database path once, then use only private local storage."""
+        self.database = prepare_private_sqlite_parent(database)
         with closing(self._connect()) as db:
             db.execute("PRAGMA journal_mode=WAL")
             db.execute(
@@ -81,12 +86,15 @@ class BrainJournal:
                 )
                 """
             )
-        self.database.chmod(0o600)
 
     def _connect(self) -> sqlite3.Connection:
-        db = sqlite3.connect(self.database, timeout=10, isolation_level=None)
+        db = connect_sqlite_database(self.database, timeout=10, isolation_level=None)
         db.row_factory = sqlite3.Row
-        db.execute("PRAGMA busy_timeout=10000")
+        try:
+            db.execute("PRAGMA busy_timeout=10000")
+        except BaseException:
+            db.close()
+            raise
         return db
 
     @staticmethod
