@@ -371,7 +371,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                         content={
                             "error": "ACCESS_CONTROL_NOT_CONFIGURED",
                             "message": (
-                                "Protected routes are disabled until server authentication is configured."
+                                "Protected routes are disabled until "
+                                "server authentication is configured."
                             ),
                         },
                         headers=security_headers,
