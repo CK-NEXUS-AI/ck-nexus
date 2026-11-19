@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/schemas/knowledge/knowledge-claim.schema.json",
+  "title": "CK-NEXUS Knowledge Claim",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["claim_id", "tenant_id", "claim", "state", "created_at", "sources"],
+  "properties": {
+    "claim_id": {"type": "string", "minLength": 1},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "claim": {"type": "string", "minLength": 1},
+    "scope": {"type": ["string", "null"]},
+    "state": {"type": "string", "enum": ["UNVERIFIED", "SUPPORTED", "CONFLICT", "STALE", "REVOKED"]},
+    "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "valid_from": {"type": ["string", "null"], "format": "date-time"},
+    "fresh_until": {"type": ["string", "null"], "format": "date-time"},
+    "sources": {"type": "array", "items": {"$ref": "source-provenance.schema.json"}, "minItems": 1},
+    "contradicts": {"type": "array", "items": {"type": "string"}},
+    "supersedes": {"type": "array", "items": {"type": "string"}},
+    "evidence_refs": {"type": "array", "items": {"type": "string"}},
+    "metadata": {"type": "object"}
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/schemas/knowledge/memory-record.schema.json",
+  "title": "CK-NEXUS Memory Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["memory_id", "tenant_id", "memory_class", "retention_class", "created_at", "provenance"],
+  "properties": {
+    "memory_id": {"type": "string", "minLength": 1},
+    "tenant_id": {"type": "string", "minLength": 1},
+    "subject_refs": {"type": "array", "items": {"type": "string"}},
+    "memory_class": {"type": "string", "enum": ["conversation", "preference", "operational", "task", "knowledge_link", "evaluation", "system"]},
+    "content": {"type": ["string", "null"]},
+    "content_ref": {"type": ["string", "null"]},
+    "content_hash": {"type": ["string", "null"]},
+    "retention_class": {"type": "string", "enum": ["EPHEMERAL", "SESSION", "OPERATIONAL", "LONG_TERM", "USER_PINNED", "LEGAL_HOLD"]},
+    "data_classification": {"type": "string"},
+    "validation_state": {"type": "string", "enum": ["UNVERIFIED", "VALIDATED", "STALE", "CONFLICT", "REVOKED"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": ["string", "null"], "format": "date-time"},
+    "supersedes": {"type": ["string", "null"]},
+    "deleted_at": {"type": ["string", "null"], "format": "date-time"},
+    "provenance": {"$ref": "source-provenance.schema.json"},
+    "metadata": {"type": "object"}
+  },
+  "anyOf": [{"required": ["content"]}, {"required": ["content_ref"]}]
+}
