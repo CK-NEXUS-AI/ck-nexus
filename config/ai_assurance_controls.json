@@ -1,0 +1,25 @@
+{
+  "profile": "CK-NEXUS Assurance Profile 2026",
+  "version": "0.1.0",
+  "status": "MEASURED_NOT_VERIFIED",
+  "controls": [
+    {"id":"CKAI-01","title":"AI system inventory and named accountable owner","mappings":["ISO42001","NIST-AIRMF","CSA-AICM"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null},
+    {"id":"CKAI-02","title":"Defined intended purpose, scope, users and prohibited uses","mappings":["ISO42001","NIST-AIRMF"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null},
+    {"id":"CKAI-03","title":"AI risk register with likelihood, impact and treatment","mappings":["ISO42001","NIST-AIRMF","CSA-AICM"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null},
+    {"id":"CKAI-04","title":"AI impact assessment before material deployment changes","mappings":["ISO42001","NIST-AIRMF","Microsoft-RAI"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null},
+    {"id":"CKAI-05","title":"Human oversight and high-impact approval boundaries","mappings":["ISO42001","NIST-AIRMF","OWASP-GenAI"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null},
+    {"id":"CKAI-06","title":"Data governance, privacy, retention and sensitive-data boundaries","mappings":["ISO27001","ISO42001","NIST-AIRMF"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null},
+    {"id":"CKAI-07","title":"Prompt, tool and indirect-injection defenses","mappings":["OWASP-GenAI","MITRE-ATLAS"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null},
+    {"id":"CKAI-08","title":"Least-privilege tool/action authorization and self-approval prevention","mappings":["OWASP-GenAI","Microsoft-Agentic"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null},
+    {"id":"CKAI-09","title":"Model/provider/supplier inventory, due diligence and exit plan","mappings":["ISO42001","CSA-AICM","Microsoft-Agentic"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null},
+    {"id":"CKAI-10","title":"Evaluation, adversarial testing and regression evidence","mappings":["NIST-AIRMF","MITRE-ATLAS","Anthropic-RSP"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null},
+    {"id":"CKAI-11","title":"Security logging, traceability and incident response","mappings":["ISO27001","OWASP-Top10-2025","MITRE-ATLAS"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null},
+    {"id":"CKAI-12","title":"AI/system transparency card with capabilities and limitations","mappings":["ISO42001","NIST-AIRMF","Microsoft-RAI"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null},
+    {"id":"CKAI-13","title":"Fairness, accessibility and harmful-bias evaluation","mappings":["ISO42001","NIST-AIRMF","Microsoft-RAI"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null},
+    {"id":"CKAI-14","title":"Secure SDLC with threat modeling and vulnerability remediation","mappings":["NIST-SSDF","OWASP-Top10-2025"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null},
+    {"id":"CKAI-15","title":"Software supply-chain provenance, SBOM and dependency integrity","mappings":["SLSA","NIST-SSDF","OWASP-Top10-2025"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null},
+    {"id":"CKAI-16","title":"Continuity, rollback, provider failure and kill-switch procedures","mappings":["ISO27001","ISO42001","NIST-AIRMF"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null},
+    {"id":"CKAI-17","title":"Independent verification for release-critical evidence","mappings":["CK-NEXUS-Q10","NIST-AIRMF"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null},
+    {"id":"CKAI-18","title":"Fail-closed production gate: UNKNOWN/BLOCKED cannot become PASS","mappings":["CK-NEXUS-Q10","ISO42001","NIST-AIRMF"],"owner":"UNASSIGNED","state":"NOT_ASSESSED","evidence":[],"independent_verification":null}
+  ]
+}

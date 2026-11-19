@@ -1,0 +1,21 @@
+name: AI Assurance Profile CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Validate assurance control registry
+        run: python scripts/validate_ai_assurance.py
+      - name: Run assurance profile tests
+        run: python -m unittest -v tests.test_ai_assurance_profile
