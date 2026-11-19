@@ -6,7 +6,7 @@ CK-NEXUS is one platform with one canonical application runtime. **Agnes** is it
 
 > **Release decision: NO-GO for Production.** Do not treat a passing test subset, CI run, implemented feature, or running service as Production approval. The current release decision and gate evidence are maintained in [Release Status](RELEASE_STATUS.md) and the [Q10–Q16 Closure Contract](docs/Q10_Q16_CLOSURE_CONTRACT.md).
 
-> **Latest repository verification (2026-11-19):** [PR #387](https://github.com/spinlnw10-art/ck-nexus/pull/387) is OPEN and BLOCKED, candidate `e116b0bb33f3941d90daf466a86a5be3b567f18e` (not merged). Exact-commit Q10 scanner PASS; 0 HIGH / 0 MEDIUM / 518 LOW Bandit findings; dependency vulnerabilities 0; secret scan PASS; attack regression 19/19. CodeQL PASS on this candidate; SonarCloud remains CANCELLED; LOW-finding review remains open. **Production remains NO-GO; no deployment is claimed.** See [current PR evidence and blockers](RELEASE_STATUS.md).
+> **Latest repository verification (2026-11-19):** [PR #387](https://github.com/spinlnw10-art/ck-nexus/pull/387) is OPEN and BLOCKED, candidate `e116b0bb33f3941d90daf466a86a5be3b567f18e` (not merged). Exact-commit Q10 scanner PASS; 0 HIGH / 0 MEDIUM / 518 LOW Bandit findings; dependency vulnerabilities 0; secret scan PASS; attack regression 19/19. CodeQL PASS on this candidate; 152 existing CodeQL alerts remain open on main (15 critical, 133 high, 4 medium); SonarCloud remains CANCELLED; LOW-finding review remains open. **Production remains NO-GO; no deployment is claimed.** See [current PR evidence and blockers](RELEASE_STATUS.md).
 
 ## Start here
 
