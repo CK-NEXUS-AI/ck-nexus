@@ -1,0 +1,61 @@
+{
+  "date": "2026-10-02",
+  "source": "user-supplied lists",
+  "status": "PARTIAL",
+  "principle": "USER_CLAIM is not verification",
+  "verified_sample": {
+    "ChatGPT Images": {
+      "status": "VERIFIED",
+      "fact": "Available on all tiers; Free has separate image-generation limits"
+    },
+    "Adobe Firefly": {
+      "status": "PARTIAL",
+      "fact": "Commercial use allowed for outputs under stated conditions; beta caveats apply"
+    },
+    "Runway": {
+      "status": "VERIFIED",
+      "fact": "Free plan includes one-time 125 credits; no expiry"
+    },
+    "PixVerse": {
+      "status": "VERIFIED",
+      "fact": "60 daily credits for members, 30 for non-members"
+    },
+    "Vidu": {
+      "status": "PARTIAL",
+      "fact": "Consumer page states 40 free credits/month; API is pay-as-you-go"
+    }
+  },
+  "unverified_claims": [
+    "Kling AI 66 daily credits",
+    "Grok Imagine unlimited free",
+    "Minimax/Hailuo daily free credits",
+    "Wan 2.2 unlimited",
+    "Luma 30 videos/month",
+    "Higgsfield 5-10/day",
+    "Veo 3 three free methods"
+  ],
+  "image_targets": [
+    "Gemini",
+    "ChatGPT",
+    "Meta AI",
+    "Microsoft Designer",
+    "Ideogram",
+    "Leonardo AI",
+    "Adobe Firefly",
+    "Krea AI",
+    "Photopea",
+    "Upscayl"
+  ],
+  "video_targets": [
+    "Kling AI",
+    "Grok Imagine",
+    "Minimax/Hailuo",
+    "Wan 2.2 Animate",
+    "Luma Dream Machine",
+    "Runway",
+    "Higgsfield",
+    "Vidu",
+    "PixVerse",
+    "Veo 3"
+  ]
+}
