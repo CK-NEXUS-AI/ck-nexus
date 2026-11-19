@@ -1,0 +1,81 @@
+name: CK-NEXUS Apidog API Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_id:
+        description: "Apidog project ID"
+        required: true
+        type: string
+      test_scenario_id:
+        description: "Apidog test scenario ID"
+        required: true
+        type: string
+      environment_id:
+        description: "Apidog environment ID"
+        required: false
+        type: string
+      branch:
+        description: "Apidog branch (optional)"
+        required: false
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  apidog-api-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Apidog CLI
+        run: npm install -g apidog-cli@latest
+
+      - name: Verify Apidog CLI
+        run: |
+          node --version
+          npm --version
+          apidog --version
+          command -v apidog
+
+      - name: Run Apidog scenario
+        env:
+          APIDOG_ACCESS_TOKEN: ${{ secrets.APIDOG_ACCESS_TOKEN }}
+          PROJECT_ID: ${{ inputs.project_id }}
+          SCENARIO_ID: ${{ inputs.test_scenario_id }}
+          ENVIRONMENT_ID: ${{ inputs.environment_id }}
+          APIDOG_BRANCH: ${{ inputs.branch }}
+        run: |
+          test -n "${APIDOG_ACCESS_TOKEN}" || {
+            echo "::error::APIDOG_ACCESS_TOKEN repository secret is not configured"
+            exit 2
+          }
+
+          args=(
+            --access-token "${APIDOG_ACCESS_TOKEN}"
+            --project "${PROJECT_ID}"
+            --branch "${APIDOG_BRANCH}"
+            --test-scenario "${SCENARIO_ID}"
+            --reporters junit,html,cli
+            --out-dir ./apidog-reports
+          )
+
+          if [ -n "${ENVIRONMENT_ID}" ]; then
+            args+=(--environment "${ENVIRONMENT_ID}")
+          fi
+
+          apidog run "${args[@]}"
+
+      - name: Upload Apidog evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cknexus-apidog-evidence
+          path: ./apidog-reports
+          if-no-files-found: warn
