@@ -2,7 +2,7 @@ name: Candidate automated gates
 
 on:
   push:
-    branches: [release/q10-q16-closure]
+    branches: [release/q10-q16-closure, fix/q10-gate-medium-and-report-20261119]
   workflow_dispatch:
 
 permissions:
@@ -50,11 +50,25 @@ jobs:
           .venv/bin/python - <<'PYBANDIT'
           import json
           from pathlib import Path
-          report = json.loads(Path('q10-bandit.json').read_text(encoding='utf-8'))
+          try:
+              report = json.loads(Path('q10-bandit.json').read_text(encoding='utf-8'))
+              valid = (
+                  isinstance(report, dict)
+                  and isinstance(report.get('results'), list)
+                  and not report.get('errors')
+                  and 'error' not in report
+              )
+          except Exception:
+              report = {'results': [], 'errors': ['bandit_report_missing_or_invalid']}
+              valid = False
           high = sum(item.get('issue_severity') == 'HIGH' for item in report.get('results', []))
-          print(f'Bandit: {len(report.get("results", []))} findings recorded; high-severity={high}')
+          medium = sum(item.get('issue_severity') == 'MEDIUM' for item in report.get('results', []))
+          print(
+              f'Bandit: {len(report.get("results", []))} findings recorded; '
+              f'high-severity={high}; medium-severity={medium}; report-valid={valid}'
+          )
           with open('/tmp/q10-bandit-rc', 'w', encoding='utf-8') as stream:
-              stream.write('1' if high else '0')
+              stream.write('1' if not valid or high or medium else '0')
           PYBANDIT
           echo "Q10_BANDIT_RC=$(cat /tmp/q10-bandit-rc)" >> "$GITHUB_ENV"
           .venv/bin/python scripts/secret_scan.py > q10-secret-scan.txt 2>&1
@@ -137,6 +151,18 @@ jobs:
               'pip_audit_exit_code': audit_rc,
               'dependency_vulnerabilities': vulns,
               'bandit_high_severity_exit_code': bandit_rc,
+              'bandit_report_valid': (
+                  isinstance(bandit, dict)
+                  and isinstance(bandit.get('results'), list)
+                  and not bandit.get('errors')
+                  and 'error' not in bandit
+              ),
+              'bandit_high_findings': sum(
+                  item.get('issue_severity') == 'HIGH' for item in bandit.get('results', [])
+              ),
+              'bandit_medium_findings': sum(
+                  item.get('issue_severity') == 'MEDIUM' for item in bandit.get('results', [])
+              ),
               'secret_scan_exit_code': secret_rc,
               'security_attack_regression_exit_code': attack_rc,
           }
@@ -151,7 +177,7 @@ jobs:
               'completed_at': completed,
               'tools': {
                   'dependency_auditor': 'pip-audit',
-                  'static_security': 'Bandit (high severity blocking threshold)',
+                  'static_security': 'Bandit (high and medium severity blocking threshold)',
                   'secret_scanner': 'scripts/secret_scan.py',
                   'attack_regression': 'scripts/security_attack_regression.py',
               },
@@ -256,7 +282,7 @@ jobs:
             -c 'CREATE DATABASE cknexus_restore_dr;'
       - name: Run destructive isolated DR gate
         run: |
-          python scripts/gate_postgres_dr.py | tee Q13_POSTGRES_DR.json
+          PYTHONPATH=. python scripts/gate_postgres_dr.py | tee Q13_POSTGRES_DR.json
           python - <<'PY'
           import json
           x=json.load(open('Q13_POSTGRES_DR.json'))

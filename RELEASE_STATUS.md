@@ -1,4 +1,32 @@
-# Release evidence snapshot — 2026-11-19 (PR #380 code baseline)
+# Release evidence snapshot — 2026-11-19 (PR #387)
+
+## Latest verified state — 2026-11-19
+
+> This is a PR-branch evidence snapshot. It does not claim that the candidate is merged, deployed, independently security-certified, or Production-ready.
+
+- Repository: [`spinlnw10-art/ck-nexus`](https://github.com/spinlnw10-art/ck-nexus)
+- Active PR: [#387](https://github.com/spinlnw10-art/ck-nexus/pull/387), branch `fix/q10-gate-medium-and-report-20261119`
+- Code candidate scanned: `a77718a023230374d3f0121545d15c16f921a2a9`; source tree `de81b14278ed95e982b82267f9754c65e405b811`; Q10 subject manifest SHA-256 `aeedb59ed7b07e77cc57a899ab5445a8506817ce2cd34fd728269db12eb0f735`
+- PR state at verification: **OPEN / NOT MERGED / REVIEW_REQUIRED**; GitHub reported the PR mergeable. The working tree was clean.
+- GitHub Actions on the scanned candidate: `preflight`, `test`, `typecheck`, `attack-regression`, `universal-system`, both development-assistant verification jobs, AnyClaw, OpenCode, and CodeQL **PASS**.
+- CodeQL on PR #387: **PASS**, no new alerts in code changed by this PR. This does not clear alerts already open on `main`.
+- Main-branch code-scanning inventory at `main` SHA `944d7cb70a5d59d53c8fb379752bbee2085f7c8c`: **152 open alerts** — 15 critical, 133 high, 4 medium. Largest rule groups: 127 `py/path-injection`, 7 `py/command-line-injection`, and 6 `py/full-ssrf`. No alerts were dismissed by this work.
+- SonarQube Cloud check: GitHub records the check conclusion as **CANCELLED**; the check output says the last SonarQube Cloud analysis failed and links to the project dashboard. It produced zero GitHub annotations. No SonarCloud workflow or project configuration was found in the repository. The public project dashboard only returned its loading shell, and the analysis API required authentication (HTTP 401); therefore the exact analysis ID and root cause are **UNKNOWN / NOT VERIFIED**. The official [SonarQube status page](https://status.sonarqube.com/) currently reports all systems operational and no incident for 2026-11-19; that does not explain this project-specific failure. Account-side Background Tasks / error details are required. Do not treat this check as passed or attribute the failure to source code without those details.
+- Exact-commit Q10 scanner: **PASS**, workflow run [44531329056](https://github.com/spinlnw10-art/ck-nexus/actions/runs/44531329056), artifact ID `14533391963` (`q10-open-source-security-a77718a023230374d3f0121545d15c16f921a2a9`), artifact digest `sha256:b486c545399c607018bcef05312a103c7d0631ee2e5ddbccbfab10b81ed993de`. Aggregate report SHA-256: `b82acbff02f8e5cc965f3b130f1b518eb8bdf1d5d09f603a312fd8204edc2ec6`.
+- Q10 results: Bandit report valid; **0 HIGH / 0 MEDIUM / 520 LOW**; pip-audit **0 vulnerabilities across 89 dependencies**; secret scan **PASS (873 tracked files)**; attack regression **19/19 PASS**. The 520 LOW findings comprise 414 test-path findings and 106 production/script-path findings. Test-path findings include 402 B101 assertion checks. Production/script groups include B603 (37), B105 (24), B404 (22), B607 (21), B110 (1), and B112 (1). The LOW findings have not been blanket-suppressed or declared harmless; command execution and exception-handling findings still require owner-level disposition. Bandit returns exit code 1 because LOW findings exist; the Q10 workflow intentionally gates on HIGH/MEDIUM counts and report validity, so its aggregate result is PASS.
+- Q10 retains `security_review_status=REQUIRED` and `production_promotion_allowed=false`. A scanner PASS is not an independent security review or whole-gate approval.
+- SonarCloud analysis details remain blocked on account authentication. The status page currently reports normal service; the account must expose the failed Background Task / scanner error before a safe configuration change can be selected.
+- VPS `vps3680569.trouble-free.net` is offline in the connected-device inventory. Browser helper live behavior, VPS runtime, deployment, and end-to-end production verification are **NOT VERIFIED / BLOCKED**.
+- Q11–Q16 closure, clean-machine deployment, backup/recovery drills, and final production evidence remain outstanding. **Release decision: NO-GO FOR PRODUCTION.**
+- No merge, deployment, branch deletion, secret change, or code-scanning alert dismissal was performed.
+
+## Remaining blockers
+
+1. Obtain authenticated SonarQube Cloud Background Tasks error details and resolve the actual failure (or document a confirmed provider-side incident).
+2. Complete disposition of the 106 production/script Bandit LOW findings; keep B603/B607 subprocess findings under review until their executable, arguments, input trust, and timeout boundaries are verified.
+3. Re-run the full local test set in a compatible environment; Termux collection of `tests/test_browser_automation_mcp.py` was previously blocked by the missing `mcp` package, while GitHub Actions passed on the scanned commit.
+4. Restore VPS access or provision a replacement, then verify Browser/MCP, Q11–Q16, runtime isolation, recovery, observability, and clean-machine deployment with evidence.
+5. Obtain independent security review and required PR review before considering merge. Production remains NO-GO until every release gate is closed.
 
 **Code-bearing baseline after PR #380:** `0d7b0d1c0efee01d6307b418c848cd0c84411ea0`
 

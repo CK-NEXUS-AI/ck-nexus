@@ -147,3 +147,40 @@ def test_collect_does_not_use_non_readonly_github_credentials(monkeypatch) -> No
     assert not any(args[:2] == ["gh", "pr"] for args in calls)
     assert not any(args[:2] == ["gh", "issue"] for args in calls)
     assert not any(args[:2] == ["gh", "run"] for args in calls)
+
+
+def test_qwen_probe_uses_verified_https_handler_for_approved_endpoint(
+    tmp_path, monkeypatch
+) -> None:
+    import json
+
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def read(self, limit):
+            return json.dumps({"choices": [{"message": {"content": "OK"}}]}).encode()
+
+    opener = Mock()
+    opener.open.return_value = Response()
+    build_opener = Mock(return_value=opener)
+    monkeypatch.setattr(collector, "OUTPUT", tmp_path / "dev_status.json")
+    monkeypatch.setenv("DASHSCOPE_API_KEY", "test-secret-never-used")
+    monkeypatch.setenv("QWEN_MODEL", "qwen-test")
+    monkeypatch.setenv(
+        "DASHSCOPE_BASE_URL", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+    )
+    monkeypatch.setattr(collector, "build_opener", build_opener)
+
+    result = collector.probe_qwen_daily()
+
+    assert result["status"] == "ok"
+    assert isinstance(build_opener.call_args.args[0], collector.HTTPSHandler)
+    request = opener.open.call_args.args[0]
+    assert request.full_url.startswith("https://dashscope-intl.aliyuncs.com/")
+    assert opener.open.call_args.kwargs["timeout"] == 15

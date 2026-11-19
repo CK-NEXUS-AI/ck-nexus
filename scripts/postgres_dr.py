@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 import os
 import shutil
 import subprocess
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 REQUIRED_TABLES = ("agnes_idempotency", "creator_runs", "email_journal", "email_outbox")
 
@@ -34,6 +35,57 @@ def _identity(url: str) -> DbIdentity:
     if not parsed.hostname or not database:
         raise DRBlocked("database URL must include host and database name")
     return DbIdentity(parsed.hostname, parsed.port, database)
+
+
+@contextmanager
+def _libpq_connection(url: str) -> Iterator[dict[str, str]]:
+    """Keep database passwords out of argv and disk using libpq PGPASSWORD."""
+    parsed = urlsplit(url)
+    query = parse_qsl(parsed.query, keep_blank_values=True)
+    query_passwords = [value for key, value in query if key.lower() == "password"]
+    password = (
+        unquote(parsed.password)
+        if parsed.password is not None
+        else (query_passwords[-1] if query_passwords else None)
+    )
+    username = unquote(parsed.username) if parsed.username is not None else None
+    host = parsed.hostname or ""
+    port = parsed.port or 5432
+    database = unquote(parsed.path.lstrip("/"))
+    env = os.environ.copy()
+    # Do not let inherited libpq variables silently override the connection URL
+    # (for example PGSSLMODE=disable or PGOPTIONS changing session behavior).
+    for name in tuple(env):
+        if name.startswith("PG") or name in {
+            "CKNEXUS_DATABASE_URL",
+            "CKNEXUS_RESTORE_DATABASE_URL",
+        }:
+            env.pop(name, None)
+    env.update(PGHOST=host, PGPORT=str(port), PGDATABASE=database)
+    if username is not None:
+        env["PGUSER"] = username
+    else:
+        env.pop("PGUSER", None)
+    if password is not None:
+        # libpq reads PGPASSWORD from the child environment.
+        env["PGPASSWORD"] = password
+    libpq_env = {
+        "sslmode": "PGSSLMODE",
+        "sslrootcert": "PGSSLROOTCERT",
+        "sslcert": "PGSSLCERT",
+        "sslkey": "PGSSLKEY",
+        "connect_timeout": "PGCONNECT_TIMEOUT",
+        "application_name": "PGAPPNAME",
+        "options": "PGOPTIONS",
+        "target_session_attrs": "PGTARGETSESSIONATTRS",
+        "gssencmode": "PGGSSENCMODE",
+        "channel_binding": "PGCHANNELBINDING",
+    }
+    for key, value in query:
+        env_name = libpq_env.get(key.lower())
+        if env_name:
+            env[env_name] = value
+    yield env
 
 
 def _same_database(a: DbIdentity, b: DbIdentity) -> bool:
@@ -78,21 +130,18 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def _run(
-    cmd: list[str], *, env: dict[str, str] | None = None, stdin=None
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, env=env, stdin=stdin, text=True, capture_output=True, check=False)
-
-
 def backup(source_url: str, output_dir: Path, rpo_seconds: int) -> dict[str, object]:
     pg_dump = _require_tool("pg_dump")
     _identity(source_url)
     output_dir.mkdir(parents=True, exist_ok=False)
     dump = output_dir / "postgres.dump"
     started = time.time()
-    with dump.open("wb") as fh:
+    # output_dir is an operator-selected local path; the automated gate supplies
+    # a fresh private temporary directory rather than request-controlled input.
+    with _libpq_connection(source_url) as env, dump.open("wb") as fh:
         proc = subprocess.run(
-            [pg_dump, "--dbname", source_url, "--format=custom", "--no-owner", "--no-acl"],
+            [pg_dump, "--format=custom", "--no-owner", "--no-acl"],
+            env=env,
             stdout=fh,
             stderr=subprocess.PIPE,
             check=False,
@@ -148,24 +197,39 @@ def restore(
     integrity = verify_dump(backup_dir)
     dump = backup_dir / "postgres.dump"
     started = time.time()
-    proc = _run(
-        [
-            pg_restore,
-            "--dbname",
-            target_url,
-            "--clean",
-            "--if-exists",
-            "--no-owner",
-            "--no-acl",
-            str(dump),
-        ]
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(f"pg_restore failed with exit code {proc.returncode}")
-    table_sql = (
-        "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public' ORDER BY tablename;"
-    )
-    verify = _run([psql, target_url, "-Atqc", table_sql])
+    with _libpq_connection(target_url) as env:
+        proc = subprocess.run(
+            [
+                pg_restore,
+                "--dbname",
+                _identity(target_url).database,
+                "--clean",
+                "--if-exists",
+                "--no-owner",
+                "--no-acl",
+                str(dump),
+            ],
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            detail = " ".join((proc.stderr or "").split())[:1200]
+            raise RuntimeError(
+                f"pg_restore failed with exit code {proc.returncode}: {detail}"
+            )
+        table_sql = (
+            "SELECT tablename FROM pg_catalog.pg_tables "
+            "WHERE schemaname='public' ORDER BY tablename;"
+        )
+        verify = subprocess.run(
+            [psql, "-Atqc", table_sql],
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
     if verify.returncode != 0:
         raise RuntimeError(
             f"post-restore verification query failed with exit code {verify.returncode}"
@@ -187,43 +251,5 @@ def restore(
     }
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="CK-NEXUS PostgreSQL backup/isolated restore drill"
-    )
-    sub = parser.add_subparsers(dest="command", required=True)
-    b = sub.add_parser("backup")
-    b.add_argument("--source-url", default=os.getenv("CKNEXUS_DATABASE_URL", ""))
-    b.add_argument("--output-dir", required=True)
-    b.add_argument(
-        "--rpo-seconds", type=int, default=int(os.getenv("CKNEXUS_RPO_TARGET_SECONDS", "3600"))
-    )
-    r = sub.add_parser("restore")
-    r.add_argument("--source-url", default=os.getenv("CKNEXUS_DATABASE_URL", ""))
-    r.add_argument("--target-url", default=os.getenv("CKNEXUS_RESTORE_DATABASE_URL", ""))
-    r.add_argument("--backup-dir", required=True)
-    r.add_argument(
-        "--rto-seconds", type=int, default=int(os.getenv("CKNEXUS_RTO_TARGET_SECONDS", "900"))
-    )
-    args = parser.parse_args()
-    try:
-        if args.command == "backup":
-            result = backup(args.source_url, Path(args.output_dir), args.rpo_seconds)
-        else:
-            result = restore(
-                args.source_url, args.target_url, Path(args.backup_dir), args.rto_seconds
-            )
-        print(json.dumps(result, sort_keys=True))
-        return 0 if result.get("status") == "PASS" else 1
-    except DRBlocked as exc:
-        print(json.dumps({"status": "BLOCKED", "reason": str(exc)}, sort_keys=True))
-        return 2
-    except Exception as exc:
-        print(
-            json.dumps({"status": "FAIL", "reason": f"{type(exc).__name__}:{exc}"}, sort_keys=True)
-        )
-        return 1
-
-
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit("Use scripts/gate_postgres_dr.py; direct filesystem paths are not accepted.")

@@ -8,6 +8,7 @@ import os
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,17 +30,34 @@ REQUIRED_GATES = [
 ]
 VALID = {"PASS", "FAIL", "BLOCKED", "N/A"}
 ROOT = Path(__file__).resolve().parents[1]
-COMPOSE = Path(os.getenv("CKNEXUS_COMPOSE_FILE", str(ROOT / "docker-compose.p0.yml")))
+COMPOSE = ROOT / "docker-compose.p0.yml"
 
 
 def now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+_ALLOWED_PROGRAMS = frozenset({"git", "docker", "bash", sys.executable})
+
+
 def run(
     cmd: list[str], *, timeout: int = 300, env: dict[str, str] | None = None
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, cwd=ROOT, text=True, capture_output=True, timeout=timeout, env=env)
+    if (
+        not cmd
+        or cmd[0] not in _ALLOWED_PROGRAMS
+        or any(not isinstance(arg, str) or "\x00" in arg for arg in cmd)
+    ):
+        raise ValueError("runbook command is not in the fixed executable allowlist")
+    return subprocess.run(
+        [cmd[0], *cmd[1:]],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        timeout=timeout,
+        env=env,
+        shell=False,
+    )
 
 
 def sha256_tree(root: Path) -> str:
@@ -141,7 +159,7 @@ def wait_http(url: str, seconds: int = 120) -> bool:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--env-file", default=str(ROOT / ".env.prod"))
+    ap.add_argument("--env-profile", choices=("system", "repo"), default="system")
     ap.add_argument("--allow-destructive", action="store_true")
     args = ap.parse_args()
 
@@ -149,9 +167,7 @@ def main() -> int:
     source_sha = sha256_tree(ROOT)
     runbook_id = f"p0-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     env_id = f"{socket.gethostname()}-{os.getuid()}-{int(time.time())}"
-    evidence_root = (
-        Path(os.getenv("CKNEXUS_EVIDENCE_ROOT", "/var/tmp/cknexus-evidence")) / runbook_id
-    )
+    evidence_root = Path(tempfile.gettempdir()) / "cknexus-evidence" / runbook_id
     manifest = {
         "runbook_id": runbook_id,
         "commit_hash": commit,
@@ -184,9 +200,17 @@ def main() -> int:
         ev.gate("P0-OPS", "BLOCKED", details={"reason": "Docker unavailable"})
         return 2
 
-    env_path = Path(args.env_file)
-    if not env_path.exists():
-        ev.gate("P0-OPS", "BLOCKED", details={"reason": f"Missing env file: {env_path}"})
+    env_path = (
+        Path("/etc/cknexus/cknexus-p0.env")
+        if args.env_profile == "system"
+        else ROOT / ".env.prod"
+    )
+    if env_path.is_symlink() or not env_path.is_file():
+        ev.gate(
+            "P0-OPS",
+            "BLOCKED",
+            details={"reason": "approved environment file is missing or is a symlink"},
+        )
         return 2
 
     env = os.environ.copy()

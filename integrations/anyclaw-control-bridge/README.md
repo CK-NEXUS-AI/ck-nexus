@@ -43,7 +43,6 @@ Health: http://127.0.0.1:18926/health
 Optional environment:
 
 ```bash
-export ANYCLAW_BIN=anyclaw
 export CKNEXUS_ANYCLAW_HOST=127.0.0.1
 export CKNEXUS_ANYCLAW_PORT=18926
 ```

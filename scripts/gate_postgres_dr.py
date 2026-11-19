@@ -4,10 +4,10 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import subprocess
-import sys
 import tempfile
 from pathlib import Path
+
+from scripts import postgres_dr
 
 
 def main() -> int:
@@ -42,51 +42,42 @@ def main() -> int:
         )
         print(json.dumps(result, sort_keys=True))
         return 2
+
+    # The backup path is created internally in a private temporary directory.
+    # No command-line or request-supplied filesystem path reaches the DR helpers.
     with tempfile.TemporaryDirectory(prefix="cknexus-r19-dr-") as tmp:
         backup_dir = Path(tmp) / "backup"
-        backup = subprocess.run(
-            [
-                sys.executable,
-                "scripts/postgres_dr.py",
-                "backup",
-                "--source-url",
+        try:
+            backup = postgres_dr.backup(
                 source,
-                "--output-dir",
-                str(backup_dir),
-            ],
-            text=True,
-            capture_output=True,
-        )
-        if backup.returncode != 0:
-            result.update(
-                status="BLOCKED" if backup.returncode == 2 else "FAIL", reason="backup_gate_failed"
+                backup_dir,
+                int(os.getenv("CKNEXUS_RPO_TARGET_SECONDS", "3600")),
             )
-            print(json.dumps(result, sort_keys=True))
-            return backup.returncode
-        restore = subprocess.run(
-            [
-                sys.executable,
-                "scripts/postgres_dr.py",
-                "restore",
-                "--source-url",
+            restore = postgres_dr.restore(
                 source,
-                "--target-url",
                 target,
-                "--backup-dir",
-                str(backup_dir),
-            ],
-            text=True,
-            capture_output=True,
-        )
-        result.update(
-            status="PASS"
-            if restore.returncode == 0
-            else ("BLOCKED" if restore.returncode == 2 else "FAIL"),
-            backup="completed",
-            restore="completed" if restore.returncode == 0 else "not_passed",
-        )
-        print(json.dumps(result, sort_keys=True))
-        return restore.returncode
+                backup_dir,
+                int(os.getenv("CKNEXUS_RTO_TARGET_SECONDS", "900")),
+            )
+        except postgres_dr.DRBlocked as exc:
+            result.update(status="BLOCKED", reason=str(exc))
+            print(json.dumps(result, sort_keys=True))
+            return 2
+        except Exception as exc:
+            result.update(status="FAIL", reason=f"{type(exc).__name__}:{exc}")
+            print(json.dumps(result, sort_keys=True))
+            return 1
+
+    passed = backup.get("status") == "PASS" and restore.get("status") == "PASS"
+    result.update(
+        status="PASS" if passed else "FAIL",
+        backup="completed",
+        backup_sha256=backup.get("sha256"),
+        restore="completed" if restore.get("status") == "PASS" else "not_passed",
+        restore_duration_seconds=restore.get("duration_seconds"),
+    )
+    print(json.dumps(result, sort_keys=True))
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":

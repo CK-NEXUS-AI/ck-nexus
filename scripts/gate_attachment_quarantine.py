@@ -6,9 +6,9 @@ import tempfile
 import urllib.request
 
 try:
-    from scripts._safe_http import safe_urlopen
+    from scripts._safe_http import loopback_api_base_url, safe_loopback_urlopen
 except ImportError:
-    from _safe_http import safe_urlopen
+    from _safe_http import loopback_api_base_url, safe_loopback_urlopen
 import uuid
 import zipfile
 
@@ -35,14 +35,14 @@ def upload(url, path, token):
         },
         method="POST",
     )
-    with safe_urlopen(req, timeout=20) as r:
+    with safe_loopback_urlopen(req, timeout=20) as r:
         return json.load(r)
 
 
 def main():
     from pathlib import Path
 
-    base = os.getenv("CKNEXUS_API_BASE", "http://127.0.0.1:8000").rstrip("/")
+    base = loopback_api_base_url()
     token = os.getenv("CKNEXUS_EMAIL_WEBHOOK_TOKEN", "")
     if not token:
         print('{"status":"BLOCKED","reason":"missing webhook token"}')

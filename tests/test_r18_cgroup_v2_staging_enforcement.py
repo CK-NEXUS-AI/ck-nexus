@@ -61,6 +61,22 @@ def test_staging_phase3_fails_closed_when_cgroup_not_delegated(
         )
 
 
+def test_phase3_fails_closed_when_cgroup_manager_is_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("creator_app.agnes_runtime.CgroupV2Manager", lambda **kwargs: None)
+    with pytest.raises(RuntimeError, match="cgroup_v2_manager_unavailable"):
+        AgnesNervousSystem(
+            skill_file=SKILLS,
+            ledger_path=tmp_path / "ledger.jsonl",
+            sandbox_enabled=True,
+            sandbox_root=tmp_path / "sandbox",
+            sandbox_repository_root=ROOT,
+            phase3_enabled=True,
+            environment="development",
+        )
+
+
 def test_development_phase3_keeps_truthful_non_production_safe_status(tmp_path: Path) -> None:
     cgroup_root = tmp_path / "not-delegated"
     cgroup_root.mkdir()

@@ -5,9 +5,9 @@ import os
 import urllib.request
 
 try:
-    from scripts._safe_http import safe_urlopen
+    from scripts._safe_http import loopback_api_base_url, safe_loopback_urlopen
 except ImportError:
-    from _safe_http import safe_urlopen
+    from _safe_http import loopback_api_base_url, safe_loopback_urlopen
 
 
 def post(url, data):
@@ -20,12 +20,12 @@ def post(url, data):
         },
         method="POST",
     )
-    with safe_urlopen(req, timeout=10) as r:
+    with safe_loopback_urlopen(req, timeout=10) as r:
         return json.load(r)
 
 
 def main():
-    base = os.getenv("CKNEXUS_API_BASE", "http://127.0.0.1:8000").rstrip("/")
+    base = loopback_api_base_url()
     if not os.getenv("CKNEXUS_EMAIL_WEBHOOK_TOKEN"):
         print(json.dumps({"status": "BLOCKED", "reason": "CKNEXUS_EMAIL_WEBHOOK_TOKEN missing"}))
         return 2

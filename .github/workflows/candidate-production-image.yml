@@ -2,7 +2,7 @@ name: Candidate production image
 
 on:
   push:
-    branches: [release/q10-q16-closure]
+    branches: [release/q10-q16-closure, fix/q10-gate-medium-and-report-20261119]
   workflow_dispatch:
 
 permissions:

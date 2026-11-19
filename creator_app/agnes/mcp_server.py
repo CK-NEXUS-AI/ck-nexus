@@ -20,7 +20,6 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -985,17 +984,33 @@ def _browser_url_denial(url: str) -> str | None:
 
 
 def _run_browser_tool(action: str, argument: str | None = None) -> dict[str, Any]:
-    """Invoke the root-owned allowlisting wrapper; never pass shell text."""
+    """Invoke the root-owned allowlisting wrapper with fixed argv and no shell."""
+    if action not in {"status", "open", "title", "url", "text", "screenshot"}:
+        return {
+            "ok": False,
+            "error_code": "BROWSER_ACTION_DENIED",
+            "message": "Browser action is not allowlisted.",
+            "execution_state": "NOT_EXECUTED",
+            "secret_values_exposed": False,
+        }
+    if action == "open" and (argument is None or _browser_url_denial(argument)):
+        return {
+            "ok": False,
+            "error_code": "BROWSER_URL_DENIED",
+            "message": "Only approved HTTPS hosts are allowed.",
+            "execution_state": "NOT_EXECUTED",
+            "secret_values_exposed": False,
+        }
     command = ["sudo", "-n", _BROWSER_WRAPPER, action]
-    if argument is not None:
-        command.append(argument)
     try:
         completed = subprocess.run(
             command,
+            input=argument if action == "open" else None,
             capture_output=True,
             text=True,
             timeout=35,
             check=False,
+            shell=False,
         )
     except (OSError, subprocess.TimeoutExpired):
         return {
@@ -1079,32 +1094,8 @@ def cknexus_browser_read_page() -> dict[str, Any]:
 
 @mcp.tool()
 def cknexus_browser_screenshot() -> dict[str, Any]:
-    """Capture the current browser page using a secure process-scoped temp file."""
-    screenshot_path = Path(
-        os.getenv(
-            "CKNEXUS_BROWSER_SCREENSHOT_PATH",
-            str(Path(tempfile.gettempdir()) / f"cknexus-browser-mcp-{os.getpid()}.png"),
-        )
-    )
-    try:
-        descriptor = os.open(
-            screenshot_path,
-            os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0),
-            0o600,
-        )
-    except OSError:
-        return {
-            "ok": False,
-            "error_code": "SCREENSHOT_PATH_UNAVAILABLE",
-            "message": "A secure temporary screenshot path could not be reserved.",
-            "execution_state": "NOT_EXECUTED",
-            "secret_values_exposed": False,
-        }
-    os.close(descriptor)
-    try:
-        return _run_browser_tool("screenshot", str(screenshot_path))
-    finally:
-        screenshot_path.unlink(missing_ok=True)
+    """Capture a screenshot; the privileged wrapper owns all output paths."""
+    return _run_browser_tool("screenshot")
 
 
 @mcp.tool()

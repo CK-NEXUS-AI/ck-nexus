@@ -38,7 +38,7 @@ export OPENCODE_SERVER_USERNAME="opencode"
 opencode serve --hostname 127.0.0.1 --port 18924
 ```
 
-If an existing OpenCode TUI/session server is already running on another port, do not start a second server; set `OPENCODE_BASE_URL` to that server instead.
+If an existing OpenCode TUI/session server is already running on another port, do not start a second server; set `OPENCODE_PORT` to its local TCP port. The bridge only connects to `127.0.0.1` and does not accept a remote upstream host.
 
 ## Start the MCP bridge
 
@@ -48,7 +48,7 @@ In a second terminal:
 cd integrations/opencode-control-bridge
 npm install
 
-export OPENCODE_BASE_URL="http://127.0.0.1:18924"
+export OPENCODE_PORT=18924
 export OPENCODE_SERVER_USERNAME="opencode"
 export OPENCODE_SERVER_PASSWORD="<same value used by OpenCode>"
 export OPENCODE_SESSION_ID="ses_0118776b6ffeORNKewNaFzbtWH"

@@ -33,6 +33,10 @@ def classify_cli_error(stderr: str) -> str:
 
 
 def search(query: str, limit: int = 20) -> list[dict]:
+    if not query or len(query) > 256 or any(ord(char) < 32 for char in query):
+        raise ValueError("GitHub search query must be 1-256 printable characters")
+    if not 1 <= limit <= 100:
+        raise ValueError("GitHub search limit must be between 1 and 100")
     command = [
         "gh",
         "api",
@@ -44,7 +48,14 @@ def search(query: str, limit: int = 20) -> list[dict]:
         "-f",
         "per_page=" + str(limit),
     ]
-    result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
+    result = subprocess.run(
+        ["gh", *command[1:]],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        shell=False,
+    )
     if result.returncode != 0:
         category = classify_cli_error(result.stderr)
         raise RuntimeError(f"github_search_failed:{category}:exit={result.returncode}")

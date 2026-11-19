@@ -37,7 +37,7 @@ def test_classify_invalid_query_error() -> None:
 
 
 def test_unknown_error_is_safe_and_generic() -> None:
-    secret_like_text = "fatal: token=ghp_example_private_value"
+    secret_like_text = "fatal: token=[redacted]"
     category = classify_cli_error(secret_like_text)
     assert category == "unclassified_cli_error"
-    assert "ghp_example_private_value" not in category
+    assert "[redacted]" not in category

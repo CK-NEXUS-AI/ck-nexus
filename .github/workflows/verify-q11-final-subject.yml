@@ -2,16 +2,16 @@ name: Verify Q11 final release subject
 
 on:
   push:
-    branches: [verify/q11-final-subject]
+    branches: [fix/q10-gate-medium-and-report-20261119]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 env:
-  Q11_SOURCE_SHA: ad2fac7aa0752117dde065c7ad9b0b8d41136aa2
-  Q11_SOURCE_TREE: eb2074176319072ca3f31d5c8c990752ba849b0a
-  Q11_RELEASE_SUBJECT: 772662ac4ed60e785f30370c0c66bfdf8f798ea5f67fe13063404b20f2f74200
+  Q11_SOURCE_SHA: aac0b538516cd7777159f65fb7d0e0e588f1a5f2
+  Q11_SOURCE_TREE: 6a8c2beb71bc2e0f3c04adfb5e62c830b52fff23
+  Q11_RELEASE_SUBJECT: aeedb59ed7b07e77cc57a899ab5445a8506817ce2cd34fd728269db12eb0f735
 
 jobs:
   q11:

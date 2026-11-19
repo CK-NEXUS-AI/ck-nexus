@@ -11,13 +11,17 @@ import * as z from 'zod/v4';
 
 const HOST = process.env.CKNEXUS_BRIDGE_HOST ?? '127.0.0.1';
 const PORT = Number(process.env.CKNEXUS_BRIDGE_PORT ?? '18925');
-const OPENCODE_BASE_URL = (process.env.OPENCODE_BASE_URL ?? 'http://127.0.0.1:18924').replace(/\/$/, '');
+const OPENCODE_PORT = Number(process.env.OPENCODE_PORT ?? '18924');
+if (!Number.isInteger(OPENCODE_PORT) || OPENCODE_PORT < 1 || OPENCODE_PORT > 65535) {
+  throw new Error('OPENCODE_PORT must be a valid TCP port');
+}
+const OPENCODE_BASE_URL = `http://127.0.0.1:${OPENCODE_PORT}`;
 const OPENCODE_USERNAME = process.env.OPENCODE_SERVER_USERNAME ?? 'opencode';
 const OPENCODE_PASSWORD = process.env.OPENCODE_SERVER_PASSWORD ?? '';
 const BRIDGE_TOKEN = process.env.CKNEXUS_BRIDGE_TOKEN ?? '';
 const DEFAULT_SESSION_ID = process.env.OPENCODE_SESSION_ID ?? '';
 const AUTOSTART = (process.env.CKNEXUS_AUTOSTART ?? 'false').toLowerCase() === 'true';
-const STATE_FILE = process.env.CKNEXUS_BRIDGE_STATE_FILE ?? '.opencode-bridge-state.json';
+const STATE_FILE = '.opencode-bridge-state.json';
 
 const EXPECTED_SOURCE_SHA = 'ad2fac7aa0752117dde065c7ad9b0b8d41136aa2';
 const EXPECTED_TREE = 'eb2074176319072ca3f31d5c8c990752ba849b0a';

@@ -5,16 +5,16 @@ import os
 import urllib.request
 
 try:
-    from scripts._safe_http import safe_urlopen
+    from scripts._safe_http import loopback_api_base_url, safe_loopback_urlopen
 except ImportError:
-    from _safe_http import safe_urlopen
+    from _safe_http import loopback_api_base_url, safe_loopback_urlopen
 
 
 def fetch(url: str, *, token: str = "") -> str:
     request = urllib.request.Request(url)
     if token:
         request.add_header("Authorization", f"Bearer {token}")
-    with safe_urlopen(request, timeout=5) as response:
+    with safe_loopback_urlopen(request, timeout=5) as response:
         return response.read().decode("utf-8")
 
 
@@ -27,16 +27,22 @@ def metric_value(text: str, name: str) -> float:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base-url", default="http://127.0.0.1:8000")
+    parser.add_argument("--port", type=int, default=None)
     parser.add_argument("--max-outbox-pending", type=int, default=100)
     args = parser.parse_args()
 
-    health = fetch(args.base_url.rstrip("/") + "/health")
+    if args.port is not None:
+        if not 1 <= args.port <= 65535:
+            parser.error("--port must be between 1 and 65535")
+        base = f"http://127.0.0.1:{args.port}"
+    else:
+        base = loopback_api_base_url()
+    health = fetch(base + "/health")
     if '"status":"ok"' not in health.replace(" ", ""):
         print("P0-OBS-001 FAIL health")
         return 1
     metrics = fetch(
-        args.base_url.rstrip("/") + "/metrics", token=os.getenv("CKNEXUS_ACCESS_TOKEN", "")
+        base + "/metrics", token=os.getenv("CKNEXUS_ACCESS_TOKEN", "")
     )
     pending = metric_value(metrics, "ckn_email_outbox_pending")
     stale = metric_value(metrics, "ckn_email_stale_processing_leases")

@@ -75,6 +75,7 @@ class AutoDeveloperPolicy:
             text=True,
             timeout=10,
             check=False,
+            shell=False,
         )
         return result.returncode == 0 and not result.stdout.strip()
 
@@ -152,6 +153,7 @@ class AutoDeveloper:
                 text=True,
                 timeout=self.policy.timeout_seconds,
                 check=False,
+                shell=False,
                 env=env,
             )
         except subprocess.TimeoutExpired:
@@ -240,6 +242,7 @@ class AutoDeveloper:
             text=True,
             timeout=10,
             check=False,
+            shell=False,
         )
         command = (
             ["git", "worktree", "add", str(workspace), branch]
@@ -258,6 +261,7 @@ class AutoDeveloper:
             text=True,
             timeout=10,
             check=False,
+            shell=False,
         )
         if status.returncode != 0 or status.stdout.strip():
             raise RuntimeError("workspace_not_clean")
@@ -271,6 +275,7 @@ class AutoDeveloper:
             text=True,
             timeout=10,
             check=False,
+            shell=False,
         )
         status = self.runner(
             ["git", "status", "--porcelain=v1"],
@@ -279,6 +284,7 @@ class AutoDeveloper:
             text=True,
             timeout=10,
             check=False,
+            shell=False,
         )
         return {"head": head.stdout.strip(), "status": status.stdout}
 
@@ -290,6 +296,7 @@ class AutoDeveloper:
             text=True,
             timeout=self.policy.timeout_seconds,
             check=False,
+            shell=False,
         )
         diff = self.runner(
             ["git", "diff", "--check"],
@@ -298,6 +305,7 @@ class AutoDeveloper:
             text=True,
             timeout=10,
             check=False,
+            shell=False,
         )
         return result.returncode == 0 and diff.returncode == 0
 
