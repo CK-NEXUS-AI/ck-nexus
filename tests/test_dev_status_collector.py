@@ -150,7 +150,7 @@ def test_collect_does_not_use_non_readonly_github_credentials(monkeypatch) -> No
 
 
 
-def test_qwen_probe_uses_direct_tls_connection_without_redirect_handlers(tmp_path, monkeypatch) -> None:
+def test_qwen_probe_uses_direct_tls_connection(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(collector, "OUTPUT", tmp_path / "dev_status.json")
     monkeypatch.setenv("DASHSCOPE_API_KEY", "test-secret")
     monkeypatch.setenv("QWEN_MODEL", "qwen-test")
