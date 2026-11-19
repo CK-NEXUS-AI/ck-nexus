@@ -185,14 +185,14 @@ class TestGeminiAdapter:
 
     def test_default_model_matches_verified_gemini_api_model(self):
         adapter = GeminiAdapter()
-        assert adapter.model == "gemini-2.5-flash"
-        assert "gemini-2.5-flash" in adapter.capabilities.models
+        assert adapter.model == "gemini-3.1-flash-lite"
+        assert "gemini-3.1-flash-lite" in adapter.capabilities.models
 
     def test_capabilities(self):
-        adapter = GeminiAdapter(model="gemini-2.5-flash")
+        adapter = GeminiAdapter(model="gemini-3.1-flash-lite")
         assert adapter.kind == ProviderKind.CLOUD
         assert adapter.capabilities.supports(["vision"]) is True
-        assert "gemini-2.5-flash" in adapter.capabilities.models
+        assert "gemini-3.1-flash-lite" in adapter.capabilities.models
 
 
 # ── build_free_adapters Tests ───────────────────────────────────────────────

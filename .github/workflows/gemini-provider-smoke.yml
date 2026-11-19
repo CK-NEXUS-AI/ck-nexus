@@ -1,6 +1,7 @@
 name: CK-NEXUS Gemini provider smoke
 
 on:
+  workflow_dispatch:
   push:
     branches: [feat/gemini-provider-20261119]
     paths:
@@ -8,7 +9,14 @@ on:
       - 'scripts/test_gemini_live.py'
       - 'creator_app/providers.py'
       - 'creator_app/credentials/credential_broker.py'
+      - 'creator_app/credentials/free_providers.py'
+      - 'creator_app/free_providers.py'
+      - 'creator_app/provider_hub.py'
+      - 'creator_app/provider_registry.py'
+      - 'creator_app/provider_router.py'
       - 'tests/test_provider_adapters.py'
+      - 'tests/test_free_providers.py'
+      - 'tests/test_provider_router.py'
 
 permissions:
   contents: read
