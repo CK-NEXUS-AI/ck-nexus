@@ -39,6 +39,45 @@ class ArtifactStatus(StrEnum):
     BLOCKED = "blocked"
 
 
+VERIFICATION_STATE_KEYS = frozenset(
+    {
+        "discovered",
+        "available_in_chat_session",
+        "online_verified",
+        "not_connected",
+        "not_integrated",
+        "runtime_verified",
+    }
+)
+
+
+@dataclass(frozen=True, slots=True)
+class VerificationState:
+    discovered: bool
+    available_in_chat_session: bool
+    online_verified: bool
+    not_connected: bool
+    not_integrated: bool
+    runtime_verified: bool
+
+    @classmethod
+    def from_mapping(cls, raw: dict[str, Any]) -> VerificationState:
+        if set(raw) != VERIFICATION_STATE_KEYS:
+            raise ValueError(
+                "verification_state must contain exactly the six independent status fields"
+            )
+        if any(type(raw[key]) is not bool for key in VERIFICATION_STATE_KEYS):
+            raise ValueError("verification_state fields must be booleans")
+        if not raw["discovered"] and any(
+            raw[key] for key in VERIFICATION_STATE_KEYS - {"discovered"}
+        ):
+            raise ValueError("verification_state flags require discovered=true")
+        # Connection and code integration are independent verification dimensions.
+        if raw["runtime_verified"] and (raw["not_connected"] or raw["not_integrated"]):
+            raise ValueError("runtime_verified requires connected and integrated")
+        return cls(**raw)
+
+
 @dataclass(frozen=True, slots=True)
 class CapabilityArtifact:
     artifact_id: str
@@ -51,6 +90,7 @@ class CapabilityArtifact:
     source_url: str | None = None
     capabilities: tuple[str, ...] = ()
     notes: str = ""
+    verification_state: VerificationState | None = None
 
     @classmethod
     def from_mapping(cls, raw: dict[str, Any]) -> CapabilityArtifact:
@@ -69,6 +109,12 @@ class CapabilityArtifact:
             not isinstance(value, str) or not value.strip() for value in capabilities
         ):
             raise ValueError("capabilities must be a list of non-empty strings")
+        raw_verification = raw.get("verification_state")
+        verification_state = (
+            VerificationState.from_mapping(raw_verification)
+            if raw_verification is not None
+            else None
+        )
         # Only CK-NEXUS Core may be assigned the internal L3 authority scope.
         authority_scope = raw["authority_scope"]
         if artifact_class is ArtifactClass.CORE:
@@ -76,6 +122,8 @@ class CapabilityArtifact:
                 raise ValueError("CK-NEXUS Core must declare L3 authority")
         elif authority_scope != "NONE":
             raise ValueError("external artifacts must have authority_scope=NONE")
+        elif verification_state is None:
+            raise ValueError("external artifacts must declare verification_state")
         return cls(
             artifact_id=raw["id"],
             name=raw["name"],
@@ -87,6 +135,7 @@ class CapabilityArtifact:
             source_url=source_url,
             capabilities=tuple(capabilities),
             notes=str(raw.get("notes", "")),
+            verification_state=verification_state,
         )
 
 
