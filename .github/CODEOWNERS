@@ -1,0 +1,24 @@
+# CK-NEXUS code ownership
+#
+# This file documents review ownership. Enforcement still depends on the
+# repository plan and branch/ruleset configuration.
+
+* @spinlnw10-art
+
+# Production closure and evidence boundaries
+/evidence/ @spinlnw10-art
+/.github/release-tools/ @spinlnw10-art
+/.github/workflows/verify-q10* @spinlnw10-art
+/.github/workflows/verify-q11* @spinlnw10-art
+/.github/workflows/verify-q12* @spinlnw10-art
+/.github/workflows/final-production-package.yml @spinlnw10-art
+
+# Security and credential boundaries
+/creator_app/credential_broker.py @spinlnw10-art
+/creator_app/credential_vault.py @spinlnw10-art
+/creator_app/connector_fabric/security.py @spinlnw10-art
+/creator_app/council_authority/ @spinlnw10-art
+
+# Runtime / orchestration
+/creator_app/agnes/ @spinlnw10-art
+/orchestration/ @spinlnw10-art
