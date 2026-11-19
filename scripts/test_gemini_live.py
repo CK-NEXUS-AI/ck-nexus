@@ -12,7 +12,7 @@ def main() -> int:
         print("Q11 GEMINI BLOCKED: GEMINI_API_KEY is not configured")
         return 2
 
-    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+    model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
     payload = {
         "contents": [{
             "role": "user",
