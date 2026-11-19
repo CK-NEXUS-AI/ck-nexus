@@ -99,3 +99,162 @@ jobs:
           assert q9['grant_consumed_before_execution'] is True
           print('Q05/Q08/Q09 candidate evidence PASS')
           PY
+
+  control-state-validation:
+    name: Control State SQL and OpenAPI validation
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: control_state_test
+          POSTGRES_USER: cknexus_test
+          POSTGRES_PASSWORD: disposable-test-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cknexus_test -d control_state_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://cknexus_test:disposable-test-only@localhost:5432/control_state_test
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+      - name: Install contract validators
+        run: |
+          python -m pip install --disable-pip-version-check openapi-spec-validator==0.7.2 PyYAML==6.0.2
+      - name: Validate OpenAPI syntax and references
+        run: openapi-spec-validator docs/control-state-api.openapi.yaml
+      - name: Validate API security and response contract
+        run: |
+          python - <<'PY'
+          import yaml
+          from pathlib import Path
+          spec = yaml.safe_load(Path("docs/control-state-api.openapi.yaml").read_text(encoding="utf-8"))
+          assert spec["openapi"] == "3.1.0"
+          assert "bearerAuth" in spec["components"]["securitySchemes"]
+          assert spec.get("security") == [{"bearerAuth": []}]
+          controls = spec.get("x-control-state-security", {})
+          for key in ("authentication", "authorization", "audit", "redaction", "rate_limit"):
+              assert controls.get(key), f"missing security control: {key}"
+          expected = {"200", "400", "401", "403", "404", "429", "500"}
+          for path in ("/health", "/readiness", "/evidence"):
+              operation = spec["paths"][path]["get"]
+              assert operation.get("x-audit-required") is True, f"{path}: audit extension missing"
+              assert operation.get("x-redaction-required") is True, f"{path}: redaction extension missing"
+              assert operation.get("x-required-permission"), f"{path}: permission extension missing"
+              assert expected <= set(operation["responses"]), f"{path}: missing response codes"
+              success = operation["responses"]["200"]["content"]
+              assert "application/json" in success, f"{path}: 200 must be application/json"
+          assert spec["components"]["responses"]["RateLimited"]["headers"].get("Retry-After")
+          print("OPENAPI_CONTRACT_VALIDATED: paths=3 security=complete response_codes=complete")
+          PY
+      - name: Validate SQL migration in disposable PostgreSQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/0001_control_state.sql
+          # Repeatability: running the migration a second time must not fail.
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/0001_control_state.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          DECLARE
+            table_count integer;
+            fk_count integer;
+            index_count integer;
+          BEGIN
+            SELECT count(*) INTO table_count
+              FROM information_schema.tables
+             WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+               AND table_name IN ('evidence_registry','workflow_registry','credential_registry',
+                 'incident_registry','approval_registry','audit_registry','production_gate_registry');
+            IF table_count <> 7 THEN
+              RAISE EXCEPTION 'expected 7 control-state tables, got %', table_count;
+            END IF;
+            SELECT count(*) INTO fk_count
+              FROM information_schema.table_constraints
+             WHERE constraint_schema = 'public' AND constraint_type = 'FOREIGN KEY'
+               AND table_name IN ('workflow_registry','credential_registry','approval_registry',
+                 'audit_registry','production_gate_registry');
+            IF fk_count <> 5 THEN
+              RAISE EXCEPTION 'expected 5 evidence foreign keys, got %', fk_count;
+            END IF;
+            SELECT count(*) INTO index_count
+              FROM pg_indexes
+             WHERE schemaname = 'public'
+               AND indexname IN ('idx_evidence_source_lookup','idx_workflow_registry_lookup',
+                 'idx_credential_registry_evidence','idx_incident_registry_status_severity',
+                 'idx_incident_registry_evidence_ids','idx_approval_registry_evidence',
+                 'idx_audit_registry_evidence','idx_gate_release','idx_gate_evidence');
+            IF index_count <> 9 THEN
+              RAISE EXCEPTION 'expected 9 named lookup/evidence indexes, got %', index_count;
+            END IF;
+          END $$;
+          INSERT INTO evidence_registry
+            (evidence_type, source_system, source_record_id, observed_at, verification_status)
+          VALUES ('ci-validation', 'github-actions', 'control-state-validation', now(), 'VERIFIED');
+          DO $$
+          BEGIN
+            BEGIN
+              INSERT INTO evidence_registry
+                (evidence_type, source_system, source_record_id, observed_at, verification_status)
+              VALUES ('invalid', 'ci', 'invalid-status', now(), 'MADE_UP_STATUS');
+              RAISE EXCEPTION 'verification_status CHECK constraint did not reject invalid status';
+            EXCEPTION WHEN check_violation THEN
+              RAISE NOTICE 'CHECK constraint negative test passed';
+            END;
+            BEGIN
+              INSERT INTO workflow_registry
+                (workflow_id, workflow_name, source_instance, active, observed_at, evidence_id)
+              VALUES ('test', 'test', 'ci', false, now(), '00000000-0000-0000-0000-000000000001');
+              RAISE EXCEPTION 'evidence foreign key did not reject missing evidence';
+            EXCEPTION WHEN foreign_key_violation THEN
+              RAISE NOTICE 'FOREIGN KEY negative test passed';
+            END;
+          END $$;
+          SQL
+          # Drop only the seven tables in this disposable CI database, then recreate them.
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c             "DROP TABLE production_gate_registry, audit_registry, approval_registry, incident_registry, credential_registry, workflow_registry, evidence_registry CASCADE"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/0001_control_state.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c             "SELECT 'SQL_MIGRATION_CREATE_DROP_RECREATE_PASS' AS evidence, count(*) AS tables FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' AND table_name IN ('evidence_registry','workflow_registry','credential_registry','incident_registry','approval_registry','audit_registry','production_gate_registry') HAVING count(*)=7"
+      - name: Emit machine-readable validation evidence
+        if: always()
+        env:
+          GIT_SHA: ${{ github.sha }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          report = {
+              "schema_version": 1,
+              "project": "CK-NEXUS",
+              "subject_commit": os.environ.get("GIT_SHA", "unknown"),
+              "workflow": "CK-NEXUS CI / Control State SQL and OpenAPI validation",
+              "observed_at": datetime.now(timezone.utc).isoformat(),
+              "job_status": os.environ.get("JOB_STATUS", "unknown"),
+              "scope": "disposable PostgreSQL 16 service and OpenAPI contract only",
+              "production_database_touched": False,
+              "live_n8n_changed": False,
+              "emails_sent": False,
+              "secrets_read": False,
+              "production_readiness": "NO_GO",
+          }
+          path = "control-state-validation-report.json"
+          with open(path, "w", encoding="utf-8") as handle:
+              json.dump(report, handle, indent=2)
+              handle.write("\n")
+          print(json.dumps(report, sort_keys=True))
+          PY
+      - name: Upload validation report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: control-state-validation-report
+          path: control-state-validation-report.json
+          if-no-files-found: error
+          retention-days: 30
