@@ -1,0 +1,31 @@
+name: No File Deletions
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Block deleted files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out pull request history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reject file deletions
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          deleted_files="$(git diff --name-only --no-renames --diff-filter=D "$BASE_SHA" "$HEAD_SHA")"
+          if [[ -n "$deleted_files" ]]; then
+            echo "ERROR: File deletion is not permitted in CK-NEXUS pull requests."
+            printf '%s\n' "$deleted_files"
+            exit 1
+          fi
+          echo "PASS: No files are deleted in this pull request."
