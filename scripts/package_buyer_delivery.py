@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -107,11 +108,17 @@ def write_text(root: Path, path: Path, content: str) -> None:
 
 
 def validated_child(root: Path, path: Path) -> Path:
-    resolved_root = root.resolve()
-    resolved_path = Path(path).resolve(strict=False)
-    if resolved_path == resolved_root or not resolved_path.is_relative_to(resolved_root):
-        raise RuntimeError(f"Path escapes package root: {path}")
-    return resolved_path
+    resolved_root = os.path.realpath(os.fspath(root))
+    raw_path = os.fspath(path)
+    candidate = raw_path if os.path.isabs(raw_path) else os.path.join(resolved_root, raw_path)
+    resolved_path = os.path.realpath(candidate)
+    try:
+        common = os.path.commonpath((resolved_root, resolved_path))
+    except ValueError as exc:
+        raise RuntimeError("Path is outside package root") from exc
+    if resolved_path == resolved_root or common != resolved_root:
+        raise RuntimeError("Path escapes package root")
+    return Path(resolved_path)
 
 
 def scan_text_tree(root: Path) -> list[dict[str, str]]:
