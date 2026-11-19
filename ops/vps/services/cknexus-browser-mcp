@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import ipaddress
-import os
+import re
 import subprocess
 import sys
+from pathlib import Path
 from urllib.parse import urlsplit
 
 HELPER = "/usr/local/bin/cknexus-browser"
@@ -51,14 +52,26 @@ def main() -> int:
     if action == "open" and not valid_url(sys.argv[2]):
         print("Denied URL.", file=sys.stderr)
         return 2
-    if action == "screenshot" and sys.argv[2] != "/tmp/cknexus-browser-mcp.png":
-        print("Denied screenshot path.", file=sys.stderr)
-        return 2
+    if action == "screenshot":
+        screenshot = Path(sys.argv[2])
+        if (
+            screenshot.parent != Path("/tmp")
+            or not re.fullmatch(r"cknexus-browser-mcp-[A-Za-z0-9_-]+\.png", screenshot.name)
+        ):
+            print("Denied screenshot path.", file=sys.stderr)
+            return 2
     args = [HELPER, action]
     if len(sys.argv) == 3:
         args.append(sys.argv[2])
     try:
-        result = subprocess.run(args, capture_output=True, text=True, timeout=32, check=False)
+        result = subprocess.run(
+            [HELPER, action, *args[2:]],
+            capture_output=True,
+            text=True,
+            timeout=32,
+            check=False,
+            shell=False,
+        )
     except (OSError, subprocess.TimeoutExpired):
         print("Browser helper unavailable or timed out.", file=sys.stderr)
         return 3

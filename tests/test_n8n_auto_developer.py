@@ -125,7 +125,9 @@ def test_dirty_primary_repo_uses_isolated_git_worktree(tmp_path: Path):
             return subprocess.CompletedProcess(args, 0, "implemented\n", "")
         if args and (args[0].endswith("pytest") or args[0] == ".venv/bin/pytest"):
             return subprocess.CompletedProcess(args, 0, "1 passed\n", "")
-        return subprocess.run(args, **kwargs)
+        if args and args[0] == "git":
+            return subprocess.run(["git", *args[1:]], **kwargs)
+        raise AssertionError(f"unexpected subprocess in fake runner: {args!r}")
 
     result = AutoDeveloper(
         store,

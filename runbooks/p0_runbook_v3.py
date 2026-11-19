@@ -36,10 +36,27 @@ def now() -> str:
     return datetime.now(UTC).isoformat()
 
 
+_ALLOWED_PROGRAMS = frozenset({"git", "docker", "bash", sys.executable})
+
+
 def run(
     cmd: list[str], *, timeout: int = 300, env: dict[str, str] | None = None
 ) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, cwd=ROOT, text=True, capture_output=True, timeout=timeout, env=env)
+    if (
+        not cmd
+        or cmd[0] not in _ALLOWED_PROGRAMS
+        or any(not isinstance(arg, str) or "\x00" in arg for arg in cmd)
+    ):
+        raise ValueError("runbook command is not in the fixed executable allowlist")
+    return subprocess.run(
+        [cmd[0], *cmd[1:]],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        timeout=timeout,
+        env=env,
+        shell=False,
+    )
 
 
 def sha256_tree(root: Path) -> str:
