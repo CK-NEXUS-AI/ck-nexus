@@ -153,19 +153,36 @@ jobs:
           medium_findings = sum(row.get('issue_severity') == 'MEDIUM' for row in findings)
           low_findings = sum(row.get('issue_severity') == 'LOW' for row in findings)
           dependency_rc = os.getenv('DEPENDENCY_RC', '')
+          bandit_rc = os.getenv('BANDIT_RC', '')
           secret_rc = os.getenv('SECRET_RC', '')
           attack_rc = os.getenv('ATTACK_RC', '')
           completed = datetime.now(UTC).isoformat()
           checks = {
               'pip_audit_exit_code': dependency_rc,
               'dependency_vulnerabilities': vulnerabilities,
+              'bandit_exit_code': bandit_rc,
+              'bandit_report_valid': (
+                  isinstance(bandit, dict)
+                  and isinstance(bandit.get('results'), list)
+                  and not bandit.get('errors')
+                  and 'error' not in bandit
+              ),
               'bandit_high_findings': high_findings,
               'bandit_medium_findings': medium_findings,
               'bandit_low_findings': low_findings,
               'secret_scan_exit_code': secret_rc,
               'security_attack_regression_exit_code': attack_rc,
           }
-          passed = dependency_rc == '0' and vulnerabilities == 0 and high_findings == 0 and secret_rc == '0' and attack_rc == '0'
+          bandit_report_valid = checks['bandit_report_valid']
+          passed = (
+              dependency_rc == '0'
+              and vulnerabilities == 0
+              and bandit_report_valid
+              and high_findings == 0
+              and medium_findings == 0
+              and secret_rc == '0'
+              and attack_rc == '0'
+          )
           report = {
               'schema_version': 1,
               'gate': 'Q10_OPEN_SOURCE_LAYERED_SECURITY',

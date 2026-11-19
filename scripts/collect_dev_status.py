@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import ssl
 import subprocess
 import tempfile
 import time
@@ -13,7 +14,7 @@ from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import HTTPSHandler, Request, build_opener
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = Path(os.getenv("CKNEXUS_DEV_STATUS_FILE", ROOT / "data/dev_status.json"))
@@ -271,7 +272,10 @@ def probe_qwen_daily() -> dict[str, Any]:
             "Authorization": "Bearer " + key, "Content-Type": "application/json"})
         started = time.monotonic()
         try:
-            with urlopen(req, timeout=15) as response:
+            # The endpoint is allowlisted as HTTPS above; use an HTTPS-only handler
+            # with normal certificate verification instead of a generic URL opener.
+            opener = build_opener(HTTPSHandler(context=ssl.create_default_context()))
+            with opener.open(req, timeout=15) as response:
                 payload = json.loads(response.read(65536))
                 success = response.status == 200 and bool(payload.get("choices"))
                 result = {"last_success": now() if success else None,
