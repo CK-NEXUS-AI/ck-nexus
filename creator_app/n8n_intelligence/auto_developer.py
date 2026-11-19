@@ -153,7 +153,7 @@ class AutoDeveloper:
                 text=True,
                 timeout=self.policy.timeout_seconds,
                 check=False,
-            shell=False,
+                shell=False,
                 env=env,
             )
         except subprocess.TimeoutExpired:
