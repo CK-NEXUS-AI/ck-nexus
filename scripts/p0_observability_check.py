@@ -5,12 +5,13 @@ import os
 import urllib.request
 
 try:
-    from scripts._safe_http import safe_urlopen
+    from scripts._safe_http import require_loopback_url, safe_urlopen
 except ImportError:
-    from _safe_http import safe_urlopen
+    from _safe_http import require_loopback_url, safe_urlopen
 
 
 def fetch(url: str, *, token: str = "") -> str:
+    url = require_loopback_url(url)
     request = urllib.request.Request(url)
     if token:
         request.add_header("Authorization", f"Bearer {token}")

@@ -5,12 +5,13 @@ import os
 import urllib.request
 
 try:
-    from scripts._safe_http import safe_urlopen
+    from scripts._safe_http import require_loopback_url, safe_urlopen
 except ImportError:
-    from _safe_http import safe_urlopen
+    from _safe_http import require_loopback_url, safe_urlopen
 
 
 def post(url, data):
+    url = require_loopback_url(url)
     req = urllib.request.Request(
         url,
         data=json.dumps(data).encode(),

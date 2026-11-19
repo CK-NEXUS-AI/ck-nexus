@@ -6,14 +6,46 @@ import os
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlsplit
 
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("CK_GATEWAY_PORT", "8790"))
 SCANNER_HEALTH = "http://127.0.0.1:8787/health"
 QWEN_KEY = os.environ.get("DASHSCOPE_API_KEY", "").strip()
-QWEN_BASE = os.environ.get("DASHSCOPE_BASE_URL", "").rstrip("/")
+
+
+_DASHSCOPE_BASES = {
+    "https://dashscope-intl.aliyuncs.com/compatible-mode/v1": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    "https://dashscope.aliyuncs.com/compatible-mode/v1": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+}
+
+
+def validated_qwen_base(value: str) -> str:
+    """Return a fixed official endpoint; never use an arbitrary environment URL."""
+    return _DASHSCOPE_BASES.get(value.rstrip("/"), "")
+
+
+class _DashScopeRedirect(urllib.request.HTTPRedirectHandler):
+    """Do not forward the API key to another host or port after a redirect."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        original = urlsplit(req.full_url)
+        redirected = urlsplit(newurl)
+        if (
+            redirected.scheme != "https"
+            or redirected.hostname != original.hostname
+            or redirected.port not in (None, 443)
+            or redirected.username is not None
+            or redirected.password is not None
+        ):
+            raise ValueError("DashScope redirect must remain on the original HTTPS host")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+QWEN_BASE = validated_qwen_base(os.environ.get("DASHSCOPE_BASE_URL", ""))
+QWEN_HOST = (urlsplit(QWEN_BASE).hostname or "") if QWEN_BASE else ""
 QWEN_MODEL = os.environ.get("QWEN_MODEL", "qwen3.6-plus").strip()
-QWEN_OK = bool(QWEN_KEY and QWEN_BASE)
+QWEN_OK = bool(QWEN_KEY and QWEN_BASE and QWEN_HOST)
 MAX_BODY = 65536
 
 
@@ -35,7 +67,10 @@ def qwen_chat(payload, timeout=30):
         method="POST",
         headers={"Authorization": f"Bearer {QWEN_KEY}", "Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    # QWEN_BASE is selected from fixed official endpoints, never an arbitrary URL.
+    # Redirects are restricted to the same HTTPS host before credentials are resent.
+    opener = urllib.request.build_opener(_DashScopeRedirect())
+    with opener.open(req, timeout=timeout) as r:
         return json.loads(r.read())
 
 
