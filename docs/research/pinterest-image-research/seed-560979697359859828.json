@@ -1,0 +1,26 @@
+{
+  "record_id": "pinterest-pin-560979697359859828",
+  "seed_short_url": "https://pin.it/4RdqLKcZ3",
+  "pinterest_pin_id": "560979697359859828",
+  "pinterest_pin_url": "https://www.pinterest.com/pin/560979697359859828/",
+  "title": "Computer learning course | Best websites for computer science, Digital tools, Ai courses",
+  "description": "Jul 24, 2026 — Nvidia, Free ai, Ai digital",
+  "primary_image_url": "https://i.pinimg.com/736x/54/26/a4/5426a4e8f2853ab6889bb262919341a4.jpg",
+  "reported_width": 736,
+  "reported_height": 920,
+  "source_platform": "Pinterest",
+  "public_render_observation": {
+    "html_bytes": 1130088,
+    "bot_block_markers": 0,
+    "login_wall_markers": 0,
+    "unique_pin_ids_visible": 1,
+    "pinimg_urls_visible": 19,
+    "note": "Pinimg URLs include multiple CDN size variants and must not be counted as 19 distinct research images."
+  },
+  "evidence_state": "METADATA_CAPTURED",
+  "pixel_scan_state": "PENDING",
+  "claim_extraction_state": "PENDING",
+  "web_comparison_state": "PENDING",
+  "ck_nexus_mapping_state": "PENDING",
+  "authority_effect": "NONE"
+}
