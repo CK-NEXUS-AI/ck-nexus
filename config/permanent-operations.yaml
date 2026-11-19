@@ -1,0 +1,106 @@
+policy_version: "2026.09.04"
+status: DEVELOPMENT_GOVERNANCE_CANDIDATE
+
+truth:
+  latest_exact_evidence_wins: true
+  development_is_not_production: true
+  ui_is_projection_only: true
+  manifest_cannot_self_assert_verified: true
+
+adoption_flow:
+  - SEARCH_FIRST
+  - DELTA_ONLY
+  - REUSE_DEDUP
+  - BENCHMARK
+  - SECURITY_REVIEW
+  - INDEPENDENT_VERIFICATION
+  - CANONICAL_ADOPTION
+
+docker_helper_farm:
+  default_when_safe_and_useful: true
+  lane: DEVELOPMENT_SECURITY_PREFLIGHT
+  exact_subject_required: true
+  read_only_source_mount_preferred: true
+  preserve_raw_artifacts: true
+  record_tool_version: true
+  record_image_digest: true
+  record_exit_code: true
+  nonzero_exit_must_not_destroy_evidence: true
+  isolated_output_directory_required: true
+  never_mix_repository_evidence_with_new_scanner_output: true
+  hash_tool_output_before_archive: true
+  scan_scope_must_be_declared: true
+  scan_scopes:
+    - CURRENT_TREE
+    - FULL_GIT_HISTORY
+    - DEPENDENCY_GRAPH
+    - CONTAINER_IMAGE
+    - RUNTIME_ENDPOINT
+  historical_secret_findings_must_not_be_reported_as_current_tree_secrets: true
+  persistent_cache_preferred_for_large_vulnerability_databases: true
+  cold_database_timeout_is_tooling_blocker_not_security_pass: true
+  helpers:
+    - semgrep
+    - trivy
+    - gitleaks
+    - checkov
+    - shellcheck
+    - hadolint
+    - owasp_dependency_check
+    - syft
+    - cyclonedx
+    - grype
+    - cosign
+    - owasp_zap
+
+q10:
+  subject:
+    commit: 39f5c1adb9d761ab418cf088ff1f051b1ca731d1
+    tree: 0525195934f703a8becf8a39f6397b2411e0bb2e
+  status: NOT_VERIFIED
+  forbid_subject_mutation: true
+  forbid_self_approval: true
+  independent_reviewer: HUMAN
+  owner_signoff: HUMAN
+  required_artifacts:
+    - scan-manifest.json
+    - findings.json
+    - coverage.json
+    - report.md
+  development_evidence_is_canonical_q10_evidence: false
+
+production:
+  q11: BLOCKED
+  q12: BLOCKED
+  state: NO_GO_NOT_CERTIFIED
+  auto_merge: false
+  auto_deploy: false
+  ai_owner_signoff: false
+  ai_independent_review: false
+
+recovery:
+  may_create_new_features: false
+  canonical_wins_conflicts_by_default: true
+  classify_before_adoption: true
+
+learning:
+  collect_logs: true
+  collect_metrics: true
+  reflection: true
+  generate_proposals: true
+  auto_modify_protected_source: false
+  auto_merge: false
+  auto_deploy_production: false
+  require_review: true
+
+self_healing:
+  bounded_reversible_restart: true
+  quarantine_enabled: true
+  restore_from_verified_checkpoint_only: true
+  may_bypass_security_gate: false
+  may_bypass_evidence_gate: false
+
+credentials:
+  expose_raw_secrets: false
+  evidence_redaction: true
+  rotate_provisioning_credentials_after_first_admin_access: true
