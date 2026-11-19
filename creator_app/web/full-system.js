@@ -1,0 +1,298 @@
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
+const state = { status:null, agents:[], selectedAgent:null, devTeam:[], devTeamInfo:null, devChat:[], lastCouncilResult:null, pendingCouncilContext:'', lastJournalId:null, lastOutboxId:null, lastClaimedOutboxId:null };
+
+function toast(message){ const el=$('#toast'); el.textContent=message; el.classList.add('show'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('show'),2800); }
+function pretty(value){ return JSON.stringify(value,null,2); }
+function accessHeaders(){ const t=sessionStorage.getItem('ck_access_token')||''; return t?{Authorization:`Bearer ${t}`}:{ }; }
+function emailHeaders(){ const t=sessionStorage.getItem('ck_email_token')||''; return t?{'X-CK-NEXUS-Webhook-Token':t}:{ }; }
+async function api(path,options={}){ const res=await fetch(path,options); const ct=res.headers.get('content-type')||''; const body=ct.includes('json')?await res.json():await res.text(); if(!res.ok){ const msg=body?.detail?.message||body?.detail?.error||body?.message||body?.error||`${res.status} ${res.statusText}`; const err=new Error(msg); err.status=res.status; err.body=body; throw err;} return body; }
+function jsonPost(path,data,headers={}){ return api(path,{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify(data)}); }
+function setClass(el,status){ el.classList.remove('ok','bad','warn'); el.classList.add(status==='ok'?'ok':status==='bad'?'bad':'warn'); }
+
+function tabs(){ $$('.nav').forEach(b=>b.addEventListener('click',()=>{ $$('.nav').forEach(x=>x.classList.remove('active')); b.classList.add('active'); $$('.tab').forEach(x=>x.classList.remove('active')); $(`#tab-${b.dataset.tab}`).classList.add('active'); if(b.dataset.tab==='audit') loadHistory(); if(b.dataset.tab==='dev-team') loadDevTeam(); if(b.dataset.tab==='system'){ loadMetrics(); loadGitHubStatus(); loadIntegrationStatus(); } })); }
+
+async function loadStatus(){ try{ const s=await api('/api/status'); state.status=s; $('#kpi-app').textContent='LINKED'; $('#kpi-version').textContent=`VERSION ${s.version}`; $('#kpi-db').textContent=s.database_ready?'LINKED':'DEGRADED'; $('#kpi-ai').textContent=s.mode==='mock'?'DEMO':s.mode==='openai'?'LIVE':'BLOCKED'; $('#kpi-model').textContent=`MODEL ${s.model}`; $('#kpi-email').textContent='API READY'; $('#runtime-pill').textContent=`[ ${s.mode.toUpperCase()} / ${s.version} ]`; $('#hero-state').textContent='RUNTIME LINKED'; $('#hero-detail').textContent=`${s.name} · ${s.model}`; $('#sys-app').textContent='LINKED'; $('#sys-ai').textContent=s.mode.toUpperCase(); $('#sys-db').textContent=s.database_ready?'LINKED':'DEGRADED'; $('#sys-dev-team').textContent=s.dev_team_enabled?(s.dev_team_ready?'READY':'ENABLED / NOT READY'):'DISABLED'; setClass($('#runtime-pill'),s.mode==='blocked'?'warn':'ok'); return s;}catch(e){ $('#runtime-pill').textContent='[ DISCONNECTED ]'; $('#hero-state').textContent='SYSTEM OFFLINE'; $('#hero-detail').textContent=e.message; setClass($('#runtime-pill'),'bad'); return null; } }
+
+async function loadAgents(){ try{ const data=await api('/api/agents',{headers:accessHeaders()}); state.agents=data.agents||[]; $('#agent-count').textContent=String(state.agents.length).padStart(2,'0'); const list=$('#agent-list'); list.replaceChildren(); state.agents.forEach((a,i)=>{ const b=document.createElement('button'); b.type='button'; b.className='agent-card'; b.innerHTML=`<span class="agent-code">${a.icon||String(i+1).padStart(2,'0')}</span><span><strong>${a.name}</strong><small>${a.description}</small></span><span>SELECT</span>`; b.addEventListener('click',()=>selectAgent(a,b)); list.append(b); }); if(state.agents[0]) selectAgent(state.agents[0],list.firstElementChild); }catch(e){ toast(`Agents: ${e.message}`); } }
+function selectAgent(a,button){ state.selectedAgent=a; $('#agent-id').value=a.id; if(a.example) $('#agent-prompt').placeholder=a.example; $$('.agent-card').forEach(x=>x.classList.remove('selected')); if(button) button.classList.add('selected'); }
+
+$('#agent-form').addEventListener('submit',async e=>{ e.preventDefault(); if(!state.selectedAgent)return toast('เลือก Agent ก่อน'); $('#agent-output').textContent='GENERATING...'; try{ const r=await jsonPost('/api/runs',{agent_id:$('#agent-id').value,prompt:$('#agent-prompt').value,session_id:$('#agent-session').value,audience:$('#agent-audience').value,platform:$('#agent-platform').value,tone:$('#agent-tone').value,language:$('#agent-language').value},accessHeaders()); $('#agent-output').textContent=`${r.agent_name} / ${r.mode} / ${r.duration_ms} ms\n\n${r.content}`; toast('Agent completed'); }catch(err){ $('#agent-output').textContent=`ERROR\n${err.message}`; } });
+$('#copy-agent-output').addEventListener('click',()=>navigator.clipboard?.writeText($('#agent-output').textContent).then(()=>toast('Copied')));
+
+async function loadDevTeam(){
+  try{
+    const data=await api('/api/dev-team',{headers:accessHeaders()});
+    state.devTeamInfo=data;
+    state.devTeam=data.advisors||[];
+    $('#dev-team-count').textContent=String(state.devTeam.length).padStart(2,'0');
+    $('#dev-team-provider').textContent=(data.provider||data.mode||'blocked').toUpperCase();
+    $('#dev-team-model').textContent=data.model||state.status?.model||'—';
+    $('#dev-team-authority').textContent=data.debate?.authority_effect==='NONE'?'ADVISORY ONLY':'CHECK POLICY';
+    $('#dev-team-ready').textContent=data.ready?'READY':'BLOCKED';
+    setClass($('#dev-team-ready'),data.ready?'ok':'warn');
+
+    const list=$('#dev-team-list');
+    list.replaceChildren();
+    state.devTeam.forEach((a,i)=>{
+      const card=document.createElement('div');
+      card.className='agent-card';
+      const code=document.createElement('span');
+      code.className='agent-code';
+      code.textContent=String(i+1).padStart(2,'0');
+      const copy=document.createElement('span');
+      const strong=document.createElement('strong');
+      strong.textContent=a.name;
+      const small=document.createElement('small');
+      small.textContent=a.role;
+      copy.append(strong,small);
+      const badge=document.createElement('span');
+      badge.textContent=a.web_search?'WEB':'ADVISE';
+      card.append(code,copy,badge);
+      list.append(card);
+    });
+    if(!state.devTeam.length){
+      const empty=document.createElement('p');
+      empty.className='muted';
+      empty.textContent='NO ADVISERS';
+      list.append(empty);
+    }
+    return data;
+  }catch(err){
+    $('#dev-team-ready').textContent='ERROR';
+    setClass($('#dev-team-ready'),'bad');
+    toast(`Dev Team: ${err.message}`);
+    return null;
+  }
+}
+
+function setDevMode(mode){
+  const select=$('#dev-team-mode');
+  if([...select.options].some(option=>option.value===mode)) select.value=mode;
+  $$('[data-dev-mode]').forEach(button=>{
+    button.classList.toggle('active',button.dataset.devMode===mode);
+  });
+}
+
+function renderCouncilWorkflow(workflow=[]){
+  const box=$('#dev-team-workflow');
+  box.replaceChildren();
+  const items=workflow.length?workflow:['IDLE'];
+  items.forEach((item,index)=>{
+    if(index){
+      const arrow=document.createElement('b');
+      arrow.textContent='→';
+      box.append(arrow);
+    }
+    const chip=document.createElement('span');
+    chip.textContent=item;
+    box.append(chip);
+  });
+}
+
+function renderCouncilMeta(result){
+  $('#dev-run-mode').textContent=(result?.consult_mode||$('#dev-team-mode').value||'idle').toUpperCase();
+  $('#dev-run-provider').textContent=result?`${result.provider||result.mode} / ${result.model}`:'—';
+  $('#dev-run-status').textContent=result?.debate_status||'COMPLETED';
+  $('#dev-run-evidence').textContent=result?.evidence_ref_count===null||result?.evidence_ref_count===undefined?'N/A':String(result.evidence_ref_count);
+  $('#dev-run-consensus').textContent=typeof result?.consensus_score==='number'?`${Math.round(result.consensus_score*100)}%`:'N/A';
+  $('#dev-run-duration').textContent=result?`${result.duration_ms} ms`:'—';
+  renderCouncilWorkflow(result?.workflow||[]);
+}
+
+function appendCouncilMessage(kind,content,meta=''){
+  const stream=$('#dev-team-chat');
+  const item=document.createElement('article');
+  item.className=`chat-bubble ${kind}`;
+  const label=document.createElement('small');
+  label.textContent=kind==='user'?'YOU':kind==='assistant'?'CK-NEXUS COUNCIL':'CK-NEXUS SYSTEM';
+  const body=document.createElement('p');
+  body.textContent=content;
+  item.append(label,body);
+  if(meta){
+    const detail=document.createElement('small');
+    detail.className='chat-meta';
+    detail.textContent=meta;
+    item.append(detail);
+  }
+  stream.append(item);
+  stream.scrollTop=stream.scrollHeight;
+  state.devChat.push({kind,content,meta});
+}
+
+function buildCouncilContext(extra=''){
+  const base=$('#dev-team-context').value.trim();
+  const combined=[base,extra].filter(Boolean).join('\n\n');
+  return combined.slice(0,7900);
+}
+
+async function runDevTeam(options={}){
+  const prompt=(options.prompt??$('#dev-team-prompt').value).trim();
+  const mode=options.mode||$('#dev-team-mode').value;
+  const extraContext=options.extraContext||state.pendingCouncilContext||'';
+  if(!prompt) return toast('พิมพ์ข้อความก่อน');
+
+  setDevMode(mode);
+  appendCouncilMessage('user',prompt,`MODE ${mode.toUpperCase()}`);
+  $('#dev-run-mode').textContent=mode.toUpperCase();
+  $('#dev-run-status').textContent='RUNNING';
+  $('#dev-run-evidence').textContent='—';
+  $('#dev-run-consensus').textContent='—';
+  $('#dev-run-duration').textContent='—';
+  renderCouncilWorkflow(mode==='debate'?['PROPOSER','OPPOSER','EXAMINER','SYNTHESIZER','DETERMINISTIC_MODERATOR']:['COUNCIL_RUNTIME']);
+
+  const submit=$('#dev-team-submit');
+  submit.disabled=true;
+  submit.textContent='COUNCIL WORKING';
+  $('#dev-team-output').textContent='CONSULTING...';
+
+  try{
+    const result=await jsonPost('/api/dev-team/run',{
+      prompt,
+      session_id:$('#dev-team-session').value,
+      consult_mode:mode,
+      context:buildCouncilContext(extraContext),
+      language:$('#dev-team-language').value
+    },accessHeaders());
+
+    state.lastCouncilResult=result;
+    state.pendingCouncilContext='';
+    renderCouncilMeta(result);
+    appendCouncilMessage(
+      'assistant',
+      result.content,
+      `${(result.provider||result.mode).toUpperCase()} / ${result.model} / ${result.duration_ms} ms / ${result.debate_status||'COMPLETED'}`
+    );
+    $('#dev-team-output').textContent=[
+      'CK-NEXUS DEVELOPMENT COUNCIL',
+      `MODE ${result.consult_mode}`,
+      `PROVIDER ${result.provider||result.mode}`,
+      `MODEL ${result.model}`,
+      `DURATION ${result.duration_ms} ms`,
+      `ADVISORY_ONLY ${result.advisory_only}`,
+      `WORKFLOW ${(result.workflow||[]).join(' -> ')||'—'}`,
+      `DEBATE_STATUS ${result.debate_status||'N/A'}`,
+      `CONSENSUS ${result.consensus_score??'N/A'}`,
+      `EVIDENCE_REFS ${result.evidence_ref_count??'N/A'}`,
+      '',
+      result.content
+    ].join('\n');
+    toast('Council completed');
+    return result;
+  }catch(err){
+    $('#dev-run-status').textContent='ERROR';
+    setClass($('#dev-run-status'),'bad');
+    $('#dev-team-output').textContent=`ERROR\n${err.message}`;
+    appendCouncilMessage('system',`ERROR: ${err.message}`,'FAIL-CLOSED');
+    return null;
+  }finally{
+    submit.disabled=false;
+    submit.textContent='SEND TO COUNCIL';
+  }
+}
+
+$('#dev-team-form').addEventListener('submit',async event=>{
+  event.preventDefault();
+  await runDevTeam();
+});
+
+$$('[data-dev-mode]').forEach(button=>{
+  button.addEventListener('click',()=>setDevMode(button.dataset.devMode));
+});
+$('#dev-team-mode').addEventListener('change',event=>setDevMode(event.target.value));
+
+$$('[data-dev-quick]').forEach(button=>{
+  button.addEventListener('click',async()=>{
+    const action=button.dataset.devQuick;
+    const last=state.lastCouncilResult;
+    if(!last) return toast('ยังไม่มีคำตอบล่าสุด');
+    const previous=`PREVIOUS COUNCIL OUTPUT:\n${last.content.slice(0,5200)}`;
+
+    if(action==='debate'){
+      await runDevTeam({
+        mode:'debate',
+        prompt:'ถกเถียงคำตอบล่าสุดอย่างเป็นระบบ หาเหตุผลคัดค้าน ตรวจหลักฐาน แล้วสรุปว่าควรยอมรับ แก้ไข หรือขอข้อมูลเพิ่ม',
+        extraContext:previous
+      });
+      return;
+    }
+    if(action==='reviewer'){
+      await runDevTeam({
+        mode:'reviewer',
+        prompt:'ตรวจคำตอบล่าสุดแบบ Security / QA / DevOps reviewer ระบุข้อผิดพลาด ความเสี่ยง หลักฐานที่ขาด และ pass/fail gates',
+        extraContext:previous
+      });
+      return;
+    }
+    if(action==='research'){
+      await runDevTeam({
+        mode:'research',
+        prompt:'ตรวจสอบและค้นหลักฐานเพิ่มเติมสำหรับคำตอบล่าสุด แยกข้อมูลที่ยืนยันได้ ข้อมูลที่เก่า ข้อขัดแย้ง และสิ่งที่ยังต้องพิสูจน์',
+        extraContext:previous
+      });
+      return;
+    }
+    if(action==='followup'){
+      state.pendingCouncilContext=previous;
+      setDevMode('auto');
+      $('#dev-team-prompt').value='';
+      $('#dev-team-prompt').placeholder='ถามต่อจากคำตอบล่าสุด...';
+      $('#dev-team-prompt').focus();
+    }
+  });
+});
+
+$('#copy-dev-team-output').addEventListener('click',()=>navigator.clipboard?.writeText($('#dev-team-output').textContent).then(()=>toast('Copied')));
+
+
+$('#route-form').addEventListener('submit',async e=>{ e.preventDefault(); try{ const r=await jsonPost('/api/email/route',{matched_alias:$('#route-alias').value||null,subject:$('#route-subject').value,sender:$('#route-sender').value,quarantined:false},emailHeaders()); $('#route-output').textContent=pretty(r);}catch(err){$('#route-output').textContent=`ERROR: ${err.message}`;} });
+async function ingest(){ const msg=$('#ingest-message-id').value; const r=await jsonPost('/api/email/ingest',{mailbox:$('#ingest-mailbox').value,provider:$('#ingest-provider').value,provider_message_id:msg,internet_message_id:`<${msg}@demo.ck-nexus.local>`,execution_id:`web-${Date.now()}`},emailHeaders()); if(r.journal_id){state.lastJournalId=r.journal_id; $('#outbox-journal').value=r.journal_id; $('#audit-journal').value=r.journal_id;} $('#ingest-output').textContent=pretty(r); return r; }
+$('#ingest-form').addEventListener('submit',async e=>{e.preventDefault();try{await ingest();}catch(err){$('#ingest-output').textContent=`ERROR: ${err.message}`;}});
+$('#ingest-duplicate').addEventListener('click',async()=>{try{await ingest();}catch(err){$('#ingest-output').textContent=`ERROR: ${err.message}`;}});
+
+$('#loop-form').addEventListener('submit',async e=>{e.preventDefault();try{const r=await jsonPost('/api/email/loop-check',{headers:{'Auto-Submitted':$('#loop-header').value},system_addresses:['admin@ck-nexus.com']},emailHeaders());$('#safety-output').textContent=`LOOP CHECK\n${pretty(r)}`;}catch(err){$('#safety-output').textContent=`ERROR: ${err.message}`;}});
+async function scanBlob(blob,name){ const fd=new FormData(); fd.append('file',blob,name); const r=await api('/api/email/scan-attachment',{method:'POST',headers:emailHeaders(),body:fd}); $('#safety-output').textContent=`ATTACHMENT SCAN\n${pretty(r)}`; return r; }
+$('#attachment-form').addEventListener('submit',async e=>{e.preventDefault();const f=$('#attachment-file').files[0];if(!f)return toast('เลือกไฟล์ก่อน');try{await scanBlob(f,f.name);}catch(err){$('#safety-output').textContent=`ERROR: ${err.message}`;}});
+$('#scan-safe-fixture').addEventListener('click',()=>scanBlob(new Blob(['CK-NEXUS safe demo file'],{type:'text/plain'}),'demo-safe.txt').catch(e=>$('#safety-output').textContent=`ERROR: ${e.message}`));
+$('#scan-danger-fixture').addEventListener('click',()=>scanBlob(new Blob(['MZ demo executable marker'],{type:'application/octet-stream'}),'demo-danger.exe').catch(e=>$('#safety-output').textContent=`ERROR: ${e.message}`));
+
+$('#outbox-form').addEventListener('submit',async e=>{e.preventDefault();const journal=$('#outbox-journal').value.trim();if(!journal)return toast('ต้องมี Journal ID');try{const key=`web-demo:${journal}:reply`;const r=await jsonPost('/api/email/outbox',{journal_id:journal,action_type:'SEND_EMAIL',destination:$('#outbox-destination').value,payload:{subject:'CK-NEXUS Demo Reply',text:'Provider boundary demo'},deduplication_key:key},emailHeaders());state.lastOutboxId=r.outbox_id;$('#outbox-output').textContent=pretty(r);}catch(err){$('#outbox-output').textContent=`ERROR: ${err.message}`;}});
+$('#claim-outbox').addEventListener('click',async()=>{try{const r=await jsonPost('/api/email/outbox/claim',{worker_id:'web-demo-worker',limit:10,lease_seconds:120},emailHeaders());if(r.items?.[0]){state.lastClaimedOutboxId=r.items[0].id;state.lastOutboxId=r.items[0].id;}$('#outbox-output').textContent=`CLAIM\n${pretty(r)}`;}catch(err){$('#outbox-output').textContent=`ERROR: ${err.message}`;}});
+$('#mark-sent').addEventListener('click',async()=>{const id=state.lastClaimedOutboxId||state.lastOutboxId;if(!id)return toast('ยังไม่มี claimed outbox');try{const r=await jsonPost(`/api/email/outbox/${encodeURIComponent(id)}/sent`,{provider_message_id:`demo-provider-${Date.now()}`},emailHeaders());$('#outbox-output').textContent=`MARK SENT\n${pretty(r)}`;}catch(err){$('#outbox-output').textContent=`ERROR: ${err.message}`;}});
+$('#recover-leases').addEventListener('click',async()=>{try{const r=await api('/api/email/recover',{method:'POST',headers:emailHeaders()});$('#outbox-output').textContent=`LEASE RECOVERY\n${pretty(r)}`;}catch(err){$('#outbox-output').textContent=`ERROR: ${err.message}`;}});
+
+$('#audit-form').addEventListener('submit',async e=>{e.preventDefault();await loadAudit($('#audit-journal').value.trim());});
+async function loadAudit(id){if(!id)return toast('ใส่ Journal ID');const box=$('#audit-events');try{const r=await api(`/api/email/audit/${encodeURIComponent(id)}`,{headers:emailHeaders()});box.replaceChildren();(r.events||[]).forEach(ev=>{const d=document.createElement('div');d.className='timeline-item';d.innerHTML=`<strong>${ev.event_type||ev.action||'EVENT'} / ${ev.result||''}</strong><small>${ev.created_at||''} · ${ev.actor_type||''} ${ev.actor_id||''}</small><small>${escapeHtml(typeof ev.details==='string'?ev.details:JSON.stringify(ev.details||{}))}</small>`;box.append(d);});if(!r.events?.length)box.innerHTML='<p class="muted">NO AUDIT EVENTS</p>';return r;}catch(err){box.innerHTML=`<p class="bad">ERROR: ${escapeHtml(err.message)}</p>`;return null;}}
+function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+async function loadHistory(){try{const q=new URLSearchParams({session_id:$('#agent-session').value||'web-demo',limit:'20'});const runs=await api(`/api/runs?${q}`,{headers:accessHeaders()});const box=$('#history-list');box.replaceChildren();runs.forEach(r=>{const d=document.createElement('div');d.className='history-item';d.innerHTML=`<strong>${escapeHtml(r.agent_name)} / ${escapeHtml(r.platform)}</strong><small>${escapeHtml(r.prompt)}</small><small>${escapeHtml(r.created_at)} · ${r.duration_ms} ms · ${escapeHtml(r.mode)}</small>`;box.append(d);});if(!runs.length)box.innerHTML='<p class="muted">NO HISTORY</p>';}catch(err){toast(`History: ${err.message}`);}}
+$('#refresh-history').addEventListener('click',loadHistory);
+
+async function loadMetrics(){try{const t=await api('/metrics',{headers:accessHeaders()});$('#metrics-output').textContent=t;}catch(err){$('#metrics-output').textContent=`ERROR: ${err.message}`;}}
+$('#refresh-metrics').addEventListener('click',loadMetrics);
+async function loadGitHubStatus(test=false){try{const r=await api('/api/integrations/github/'+(test?'test':'status'),{method:test?'POST':'GET',headers:accessHeaders()});const label=!r.configured?'NOT CONFIGURED':!r.connected?'AUTH FAILED':r.repository_access?'CONNECTED':'CONNECTED / NO REPO ACCESS';$('#sys-github').textContent=label;$('#sys-github-repo').textContent=r.repository||'NOT SET';$('#github-output').textContent=pretty(r);return r;}catch(err){$('#sys-github').textContent=err.status===401?'ACCESS TOKEN REQUIRED':'ERROR';$('#github-output').textContent=`ERROR: ${err.message}`;return null;}}
+$('#test-github').addEventListener('click',()=>loadGitHubStatus(true));
+function integrationLabel(item){ if(!item.configured) return 'NOT CONFIGURED'; if(item.connected) return 'CONNECTED'; return 'CONFIGURED / UNVERIFIED'; }
+async function loadIntegrationStatus(test=false){try{const r=await api('/api/integrations/'+(test?'test-all':'status'),{method:test?'POST':'GET',headers:accessHeaders()});const map=Object.fromEntries((r.integrations||[]).map(x=>[x.id,x]));const ids={slack:'#sys-slack',google_drive:'#sys-drive',openai:'#sys-openai'};for(const [key,selector] of Object.entries(ids)){const item=map[key];if(item) $(selector).textContent=integrationLabel(item);}$('#github-output').textContent=pretty(r);return r;}catch(err){$('#github-output').textContent=`ERROR: ${err.message}`;return null;}}
+$('#test-integrations').addEventListener('click',()=>loadIntegrationStatus(true));
+
+$('#save-tokens').addEventListener('click',()=>{sessionStorage.setItem('ck_access_token',$('#access-token').value.trim());sessionStorage.setItem('ck_email_token',$('#email-token').value.trim());toast('Saved in browser session only');loadStatus();loadAgents();loadDevTeam();loadGitHubStatus();});
+
+function progress(step,status='done'){const bars=$$('#run-progress i');if(bars[step])bars[step].classList.add(status);}
+function log(line){const c=$('#cycle-console');if(c.textContent.startsWith('READY /'))c.textContent='';c.textContent+=`${new Date().toLocaleTimeString('th-TH')}  ${line}\n`;c.scrollTop=c.scrollHeight;}
+async function runFullCycle(){ const btn=$('#run-full-cycle');btn.disabled=true;$('#run-progress').innerHTML='<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>';$('#cycle-console').textContent='';const unique=`web-full-${Date.now()}`;$('#ingest-message-id').value=unique;try{
+  log('01 HEALTH / ตรวจ runtime'); const h=await api('/health'); log(`PASS ${pretty(h).replace(/\n/g,' ')}`);progress(0);
+  log('02 AGENT / โหลด specialists และ generate'); if(!state.agents.length)await loadAgents(); if(!state.selectedAgent)throw new Error('No agent available'); const agent=await jsonPost('/api/runs',{agent_id:state.selectedAgent.id,prompt:'สร้างข้อความสั้นสำหรับตอบลูกค้าที่สนใจซื้อ CK-NEXUS Source Code',session_id:'web-demo',audience:'ผู้ซื้อซอฟต์แวร์',platform:'Email',tone:'มืออาชีพ',language:'ไทย'},accessHeaders());log(`PASS ${agent.agent_name} / ${agent.mode} / ${agent.duration_ms} ms`);progress(1);
+  log('03 ROUTING / deterministic route'); const route=await jsonPost('/api/email/route',{matched_alias:'ai@ck-nexus.com',subject:'สนใจซื้อ CK-NEXUS source code',sender:'buyer@example.com',quarantined:false},emailHeaders());log(`PASS ${route.category} / ${route.matched_rule}`);progress(2);
+  log('04 INGEST / atomic claim'); const first=await jsonPost('/api/email/ingest',{mailbox:'admin@ck-nexus.com',provider:'gmail',provider_message_id:unique,internet_message_id:`<${unique}@demo.local>`,execution_id:'web-full-cycle'},emailHeaders()); if(first.status!=='accepted')throw new Error(`Expected accepted, got ${first.status}`);state.lastJournalId=first.journal_id;$('#outbox-journal').value=first.journal_id;$('#audit-journal').value=first.journal_id;log(`PASS accepted / journal=${first.journal_id}`);progress(3);
+  log('05 DEDUP / replay same provider message ID'); const dup=await jsonPost('/api/email/ingest',{mailbox:'admin@ck-nexus.com',provider:'gmail',provider_message_id:unique,internet_message_id:`<${unique}@demo.local>`,execution_id:'web-full-cycle-replay'},emailHeaders()); if(dup.status!=='duplicate')throw new Error(`Expected duplicate, got ${dup.status}`);log(`PASS duplicate / ${dup.duplicate_reason||'hard dedup'}`);progress(4);
+  log('06 OUTBOX / enqueue + dedup-safe key'); const out=await jsonPost('/api/email/outbox',{journal_id:first.journal_id,action_type:'SEND_EMAIL',destination:'buyer@example.com',payload:{subject:'CK-NEXUS demo response',text:agent.content},deduplication_key:`full-cycle:${first.journal_id}:reply`},emailHeaders()); state.lastOutboxId=out.outbox_id; log(`PASS created=${out.created} / id=${out.outbox_id}`);progress(5);
+  log('07 WORKER + AUDIT / claim → mark sent → trace'); const claim=await jsonPost('/api/email/outbox/claim',{worker_id:'web-full-cycle-worker',limit:20,lease_seconds:120},emailHeaders()); const item=claim.items.find(x=>x.id===out.outbox_id)||claim.items[0]; if(!item)throw new Error('Outbox not claimable'); state.lastClaimedOutboxId=item.id; await jsonPost(`/api/email/outbox/${encodeURIComponent(item.id)}/sent`,{provider_message_id:`simulated-${Date.now()}`},emailHeaders()); const audit=await loadAudit(first.journal_id); log(`PASS audit events=${audit?.events?.length||0}`);progress(6);
+  log('08 METRICS / read Prometheus endpoint'); const m=await api('/metrics',{headers:accessHeaders()}); $('#metrics-output').textContent=m; log(`PASS metrics lines=${m.trim().split('\n').length}`);progress(7);
+  log('FULL CYCLE = PASS / provider delivery boundary simulated'); toast('Full cycle PASS');
+}catch(err){log(`FAIL ${err.message}`); const bars=$$('#run-progress i');const idx=bars.findIndex(x=>!x.classList.contains('done'));if(idx>=0)progress(idx,'fail');toast(`Full cycle failed: ${err.message}`);}finally{btn.disabled=false;} }
+$('#run-full-cycle').addEventListener('click',runFullCycle);
+
+tabs();
+$('#access-token').value=sessionStorage.getItem('ck_access_token')||'';
+$('#email-token').value=sessionStorage.getItem('ck_email_token')||'';
+loadStatus().then(()=>{loadAgents();loadDevTeam();loadGitHubStatus();});

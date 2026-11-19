@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ck-nexus:schema:pre-execution-risk-verdict:v1",
+  "title": "CK-NEXUS Pre-Execution Risk Verdict",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["risk_verdict_id", "execution_id", "agent_id", "capability_id", "policy_id", "decision", "risk", "evidence_requirement"],
+  "properties": {
+    "risk_verdict_id": {"type": "string", "minLength": 1},
+    "execution_id": {"type": "string", "minLength": 1},
+    "agent_id": {"type": "string", "minLength": 1},
+    "capability_id": {"type": "string", "minLength": 1},
+    "policy_id": {"type": "string", "minLength": 1},
+    "lease_id": {"type": ["string", "null"]},
+    "approval_id": {"type": ["string", "null"]},
+    "decision": {"enum": ["ALLOW", "WARN", "BLOCK", "REQUIRE_APPROVAL", "SANDBOX_ONLY"]},
+    "risk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "blast_radius", "reversibility", "data_sensitivity", "external_side_effect"],
+      "properties": {
+        "level": {"enum": ["E0", "E1", "E2", "E3", "E4", "E5"]},
+        "blast_radius": {"enum": ["NONE", "LOCAL", "WORKSPACE", "TENANT", "EXTERNAL", "GLOBAL"]},
+        "reversibility": {"enum": ["REVERSIBLE", "PARTIAL", "IRREVERSIBLE"]},
+        "data_sensitivity": {"enum": ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "SECRET"]},
+        "external_side_effect": {"type": "boolean"}
+      }
+    },
+    "reason_codes": {"type": "array", "items": {"type": "string"}},
+    "evidence_requirement": {"enum": ["E0", "E1", "E2", "E3", "E4", "E5", "E6"]},
+    "created_at": {"type": "string", "format": "date-time"}
+  }
+}

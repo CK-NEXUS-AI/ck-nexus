@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="th" data-theme="midnight">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="CK-NEXUS Provider Hub — Register all AI providers in one place" />
+  <title>CK-NEXUS / Provider Hub</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    :root {
+      --hub-bg: #08080d;
+      --hub-surface: #0f0f18;
+      --hub-surface2: #161622;
+      --hub-border: #1e1e30;
+      --hub-text: #e0e0f0;
+      --hub-dim: #6b6b8a;
+      --hub-accent: #00c8ff;
+      --hub-accent2: #7c3aed;
+      --hub-green: #00e676;
+      --hub-red: #ff4444;
+      --hub-yellow: #ffd600;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--hub-bg);
+      color: var(--hub-text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Mesh background ── */
+    .mesh { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    .mesh-field { position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.07; }
+    .mesh-a { width: 600px; height: 600px; background: var(--hub-accent); top: -200px; right: -100px; }
+    .mesh-b { width: 500px; height: 500px; background: var(--hub-accent2); bottom: -150px; left: -100px; }
+    .mesh-c { width: 400px; height: 400px; background: #ff006e; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+
+    .hub { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 0 2rem; }
+
+    /* ── Topbar ── */
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.25rem 0; border-bottom: 1px solid var(--hub-border);
+    }
+    .brand { display: flex; align-items: center; gap: 0.75rem; text-decoration: none; color: inherit; }
+    .brand-code {
+      font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.7rem;
+      background: var(--hub-accent); color: #000; padding: 0.25rem 0.5rem;
+      border-radius: 4px; font-weight: 700; letter-spacing: 0.05em;
+    }
+    .brand strong { font-size: 1.1rem; }
+    .brand small { display: block; font-size: 0.65rem; color: var(--hub-dim); letter-spacing: 0.1em; text-transform: uppercase; }
+    .top-actions { display: flex; align-items: center; gap: 1rem; }
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.75rem;
+      background: var(--hub-surface2); border: 1px solid var(--hub-border);
+    }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--hub-dim); }
+    .status-dot.live { background: var(--hub-green); box-shadow: 0 0 8px var(--hub-green); }
+
+    /* ── Hero ── */
+    .hero-section {
+      padding: 4rem 0 3rem; text-align: center;
+      border-bottom: 1px solid var(--hub-border);
+    }
+    .eyebrow {
+      font-size: 0.7rem; letter-spacing: 0.2em; text-transform: uppercase;
+      color: var(--hub-accent); margin-bottom: 1rem;
+    }
+    .hero-title {
+      font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 700;
+      line-height: 1.15; margin-bottom: 1rem;
+    }
+    .hero-title .gradient {
+      background: linear-gradient(135deg, var(--hub-accent), var(--hub-accent2));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero-sub { color: var(--hub-dim); font-size: 1.05rem; max-width: 600px; margin: 0 auto; }
+
+    /* ── Scan Panel ── */
+    .scan-panel {
+      text-align: center; padding: 2rem 0;
+    }
+    .scan-btn {
+      display: inline-flex; align-items: center; gap: 0.6rem;
+      padding: 0.9rem 2.5rem; border: none; border-radius: 8px;
+      font-size: 1rem; font-weight: 600; cursor: pointer;
+      background: linear-gradient(135deg, var(--hub-accent), var(--hub-accent2));
+      color: #fff; transition: all 0.2s;
+    }
+    .scan-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,200,255,0.2); }
+    .scan-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .scan-status { margin-top: 1rem; font-size: 0.9rem; color: var(--hub-dim); }
+
+    /* ── Stats Bar ── */
+    .stats-bar {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;
+      padding: 2rem 0; border-bottom: 1px solid var(--hub-border);
+    }
+    .stat-card {
+      background: var(--hub-surface); border: 1px solid var(--hub-border);
+      border-radius: 10px; padding: 1.25rem; text-align: center;
+    }
+    .stat-card .label { font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--hub-dim); }
+    .stat-card .value { font-size: 1.8rem; font-weight: 700; margin-top: 0.25rem; }
+    .stat-card .value.accent { color: var(--hub-accent); }
+    .stat-card .value.green { color: var(--hub-green); }
+
+    /* ── Provider Grid ── */
+    .section-header {
+      padding: 2.5rem 0 1.5rem; display: flex; align-items: baseline; gap: 1rem;
+    }
+    .section-header .step {
+      font-family: 'SF Mono', monospace; font-size: 0.7rem;
+      color: var(--hub-accent); letter-spacing: 0.1em;
+    }
+    .section-header h2 { font-size: 1.3rem; font-weight: 600; }
+
+    .provider-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1rem; padding-bottom: 2rem;
+    }
+    .provider-card {
+      background: var(--hub-surface); border: 1px solid var(--hub-border);
+      border-radius: 12px; padding: 1.5rem; position: relative;
+      transition: all 0.25s; overflow: hidden;
+    }
+    .provider-card:hover { border-color: var(--hub-accent); transform: translateY(-2px); }
+    .provider-card.active { border-color: var(--hub-green); }
+    .provider-card.scanning { animation: cardPulse 0.8s ease-in-out infinite; }
+    @keyframes cardPulse { 0%, 100% { border-color: var(--hub-border); } 50% { border-color: var(--hub-yellow); } }
+
+    .provider-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+    .provider-icon { font-size: 1.6rem; }
+    .provider-info { flex: 1; }
+    .provider-name { font-weight: 600; font-size: 1rem; }
+    .provider-tier {
+      display: inline-block; padding: 0.1rem 0.45rem; border-radius: 4px;
+      font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .tier-free { background: rgba(0,230,118,0.12); color: var(--hub-green); }
+    .tier-freemium { background: rgba(255,214,0,0.12); color: var(--hub-yellow); }
+
+    .provider-desc { font-size: 0.82rem; color: var(--hub-dim); margin-bottom: 0.75rem; }
+
+    .provider-models { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.75rem; }
+    .model-chip {
+      padding: 0.15rem 0.4rem; background: var(--hub-surface2);
+      border-radius: 4px; font-size: 0.68rem; color: var(--hub-dim);
+      font-family: 'SF Mono', monospace;
+    }
+
+    .provider-status { display: flex; align-items: center; gap: 0.5rem; }
+    .provider-status .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--hub-dim); transition: all 0.3s;
+    }
+    .provider-status .dot.active { background: var(--hub-green); box-shadow: 0 0 10px var(--hub-green); }
+    .provider-status .dot.invalid { background: var(--hub-red); }
+    .provider-status .label { font-size: 0.78rem; color: var(--hub-dim); }
+    .provider-status .label.active { color: var(--hub-green); }
+
+    .provider-actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
+    .btn-action {
+      padding: 0.4rem 0.8rem; border: 1px solid var(--hub-border); border-radius: 6px;
+      background: transparent; color: var(--hub-dim); font-size: 0.78rem;
+      cursor: pointer; transition: all 0.2s; text-decoration: none;
+    }
+    .btn-action:hover { border-color: var(--hub-accent); color: var(--hub-accent); }
+    .btn-action.primary { background: var(--hub-accent); color: #000; border-color: var(--hub-accent); font-weight: 600; }
+    .btn-action.primary:hover { background: #00a8e0; }
+
+    /* ── Manual Add ── */
+    .manual-panel {
+      background: var(--hub-surface); border: 1px solid var(--hub-border);
+      border-radius: 12px; padding: 2rem; margin-bottom: 2rem;
+    }
+    .manual-panel h2 { font-size: 1.2rem; margin-bottom: 1.25rem; }
+    .form-grid { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .form-grid select, .form-grid input {
+      padding: 0.7rem 1rem; background: var(--hub-surface2);
+      border: 1px solid var(--hub-border); border-radius: 8px;
+      color: var(--hub-text); font-size: 0.9rem; flex: 1; min-width: 200px;
+      transition: border-color 0.2s;
+    }
+    .form-grid select:focus, .form-grid input:focus {
+      outline: none; border-color: var(--hub-accent);
+    }
+    .form-grid select option { background: var(--hub-surface2); color: var(--hub-text); }
+    .btn-submit {
+      padding: 0.7rem 1.5rem; border: none; border-radius: 8px;
+      background: var(--hub-green); color: #000; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .btn-submit:hover { background: #00cc6a; }
+    .form-msg { margin-top: 1rem; font-size: 0.85rem; }
+
+    /* ── Bulk Actions ── */
+    .bulk-panel { text-align: center; padding: 2rem 0; border-top: 1px solid var(--hub-border); }
+    .bulk-panel h2 { font-size: 1.2rem; margin-bottom: 1rem; }
+    .bulk-btns { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
+
+    /* ── Results ── */
+    .results-panel {
+      background: var(--hub-surface); border: 1px solid var(--hub-border);
+      border-radius: 12px; padding: 2rem; margin: 2rem 0;
+    }
+    .results-panel h2 { font-size: 1.2rem; margin-bottom: 1rem; }
+    .result-row {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.75rem 0; border-bottom: 1px solid var(--hub-border);
+    }
+    .result-row:last-child { border-bottom: none; }
+    .result-icon { font-size: 1.4rem; }
+    .result-name { flex: 1; font-weight: 500; }
+    .result-badge {
+      padding: 0.2rem 0.6rem; border-radius: 4px;
+      font-size: 0.75rem; font-weight: 600;
+    }
+    .badge-ok { background: rgba(0,230,118,0.12); color: var(--hub-green); }
+    .badge-fail { background: rgba(255,68,68,0.12); color: var(--hub-red); }
+
+    /* ── Env Output ── */
+    .env-panel {
+      background: var(--hub-surface); border: 1px solid var(--hub-border);
+      border-radius: 12px; padding: 2rem; margin: 2rem 0;
+    }
+    .env-panel h2 { font-size: 1.2rem; margin-bottom: 1rem; }
+    .env-panel pre {
+      background: #050508; padding: 1.5rem; border-radius: 8px;
+      overflow-x: auto; font-size: 0.82rem; color: var(--hub-green);
+      max-height: 400px; overflow-y: auto; margin-bottom: 1rem;
+      font-family: 'SF Mono', monospace;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center; padding: 2.5rem 0; color: var(--hub-dim);
+      font-size: 0.8rem; border-top: 1px solid var(--hub-border);
+    }
+
+    @media (max-width: 768px) {
+      .hub { padding: 0 1rem; }
+      .stats-bar { grid-template-columns: repeat(2, 1fr); }
+      .provider-grid { grid-template-columns: 1fr; }
+      .form-grid { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <div class="mesh" aria-hidden="true">
+    <span class="mesh-field mesh-a"></span>
+    <span class="mesh-field mesh-b"></span>
+    <span class="mesh-field mesh-c"></span>
+  </div>
+
+  <div class="hub">
+    <header class="topbar">
+      <a class="brand" href="/">
+        <span class="brand-code">CK/NX</span>
+        <span><strong>CK-NEXUS</strong><small>PROVIDER HUB / 0.1.0</small></span>
+      </a>
+      <div class="top-actions">
+        <span class="status-pill"><span class="status-dot" id="sysDot"></span><span id="sysLabel">CHECKING</span></span>
+        <a href="/control" class="btn-action">CONTROL</a>
+        <a href="/" class="btn-action">WORKSPACE</a>
+      </div>
+    </header>
+
+    <section class="hero-section">
+      <p class="eyebrow">MULTI-PROVIDER REGISTRATION / ONE-CLICK</p>
+      <h1 class="hero-title">
+        เชื่อมต่อ <span class="gradient">AI ทุกค่าย</span><br>ในที่เดียว
+      </h1>
+      <p class="hero-sub">
+        ป้อน API Key ของ Claude, OpenAI, Groq, Gemini และอื่น ๆ — ระบบจะตรวจจับ ตรวจสอบ และจัดเส้นทางอัตโนมัติ
+      </p>
+    </section>
+
+    <section class="scan-panel">
+      <button class="scan-btn" id="scanBtn" onclick="runScan()">
+        <span id="scanIcon">🔍</span> SCAN ALL PROVIDERS
+      </button>
+      <div class="scan-status" id="scanStatus"></div>
+    </section>
+
+    <section class="stats-bar">
+      <div class="stat-card"><div class="label">PROVIDERS</div><div class="value accent" id="statTotal">0</div></div>
+      <div class="stat-card"><div class="label">KEYS ACTIVE</div><div class="value green" id="statActive">0</div></div>
+      <div class="stat-card"><div class="label">FREE MODELS</div><div class="value" id="statModels">0</div></div>
+      <div class="stat-card"><div class="label">TOTAL COST</div><div class="value green">FREE</div></div>
+    </section>
+
+    <div class="section-header">
+      <span class="step">01</span>
+      <h2>AVAILABLE PROVIDERS</h2>
+    </div>
+    <div class="provider-grid" id="providerGrid"></div>
+
+    <section class="manual-panel">
+      <h2>➕ Add API Key Manually</h2>
+      <div class="form-grid">
+        <select id="provSelect"><option value="">Select provider...</option></select>
+        <input type="password" id="keyInput" placeholder="Paste your API key here..." autocomplete="off" />
+        <button class="btn-submit" onclick="addKey()">ADD KEY</button>
+      </div>
+      <div class="form-msg" id="formMsg"></div>
+    </section>
+
+    <section class="bulk-panel">
+      <h2>🚀 Bulk Actions</h2>
+      <div class="bulk-btns">
+        <button class="btn-action primary" onclick="validateAll()">✅ VALIDATE ALL</button>
+        <button class="btn-action" onclick="exportJSON()">📦 EXPORT CONFIG</button>
+        <button class="btn-action" onclick="genEnv()">📄 GENERATE .ENV</button>
+      </div>
+    </section>
+
+    <section class="results-panel" id="resultsPanel" style="display:none">
+      <h2>📋 Validation Results</h2>
+      <div id="resultsList"></div>
+    </section>
+
+    <section class="env-panel" id="envPanel" style="display:none">
+      <h2>📄 Generated .env</h2>
+      <pre id="envContent"></pre>
+      <button class="btn-action" onclick="copyEnv()">📋 Copy to Clipboard</button>
+    </section>
+
+    <footer class="footer">
+      CK-NEXUS Provider Hub — Keys stay local, encrypted at rest, never sent to third parties.
+    </footer>
+  </div>
+
+  <script src="/static/signup.js"></script>
+</body>
+</html>

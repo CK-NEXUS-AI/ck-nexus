@@ -1,0 +1,27 @@
+[Unit]
+Description=CK-NEXUS Local API Gateway
+After=network.target cknexus-scanner.service
+Wants=cknexus-scanner.service
+
+[Service]
+Type=simple
+User=cknexus-gateway
+Group=cknexus-gateway
+ExecStart=/usr/bin/python3 /usr/local/libexec/cknexus_api_gateway.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_UNIX
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

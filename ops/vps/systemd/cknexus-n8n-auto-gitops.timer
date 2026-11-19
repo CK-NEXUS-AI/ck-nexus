@@ -1,0 +1,10 @@
+[Unit]
+Description=Run CK-NEXUS verified Auto GitOps every five minutes
+
+[Timer]
+OnCalendar=*:0/5
+Persistent=true
+Unit=cknexus-n8n-auto-gitops.service
+
+[Install]
+WantedBy=timers.target

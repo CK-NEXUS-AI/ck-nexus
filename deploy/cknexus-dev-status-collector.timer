@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh CK-NEXUS development status every two minutes
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=2min
+AccuracySec=10s
+Unit=cknexus-dev-status-collector.service
+
+[Install]
+WantedBy=timers.target

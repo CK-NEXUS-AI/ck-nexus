@@ -1,0 +1,51 @@
+services:
+  valkey:
+    image: ${VALKEY_IMAGE:-docker.io/valkey/valkey:8-alpine}
+    restart: unless-stopped
+    command:
+      - valkey-server
+      - --save
+      - "60"
+      - "1"
+      - --loglevel
+      - warning
+    volumes:
+      - searxng-valkey-data:/data
+    networks:
+      - searxng-internal
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+
+  searxng:
+    image: ${SEARXNG_IMAGE:-docker.io/searxng/searxng:latest}
+    restart: unless-stopped
+    depends_on:
+      valkey:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${SEARXNG_PORT:-8080}:8080"
+    environment:
+      SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:-http://127.0.0.1:8080/}
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?SEARXNG_SECRET is required}
+      SEARXNG_VALKEY_URL: valkey://valkey:6379/0
+    volumes:
+      - ./settings.yml:/etc/searxng/settings.yml:ro
+      - ./limiter.toml:/etc/searxng/limiter.toml:ro
+      - searxng-cache:/var/cache/searxng
+    networks:
+      - searxng-internal
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  searxng-internal:
+    driver: bridge
+
+volumes:
+  searxng-cache:
+  searxng-valkey-data:

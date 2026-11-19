@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark"><title>CK-NEXUS · ศูนย์ควบคุม Automation</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#121a2d;--line:#26334c;--text:#eef4ff;--muted:#9aabc5;--accent:#9ab2ff;--green:#38d9a9;--amber:#ffd166;--red:#ff9a9a}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#172443 0,#0b1020 58%);color:var(--text);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh}button,input{font:inherit;border-radius:11px;border:1px solid var(--line);padding:10px 13px;background:#151f35;color:var(--text)}button{cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}button:disabled{opacity:.6;cursor:wait}.primary{background:var(--accent);color:#081126;border-color:var(--accent);font-weight:800}.wrap{max-width:1180px;margin:auto;padding:24px 18px 46px}.top{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}.brand{display:flex;align-items:center;gap:12px}.mark{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:#24365c;color:#b8caff;font-weight:900}.eyebrow{color:var(--accent);letter-spacing:.12em;font-size:11px;font-weight:800}h1{font-size:clamp(23px,4vw,33px);margin:2px 0}h2{font-size:21px;margin:0 0 6px}h3{font-size:17px;margin:0 0 6px}p{margin:4px 0;color:var(--muted)}.nav{display:flex;gap:8px;overflow-x:auto;padding:18px 0 12px}.nav button{white-space:nowrap}.nav button[aria-current=page]{background:#263b66;border-color:#708fdf;color:#fff}.page[hidden]{display:none}.page-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:12px 0 16px}.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:18px 0}.stat,.panel{border:1px solid var(--line);background:rgba(18,26,45,.94);border-radius:16px;padding:17px}.label{font-size:12px;color:var(--muted)}.num{font-size:30px;font-weight:800;letter-spacing:-.04em;margin-top:4px}.toolbar{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:13px}.toolbar input{flex:1;min-width:170px}.status{margin:10px 0 16px;color:var(--muted);font-size:13px}.list{display:grid;gap:10px}.diagram-flow{display:flex;flex-direction:column;align-items:stretch;gap:8px}.diagram-node{border:1px solid #3a4f75;background:#16233d;border-radius:12px;padding:12px 14px;overflow-wrap:anywhere}.diagram-node strong{display:block}.diagram-node small{display:block;color:var(--muted);margin-top:3px}.diagram-edge{text-align:center;color:var(--accent);font-size:20px;line-height:1.1}.diagram-branch{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}.workflow{display:flex;justify-content:space-between;align-items:center;gap:14px}.wname{font-weight:750;overflow-wrap:anywhere}.meta{font-size:12px;color:var(--muted);margin-top:5px;overflow-wrap:anywhere}.badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:750;white-space:nowrap}.active{background:#123d38;color:var(--green)}.inactive{background:#333246;color:#c2c6d5}.empty,.error,.unsupported{text-align:center;padding:35px 18px}.empty h2,.error h2,.unsupported h2{margin:4px 0 8px}.placeholder-icon{font-size:28px;color:var(--accent);margin-bottom:5px}.foot{margin-top:24px;text-align:center;font-size:12px;color:var(--muted)}.health{display:inline-flex;align-items:center;gap:7px}.dot{width:8px;height:8px;border-radius:50%;background:var(--amber);display:inline-block}.dot.ok{background:var(--green)}.dot.bad{background:var(--red)}@media(max-width:620px){.wrap{padding:18px 12px 35px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.stats .stat:last-child{grid-column:1/-1}.workflow{align-items:flex-start;flex-direction:column}.nav{margin-right:-12px;padding-right:12px}.num{font-size:27px}}
+textarea{display:block;width:100%;margin-top:8px;border:1px solid var(--line);border-radius:11px;padding:12px;background:#0a1224;color:var(--text);font:14px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;resize:vertical}#prompt{font:inherit}#draftPlan{padding-left:24px;color:var(--text)}#draftPlan li{margin:6px 0}.warning{color:var(--amber)}</style></head>
+<body><main class="wrap">
+<header class="top"><div class="brand"><div class="mark" aria-hidden="true">CK</div><div><div class="eyebrow">CK-NEXUS · AUTOMATION</div><h1>ศูนย์ควบคุม Automation</h1><p>จัดการและติดตาม Workflow ผ่าน n8n API</p></div></div><div class="health" aria-live="polite"><span class="dot" id="healthDot"></span><span id="healthText">กำลังตรวจสอบการเชื่อมต่อ…</span></div></header>
+<nav class="nav" aria-label="เมนูหลัก">
+<button type="button" data-page="overview" aria-current="page">ภาพรวม</button><button type="button" data-page="builder">สร้าง Workflow</button><button type="button" data-page="editor">แผนผัง</button><button type="button" data-page="workflows">งานทั้งหมด</button><button type="button" data-page="history">ประวัติการทำงาน</button><button type="button" data-page="connections">การเชื่อมต่อ</button>
+</nav>
+<section class="page" id="page-overview"><div class="page-head"><div><h2>ภาพรวมระบบ</h2><p>สรุปจากข้อมูลที่อ่านได้จริงจาก n8n</p></div><button class="primary" id="refresh" type="button">รีเฟรชข้อมูล</button></div>
+<div class="stats"><article class="stat"><div class="label">Workflow ทั้งหมด</div><div class="num" id="total">—</div></article><article class="stat"><div class="label">กำลังทำงาน (Active)</div><div class="num" id="activeCount">—</div></article><article class="stat"><div class="label">ปิดใช้งาน (Inactive)</div><div class="num" id="inactiveCount">—</div></article></div>
+<article class="panel"><h3>สถานะข้อมูล</h3><p id="overviewStatus" role="status" aria-live="polite">กำลังโหลดข้อมูล…</p><p id="lastUpdated">ยังไม่มีเวลาตรวจสอบ</p></article>
+</section>
+<section class="page" id="page-workflows" hidden><div class="page-head"><div><h2>งานทั้งหมด</h2><p>รายการ Workflow จาก n8n API</p></div><button type="button" class="refresh-secondary">รีเฟรช</button></div><div class="toolbar"><input id="search" type="search" placeholder="ค้นหาชื่อ Workflow หรือ ID…" aria-label="ค้นหา Workflow"><button id="showAll" type="button">ล้างคำค้น</button></div><div class="status" id="listStatus" role="status" aria-live="polite">กำลังโหลดข้อมูล…</div><section class="list" id="list" aria-live="polite"></section></section>
+<section class="page" id="page-builder" hidden>
+<article class="panel"><h2>AI Workflow Builder · สร้างงานด้วยภาษาไทย</h2><p>อธิบายงานที่ต้องการ ระบบจะสร้างแผนและไฟล์ JSON สำหรับนำเข้า n8n ตรวจสอบข้อมูลและ credentials ก่อนเปิดใช้งานทุกครั้ง</p>
+<label for="prompt" class="label">คำสั่งของคุณ</label><textarea id="prompt" rows="4" maxlength="4000" placeholder="ตัวอย่าง: สร้าง workflow สำหรับเริ่มทำงานด้วยตนเอง แล้วจัดรูปแบบข้อมูลชื่อและอีเมล"></textarea>
+<div class="toolbar" style="margin-top:12px"><button type="button" id="examplePrompt">ใส่ตัวอย่าง</button><button type="button" class="primary" id="generateDraft">สร้าง Workflow Draft</button></div>
+<p class="status" id="builderStatus" role="status" aria-live="polite">ตัวสร้างรุ่นแรกสร้างฉบับร่างจากแม่แบบที่ตรวจสอบได้ ยังไม่เรียก AI model ภายนอก และยังไม่บันทึกเข้าบัญชี n8n โดยอัตโนมัติ</p>
+<div id="draftResult" hidden><h3>แผนการทำงาน</h3><ol id="draftPlan"></ol><p id="draftWarnings" class="status"></p><label for="draftJson" class="label">Workflow JSON — ตรวจสอบก่อนนำเข้า</label><textarea id="draftJson" rows="14" spellcheck="false" aria-label="Workflow JSON"></textarea><div class="toolbar"><button type="button" id="downloadDraft" class="primary">ดาวน์โหลด JSON</button><button type="button" id="copyDraft">คัดลอก JSON</button></div></div>
+</article></section>
+<section class="page" id="page-editor" hidden><div class="page-head"><div><h2>แผนผัง Workflow ที่เปิดใช้งาน</h2><p>แสดงเฉพาะ Workflow ที่มีสถานะ Active เพื่อไม่ให้สับสน</p></div><button type="button" class="refresh-secondary">รีเฟรช</button></div><div class="status" id="diagramStatus" role="status" aria-live="polite">กำลังโหลด Workflow ที่เปิดใช้งาน…</div><section class="list" id="activeDiagram" aria-live="polite"></section><p class="status">แผนผังใช้ชื่อโหนดและเส้นเชื่อมจาก n8n จริง โดยไม่ส่งค่าพารามิเตอร์หรือข้อมูลลับไปยังเบราว์เซอร์</p></section>
+<section class="page" id="page-history" hidden><article class="panel unsupported"><div class="placeholder-icon" aria-hidden="true">◷</div><h2>ประวัติการทำงาน</h2><p>การแสดง execution history จะเปิดใช้หลังเพิ่ม endpoint อ่านประวัติที่ผ่านการทดสอบ contract แล้ว</p><p>สถานะ: ยังไม่รองรับการแสดงประวัติในหน้านี้</p></article></section>
+<section class="page" id="page-connections" hidden><article class="panel"><h2>การเชื่อมต่อ</h2><p>ตรวจสถานะ gateway และการเชื่อมต่อ n8n โดยไม่เปิดเผยข้อมูลลับ</p><p id="connectionHealth">กำลังตรวจสอบ…</p><p>API Key ถูกเก็บไว้ฝั่ง VPS และไม่ส่งให้เบราว์เซอร์</p></article></section>
+<footer class="foot">CK-NEXUS · แสดงสถานะจริงเท่านั้น · การสร้าง/แก้ไข/สั่งรันยังไม่เปิดใช้งาน</footer>
+</main><script>
+'use strict';
+const $ = id => document.getElementById(id);
+let workflows = [];
+let loading = false;
+let hasLoaded = false;
+let lastLoadError = '';
+let diagramCache = new Map();
+function setPage(name) {
+  document.querySelectorAll('.page').forEach(section => { section.hidden = section.id !== 'page-' + name; });
+  document.querySelectorAll('[data-page]').forEach(button => {
+    if (button.dataset.page === name) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  });
+}
+function addText(parent, tag, className, value) {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  element.textContent = String(value ?? '');
+  parent.appendChild(element);
+  return element;
+}
+function showEmpty(message, detail, className = 'empty') {
+  const box = document.createElement('article');
+  box.className = 'panel ' + className;
+  addText(box, 'h2', '', message);
+  addText(box, 'p', '', detail);
+  $('list').replaceChildren(box);
+}
+async function renderActiveDiagram() {
+  const target = $('activeDiagram');
+  if (!target) return;
+  target.replaceChildren();
+  const active = workflows.filter(workflow => workflow.active);
+  $('diagramStatus').textContent = 'Workflow ที่เปิดใช้งาน: ' + active.length + ' รายการ';
+  if (!hasLoaded || loading) {
+    const box = document.createElement('article'); box.className = 'panel';
+    addText(box, 'h3', '', 'กำลังโหลดข้อมูล…'); target.appendChild(box); return;
+  }
+  if (lastLoadError) {
+    const box = document.createElement('article'); box.className = 'panel error';
+    addText(box, 'h3', '', 'โหลดข้อมูลไม่สำเร็จ'); addText(box, 'p', '', lastLoadError); target.appendChild(box); return;
+  }
+  if (!active.length) {
+    const box = document.createElement('article'); box.className = 'panel empty';
+    addText(box, 'h3', '', 'ไม่มี Workflow ที่เปิดใช้งาน');
+    addText(box, 'p', '', 'Workflow ที่ปิดใช้งานถูกซ่อนไว้ ไม่ได้ลบจาก n8n'); target.appendChild(box); return;
+  }
+  for (const workflow of active) {
+    const panel = document.createElement('article'); panel.className = 'panel';
+    addText(panel, 'h3', '', workflow.name || 'Workflow ไม่มีชื่อ');
+    addText(panel, 'p', 'meta', 'ID: ' + workflow.id);
+    const flow = document.createElement('div'); flow.className = 'diagram-flow';
+    const status = addText(panel, 'p', 'status', 'กำลังดึง Nodes และ Connections จาก n8n…');
+    panel.appendChild(flow); target.appendChild(panel);
+    try {
+      let detail = diagramCache.get(workflow.id);
+      if (!detail) {
+        const response = await fetch('/api/workflows/' + encodeURIComponent(workflow.id) + '/diagram', {cache:'no-store'});
+        const data = await response.json();
+        if (!response.ok || !data.ok || !data.workflow) throw new Error(data.error || 'โหลดแผนผังไม่สำเร็จ');
+        detail = data.workflow; diagramCache.set(workflow.id, detail);
+      }
+      flow.replaceChildren();
+      const nodes = Array.isArray(detail.nodes) ? detail.nodes : [];
+      const edges = Object.entries(detail.connections || {}).flatMap(([source, list]) => (list || []).map(edge => ({source,target:edge.target,type:edge.type})));
+      const nodeNames = new Map(nodes.map(node => [node.name,node]));
+      if (!nodes.length) {
+        addText(flow,'p','status','Workflow นี้ยังไม่มี Nodes'); status.textContent = 'อ่านรายละเอียดสำเร็จ'; continue;
+      }
+      const incoming = new Set(edges.map(edge => edge.target));
+      const outgoing = new Set(edges.map(edge => edge.source));
+      const ordered = [...nodes].sort((a,b) => {
+        const ay = Number(a.position?.[1] || 0), by = Number(b.position?.[1] || 0);
+        const ax = Number(a.position?.[0] || 0), bx = Number(b.position?.[0] || 0);
+        return ay-by || ax-bx;
+      });
+      for (let i=0;i<ordered.length;i++) {
+        const node = ordered[i];
+        const card = document.createElement('div'); card.className = 'diagram-node';
+        addText(card,'strong','',node.name);
+        addText(card,'small','',node.type);
+        flow.appendChild(card);
+        const next = edges.filter(edge => edge.source === node.name);
+        for (const edge of next) {
+          const connector = document.createElement('div'); connector.className = 'diagram-edge';
+          const destination = nodeNames.get(edge.target);
+          connector.textContent = '↓ ' + (destination ? destination.name : edge.target);
+          flow.appendChild(connector);
+        }
+        if (i < ordered.length-1 && !next.length && !outgoing.has(node.name)) {
+          const note = document.createElement('div'); note.className = 'diagram-edge'; note.textContent = '·';
+          flow.appendChild(note);
+        }
+      }
+      status.textContent = 'โหลดสำเร็จ · ' + nodes.length + ' Nodes · ' + edges.length + ' Connections';
+      $('diagramStatus').textContent = 'แสดงแผนผังจริงของ Workflow ที่เปิดใช้งานแล้ว';
+    } catch (error) {
+      status.textContent = 'ดึงรายละเอียดไม่ได้: ' + (error instanceof Error ? error.message : 'ข้อผิดพลาด');
+    }
+  }
+}
+
+function render() {
+  const query = $('search').value.trim().toLocaleLowerCase('th-TH');
+  const rows = workflows.filter(workflow => workflow.active && [workflow.name, workflow.id, ...(workflow.tags || [])].join(' ').toLocaleLowerCase('th-TH').includes(query));
+  $('list').replaceChildren();
+  void renderActiveDiagram();
+  if (!rows.length) {
+    if (!hasLoaded) showEmpty('กำลังโหลดข้อมูล…', 'กำลังอ่านรายการจาก n8n');
+    else if (lastLoadError) showEmpty('โหลดข้อมูลไม่สำเร็จ', lastLoadError, 'error');
+    else if (!workflows.length) showEmpty('ยังไม่พบ Workflow', 'เชื่อมต่อ API ได้ แต่รายการจริงมี 0 รายการ หากคาดว่าควรมีงาน ให้ตรวจสอบบัญชีหรือ Project ของ API Key');
+    else showEmpty('ไม่พบ Workflow ที่ตรงกับคำค้น', 'ลองใช้คำค้นอื่น หรือเลือกล้างคำค้น');
+    return;
+  }
+  for (const workflow of rows) {
+    const card = document.createElement('article');
+    card.className = 'panel workflow';
+    const content = document.createElement('div');
+    addText(content, 'div', 'wname', workflow.name || 'Workflow ไม่มีชื่อ');
+    let updated = 'ไม่ระบุ';
+    if (workflow.updatedAt) {
+      const date = new Date(workflow.updatedAt);
+      if (!Number.isNaN(date.getTime())) updated = date.toLocaleString('th-TH');
+    }
+    const tags = Array.isArray(workflow.tags) ? workflow.tags.join(', ') : '';
+    addText(content, 'div', 'meta', `ID: ${workflow.id || '—'} · อัปเดต: ${updated}${tags ? ' · Tags: ' + tags : ''}`);
+    card.appendChild(content);
+    const badge = addText(card, 'span', 'badge ' + (workflow.active ? 'active' : 'inactive'), workflow.active ? 'Active · กำลังทำงาน' : 'Inactive · ปิดใช้งาน');
+    badge.setAttribute('aria-label', workflow.active ? 'กำลังทำงาน' : 'ปิดใช้งาน');
+    $('list').appendChild(card);
+  }
+}
+async function checkHealth() {
+  try {
+    const response = await fetch('/api/health', { cache: 'no-store' });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error('gateway health check failed');
+    $('healthDot').className = 'dot ok';
+    $('healthText').textContent = 'Gateway พร้อมใช้งาน';
+    $('connectionHealth').textContent = 'Gateway: พร้อมใช้งาน (HTTP ' + response.status + ')';
+  } catch (_) {
+    $('healthDot').className = 'dot bad';
+    $('healthText').textContent = 'Gateway ติดต่อไม่ได้';
+    $('connectionHealth').textContent = 'Gateway: ติดต่อไม่ได้ กรุณาตรวจสอบบริการบน VPS';
+  }
+}
+async function load() {
+  if (loading) return;
+  loading = true;
+  const buttons = [$('refresh'), ...document.querySelectorAll('.refresh-secondary')];
+  buttons.forEach(button => { button.disabled = true; });
+  $('refresh').textContent = 'กำลังโหลด…';
+  $('overviewStatus').textContent = 'กำลังเรียกข้อมูลจาก n8n…';
+  $('listStatus').textContent = 'กำลังเรียกข้อมูลจาก n8n…';
+  lastLoadError = '';
+  if (!hasLoaded) render();
+  try {
+    const response = await fetch('/api/workflows', { cache: 'no-store' });
+    const data = await response.json();
+    if (!response.ok || !data.ok || !Array.isArray(data.workflows) || !Number.isFinite(data.count)) {
+      throw new Error(typeof data.error === 'string' ? data.error : 'ข้อมูลจาก API ไม่ตรงตามรูปแบบที่คาดไว้');
+    }
+    workflows = data.workflows.map(row => ({
+      id: String(row.id ?? ''), name: String(row.name ?? 'Workflow ไม่มีชื่อ'), active: Boolean(row.active),
+      updatedAt: row.updatedAt ?? null, tags: Array.isArray(row.tags) ? row.tags.map(String) : []
+    }));
+    hasLoaded = true;
+    $('total').textContent = String(data.count);
+    $('activeCount').textContent = String(workflows.filter(workflow => workflow.active).length);
+    $('inactiveCount').textContent = String(workflows.filter(workflow => !workflow.active).length);
+    const checkedAt = new Date().toLocaleString('th-TH');
+    $('overviewStatus').textContent = 'อ่านข้อมูลจาก n8n สำเร็จ';
+    $('lastUpdated').textContent = 'ตรวจสอบล่าสุด: ' + checkedAt;
+    $('listStatus').textContent = 'ข้อมูลจริงจาก n8n · ' + data.count + ' Workflow · ตรวจสอบล่าสุด ' + checkedAt;
+    render();
+  } catch (error) {
+    lastLoadError = error instanceof Error ? error.message : 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ';
+    $('overviewStatus').textContent = 'โหลดข้อมูลไม่สำเร็จ';
+    $('lastUpdated').textContent = 'ไม่สามารถยืนยันข้อมูลล่าสุดได้';
+    $('listStatus').textContent = 'โหลดข้อมูลไม่สำเร็จ';
+    $('total').textContent = $('activeCount').textContent = $('inactiveCount').textContent = '—';
+    if (!hasLoaded) { workflows = []; hasLoaded = true; }
+    render();
+  } finally {
+    loading = false;
+    buttons.forEach(button => { button.disabled = false; });
+    $('refresh').textContent = 'รีเฟรชข้อมูล';
+  }
+}
+
+function workflowSlug(value) {
+  const slug = String(value || '').normalize('NFKD').replace(/[^a-zA-Z0-9ก-๙]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
+  return slug || 'CK-NEXUS-Thai-Workflow';
+}
+function generateDraft() {
+  const prompt = $('prompt').value.trim();
+  if (!prompt) { $('builderStatus').textContent = 'กรุณาอธิบายงานที่ต้องการก่อนสร้างฉบับร่าง'; $('prompt').focus(); return; }
+  if (prompt.length > 4000) { $('builderStatus').textContent = 'คำสั่งยาวเกินขีดจำกัด 4,000 ตัวอักษร'; return; }
+  const name = 'CK-NEXUS · ' + workflowSlug(prompt.slice(0, 70));
+  const workflow = {
+    name,
+    nodes: [{parameters:{},id:'cknexus-manual-trigger',name:'เริ่มทำงานด้วยตนเอง',type:'n8n-nodes-base.manualTrigger',typeVersion:1,position:[240,300]},
+      {parameters:{assignments:{assignments:[{id:'cknexus-request-description',name:'คำสั่งต้นฉบับ',value:prompt,type:'string'}]},options:{}},id:'cknexus-edit-fields',name:'เก็บคำสั่งเริ่มต้น',type:'n8n-nodes-base.set',typeVersion:3.4,position:[500,300]}],
+    connections:{'เริ่มทำงานด้วยตนเอง':{main:[[{node:'เก็บคำสั่งเริ่มต้น',type:'main',index:0}]]}},
+    settings:{executionOrder:'v1'}, pinData:{}, meta:{templateCredsSetupCompleted:false}, tags:[]
+  };
+  const steps = ['เริ่ม Workflow ด้วยการกด Execute workflow ใน n8n', 'เก็บคำสั่งที่คุณพิมพ์ไว้ใน node “เก็บคำสั่งเริ่มต้น”', 'ตรวจสอบและเพิ่ม node/credentials สำหรับบริการจริง ก่อนบันทึกหรือเปิดใช้งาน'];
+  $('draftPlan').replaceChildren();
+  steps.forEach(step => addText($('draftPlan'),'li','',step));
+  $('draftWarnings').textContent = 'ข้อจำกัด: นี่คือแม่แบบฉบับร่างที่สร้างจากคำสั่ง ไม่ใช่ผลจาก LLM และยังไม่มี Gmail/บริการภายนอกเชื่อมต่ออัตโนมัติ';
+  $('draftJson').value = JSON.stringify(workflow,null,2);
+  $('draftResult').hidden = false;
+  $('builderStatus').textContent = 'สร้าง Workflow Draft ในเบราว์เซอร์สำเร็จ · ยังไม่ได้บันทึกเข้าบัญชี n8n';
+}
+$('examplePrompt').addEventListener('click', () => { $('prompt').value = 'สร้าง workflow เริ่มด้วยตนเอง แล้วเก็บคำสั่งและข้อมูลเริ่มต้นเพื่อให้ฉันนำไปต่อยอด'; $('prompt').focus(); });
+$('generateDraft').addEventListener('click', generateDraft);
+$('downloadDraft').addEventListener('click', () => {
+  const text = $('draftJson').value;
+  try { JSON.parse(text); } catch (_) { $('builderStatus').textContent = 'JSON ไม่ถูกต้อง จึงไม่สามารถดาวน์โหลดได้'; return; }
+  const blob = new Blob([text+'\n'],{type:'application/json'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='ck-nexus-workflow-draft.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+});
+$('copyDraft').addEventListener('click', async () => { try { await navigator.clipboard.writeText($('draftJson').value); $('builderStatus').textContent='คัดลอก JSON แล้ว'; } catch (_) { $('draftJson').focus(); $('draftJson').select(); $('builderStatus').textContent='เลือก JSON ไว้แล้ว กรุณาคัดลอกด้วยเมนูของเบราว์เซอร์'; } });
+
+document.querySelectorAll('[data-page]').forEach(button => button.addEventListener('click', () => setPage(button.dataset.page)));
+$('refresh').addEventListener('click', load);
+document.querySelectorAll('.refresh-secondary').forEach(button => button.addEventListener('click', load));
+$('search').addEventListener('input', render);
+$('showAll').addEventListener('click', () => { $('search').value = ''; render(); });
+checkHealth();
+load();
+</script></body></html>

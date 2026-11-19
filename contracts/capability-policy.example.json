@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "capabilities": {
+    "council.engineering.inspect_repo": {
+      "costClass": "free",
+      "requiresCredential": true,
+      "credentialRef": "github.installation_token",
+      "credentialConsumer": "github.app",
+      "requiresSourceEvidence": true,
+      "evidenceKinds": ["git_commit", "artifact"]
+    },
+    "evidence.collect.web_search": {
+      "costClass": "low",
+      "requiresCredential": false,
+      "requiresSourceEvidence": false
+    },
+    "system.budget.top_up": {
+      "costClass": "free",
+      "requiresCredential": false,
+      "requiresSourceEvidence": false,
+      "adminOnly": true
+    }
+  },
+  "agents": {
+    "COUNCIL-01": {"permissions": ["evidence.collect.*"], "domain": "research", "canVeto": []},
+    "COUNCIL-02": {"permissions": ["evidence.collect.*"], "domain": "tooling", "canVeto": []},
+    "COUNCIL-03": {"permissions": ["council.engineering.*"], "domain": "security", "canVeto": ["security", "engineering", "release"]},
+    "COUNCIL-04": {"permissions": [], "domain": "product", "canVeto": []},
+    "OWNER": {"permissions": ["system.budget.top_up"], "domain": "permissions", "canVeto": ["*"]}
+  }
+}

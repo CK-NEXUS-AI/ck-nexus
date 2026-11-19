@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/contracts/connector-fabric.schema.json",
+  "title": "CK-NEXUS Connector Registration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["connector_id", "url", "protocol"],
+  "properties": {
+    "connector_id": {"type": "string", "pattern": "^[A-Za-z0-9_.-]{1,64}$"},
+    "url": {"type": "string", "minLength": 8, "maxLength": 2048},
+    "protocol": {"enum": ["mcp", "openapi"]},
+    "credential_ref": {"type": ["string", "null"], "maxLength": 128},
+    "trust_source": {"enum": ["manual", "trusted_registry", "signed_registry"]},
+    "allow_private_network": {"type": "boolean", "default": false},
+    "allowed_tools": {"type": "array", "maxItems": 512, "items": {"type": "string", "maxLength": 128}},
+    "auto_discover": {"type": "boolean", "default": true},
+    "auto_activate_read_only": {"type": "boolean", "default": false}
+  }
+}

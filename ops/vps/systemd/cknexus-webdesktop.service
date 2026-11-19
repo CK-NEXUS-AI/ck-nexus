@@ -1,0 +1,23 @@
+[Unit]
+Description=CK-NEXUS authenticated web desktop
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/home/kvm/.local/share/cknexus-webdesktop/web-auth.txt
+ConditionPathExists=/home/kvm/.local/share/cknexus-webdesktop/vnc.passwd
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/cknexus-webdesktop-service.sh
+Restart=always
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/home/kvm/.local/share/cknexus-webdesktop /home/kvm/.ICEauthority /home/kvm/.cache /home/kvm/.config /home/kvm/.local /tmp /run/user
+PrivateTmp=false
+
+[Install]
+WantedBy=multi-user.target

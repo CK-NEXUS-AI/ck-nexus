@@ -1,0 +1,25 @@
+[Unit]
+Description=CK-NEXUS Universal Development MCP (loopback)
+After=network.target cknexus-api-gateway.service
+Wants=cknexus-api-gateway.service
+
+[Service]
+Type=simple
+User=cknexus-agent
+Group=cknexus-agent
+WorkingDirectory=/opt/cknexus-mcp
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/opt/cknexus-mcp
+Environment=CKNEXUS_UNIVERSAL_MCP_HOST=127.0.0.1
+Environment=CKNEXUS_UNIVERSAL_MCP_PORT=8765
+ExecStart=/opt/cknexus-mcp-venv/bin/python -m creator_app.agnes.mcp_server
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/cknexus-mcp
+
+[Install]
+WantedBy=multi-user.target

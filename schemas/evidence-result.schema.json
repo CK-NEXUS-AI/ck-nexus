@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ck-nexus.local/schemas/evidence-result.schema.json",
+  "title": "CK-NEXUS Evidence Result",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "phase",
+    "observed_at",
+    "status",
+    "host",
+    "checks",
+    "evidence",
+    "audit",
+    "rollback_plan"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "phase": {
+      "type": "string",
+      "minLength": 1
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "enum": [
+        "PASS",
+        "WARN",
+        "FAIL",
+        "DIFFERENCES_FOUND",
+        "NO_DIFFERENCE"
+      ]
+    },
+    "host": {
+      "type": "string",
+      "minLength": 1
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "status",
+          "detail"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "WARN",
+              "FAIL",
+              "INFO"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "stdout",
+        "stderr",
+        "result",
+        "sha256sums"
+      ],
+      "properties": {
+        "stdout": {
+          "type": "string"
+        },
+        "stderr": {
+          "type": "string"
+        },
+        "result": {
+          "type": "string"
+        },
+        "sha256sums": {
+          "type": "string"
+        },
+        "audit": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "audit": {
+      "type": "object",
+      "required": [
+        "action",
+        "source_mutated",
+        "secrets_recorded"
+      ],
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "source_mutated": {
+          "type": "boolean"
+        },
+        "secrets_recorded": {
+          "const": false
+        },
+        "rollback": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "rollback_plan": {
+      "type": "string"
+    },
+    "details": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

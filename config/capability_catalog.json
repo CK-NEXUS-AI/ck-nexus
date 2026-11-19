@@ -1,0 +1,379 @@
+{
+  "schema_version": "1.0.0",
+  "catalog_name": "CK-NEXUS Unified Capability Catalog",
+  "purpose": "Typed inventory of internal organs and external artifacts. This catalog does not grant execution, credentials, approval, or authority.",
+  "authority_invariant": "CK-NEXUS Core alone owns L3 authority. Every external provider, tool, plugin, connector, skill package, workflow engine, knowledge source, parser, store, and observer has authority_scope NONE.",
+  "artifacts": [
+    {
+      "id": "cknexus-core",
+      "name": "CK-NEXUS Core",
+      "class": "core",
+      "status": "present",
+      "integration_point": "creator_app/control_plane + council_authority + policy/evidence contracts",
+      "authority_scope": "L3",
+      "license": "proprietary",
+      "capabilities": [
+        "state",
+        "memory-policy",
+        "permissions",
+        "execution-grants",
+        "evidence",
+        "release-gates"
+      ],
+      "notes": "Single authority. No external framework or model may override it. Production remains NO-GO until release gates are satisfied."
+    },
+    {
+      "id": "provider-router",
+      "name": "CK-NEXUS Provider Router",
+      "class": "ai_provider",
+      "status": "partial",
+      "integration_point": "creator_app/credentials/capability_router.py + creator_app/providers.py",
+      "authority_scope": "NONE",
+      "license": "internal",
+      "capabilities": [
+        "provider-selection",
+        "model-capability-routing",
+        "fallback-policy"
+      ],
+      "notes": "Gemini Creator inference was verified on 2026-11-01. Other providers require individual inference and routing verification."
+    },
+    {
+      "id": "litellm-gateway",
+      "name": "LiteLLM Gateway",
+      "class": "ai_gateway",
+      "status": "partial",
+      "integration_point": "127.0.0.1:4000 behind CK-NEXUS provider broker",
+      "authority_scope": "NONE",
+      "license": "MIT",
+      "source_url": "https://github.com/BerriAI/litellm",
+      "capabilities": [
+        "unified-provider-api",
+        "routing",
+        "fallbacks",
+        "cost-tracking"
+      ],
+      "notes": "Already installed. Authenticated model listing worked; unauthenticated error path needs Prisma dependency remediation. Do not duplicate with another gateway."
+    },
+    {
+      "id": "connector-fabric",
+      "name": "CK-NEXUS Connector Fabric",
+      "class": "connector",
+      "status": "present",
+      "integration_point": "creator_app/connector_fabric",
+      "authority_scope": "NONE",
+      "license": "internal",
+      "capabilities": [
+        "MCP-discovery",
+        "OpenAPI-discovery",
+        "schema-hash",
+        "risk-classification",
+        "fail-closed-authorization"
+      ],
+      "notes": "Use this as the one connector ingress. Discovered connectors are not automatically activated."
+    },
+    {
+      "id": "mcp-runtime",
+      "name": "CK-NEXUS MCP Runtime",
+      "class": "tool",
+      "status": "partial",
+      "integration_point": "/opt/cknexus-mcp + creator_app/agnes/mcp_server.py",
+      "authority_scope": "NONE",
+      "license": "internal",
+      "capabilities": [
+        "tool-discovery",
+        "task-queue",
+        "provider-status",
+        "browser-tools"
+      ],
+      "notes": "22 tools listed after adding read-only capability catalog and knowledge search/source listing. Tool availability does not imply execution permission."
+    },
+    {
+      "id": "agnes-skills",
+      "name": "AGNES Skill Nervous System",
+      "class": "skill",
+      "status": "present",
+      "integration_point": "creator_app/agnes_skills.py + creator_app/skills/agnes/SKILL.md",
+      "authority_scope": "NONE",
+      "license": "internal",
+      "capabilities": [
+        "skill-manifest",
+        "risk-tags",
+        "capability-tags",
+        "skill-selection",
+        "quarantine-rules"
+      ],
+      "notes": "Skills define procedures; they do not provide credentials or authority."
+    },
+    {
+      "id": "n8n-workflows",
+      "name": "n8n Workflow Engine",
+      "class": "workflow_engine",
+      "status": "partial",
+      "integration_point": "creator_app/n8n_intelligence + local n8n API",
+      "authority_scope": "NONE",
+      "license": "Sustainable Use License (source-available; not OSI open source)",
+      "source_url": "https://github.com/n8n-io/n8n",
+      "capabilities": [
+        "scheduled-workflows",
+        "event-workflows",
+        "API-automation",
+        "human-approval-steps"
+      ],
+      "notes": "Keep n8n as the workflow plane only. Live instance has 2 active workflows but no execution records or configured credentials in the inspected database."
+    },
+    {
+      "id": "global-knowledge",
+      "name": "CK-NEXUS Global Knowledge",
+      "class": "knowledge_source",
+      "status": "partial",
+      "integration_point": "creator_app/global_knowledge + idea_engine/knowledge_fabric.py + idea_engine/knowledge_repository.py",
+      "authority_scope": "NONE",
+      "license": "internal",
+      "capabilities": [
+        "source-provenance",
+        "claims",
+        "contradiction-detection",
+        "freshness",
+        "tenant-filtering",
+        "evidence-lineage",
+        "rights-gated-document-ingestion",
+        "local-document-search"
+      ],
+      "notes": "Knowledge retrieval is not policy authority. E-book ingestion is an additive capability to build."
+    },
+    {
+      "id": "ebook-epub-ingest",
+      "name": "CK-NEXUS EPUB Ingestion Adapter",
+      "class": "document_parser",
+      "status": "present",
+      "integration_point": "creator_app/global_knowledge/ebook_ingest.py",
+      "authority_scope": "NONE",
+      "license": "internal",
+      "capabilities": [
+        "EPUB-metadata",
+        "spine-order",
+        "chapter-extraction",
+        "SHA256-provenance",
+        "archive-bounds",
+        "rights-gated-chunking",
+        "stable-chunk-ids",
+        "paragraph-aware-chunking",
+        "PDF-text-extraction",
+        "SQLite-document-index",
+        "keyword-search",
+        "source-revocation"
+      ],
+      "notes": "Local EPUB/PDF text parser, rights-gated chunker, SQLite document index, keyword search and source revocation. No OCR, embeddings or automatic memory writes."
+    },
+    {
+      "id": "docling",
+      "name": "IBM Docling",
+      "class": "document_parser",
+      "status": "discovery_only",
+      "integration_point": "future optional parser adapter behind Global Knowledge",
+      "authority_scope": "NONE",
+      "license": "MIT (model licenses vary)",
+      "source_url": "https://github.com/docling-project/docling",
+      "capabilities": [
+        "PDF",
+        "EPUB",
+        "DOCX",
+        "PPTX",
+        "XLSX",
+        "OCR",
+        "tables",
+        "MCP"
+      ],
+      "notes": "Strong candidate for a separate document worker. Not installed on the constrained VPS because model/dependency footprint is not yet budgeted."
+    },
+    {
+      "id": "ragflow",
+      "name": "RAGFlow",
+      "class": "agent_framework",
+      "status": "discovery_only",
+      "integration_point": "external knowledge worker behind CK-NEXUS Global Knowledge API",
+      "authority_scope": "NONE",
+      "license": "verify exact edition and release license before adoption",
+      "source_url": "https://github.com/infiniflow/ragflow",
+      "capabilities": [
+        "hybrid-RAG",
+        "document-understanding",
+        "citation-backed-retrieval",
+        "agent-tools"
+      ],
+      "notes": "Official quickstart recommends 16 GB RAM and 50 GB free disk. Not suitable for co-location on this 1.9 GiB RAM VPS."
+    },
+    {
+      "id": "langgraph",
+      "name": "LangGraph",
+      "class": "agent_framework",
+      "status": "discovery_only",
+      "integration_point": "optional worker orchestration adapter; never Core authority",
+      "authority_scope": "NONE",
+      "license": "MIT",
+      "source_url": "https://github.com/langchain-ai/langgraph",
+      "capabilities": [
+        "durable-agent-execution",
+        "checkpointing",
+        "human-in-the-loop"
+      ],
+      "notes": "Do not install as a competing control plane. First compare with existing CK-NEXUS control_plane and AGNES execution."
+    },
+    {
+      "id": "letta-memory",
+      "name": "Letta Agent Memory Runtime",
+      "class": "agent_framework",
+      "status": "discovery_only",
+      "integration_point": "optional isolated agent worker; memory proposals must pass CK-NEXUS memory policy",
+      "authority_scope": "NONE",
+      "license": "verify repository license and deployment dependencies before adoption",
+      "source_url": "https://github.com/letta-ai/letta",
+      "capabilities": [
+        "stateful-agents",
+        "continual-memory",
+        "skills"
+      ],
+      "notes": "Do not allow a second memory authority. Evaluate only as an isolated worker or memory-research source."
+    },
+    {
+      "id": "langfuse-observability",
+      "name": "Langfuse",
+      "class": "observability",
+      "status": "discovery_only",
+      "integration_point": "optional trace exporter from CK-NEXUS observability",
+      "authority_scope": "NONE",
+      "license": "MIT core; optional enterprise governance features differ",
+      "source_url": "https://github.com/langfuse/langfuse",
+      "capabilities": [
+        "LLM-tracing",
+        "prompt-versioning",
+        "evaluation",
+        "experiments"
+      ],
+      "notes": "Potentially useful but full self-host stack is too heavy for current VPS. Prefer existing observability/OpenTelemetry first."
+    },
+    {
+      "id": "activepieces",
+      "name": "Activepieces",
+      "class": "workflow_engine",
+      "status": "discovery_only",
+      "integration_point": "alternative workflow plane only if n8n license/feature gap is proven",
+      "authority_scope": "NONE",
+      "license": "verify exact core and enterprise feature licenses before adoption",
+      "source_url": "https://github.com/activepieces/activepieces",
+      "capabilities": [
+        "visual-workflows",
+        "connectors",
+        "AI-automation"
+      ],
+      "notes": "Do not co-install alongside n8n without a measured need."
+    },
+    {
+      "id": "open-vsx-ai-registry",
+      "name": "Eclipse Open VSX AI Registry",
+      "class": "plugin",
+      "status": "discovery_only",
+      "integration_point": "read-only discovery source for MCP servers, skills, plugins and A2A agents",
+      "authority_scope": "NONE",
+      "license": "verify registry and each artifact license separately",
+      "source_url": "https://ai.open-vsx.org/",
+      "capabilities": [
+        "MCP-server-discovery",
+        "agent-skill-discovery",
+        "plugin-discovery",
+        "A2A-agent-discovery"
+      ],
+      "notes": "Registry metadata is a discovery signal only. Each artifact still requires source, license, checksum, permission and sandbox review."
+    },
+    {
+      "id": "superpowers-skills",
+      "name": "Superpowers Development Skills",
+      "class": "skill",
+      "status": "present",
+      "integration_point": ".agents/skills + skills-lock.json",
+      "authority_scope": "NONE",
+      "license": "review pinned upstream repository license",
+      "source_url": "https://github.com/obra/superpowers",
+      "capabilities": [
+        "test-driven-development",
+        "systematic-debugging",
+        "code-review",
+        "planning",
+        "verification"
+      ],
+      "notes": "Pinned skills are procedures; the lockfile hashes source content. Skills never grant execution authority."
+    },
+    {
+      "id": "d2l-deep-learning-book",
+      "name": "Dive into Deep Learning",
+      "class": "knowledge_source",
+      "status": "discovery_only",
+      "integration_point": "Global Knowledge learning corpus; chapter-level attribution and source hashes required",
+      "authority_scope": "NONE",
+      "license": "CC BY-SA 4.0 book; sample code has separate modified MIT license",
+      "source_url": "https://github.com/d2l-ai/d2l-en",
+      "capabilities": [
+        "deep-learning-foundations",
+        "transformers",
+        "attention",
+        "reinforcement-learning",
+        "PyTorch",
+        "JAX",
+        "TensorFlow"
+      ],
+      "notes": "Free, openly licensed textbook. Not downloaded or ingested yet; verify exact source revision and preserve attribution/share-alike terms."
+    },
+    {
+      "id": "huggingface-transformers-course",
+      "name": "Hugging Face Transformers Course",
+      "class": "knowledge_source",
+      "status": "discovery_only",
+      "integration_point": "Global Knowledge learning corpus; source chapters and license metadata retained",
+      "authority_scope": "NONE",
+      "license": "Apache-2.0",
+      "source_url": "https://github.com/huggingface/course",
+      "capabilities": [
+        "transformers",
+        "datasets",
+        "tokenizers",
+        "accelerate",
+        "LLM-fundamentals",
+        "NLP"
+      ],
+      "notes": "Free and openly licensed course source. Not downloaded or ingested yet; pin revision and retain attribution."
+    },
+    {
+      "id": "poppler-pdf-parser",
+      "name": "Poppler pdftotext",
+      "class": "document_parser",
+      "status": "present",
+      "integration_point": "creator_app/global_knowledge/ebook_ingest.py via bounded subprocess adapter",
+      "authority_scope": "NONE",
+      "license": "GPL-2.0-or-later (system package; not bundled into CK-NEXUS)",
+      "source_url": "https://poppler.freedesktop.org/",
+      "capabilities": [
+        "PDF-text-extraction",
+        "page-preserving-layout",
+        "UTF-8-output"
+      ],
+      "notes": "Local text extraction only with 30-second timeout and size limits. Scanned/image-only PDF requires a separately reviewed OCR worker."
+    },
+    {
+      "id": "ebook-knowledge-store",
+      "name": "CK-NEXUS E-book Knowledge Store",
+      "class": "knowledge_source",
+      "status": "present",
+      "integration_point": "creator_app/global_knowledge/ebook_store.py + cknexus_knowledge_search MCP tool",
+      "authority_scope": "NONE",
+      "license": "internal",
+      "capabilities": [
+        "SQLite-document-store",
+        "lexical-retrieval",
+        "source-revocation",
+        "read-only-MCP-search",
+        "stable-chunk-citations"
+      ],
+      "notes": "Separate from personal memory and policy. The production index is initialized but currently empty; imported documents require an explicit rights basis."
+    }
+  ]
+}

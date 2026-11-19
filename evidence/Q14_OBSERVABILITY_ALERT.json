@@ -1,0 +1,22 @@
+{
+  "alert_delivery": "PASS",
+  "alert_receipt_sha256": "d80114b71d011f1e53111c96beb06c4fb9cc157da85e51e35030f2d70a01324b",
+  "alertmanager_image_id": "sha256:91c01b3cec9b5b3071454a5bf13814e64127ed1601b9afd3b932559945fc9a5e",
+  "alertname": "CKNexusEmailStaleLeases",
+  "artifact_digest": "sha256:64e70f67dd4912c2f4ca4d9a8e39f8752ea888df7b4df259fcbb7237b3101f4c",
+  "artifact_id": 9226096809,
+  "failure_injection": "ckn_email_stale_processing_leases=1",
+  "gate": "Q14",
+  "github_run_id": 31818646706,
+  "health_metrics_check": "PASS",
+  "operator_receiver_class": "staging-webhook-receiver",
+  "production_for_duration": "2m",
+  "production_promotion_allowed": true,
+  "production_rule_file": "observability/alert_rules.yaml",
+  "prometheus_image_id": "sha256:899b369f202e252dfef80f3999e981a3d7fc7445228aa6098177acaf50349a76",
+  "release_subject_manifest_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f",
+  "result": "PASS",
+  "schema_version": 3,
+  "source_sha": "4cf17cd3befaafeaf64cd4c149739133aa220f73",
+  "source_tree": "dfe3888bb6adc9aebbb0351efe4a06006f4e0a48"
+}

@@ -1,0 +1,10 @@
+[Unit]
+Description=Seed one CK-NEXUS proactive development task daily
+
+[Timer]
+OnCalendar=*-*-* 04:20:00 UTC
+Persistent=true
+Unit=cknexus-n8n-proactive.service
+
+[Install]
+WantedBy=timers.target

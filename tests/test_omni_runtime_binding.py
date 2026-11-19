@@ -1,0 +1,239 @@
+from __future__ import annotations
+
+import time
+from dataclasses import replace
+
+import pytest
+
+from creator_app.agnes.execution.omni import (
+    AgentIdentity,
+    CapabilityLease,
+    DelegationContext,
+    EvidenceLevel,
+    OMNIExecutionContext,
+    OmniGateError,
+    PreExecutionRiskVerdict,
+    RiskDecision,
+)
+from creator_app.agnes.execution.request import ExecutorType, SkillExecutionRequest
+
+
+def _request() -> SkillExecutionRequest:
+    return SkillExecutionRequest(
+        execution_id="exec-001",
+        correlation_id="corr-001",
+        skill_id="brain.plan",
+        skill_version="1.0.0",
+        executor=ExecutorType.INTERNAL,
+        goal="test",
+        plan_step={"tool_id": "tool-1", "target_id": "target-1"},
+        inputs={"x": 1},
+        granted_capabilities=("code.read",),
+    )
+
+
+def _context(**changes) -> OMNIExecutionContext:
+    now = time.time()
+    ctx = OMNIExecutionContext(
+        identity=AgentIdentity(
+            "agent-1", "gpt-test", "ck-nexus", "idp:agent-1"
+        ),
+        capability_id="code.read",
+        lease=CapabilityLease(
+            "lease-1", "agent-1", ("code.read",), now - 1, now + 300
+        ),
+        policy_id="policy-1",
+        risk_verdict=PreExecutionRiskVerdict(
+            "rv-1",
+            "exec-001",
+            "agent-1",
+            "code.read",
+            "policy-1",
+            RiskDecision.ALLOW,
+            EvidenceLevel.E1,
+            "LOCAL",
+            "reversible",
+            "none",
+            False,
+        ),
+        tool_id="tool-1",
+        target_id="target-1",
+        runtime_id="runtime-test",
+        verifier_id="verifier-test",
+        evidence_required=True,
+        intent_id="intent-1",
+    )
+    return replace(ctx, **changes)
+
+
+def assert_block(
+    ctx: OMNIExecutionContext,
+    request: SkillExecutionRequest | None = None,
+) -> None:
+    with pytest.raises(OmniGateError):
+        ctx.validate(request or _request())
+
+
+@pytest.mark.parametrize(
+    ("name", "changes"),
+    [
+        pytest.param(
+            "T01 missing agent identity",
+            {"identity": AgentIdentity("", "gpt-test", "ck-nexus", "idp:agent-1")},
+        ),
+        pytest.param(
+            "T02 invalid identity proof",
+            {"identity": AgentIdentity("agent-1", "gpt-test", "ck-nexus", "")},
+        ),
+        pytest.param("T03 missing capability", {"capability_id": ""}),
+        pytest.param(
+            "T04 capability outside lease",
+            {"capability_id": "code.write"},
+        ),
+        pytest.param(
+            "T05 expired lease",
+            {
+                "lease": CapabilityLease(
+                    "lease-1",
+                    "agent-1",
+                    ("code.read",),
+                    time.time() - 300,
+                    time.time() - 1,
+                )
+            },
+        ),
+        pytest.param(
+            "T06 revoked lease",
+            {
+                "lease": CapabilityLease(
+                    "lease-1",
+                    "agent-1",
+                    ("code.read",),
+                    time.time() - 1,
+                    time.time() + 300,
+                    "revoked",
+                )
+            },
+        ),
+        pytest.param(
+            "T07 risk verdict execution mismatch",
+            {
+                "risk_verdict": PreExecutionRiskVerdict(
+                    "rv-1",
+                    "other-exec",
+                    "agent-1",
+                    "code.read",
+                    "policy-1",
+                    RiskDecision.ALLOW,
+                    EvidenceLevel.E1,
+                    "LOCAL",
+                    "reversible",
+                    "none",
+                    False,
+                )
+            },
+        ),
+        pytest.param(
+            "T08 risk verdict agent mismatch",
+            {
+                "risk_verdict": PreExecutionRiskVerdict(
+                    "rv-1",
+                    "exec-001",
+                    "other",
+                    "code.read",
+                    "policy-1",
+                    RiskDecision.ALLOW,
+                    EvidenceLevel.E1,
+                    "LOCAL",
+                    "reversible",
+                    "none",
+                    False,
+                )
+            },
+        ),
+        pytest.param(
+            "T09 risk verdict policy mismatch",
+            {
+                "risk_verdict": PreExecutionRiskVerdict(
+                    "rv-1",
+                    "exec-001",
+                    "agent-1",
+                    "code.read",
+                    "other-policy",
+                    RiskDecision.ALLOW,
+                    EvidenceLevel.E1,
+                    "LOCAL",
+                    "reversible",
+                    "none",
+                    False,
+                )
+            },
+        ),
+        pytest.param(
+            "T10 blocking risk decision",
+            {
+                "risk_verdict": PreExecutionRiskVerdict(
+                    "rv-1",
+                    "exec-001",
+                    "agent-1",
+                    "code.read",
+                    "policy-1",
+                    RiskDecision.BLOCK,
+                    EvidenceLevel.E1,
+                    "LOCAL",
+                    "reversible",
+                    "none",
+                    False,
+                )
+            },
+        ),
+        pytest.param(
+            "T11 approval required without approval",
+            {
+                "risk_verdict": PreExecutionRiskVerdict(
+                    "rv-1",
+                    "exec-001",
+                    "agent-1",
+                    "code.read",
+                    "policy-1",
+                    RiskDecision.REQUIRE_APPROVAL,
+                    EvidenceLevel.E1,
+                    "LOCAL",
+                    "reversible",
+                    "none",
+                    False,
+                )
+            },
+        ),
+        pytest.param(
+            "T12 child capability escalation",
+            {
+                "delegation": DelegationContext(
+                    "parent-1", "parent-agent", (), "agent-1"
+                )
+            },
+        ),
+        pytest.param(
+            "T13 missing parent execution",
+            {
+                "delegation": DelegationContext(
+                    "", "parent-agent", ("code.read",), "agent-1"
+                )
+            },
+        ),
+        pytest.param(
+            "T14 tool target mismatch",
+            {"tool_id": "other-tool", "target_id": "other-target"},
+        ),
+        pytest.param("T15 missing runtime binding", {"runtime_id": ""}),
+        pytest.param("T16 missing verifier", {"verifier_id": ""}),
+        pytest.param("T17 missing evidence requirement", {"evidence_required": False}),
+    ],
+)
+def test_omni_negative_gates(name, changes):
+    assert_block(_context(**changes))
+
+
+def test_t18_production_mutation_is_blocked_by_omni_preflight():
+    request = replace(_request(), environment="production")
+    assert_block(_context(), request)

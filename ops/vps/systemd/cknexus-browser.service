@@ -1,0 +1,22 @@
+[Unit]
+Description=CK-NEXUS Persistent Headless Browser Automation
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/lib/cknexus-browser
+Environment=HOME=/root
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /usr/local/libexec/cknexus-browser-daemon.cjs
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+KillSignal=SIGTERM
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

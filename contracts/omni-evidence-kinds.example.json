@@ -1,0 +1,4 @@
+{
+  "code.read": ["git_commit", "artifact"],
+  "council.engineering.inspect_repo": ["git_commit", "artifact"]
+}

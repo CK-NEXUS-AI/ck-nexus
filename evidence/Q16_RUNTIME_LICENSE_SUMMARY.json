@@ -1,0 +1,13 @@
+{
+  "artifact_digest": "sha256:89e799dcc1c152394711e1bf6bd260f5c7cabeafffd44752220db15fcf3d163e",
+  "artifact_id": 9225934333,
+  "gate": "Q16_RUNTIME_LICENSES",
+  "github_run_id": 31818388980,
+  "release_subject_manifest_sha256": "96dcd0f0f93b1aaa69e88da30fedcce1b786b51b83f36b72baf7ac910d02b04f",
+  "result": "PASS",
+  "runtime_distribution_count": 55,
+  "schema_version": 1,
+  "scope": "exact installed production Docker runtime; CK-NEXUS proprietary distribution excluded",
+  "source_sha": "4cf17cd3befaafeaf64cd4c149739133aa220f73",
+  "unresolved_license_evidence": []
+}

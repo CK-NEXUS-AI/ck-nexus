@@ -1,0 +1,13 @@
+[Unit]
+Description=CK-Nexus post-boot verification
+After=n8n.service docker.service network-online.target
+Wants=network-online.target
+ConditionPathExists=!/root/.cknexus-postboot-done
+
+[Service]
+Type=oneshot
+ExecStart=/root/cknexus-postboot-verify.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
