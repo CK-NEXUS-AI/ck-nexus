@@ -282,7 +282,7 @@ jobs:
             -c 'CREATE DATABASE cknexus_restore_dr;'
       - name: Run destructive isolated DR gate
         run: |
-          python scripts/gate_postgres_dr.py | tee Q13_POSTGRES_DR.json
+          PYTHONPATH=. python scripts/gate_postgres_dr.py | tee Q13_POSTGRES_DR.json
           python - <<'PY'
           import json
           x=json.load(open('Q13_POSTGRES_DR.json'))
