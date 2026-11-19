@@ -1383,12 +1383,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/dev-status", dependencies=[Depends(require_access_token)])
     async def development_status_snapshot() -> JSONResponse:
         """Serve the collector snapshot only; never execute host commands in a request."""
-        status_path = FilePath(
-            os.getenv(
-                "CKNEXUS_DEV_STATUS_FILE",
-                str(FilePath.cwd() / "data" / "dev_status.json"),
-            )
-        )
+        status_path = FilePath(__file__).resolve().parents[1] / "data" / "dev_status.json"
         try:
             payload = json.loads(status_path.read_text(encoding="utf-8"))
             if (
