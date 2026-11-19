@@ -1,0 +1,60 @@
+name: Repository File Retention Audit
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/repo_file_retention_audit.py'
+      - '.github/workflows/repo-file-retention-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout audit candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+
+      - name: Fetch canonical main and all branch refs read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*'
+
+      - name: Audit every tracked file on canonical main
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/repo_file_retention_audit.py             --ref origin/main             --out-dir repo-audit
+
+      - name: Verify audit did not mutate tracked worktree
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain --untracked-files=no)"
+          test -f repo-audit/repo-file-audit.json
+          test -f repo-audit/repo-file-audit.csv
+          test -f repo-audit/repo-file-audit.md
+
+      - name: Upload read-only audit artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: repo-file-retention-audit-${{ github.sha }}
+          path: repo-audit/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Audit boundary
+        run: |
+          echo 'Read-only inventory only.'
+          echo 'No file, branch, evidence, gate, secret, or Production state was mutated.'
