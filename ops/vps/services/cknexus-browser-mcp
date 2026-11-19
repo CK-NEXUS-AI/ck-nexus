@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Narrow privileged wrapper for CK-NEXUS read-only browser automation."""
+
 from __future__ import annotations
 
+import base64
 import ipaddress
-import re
+import json
+import stat
 import subprocess
 import sys
 import tempfile
@@ -11,6 +14,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 HELPER = "/usr/local/bin/cknexus-browser"
+PRIVATE_TMP_ROOT = "/run"
 ALLOWED_HOSTS = {
     "github.com",
     "docs.github.com",
@@ -41,12 +45,57 @@ def valid_url(value: str) -> bool:
         return False
 
 
+def _run_helper(action: str, argument: str | None = None) -> subprocess.CompletedProcess[str]:
+    args = [HELPER, action]
+    if argument is not None:
+        args.append(argument)
+    return subprocess.run(
+        args,
+        capture_output=True,
+        text=True,
+        timeout=32,
+        check=False,
+        shell=False,
+    )
+
+
+def _capture_screenshot() -> int:
+    """Capture under a root-private directory; never accept a caller path."""
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix="cknexus-browser-mcp-", dir=PRIVATE_TMP_ROOT
+        ) as private_dir:
+            screenshot_path = Path(private_dir) / "capture.png"
+            result = _run_helper("screenshot", str(screenshot_path))
+            if result.returncode:
+                if result.stderr:
+                    print(result.stderr[:1000], file=sys.stderr)
+                return result.returncode
+            file_stat = screenshot_path.lstat()
+            if not stat.S_ISREG(file_stat.st_mode):
+                print("Browser screenshot output is not a regular file.", file=sys.stderr)
+                return 3
+            try:
+                helper_payload = json.loads(result.stdout) if result.stdout.strip() else {}
+            except json.JSONDecodeError:
+                helper_payload = {"helper_result": result.stdout[:4000]}
+            payload = helper_payload if isinstance(helper_payload, dict) else {}
+            image_bytes = screenshot_path.read_bytes()
+            payload["screenshot_base64"] = base64.b64encode(image_bytes).decode("ascii")
+            payload["screenshot_mime_type"] = "image/png"
+            print(json.dumps(payload, separators=(",", ":")))
+            return 0
+    except (OSError, ValueError, TypeError, subprocess.TimeoutExpired):
+        print("Browser screenshot capture failed safely.", file=sys.stderr)
+        return 3
+
+
 def main() -> int:
     if len(sys.argv) < 2 or sys.argv[1] not in ACTIONS:
         print("Denied browser action.", file=sys.stderr)
         return 2
     action = sys.argv[1]
-    expected = 3 if action in {"open", "screenshot"} else 2
+    expected = 3 if action == "open" else 2
     if len(sys.argv) != expected:
         print("Invalid browser arguments.", file=sys.stderr)
         return 2
@@ -54,25 +103,9 @@ def main() -> int:
         print("Denied URL.", file=sys.stderr)
         return 2
     if action == "screenshot":
-        screenshot = Path(sys.argv[2])
-        if (
-            screenshot.parent != Path(tempfile.gettempdir())
-            or not re.fullmatch(r"cknexus-browser-mcp-[A-Za-z0-9_-]{1,64}\.png", screenshot.name)
-        ):
-            print("Denied screenshot path.", file=sys.stderr)
-            return 2
-    args = [HELPER, action]
-    if len(sys.argv) == 3:
-        args.append(sys.argv[2])
+        return _capture_screenshot()
     try:
-        result = subprocess.run(
-            [HELPER, action, *args[2:]],
-            capture_output=True,
-            text=True,
-            timeout=32,
-            check=False,
-            shell=False,
-        )
+        result = _run_helper(action, sys.argv[2] if action == "open" else None)
     except (OSError, subprocess.TimeoutExpired):
         print("Browser helper unavailable or timed out.", file=sys.stderr)
         return 3

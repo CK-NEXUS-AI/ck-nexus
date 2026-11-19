@@ -19,9 +19,7 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -1003,18 +1001,6 @@ def _run_browser_tool(action: str, argument: str | None = None) -> dict[str, Any
             "execution_state": "NOT_EXECUTED",
             "secret_values_exposed": False,
         }
-    if action == "screenshot" and (
-        argument is None
-        or Path(argument).parent != Path(tempfile.gettempdir())
-        or not re.fullmatch(r"cknexus-browser-mcp-[A-Za-z0-9_-]{1,64}\.png", Path(argument).name)
-    ):
-        return {
-            "ok": False,
-            "error_code": "SCREENSHOT_PATH_DENIED",
-            "message": "Screenshot path is not an approved temporary path.",
-            "execution_state": "NOT_EXECUTED",
-            "secret_values_exposed": False,
-        }
     command = ["sudo", "-n", _BROWSER_WRAPPER, action]
     if argument is not None:
         command.append(argument)
@@ -1109,25 +1095,8 @@ def cknexus_browser_read_page() -> dict[str, Any]:
 
 @mcp.tool()
 def cknexus_browser_screenshot() -> dict[str, Any]:
-    """Capture the current browser page using a secure process-scoped temp file."""
-    try:
-        descriptor, reserved_path = tempfile.mkstemp(
-            prefix="cknexus-browser-mcp-", suffix=".png", dir=tempfile.gettempdir()
-        )
-        os.close(descriptor)
-    except OSError:
-        return {
-            "ok": False,
-            "error_code": "SCREENSHOT_PATH_UNAVAILABLE",
-            "message": "A secure temporary screenshot path could not be reserved.",
-            "execution_state": "NOT_EXECUTED",
-            "secret_values_exposed": False,
-        }
-    screenshot_path = Path(reserved_path)
-    try:
-        return _run_browser_tool("screenshot", str(screenshot_path))
-    finally:
-        screenshot_path.unlink(missing_ok=True)
+    """Capture a screenshot; the privileged wrapper owns all output paths."""
+    return _run_browser_tool("screenshot")
 
 
 @mcp.tool()
