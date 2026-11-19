@@ -15,7 +15,7 @@ SPEC.loader.exec_module(collector)
 def test_output_path_is_not_overridden_by_environment(monkeypatch) -> None:
     monkeypatch.setenv("CKNEXUS_DEV_STATUS_FILE", "/tmp/attacker-controlled.json")
     assert collector.OUTPUT == collector.ROOT / "data" / "dev_status.json"
-    assert collector.OUTPUT != Path("/tmp/attacker-controlled.json")
+    assert Path("/tmp/attacker-controlled.json") != collector.OUTPUT
 
 
 def test_collector_command_success_json(monkeypatch) -> None:
