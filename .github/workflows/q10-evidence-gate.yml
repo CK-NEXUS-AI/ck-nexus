@@ -1,6 +1,9 @@
 name: Q10 Open-Source Layered Security Gate
 
 on:
+  push:
+    branches:
+      - fix/q10-gate-medium-and-report-20261119
   workflow_dispatch:
     inputs:
       target_sha:
